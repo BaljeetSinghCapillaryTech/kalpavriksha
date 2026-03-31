@@ -38,7 +38,11 @@ Append to the following sections in `session-memory.md`:
 
 ## Step 1: Research Current Behaviour (Before Any Analysis)
 
-**First, check the Product Registry for product-level context:**
+**First, read the BRD:**
+
+If `brd-raw.md` exists in the artifacts path, read it — this is the primary requirement input (already extracted from PDF/DOCX/text by the workflow orchestrator). If it doesn't exist, treat the user's conversation text as the requirement.
+
+**Then, check the Product Registry for product-level context:**
 
 If `docs/product/registry.md` exists, read it before anything else:
 - Identify which modules are relevant to this requirement (by capability, domain entity, or integration adjacency)
@@ -135,7 +139,7 @@ Agent tool:
     QUESTION: [the specific technical question]
     CONTEXT: [relevant context from the BRD]
 
-    Research the codebase (grep, file reads, LSP if available) to answer this question.
+    Research the codebase using jdtls (preferred) or grep and file reads. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for semantic queries — symbol search, go-to-definition, find-references, incoming call chains — before falling back to grep.
 
     Return:
     ARCHITECT_CONSULT:

@@ -10,15 +10,51 @@ Orchestrate the full multi-phase development workflow. Each phase adopts its own
 ## Invocation
 
 ```
-/workflow <artifacts-path> [skip:analyst] [skip:sdet]
+/workflow <artifacts-path> [brd:<path-or-text>] [skip:analyst] [skip:sdet]
 ```
 
 Examples:
-- `/workflow docs/workflow/TICKET-123/` — full workflow
-- `/workflow docs/workflow/TICKET-123/ skip:analyst` — skip impact analysis
-- `/workflow docs/workflow/TICKET-123/ skip:analyst,sdet` — skip both optional phases
+- `/workflow docs/workflow/TICKET-123/` — full workflow, BRD provided as conversation text
+- `/workflow docs/workflow/TICKET-123/ brd:downloads/feature-spec.pdf` — BRD from PDF
+- `/workflow docs/workflow/TICKET-123/ brd:docs/requirements.docx` — BRD from Word doc
+- `/workflow docs/workflow/TICKET-123/ skip:analyst,sdet` — skip optional phases
 
 If no artifacts path is provided, ask the user for one before starting.
+
+### BRD Input Resolution
+
+The workflow needs a BRD (Business Requirements Document) as input for BA and ProductEx. Resolve it in this order:
+
+1. **`brd:` parameter provided with a file path** — detect format by extension:
+   - `.pdf` → use the PDF skill to read and extract text
+   - `.docx` → use the DOCX skill to read and extract text
+   - `.md` or `.txt` → read the file directly
+   - Any other extension → attempt to read as plain text; if it fails, ask the user for the correct format
+
+2. **`brd:` parameter not provided** — check conversation context:
+   - If the user pasted BRD text in the conversation before invoking `/workflow` → use that text
+   - If no BRD text is visible in conversation → prompt the user:
+
+   ```
+   📄 No BRD detected. Please provide the requirements in one of these ways:
+      1. Paste the BRD text here
+      2. Provide a file path: `/workflow <path> brd:path/to/file.pdf`
+      3. Provide a file path: `/workflow <path> brd:path/to/file.docx`
+   ```
+
+   Do not proceed until the BRD is available.
+
+3. **After extraction** — save the raw BRD content to `<artifacts-path>/brd-raw.md` for traceability. This becomes the single source of truth that BA and ProductEx both reference. If the original was PDF/DOCX, note the source file path at the top:
+   ```markdown
+   > Source: [original file path]
+   > Format: [PDF | DOCX | text]
+   > Extracted: [timestamp]
+
+   ---
+   [extracted BRD content]
+   ```
+
+Do not proceed to Step -1 (LSP init) until BRD input is resolved and `brd-raw.md` is written.
 
 ## Phase Sequence
 
@@ -122,12 +158,9 @@ Agent tool:
 
     Artifacts path: <artifacts-path>
     Session memory: <artifacts-path>/session-memory.md
+    BRD file: <artifacts-path>/brd-raw.md
 
-    The user has provided the following BRD/requirement:
-    ---
-    <paste the raw BRD/requirement text here>
-    ---
-
+    Read the BRD from brd-raw.md (already extracted and saved by the orchestrator).
     Follow ProductEx brd-review mode exactly as defined in the skill.
     Read the product registry, official docs, and docs/product/ files.
     Analyse the BRD against all knowledge sources.
@@ -136,7 +169,7 @@ Agent tool:
     Return the structured summary.
 ```
 
-**2. Start BA interactively in the main context** — BA proceeds with its Step 1 (research) and Step 2 (analysis) while ProductEx works in the background.
+**2. Start BA interactively in the main context** — BA reads `brd-raw.md` as its primary input, then proceeds with Step 1 (research) and Step 2 (analysis) while ProductEx works in the background.
 
 BA will internally consult ProductEx (consult mode) and Architect (research-only mode) during its Step 3. See the BA skill for the full consultation protocol.
 
@@ -472,6 +505,7 @@ Do not proceed until the user makes a decision. Implement their choice, then con
 
 | Phase | Artifact | Session Memory Sections Written |
 |---|---|---|
+| Orchestrator (pre-phase) | `brd-raw.md` | _(none — raw input only)_ |
 | ProductEx BRD Review | `brdQnA.md` | Domain Terminology, Codebase Behaviour |
 | BA | `00-ba.md` + `docs/product/<feature>.md` | Terminology, Codebase Behaviour, Constraints, Key Decisions, Open Questions |
 | Architect | `01-architect.md` | Codebase Behaviour, Key Decisions, Constraints, Open Questions |

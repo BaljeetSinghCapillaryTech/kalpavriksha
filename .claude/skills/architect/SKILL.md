@@ -52,7 +52,7 @@ If relevant prior sessions are found, use `inspect` to read them. Treat prior AD
 
 If historian is unavailable or returns nothing relevant, proceed directly to codebase research below.
 
-1. Search the codebase using grep and targeted file reads:
+1. Search the codebase using jdtls (preferred) or grep and targeted file reads. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for semantic queries — symbol search, go-to-definition, find-references, incoming call chains — before falling back to grep:
    - Module and package structure
    - Existing patterns (how similar problems were solved before)
    - Naming conventions and domain language in use

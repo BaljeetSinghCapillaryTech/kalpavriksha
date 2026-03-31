@@ -53,7 +53,7 @@ If `docs/product/registry.md` exists:
 If the registry is absent, proceed with codebase-only analysis and note the gap.
 
 ## Context
-- Search the codebase using grep and targeted file reads. Use call graphs and reference searches over loading large files.
+- Search the codebase using jdtls (preferred) or grep and targeted file reads. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for semantic queries — find-references, incoming call chains, symbol search — before falling back to grep. Use call graphs and reference searches over loading large files.
 - Use terminal output when analyzing test/build failures.
 - When artifacts path provided, read `00-ba.md`, `01-architect.md`, and `session-memory.md`; output to `02-analyst.md`.
 

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIDLC Skill Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #58a6ff;
+    }
+    .subtitle {
+      text-align: center;
+      color: #8b949e;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .chart-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    .chart-section h2 {
+      color: #58a6ff;
+      font-size: 1.3rem;
+      margin-bottom: 0.4rem;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 0.5rem;
+    }
+    .chart-section p {
+      color: #8b949e;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      padding: 1rem 0;
+    }
+    .mermaid svg {
+      max-width: 100%;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #30363d;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    th { background: #21262d; color: #58a6ff; }
+    td { color: #c9d1d9; }
+    tr:nth-child(even) td { background: #161b22; }
+    tr:nth-child(odd) td { background: #0d1117; }
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0.6rem 1rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      z-index: 100;
+      justify-content: center;
+    }
+    .nav a {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .nav a:hover { background: #21262d; }
+    .spacer { height: 3.5rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="#chart1">Workflow</a>
+    <a href="#chart2">BA Consultations</a>
+    <a href="#chart3">Verification Cycle</a>
+    <a href="#chart4">ProductEx Modes</a>
+    <a href="#chart5">Artifacts Flow</a>
+    <a href="#chart6">Rework Loop</a>
+    <a href="#chart7">Communication Map</a>
+    <a href="#tables">Tables</a>
+  </nav>
+  <div class="spacer"></div>
+
+  <h1>AIDLC Skill Architecture</h1>
+  <p class="subtitle">Complete communication map of all skills, artifacts, and interaction patterns</p>
+
+  <!-- 1. Complete Workflow -->
+  <div class="chart-section" id="chart1">
+    <h2>1. Complete Workflow — High-Level Flow</h2>
+    <p>End-to-end from initialisation to merge-ready, including parallel Phase 00 and the verification cycle</p>
+    <pre class="mermaid">
+flowchart TB
+    subgraph INIT["Initialisation"]
+        LSP["Step -1: LSP Init"]
+        SM["Step 0: Init session-memory.md"]
+        LSP --> SM
+    end
+
+    subgraph PHASE00["Phase 00 — Parallel Execution"]
+        direction LR
+        subgraph BA_TRACK["BA Track &lpar;interactive&rpar;"]
+            BA_R["1. Research"]
+            BA_A["2. Analyse"]
+            BA_C["3. Consult"]
+            BA_Q["4. User Q&A"]
+            BA_O["5. Output 00-ba.md"]
+            BA_R --> BA_A --> BA_C --> BA_Q --> BA_O
+        end
+        subgraph PEX_TRACK["ProductEx Track &lpar;background&rpar;"]
+            PEX_BRD["BRD Review → brdQnA.md"]
+        end
+    end
+
+    REVIEW_GATE{"Review Gate\nCheck blocking gaps"}
+
+    subgraph VERIFY_CYCLE["Architect-Analyst-ProductEx Verification &lpar;max 3 cycles&rpar;"]
+        ARCH["Phase 01: Architect\n01-architect.md"]
+        ANALYST["Phase 02: Analyst\nImpact Analysis"]
+        PEX_V["ProductEx Verify"]
+        ANALYST --> PEX_V
+        PEX_V -->|changes needed| ARCH
+        PEX_V -->|approved| PASS["Verification Passed"]
+    end
+
+    DESIGNER["Phase 03: Designer"]
+    QA_PHASE["Phase 04: QA"]
+    DEV["Phase 05: Developer &lpar;interactive&rpar;"]
+    SDET["Phase 06: SDET"]
+    REVIEWER["Phase 07: Reviewer"]
+    MERGE(["Merge Ready"])
+
+    INIT --> PHASE00
+    BA_O --> REVIEW_GATE
+    PEX_BRD --> REVIEW_GATE
+    REVIEW_GATE -->|clear| ARCH
+    REVIEW_GATE -->|blocking gaps| HUMAN_R["Human resolves"]
+    HUMAN_R --> ARCH
+    ARCH --> ANALYST
+    PASS --> DESIGNER
+    DESIGNER --> QA_PHASE --> DEV --> SDET --> REVIEWER --> MERGE
+
+    style PHASE00 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style VERIFY_CYCLE fill:#16213e,stroke:#0f3460,color:#fff
+    style INIT fill:#0f3460,stroke:#533483,color:#fff
+    style REVIEW_GATE fill:#e94560,stroke:#fff,color:#fff
+    style MERGE fill:#2ecc71,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- 2. BA Consultations -->
+  <div class="chart-section" id="chart2">
+    <h2>2. BA Internal Consultation Protocol (Phase 00 — Step 3)</h2>
+    <p>How BA routes questions: product → ProductEx, code → Architect, business intent → human</p>
+    <pre class="mermaid">
+flowchart TB
+    START["BA Step 2 Complete\nConcerns classified"] --> CLASSIFY{"Classify\nconcern type"}
+
+    CLASSIFY -->|"Product concern"| PEX["Spawn ProductEx\nconsult mode"]
+    CLASSIFY -->|"Code/backend concern"| ARCH["Spawn Architect\nresearch-only"]
+    CLASSIFY -->|"Business intent"| HUMAN["Ask User\none at a time"]
+
+    PEX --> PEX_R{"ProductEx\nresponse?"}
+    PEX_R -->|resolved| USE_P["BA uses answer\nwith source citation"]
+    PEX_R -->|unresolved| BRD["Added to brdQnA.md\nfor product team"]
+
+    ARCH --> ARCH_R{"Architect\nresponse?"}
+    ARCH_R -->|resolved| USE_A["BA uses answer\nwith code evidence"]
+    ARCH_R -->|unresolved| PAUSE["WORKFLOW PAUSES\nEscalate to Human"]
+
+    PAUSE --> H_INPUT{"Human\nresponds?"}
+    H_INPUT -->|answer| RESUME["BA incorporates\nresumes"]
+    H_INPUT -->|skip| OPEN["Mark as open\nquestion"]
+
+    USE_P --> NEXT["Next concern"]
+    USE_A --> NEXT
+    BRD --> NEXT
+    RESUME --> NEXT
+    OPEN --> NEXT
+    HUMAN --> NEXT
+
+    NEXT --> DONE{"All\nresolved?"}
+    DONE -->|no| CLASSIFY
+    DONE -->|yes| STEP4["Step 4: User Q&A\nremaining Qs only"]
+
+    style PAUSE fill:#e74c3c,stroke:#fff,color:#fff
+    style BRD fill:#f39c12,stroke:#fff,color:#fff
+    style PEX fill:#3498db,stroke:#fff,color:#fff
+    style ARCH fill:#9b59b6,stroke:#fff,color:#fff
+    style HUMAN fill:#2ecc71,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- 3. Verification Cycle -->
+  <div class="chart-section" id="chart3">
+    <h2>3. Architect-Analyst-ProductEx Verification Cycle</h2>
+    <p>The 3-cycle max loop ensuring Architect's solution fulfils product requirements</p>
+    <pre class="mermaid">
+flowchart TB
+    ARCH["Architect produces\n01-architect.md"] --> U1{"User\napproves?"}
+    U1 -->|continue| STAGE1
+
+    subgraph ANALYST_WORK["Analyst Phase 02"]
+        STAGE1["Stage 1: Impact Analysis\nblast radius, security, risks"]
+        STAGE1 --> STAGE2["Stage 2: Spawn\nProductEx verify"]
+    end
+
+    STAGE2 --> VERDICT{"ProductEx\nverdict?"}
+
+    VERDICT -->|approved| OK["Analyst returns\ncomplete + verification"]
+    VERDICT -->|changes needed| BLOCK["Analyst raises BLOCKER\nImpact + Product issues\nwith evidence chain"]
+
+    OK --> SHOW_OK["Show user:\nfindings + approval"] --> NEXT["Proceed to Designer"]
+
+    BLOCK --> SHOW["Show user: Cycle N/3\nIssues + Evidence\n+ Suggested directions"]
+
+    SHOW --> CK{"Cycle\ncount?"}
+
+    CK -->|"< 3"| APPROVE{"User approves\nrework?"}
+    APPROVE -->|continue| RERUN["Architect re-runs\nwith evidence + directions"]
+    APPROVE -->|resolve| MANUAL["Human takes\nmanual control"]
+    RERUN --> ARCH
+
+    CK -->|"= 3"| ESC["HUMAN ESCALATION\n3 cycles exhausted"]
+    ESC --> OPT["Options:\nA. Manual adjust\nB. Accept with risks\nC. Revisit BA\nD. Consult product team"]
+    OPT --> DECIDE["Human decides"] --> CONT["Continue workflow"]
+
+    style ANALYST_WORK fill:#1a1a2e,stroke:#e94560,color:#fff
+    style ESC fill:#e74c3c,stroke:#fff,color:#fff
+    style OK fill:#2ecc71,stroke:#fff,color:#000
+    style BLOCK fill:#e67e22,stroke:#fff,color:#fff
+    style STAGE2 fill:#3498db,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- 4. ProductEx Modes -->
+  <div class="chart-section" id="chart4">
+    <h2>4. ProductEx — All Modes and Touchpoints</h2>
+    <p>7 modes across user-invokable and workflow-internal, with knowledge sources</p>
+    <pre class="mermaid">
+flowchart TB
+    subgraph UMODES["User-Invokable Modes"]
+        D["/productex discover\nBuild registry"]
+        Q["/productex query\nAnswer questions"]
+        M["/productex map\nDeep-dive module"]
+        B["/productex brief\nFeature brief"]
+    end
+
+    subgraph WMODES["Workflow-Internal Modes"]
+        BR["brd-review\nParallel BRD analysis\n→ brdQnA.md"]
+        CO["consult\nAnswer BA query\nor add to brdQnA.md"]
+        VE["verify\nCheck solution vs\nproduct requirements"]
+    end
+
+    subgraph KNOWLEDGE["Knowledge Sources"]
+        REG["docs/product/\nregistry.md"]
+        DOCS["docs.capillarytech.com"]
+        CODE["Codebase"]
+        PDOCS["docs/product/\nfeature files"]
+    end
+
+    subgraph TRIGGERS["Triggered By"]
+        USER(("Human"))
+        ORCH["Orchestrator"]
+        BA["BA Phase 00"]
+        ANA["Analyst Phase 02"]
+    end
+
+    USER --> D & Q & M & B
+    ORCH -->|Phase 00 parallel| BR
+    BA -->|product concern| CO
+    ANA -->|verify solution| VE
+
+    D & Q & M & B & BR & CO & VE --> REG
+    D --> DOCS & CODE
+    Q -.->|fallback| DOCS
+    M --> DOCS & CODE
+    BR --> DOCS & PDOCS
+    CO --> DOCS & PDOCS
+    VE --> DOCS
+
+    BR -->|writes| BRDQ["brdQnA.md"]
+    CO -->|if unresolved| BRDQ
+
+    style WMODES fill:#16213e,stroke:#0f3460,color:#fff
+    style UMODES fill:#1a1a2e,stroke:#533483,color:#fff
+    style KNOWLEDGE fill:#0f3460,stroke:#e94560,color:#fff
+    </pre>
+  </div>
+
+  <!-- 5. Artifacts Flow -->
+  <div class="chart-section" id="chart5">
+    <h2>5. Artifact & Session Memory Flow</h2>
+    <p>Which phase writes which artifacts and session memory sections</p>
+    <pre class="mermaid">
+flowchart LR
+    subgraph PHASES["Phases"]
+        direction TB
+        PBR["ProductEx\nBRD Review"]
+        BA["BA"]
+        AR["Architect"]
+        AN["Analyst"]
+        DE["Designer"]
+        QA["QA"]
+        DV["Developer"]
+        SD["SDET"]
+        RV["Reviewer"]
+    end
+
+    subgraph ARTIFACTS["Artifacts"]
+        direction TB
+        BQ["brdQnA.md"]
+        A0["00-ba.md"]
+        PD["docs/product/\nfeature.md"]
+        A1["01-architect.md"]
+        A2["02-analyst.md"]
+        A3["03-designer.md"]
+        A4["04-qa.md"]
+        A5["05-developer.md"]
+        A6["06-sdet.md"]
+        A7["07-reviewer.md"]
+    end
+
+    subgraph SESSION["Session Memory Sections"]
+        direction TB
+        DT["Domain\nTerminology"]
+        CB["Codebase\nBehaviour"]
+        KD["Key\nDecisions"]
+        CO["Constraints"]
+        RC["Risks &\nConcerns"]
+        OQ["Open\nQuestions"]
+    end
+
+    PBR --> BQ
+    PBR --> DT & CB
+
+    BA --> A0 & PD
+    BA --> DT & CB & CO & KD & OQ
+
+    AR --> A1
+    AR --> CB & KD & CO & OQ
+
+    AN --> A2
+    AN --> CB & RC & CO & OQ
+
+    DE --> A3
+    DE --> KD & CO & OQ
+
+    QA --> A4
+    QA --> RC & OQ
+
+    DV --> A5
+    DV --> CB & KD & CO & RC
+
+    SD --> A6
+    SD --> CO & OQ
+
+    RV --> A7
+    RV --> RC & OQ & KD
+
+    style PHASES fill:#0f3460,stroke:#533483,color:#fff
+    style ARTIFACTS fill:#1a1a2e,stroke:#e94560,color:#fff
+    style SESSION fill:#16213e,stroke:#0f3460,color:#fff
+    </pre>
+  </div>
+
+  <!-- 6. Rework Loop -->
+  <div class="chart-section" id="chart6">
+    <h2>6. Blocker & Rework Loop</h2>
+    <p>How blockers are classified, cascade rules, and circuit breaker logic</p>
+    <pre class="mermaid">
+flowchart TB
+    BL["Phase X raises BLOCKER\nTARGET = Phase N"] --> CHK{"Rework Log:\nPhase N re-run\ncount?"}
+
+    CHK -->|">= 2"| CB["CIRCUIT BREAKER\nEscalate to Human"]
+    CHK -->|"< 2"| SEV{"Orchestrator\nclassifies severity"}
+
+    SEV -->|trivial| TRV["Auto re-run Phase N\nwith blocker appended"]
+    SEV -->|critical| CRT["Pause for\nuser approval"]
+
+    CRT --> UA["User approves"] --> RR["Re-run Phase N"]
+    TRV --> CAS["Cascade through\nintermediate phases"]
+    RR --> PC["Pause: cascade?"] --> CAS
+
+    CAS --> UL["Update Rework Log"] --> RET["Return to Phase X"]
+
+    CB --> OPT["Options:\nA. Revisit earlier phase\nB. Accept deviation\nC. Mark as risk\nD. Other"]
+
+    subgraph CASCADE["Cascade Rules"]
+        direction TB
+        R0["BA re-run → Arch → Analyst → Designer → QA"]
+        R1["Architect re-run → Analyst → Designer → QA"]
+        R2["Analyst re-run → Designer → QA"]
+        R3["Designer re-run → QA"]
+        R4["QA re-run → Developer directly"]
+        R5["Developer re-run → SDET"]
+    end
+
+    style CB fill:#e74c3c,stroke:#fff,color:#fff
+    style TRV fill:#f39c12,stroke:#fff,color:#fff
+    style CRT fill:#e67e22,stroke:#fff,color:#fff
+    style CASCADE fill:#0f3460,stroke:#533483,color:#fff
+    </pre>
+  </div>
+
+  <!-- 7. Communication Map -->
+  <div class="chart-section" id="chart7">
+    <h2>7. Complete Skill Communication Map</h2>
+    <p>Every skill-to-skill connection: subagent spawns, blockers, shared state</p>
+    <pre class="mermaid">
+graph TB
+    HUMAN(("Human"))
+    ORCH["Workflow\nOrchestrator"]
+
+    subgraph STANDALONE["Standalone"]
+        DEBUG["Debug"]
+        TUTOR["Tutor"]
+        PEXS["ProductEx\nstandalone"]
+    end
+
+    subgraph P00["Phase 00"]
+        BA["BA"]
+        PEXB["ProductEx\nBRD Review"]
+        PEXC["ProductEx\nConsult"]
+        ARCL["Architect\nResearch-Only"]
+    end
+
+    subgraph VERIFY["Phases 01-02 Verification"]
+        ARCH["Architect"]
+        ANAL["Analyst"]
+        PEXV["ProductEx\nVerify"]
+    end
+
+    subgraph BUILD["Phases 03-07"]
+        DSGN["Designer"]
+        QA["QA"]
+        DEV["Developer"]
+        SDET["SDET"]
+        REV["Reviewer"]
+    end
+
+    SM[("session-memory.md")]
+    REG[("registry.md")]
+    BRDQ[("brdQnA.md")]
+
+    HUMAN <-->|requirement| ORCH
+    HUMAN <-->|Q&A| BA
+    HUMAN <-->|escalated code Qs| ARCL
+    HUMAN <-->|commits| DEV
+    HUMAN <-->|anytime| DEBUG & TUTOR & PEXS
+
+    ORCH -->|spawns parallel| BA & PEXB
+    ORCH -->|spawns| ARCH & ANAL & DSGN & QA & SDET & REV
+    ORCH -->|resumes| DEV
+
+    BA -->|product Q| PEXC
+    BA -->|code Q| ARCL
+    PEXC -.->|unresolved| BRDQ
+    PEXB -->|writes| BRDQ
+
+    ANAL -->|verify| PEXV
+    PEXV -->|changes needed| ANAL
+    ANAL -->|BLOCKER| ARCH
+
+    DSGN -->|BLOCKER| ARCH
+    QA -->|BLOCKER| DSGN
+    QA -->|BLOCKER| BA
+    SDET -->|BLOCKER| DEV
+
+    BA & ARCH & ANAL & DSGN & QA & DEV & SDET & REV --> SM
+    BA & ANAL & PEXB & PEXC & PEXV --> REG
+
+    style P00 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style VERIFY fill:#16213e,stroke:#0f3460,color:#fff
+    style BUILD fill:#0f3460,stroke:#533483,color:#fff
+    style STANDALONE fill:#2c3e50,stroke:#3498db,color:#fff
+    style SM fill:#e67e22,stroke:#fff,color:#fff
+    style REG fill:#3498db,stroke:#fff,color:#fff
+    style BRDQ fill:#f39c12,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- Tables -->
+  <div class="chart-section" id="tables">
+    <h2>8. Execution Mode Summary</h2>
+    <table>
+      <tr><th>Phase</th><th>Execution Mode</th><th>Interactive?</th><th>Spawns Subagents?</th></tr>
+      <tr><td>ProductEx BRD Review</td><td>Background subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>BA (00)</td><td>Main context</td><td>Yes (Q&A)</td><td>ProductEx consult, Architect research</td></tr>
+      <tr><td>Architect (01)</td><td>Subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>Analyst (02)</td><td>Subagent</td><td>No</td><td>ProductEx verify</td></tr>
+      <tr><td>Designer (03)</td><td>Subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>QA (04)</td><td>Subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>Developer (05)</td><td>Main context</td><td>Yes (commits)</td><td>No</td></tr>
+      <tr><td>SDET (06)</td><td>Subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>Reviewer (07)</td><td>Subagent</td><td>No</td><td>No</td></tr>
+      <tr><td>Debug</td><td>Main context</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Tutor</td><td>Main context</td><td>Yes</td><td>No</td></tr>
+      <tr><td>ProductEx (standalone)</td><td>Main context</td><td>Yes (discover)</td><td>No</td></tr>
+    </table>
+
+    <h2 style="margin-top:2rem;">9. Blocker Target Map</h2>
+    <table>
+      <tr><th>Raising Phase</th><th>Can Target</th><th>Reason</th></tr>
+      <tr><td>Architect (01)</td><td>BA</td><td>Requirements ambiguous / contradictory / infeasible</td></tr>
+      <tr><td>Analyst (02)</td><td>Architect</td><td>Security flaw, perf issue, breaking change, unfulfilled product requirements</td></tr>
+      <tr><td>Designer (03)</td><td>Architect</td><td>Cyclic dependencies, SOLID violations</td></tr>
+      <tr><td>Designer (03)</td><td>Analyst</td><td>Security risk needs interface mitigation</td></tr>
+      <tr><td>QA (04)</td><td>Designer</td><td>Untestable interfaces</td></tr>
+      <tr><td>QA (04)</td><td>BA</td><td>Vague acceptance criteria</td></tr>
+      <tr><td>SDET (06)</td><td>Developer</td><td>Critical test scenarios missing</td></tr>
+      <tr><td>Reviewer (07)</td><td><em>blocks merge</em></td><td>Unmet criteria, contradicted decisions, unmitigated risks</td></tr>
+    </table>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1a1a2e',
+        primaryTextColor: '#c9d1d9',
+        primaryBorderColor: '#30363d',
+        lineColor: '#58a6ff',
+        secondaryColor: '#16213e',
+        tertiaryColor: '#0f3460',
+        fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif',
+        fontSize: '14px'
+      },
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        nodeSpacing: 40,
+        rankSpacing: 50
+      }
+    });
+  </script>
+</body>
+</html>
