@@ -113,6 +113,9 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - All new validators must implement `ConfigValidator<T extends ConfigBaseDocument>` which extends `Validator<ConfigValidatorRequest<T>, ConfigValidationResult>` — not `PromotionValidator`. New validator interface, same generic base. _(Designer)_
 - `ConfigBaseDocument` defines all common fields (id, entityId, orgId, programId, parentId, version, status, comments, timestamps). No fields inherited from `BaseMongoEntity` (which is empty). _(Designer)_
 - Status change and review endpoints must be annotated with `@DistributedLock` — lock key includes orgId and entityId. _(Designer)_
+- Unit tests must use JUnit 4 + Mockito Inline 4.6.1 (@RunWith(MockitoJUnitRunner.class)) — not JUnit 5. Integration tests extend BaseIntegrationTest. _(SDET)_
+- @NotBlank is unavailable (JSR-303); whitespace-only names will pass @NotNull @Size(min=1) validation. If trimmed-empty rejection is needed, add a custom validator or @Pattern. _(SDET)_
+- No separate ReviewCommentValidator exists — reject comment validation is inline in TierConfigService.review() / BenefitConfigService.review(). Tests go in service test classes, not a standalone validator test. _(SDET)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -162,6 +165,11 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Should validity.fixedDate be validated as a future date? Requirements do not say, but creating a tier with a past fixed date seems nonsensical. _(QA)_ — owner: Product
 - [ ] What happens when a STOPPED benefit is still referenced by an ACTIVE tier's linkedBenefits? Should the system prevent stopping, or force-unlink, or allow the inconsistency? _(QA)_ — owner: Product
 - [ ] When maker-checker flag=false and an ACTIVE tier is updated directly, should version still increment? Or does versioning only apply to maker-checker flow? _(QA)_ — owner: BA/Architect
+- [ ] Does LinkedBenefitValidator check the status of referenced benefits? If a STOPPED benefit is referenced, should it be rejected? Need to verify implementation before writing test. _(SDET)_ — owner: Developer
+- [ ] Whitespace-only tier/benefit names pass current validation (@NotNull @Size). Should a @Pattern or trim-check be added? _(SDET)_ — owner: Product/Developer
+- [ ] Redis connection failure scenario: what happens to @DistributedLock and IdempotencyKeyGuard when Redis is unreachable? Should be tested with Testcontainers Redis shutdown. _(SDET)_ — owner: Developer
+
+- **SDET test plan produced**: 19 unit test classes (178 automated scenarios), 6 integration test classes, 7 manual test procedures (37 scenarios). 83% automation rate. No blockers. _(SDET)_
 
 - **Tier & Benefit CRUD APIs implemented**: 57 Java files across 6 layers (enums, models, DAOs, infrastructure, validators, services, controllers). All under emf-parent following existing patterns. _(Developer)_
 - **Spring Data Redis 1.8.x limitation**: `setIfAbsent(key, value, timeout, unit)` not available. DistributedLockAspect uses `setIfAbsent(key, value)` + `expire()` as two-step (matches ApplicationCacheManagerImpl pattern). _(Developer)_
