@@ -163,5 +163,17 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] What happens when a STOPPED benefit is still referenced by an ACTIVE tier's linkedBenefits? Should the system prevent stopping, or force-unlink, or allow the inconsistency? _(QA)_ — owner: Product
 - [ ] When maker-checker flag=false and an ACTIVE tier is updated directly, should version still increment? Or does versioning only apply to maker-checker flow? _(QA)_ — owner: BA/Architect
 
+- **Tier & Benefit CRUD APIs implemented**: 57 Java files across 6 layers (enums, models, DAOs, infrastructure, validators, services, controllers). All under emf-parent following existing patterns. _(Developer)_
+- **Spring Data Redis 1.8.x limitation**: `setIfAbsent(key, value, timeout, unit)` not available. DistributedLockAspect uses `setIfAbsent(key, value)` + `expire()` as two-step (matches ApplicationCacheManagerImpl pattern). _(Developer)_
+- **SLF4J 1.6.x compatibility**: 3+ arg logger calls require `new Object[]{}` wrapper to avoid Marker type resolution. All parameterized calls with 3+ args use array form. _(Developer)_
+- **@NotBlank unavailable**: JSR-303 (Bean Validation 1.0) in this project. Replaced with `@NotNull` or `@NotNull @Size(min=1, max=N)`. _(Developer)_
+- **jackson-datatype-jsr310 not available**: Project uses `jackson-datatype-threetenbp`. ConfigDiffComputer uses plain ObjectMapper without JavaTimeModule; system fields (including timestamps) are removed before comparison. _(Developer)_
+- **No new Maven dependencies added**: All code uses existing dependencies only (Spring 4.3.30, MongoDB driver, AspectJ 1.8.13, Spring Data Redis 1.8.23). _(Developer)_
+- **Component scan verified**: AppConfig.java scans `com.capillary.shopbook.pointsengine.RESTEndpoint` — all new controllers, services, validators under this package are auto-detected. No XML changes needed. _(Developer)_
+- **Circular dependency resolved**: TierConfigService -> BenefitConfigDao, BenefitConfigService -> TierConfigDao. No service-to-service injection. Validated at compile time. _(Developer)_
+
+- [x] Should ConfigDiffComputer use Jackson ObjectMapper or BSON codec? _(resolved by Developer: Jackson ObjectMapper without JavaTimeModule; system fields removed before comparison. Works for field-level diff since business fields use simple types.)_
+- [x] Does `spring-rest-endpoint-config.xml` component scan cover new packages? _(resolved by Developer: AppConfig.java annotation-based scan covers all of com.capillary.shopbook.pointsengine.RESTEndpoint. No XML changes needed.)_
+
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
