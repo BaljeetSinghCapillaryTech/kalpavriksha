@@ -85,6 +85,15 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - OrgId sourced from ShardContext (set by LoggerInterceptor from X-CAP-ORG-ID header), never from request body. _(Architect)_
 - Nudge/communication config modeled as flexible structure (enabled, reminderBeforeDays[], templateReferences) pending product clarification. _(Architect)_
 - Upgrade bonus modeled as numeric bonusPoints field. Can be extended with bonusBenefitId later if product decides. _(Architect)_
+- Circular dependency resolved at DAO level: TierConfigService injects BenefitConfigDao (not BenefitConfigService), BenefitConfigService injects TierConfigDao (not TierConfigService). No service-to-service cross-injection. _(Designer)_
+- New ConfigValidator<T> interface extends existing Validator<T,R> generic interface: maintains consistency with codebase while adding type safety for config entities. _(Designer)_
+- ConfigValidationResult carries field-level errors (field, code, message) rather than single responseMessage: matches BA structured-error requirement and G-06.3. _(Designer)_
+- ConfigBaseDocument uses Integer for orgId (not Long): matches ShardContext.getOrgId() (int) and BaseMongoDaoImpl.getTemplate(Integer orgId). _(Designer)_
+- @DistributedLock uses RedisTemplate.opsForValue().setIfAbsent() (atomic SET NX PX): avoids race condition in intouch-api-v3 LockManager's non-atomic pattern. _(Designer)_
+- US-11 diff computation uses ConfigDiffComputer: serializes both parent and draft to flat maps and recursively compares fields, producing ConfigDiffResult with FieldDiff(fieldPath, oldValue, newValue). _(Designer)_
+- Idempotency key mechanism: Redis SET NX with 5-minute TTL via IdempotencyKeyGuard component, applied to POST create endpoints only. _(Designer)_
+- New controllers use @RestController (confirmed): AppConfig.java component scan covers com.capillary.shopbook.pointsengine.RESTEndpoint — all new types under this package are auto-detected. _(Designer)_
+- VersioningHelper is a shared @Component encapsulating parentId/version/status logic for both tiers and benefits: createDraftFromActive, approveNew, approveEdit, reject. _(Designer)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -101,6 +110,9 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - `ShardContext.orgId` is `int` — all new code must use `Integer` (not `Long`) for orgId to match existing infrastructure. _(Analyst)_
 - New controllers should use `@RestController` (not `@Controller`) since they are hand-written, not Swagger-generated. Existing `@Controller` pattern is for Swagger codegen interface implementations. _(Analyst)_
 - `@DistributedLock` AOP aspect must be implemented in emf-parent — cannot be imported from intouch-api-v3 (different repo, no shared library). _(Analyst)_
+- All new validators must implement `ConfigValidator<T extends ConfigBaseDocument>` which extends `Validator<ConfigValidatorRequest<T>, ConfigValidationResult>` — not `PromotionValidator`. New validator interface, same generic base. _(Designer)_
+- `ConfigBaseDocument` defines all common fields (id, entityId, orgId, programId, parentId, version, status, comments, timestamps). No fields inherited from `BaseMongoEntity` (which is empty). _(Designer)_
+- Status change and review endpoints must be annotated with `@DistributedLock` — lock key includes orgId and entityId. _(Designer)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -112,9 +124,9 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - **MPL (Multi-Program Loyalty) not addressed in BRD**: EMF has active MPL handling. Changes to the tier config API must not break MPL de-duplication logic. _(ProductEx)_ — Status: open
 - **LockManager race condition in reference impl**: intouch-api-v3's `LockManager` uses non-atomic check-then-set pattern on Redis cache. The emf-parent `@DistributedLock` must NOT replicate this — use atomic `SET NX PX` via `RedisTemplate` instead. _(Analyst)_ — Status: open
 - **SNAPSHOT document accumulation**: Document-per-version pattern creates SNAPSHOT records on every edit approval. No cleanup/archival strategy defined. Collections will grow unboundedly over time. _(Analyst)_ — Status: open
-- **Circular service dependency**: `TierConfigService` validates linked benefits, `BenefitConfigService` validates linked tiers. Direct service-to-service injection will cause Spring circular dependency. Must use DAO-level injection for cross-entity lookups. _(Analyst)_ — Status: open
-- **Idempotency key mechanism undefined**: `X-Idempotency-Key` header specified but storage/checking mechanism deferred. Without it, retried POSTs create duplicate DRAFTs. _(Analyst)_ — Status: open
-- **US-11 diff computation unspecified**: Approvals listing requires old-vs-new field diff for edit approvals. Architect does not define the diff shape or computation strategy. _(Analyst)_ — Status: open
+- **Circular service dependency**: `TierConfigService` validates linked benefits, `BenefitConfigService` validates linked tiers. Direct service-to-service injection will cause Spring circular dependency. Must use DAO-level injection for cross-entity lookups. _(Analyst)_ — Status: mitigated (Designer: cross-entity validation uses DAO injection, not service injection)
+- **Idempotency key mechanism undefined**: `X-Idempotency-Key` header specified but storage/checking mechanism deferred. Without it, retried POSTs create duplicate DRAFTs. _(Analyst)_ — Status: mitigated (Designer: IdempotencyKeyGuard using Redis SET NX with 5-min TTL)
+- **US-11 diff computation unspecified**: Approvals listing requires old-vs-new field diff for edit approvals. Architect does not define the diff shape or computation strategy. _(Analyst)_ — Status: mitigated (Designer: ConfigDiffComputer produces ConfigDiffResult with FieldDiff list)
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -135,11 +147,14 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] How does new MongoDB tier config sync with legacy MySQL strategy tables consumed by EMF? Critical for subsequent iteration. _(BA)_
 - [ ] Member distribution data lives in customer_enrollment + program_slabs. DB constraints/indexes in cc-stack-crm. Relevant for future simulation feature. _(BA)_
 - [x] Is Redis available in the emf-parent deployment environment? Required for @DistributedLock. _(resolved by Analyst: YES — redisson.properties, ApplicationCacheConfig with JedisConnectionFactory+Sentinel, RedisCacheManager, RedisTemplate, RedisCacheService all confirmed in emf-parent codebase)_
-- [ ] Idempotency key storage mechanism: Redis with TTL or MongoDB collection? Needed for POST endpoint retry safety. _(Architect)_ — owner: Developer
+- [x] Idempotency key storage mechanism: Redis with TTL or MongoDB collection? _(resolved by Designer: Redis SET NX with 5-minute TTL via IdempotencyKeyGuard component)_
 - [x] Should the new controllers use @Controller (existing pattern) or @RestController? _(resolved by Analyst: Use @RestController. Existing @Controller pattern is because those classes implement Swagger-generated interfaces with @ResponseBody. New hand-written controllers should use @RestController for clarity.)_
 - [ ] Does `spring-rest-endpoint-config.xml` component scan cover the proposed new packages, or does it need base-package additions? _(Analyst)_ — owner: Developer
-- [ ] What is the diff response shape for US-11 approvals listing (field-level old/new value comparison)? _(Analyst)_ — owner: Designer
+- [x] What is the diff response shape for US-11 approvals listing (field-level old/new value comparison)? _(resolved by Designer: ConfigDiffResult with List<FieldDiff> where FieldDiff has fieldPath (dot-notation), oldValue, newValue. Computed by ConfigDiffComputer.)_
 - [ ] SNAPSHOT cleanup policy: after how many days should SNAPSHOT documents be archived or deleted? _(Analyst)_ — owner: Product
+
+- [ ] Should ConfigDiffComputer use Jackson ObjectMapper or BSON codec for document-to-map serialization? Both are available. Jackson is simpler but may not handle BSON types (ObjectId, Instant) correctly without custom serializers. _(Designer)_ — owner: Developer
+- [ ] BenefitTypeParameterValidator requires type-specific parameter schemas (e.g., COUPON_ISSUANCE needs couponTemplateId). Are these template IDs validated against an external service, or just checked for presence? _(Designer)_ — owner: Product/Developer
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
