@@ -125,7 +125,7 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - **Program context API is net-new**: The aiRa Context Layer API does not exist. It is also the hardest API to build (requires cross-store data aggregation). If this is treated as a simple task, E3 (aiRa) will be perpetually blocked. _(ProductEx)_ — Status: open
 - **Validate-downgrade-on-return-transaction deprecation**: Removing this toggle without a migration plan could silently break programs that rely on the behaviour. _(ProductEx)_ — Status: open
 - **MPL (Multi-Program Loyalty) not addressed in BRD**: EMF has active MPL handling. Changes to the tier config API must not break MPL de-duplication logic. _(ProductEx)_ — Status: open
-- **LockManager race condition in reference impl**: intouch-api-v3's `LockManager` uses non-atomic check-then-set pattern on Redis cache. The emf-parent `@DistributedLock` must NOT replicate this — use atomic `SET NX PX` via `RedisTemplate` instead. _(Analyst)_ — Status: open
+- **LockManager race condition in reference impl**: intouch-api-v3's `LockManager` uses non-atomic check-then-set pattern on Redis cache. The emf-parent `@DistributedLock` must NOT replicate this — use atomic `SET NX PX` via `RedisTemplate` instead. _(Analyst)_ — Status: mitigated (Reviewer: DistributedLockAspect uses setIfAbsent + immediate expire. Two-step but acceptable for operational locks per session memory constraint.)
 - **SNAPSHOT document accumulation**: Document-per-version pattern creates SNAPSHOT records on every edit approval. No cleanup/archival strategy defined. Collections will grow unboundedly over time. _(Analyst)_ — Status: open
 - **Circular service dependency**: `TierConfigService` validates linked benefits, `BenefitConfigService` validates linked tiers. Direct service-to-service injection will cause Spring circular dependency. Must use DAO-level injection for cross-entity lookups. _(Analyst)_ — Status: mitigated (Designer: cross-entity validation uses DAO injection, not service injection)
 - **Idempotency key mechanism undefined**: `X-Idempotency-Key` header specified but storage/checking mechanism deferred. Without it, retried POSTs create duplicate DRAFTs. _(Analyst)_ — Status: mitigated (Designer: IdempotencyKeyGuard using Redis SET NX with 5-min TTL)
@@ -134,6 +134,9 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - **Concurrent create with same name — race condition**: Two simultaneous POST /tiers with name "Gold" could both pass uniqueness validation before either writes. Requires DB-level unique index or application-level lock. _(QA)_ — Status: open
 - **Validity fixedDate in past not explicitly rejected**: BA does not specify whether validity.fixedDate can be a past date. No validation exists to prevent creating a tier with an already-expired validity. _(QA)_ — Status: open
 - **Maker-checker flag=false lifecycle gaps**: Most test scenarios and design work assumes flag=true. The flag=false path (direct ACTIVE on create, direct update of ACTIVE) has less coverage for edge cases like "what happens when flag changes mid-lifecycle." _(QA)_ — Status: open
+- **PENDING_APPROVAL draft can be silently overwritten via updateTier**: When an ACTIVE tier has a PENDING_APPROVAL child draft, calling PUT /tiers/{tierId} finds the ACTIVE parent, enters the ACTIVE branch, finds the PENDING_APPROVAL child via findDraftForActive(), and updates it in-place. This contradicts US-3 AC-7 which requires 409 for tiers in PENDING_APPROVAL status. _(Reviewer)_ — Status: open
+- **Listing returns child draft documents alongside parent**: Listings do not filter by parentId==null, so an ACTIVE entity and its DRAFT/PENDING_APPROVAL child both appear as separate items. _(Reviewer)_ — Status: open
+- **Entity-not-found returns 409 instead of 404**: ConfigConflictException is used for NOT_FOUND cases, returning HTTP 409 instead of 404. _(Reviewer)_ — Status: open
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -165,7 +168,7 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Should validity.fixedDate be validated as a future date? Requirements do not say, but creating a tier with a past fixed date seems nonsensical. _(QA)_ — owner: Product
 - [ ] What happens when a STOPPED benefit is still referenced by an ACTIVE tier's linkedBenefits? Should the system prevent stopping, or force-unlink, or allow the inconsistency? _(QA)_ — owner: Product
 - [ ] When maker-checker flag=false and an ACTIVE tier is updated directly, should version still increment? Or does versioning only apply to maker-checker flow? _(QA)_ — owner: BA/Architect
-- [ ] Does LinkedBenefitValidator check the status of referenced benefits? If a STOPPED benefit is referenced, should it be rejected? Need to verify implementation before writing test. _(SDET)_ — owner: Developer
+- [x] Does LinkedBenefitValidator check the status of referenced benefits? _(resolved by Reviewer: LinkedBenefitValidator excludes STOPPED and SNAPSHOT from existence check via Filters.nin. So referencing a STOPPED benefit returns "not found" validation error. However, a benefit could be STOPPED after being linked. The STOPPED-while-linked scenario remains an open risk.)_
 - [ ] Whitespace-only tier/benefit names pass current validation (@NotNull @Size). Should a @Pattern or trim-check be added? _(SDET)_ — owner: Product/Developer
 - [ ] Redis connection failure scenario: what happens to @DistributedLock and IdempotencyKeyGuard when Redis is unreachable? Should be tested with Testcontainers Redis shutdown. _(SDET)_ — owner: Developer
 
@@ -182,6 +185,10 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 
 - [x] Should ConfigDiffComputer use Jackson ObjectMapper or BSON codec? _(resolved by Developer: Jackson ObjectMapper without JavaTimeModule; system fields removed before comparison. Works for field-level diff since business fields use simple types.)_
 - [x] Does `spring-rest-endpoint-config.xml` component scan cover new packages? _(resolved by Developer: AppConfig.java annotation-based scan covers all of com.capillary.shopbook.pointsengine.RESTEndpoint. No XML changes needed.)_
+
+- **Reviewer code review complete**: 0 blockers, 11 non-blocking findings (3 MEDIUM, 8 LOW). All CRITICAL guardrails pass. All key decisions and constraints verified. See 07-reviewer.md for full details. _(Reviewer)_
+- [ ] Should TierNameUniquenessValidator exclude STOPPED from uniqueness check (current behavior) or include it per BA AC-10 ("across all statuses except SNAPSHOT")? _(Reviewer)_ — owner: BA/Product
+- [ ] Should enum string fields (kpiType, validity.type, upgrade.mode) be validated against allowed values, or is free-form String acceptable for forward compatibility? _(Reviewer)_ — owner: Developer/Architect
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
