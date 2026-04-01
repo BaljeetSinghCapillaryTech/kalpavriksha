@@ -120,7 +120,7 @@ Agent tool:
 ```
 
 - If ProductEx returns `resolved` — use the answer, cite it, move on. Do not ask the user this question.
-- If ProductEx returns `unresolved` — the question is logged in `brdQnA.md`. Note it as a product team question in your open questions list. Do **not** ask the user directly — product gaps go through `brdQnA.md`.
+- If ProductEx returns `unresolved` — the question is logged in `brdQnA.md` with an **Owner tag** (e.g., `[Product]`, `[Design/UI]`, `[Backend]`). Note it as an open question for that specific team in your open questions list. Do **not** ask the user directly — product/design/backend gaps go through `brdQnA.md` with clear ownership.
 
 ### 3b: Code/Backend Concerns → Consult Architect
 

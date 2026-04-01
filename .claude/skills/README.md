@@ -6,7 +6,16 @@ A set of specialised personas that guide software development from raw requireme
 
 ## Quick Start
 
-**Run the full workflow:**
+### From Terminal (recommended — uses the AIDLC agent with Opus 4.6)
+
+```bash
+claude --agent aidlc
+```
+
+Shows an interactive menu with 4 modes: Full Workflow, Single Phase, Revert, Status. See **[README-AIDLC.md](README-AIDLC.md)** for the complete guide with all commands, flows, and examples.
+
+### From Claude Code / Cowork (uses skills directly)
+
 ```
 /workflow docs/workflow/TICKET-123/
 ```
@@ -80,16 +89,21 @@ claude mcp add claude-historian-mcp -- npx claude-historian-mcp
 
 ```
 [ProductEx BRD Review] ──parallel──▶ ┐
-                                      ├─▶ Review Gate ─▶ /architect → /analyst → ...
+                                      ├─▶ BA Review Gate ─▶ /architect → ...
 [BA (00) Q&A] ────────interactive──▶ ┘
 
 /ba  →  /architect  →  /analyst  →  /designer  →  /qa  →  /developer  →  /sdet  →  /reviewer
  00        01             02            03           04        05            06          07
                        (optional)                                         (optional)
 [main]  [subagent]    [subagent]    [subagent]  [subagent]  [main]     [subagent]  [subagent]
+                 ◄── verify cycle ──►                              ◄── build-fix cycle ──►
+              (Architect↔Analyst↔ProductEx                      (Reviewer↔Developer/QA
+                    max 3 rounds)                                     max 3 rounds)
 ```
 
 **BA** and **Developer** run in the main conversation context — they're interactive, ask questions, and make commit decisions. Every other phase runs as an isolated subagent: it reads the artifacts and session memory from disk, does its work, and returns a structured summary.
+
+**Reviewer** runs build verification (compile → unit tests → integration tests) **before** code review. If build/tests fail, the failure is routed to Developer (code bug) or QA (test logic wrong) for resolution — max 3 rounds. After 3 failed rounds, control goes to the human. Only after build passes does Reviewer proceed to the full code review.
 
 **ProductEx BRD Review** runs in parallel with BA as a background subagent — it independently analyses the BRD against the product registry and official docs, producing `brdQnA.md` with questions for the product team. Both outputs are reviewed at the "Review Gate" before proceeding to Architect.
 
@@ -265,14 +279,29 @@ Operationalises what QA defined into a working test suite and CI plan. SDET's fi
 
 The final gate before merge. The Reviewer reads the **full session memory** as the authoritative record of everything that was agreed, then verifies the implementation against it — not against what it thinks should have been built.
 
-Checks five things in order:
+**Step 0 — Build & Test Verification** (before any code review):
+
+```
+mvn compile  ──► FAIL? ──► BLOCKER → Developer
+    │ PASS
+mvn test     ──► FAIL? ──► test logic wrong? → QA
+    │ PASS           └──► code bug? → Developer
+mvn verify   ──► FAIL? ──► BLOCKER → Developer
+    │ PASS
+Proceed to code review
+```
+
+If build/tests fail, the Reviewer routes the failure to **Developer** (code bug, compilation, dependency) or **QA** (test logic wrong vs `04-qa.md` spec). This cycles up to **3 rounds**. After 3 failed rounds, the human gets control with full error context. Only after the build is green does the Reviewer proceed to code review.
+
+Then checks six things in order:
+- **Build verification** — compilation, unit tests, integration tests (all must pass)
 - **Requirements alignment** — does the implementation satisfy every acceptance criterion in `00-ba.md`?
 - **Session memory alignment** — are Key Decisions reflected in the code? Are Constraints respected? Are Risks addressed?
 - **Security verification** — for each security consideration raised during the workflow, is there code evidence it was addressed? This is an explicit check, not inferred from "constraints were respected"
 - **Documentation** — are README, API docs, ADRs, and changelog updated where the change requires it?
 - **Code quality** — naming, structure, complexity, duplication
 
-Findings are split cleanly: **Blockers** (must fix before merge) and **Non-blocking** (nice to have). A blocker is raised when an acceptance criterion is unmet, a decision contradicted, a constraint violated, a risk unmitigated, or a security concern left unaddressed. Everything else is non-blocking.
+Findings are split cleanly: **Blockers** (must fix before merge) and **Non-blocking** (nice to have). A blocker is raised when build/tests fail, an acceptance criterion is unmet, a decision contradicted, a constraint violated, a risk unmitigated, or a security concern left unaddressed. Everything else is non-blocking.
 
 **Produces:** `07-reviewer.md` — requirements checklist, session memory checklist, security check, docs check, code review findings
 

@@ -43,9 +43,117 @@ Append to the following sections in `session-memory.md`:
 
 ---
 
+## Step 0: Verify Designer's Patterns Before Implementing
+
+The Designer (`03-designer.md`) is your source of truth for patterns, base classes, annotations, and package structure. Before writing any code:
+
+1. **Read `03-designer.md` carefully** — note every prescribed base class, annotation, package path, and import
+2. **Spot-check against the codebase** — for each new type Designer prescribed, quickly verify the pattern matches real code:
+   - Does the prescribed base class actually exist at the specified path?
+   - Do the prescribed annotations match what adjacent files use?
+   - Are the prescribed imports valid in this module's dependency tree?
+3. **If Designer's prescription doesn't match the codebase** — surface it as an issue before implementing. Do not silently deviate from Designer or silently follow a wrong prescription:
+   ```
+   ⚠️ Designer prescribed `extends MongoRepository<Tier, ObjectId>` for TierRepository,
+   but this module's existing repos extend `BaseMongoDaoImpl<T>` (20+ classes).
+   Should I follow the existing codebase pattern instead?
+   ```
+4. **If Designer didn't prescribe a pattern** for a new type you need to create (utility, helper, mapper, etc.), search the codebase yourself following the same discovery protocol:
+   - Search for existing similar types in the target module
+   - If found → follow that pattern
+   - If not found → follow the closest adjacent module's pattern
+   - If nothing exists → create from scratch with SOLID principles
+
+### Import Rules
+
+When writing code, **always derive imports from the existing codebase**:
+
+- **DO**: Look at how adjacent files in the same package import their dependencies. Use the same import paths.
+- **DO**: Check if the project has internal wrapper classes before importing third-party directly (e.g., the project may have its own `MongoTemplate` interface that shadows Spring's).
+- **DO**: Verify that the dependency actually exists in the module's `pom.xml` / `build.gradle` before importing from it.
+- **DO NOT**: Assume standard Spring/Java/third-party imports are available — the project may use different versions, shaded jars, or internal alternatives.
+- **DO NOT**: Add new Maven/Gradle dependencies without surfacing it to the user first.
+
+### Dependency Resolution Protocol
+
+**Before writing any new code file**, check if the imports you need are backed by dependencies in the module's build file. This is mandatory — code that doesn't compile is not acceptable at any point in TDD.
+
+**Step 1: Check existing dependencies**
+
+For every import your code needs, verify the dependency exists:
+```bash
+# For Maven — check if the artifact is in the module's dependency tree
+mvn dependency:tree -pl <module> -q | grep "<groupId-fragment>"
+
+# Or directly read the module's pom.xml
+grep -A2 "<artifactId>spring-data-mongodb</artifactId>" <module>/pom.xml
+```
+
+**Step 2: If dependency is missing — resolve it**
+
+1. **Check if another module in the project already uses it**:
+   ```bash
+   grep -r "<artifactId>spring-data-mongodb</artifactId>" --include="pom.xml"
+   ```
+   If found in another module → use the same `groupId`, `artifactId`, and `version` (or version property).
+
+2. **Surface to user before adding**:
+   ```
+   ⚠️  Missing dependency: org.springframework.data:spring-data-mongodb
+
+   Required by: [file you're writing]
+   Import: org.springframework.data.mongodb.repository.MongoRepository
+
+   Found in other modules: [list modules that have it, or "Not found in project"]
+
+   Proposed addition to <module>/pom.xml:
+   <dependency>
+       <groupId>org.springframework.data</groupId>
+       <artifactId>spring-data-mongodb</artifactId>
+       <version>${spring-data.version}</version>
+   </dependency>
+
+   Add this dependency? (y/n)
+   ```
+
+3. **After user approves** — add the dependency to the correct `pom.xml` / `build.gradle`:
+   - Match the existing style (property-managed versions, dependency management section, scope)
+   - Place it near related dependencies (e.g., other Spring dependencies)
+   - If the project uses a BOM/dependency management parent, omit the version
+
+4. **Verify compilation after adding**:
+   ```bash
+   mvn compile -pl <module> -am -q
+   ```
+
+**Step 3: Compile check after every code change**
+
+After writing or modifying any file, **always run compile**:
+```bash
+mvn compile -pl <module> -am -q 2>&1
+```
+
+If compilation fails:
+- Read the error output
+- Fix the issue (missing import, wrong type, missing dependency)
+- Re-compile until it passes
+- Only then proceed to the next TDD step
+
+**Never leave code in a non-compiling state.** Every red-green-refactor cycle must end with compiling code.
+
+### Dependency Safety Rules
+
+1. **Never add a dependency that conflicts with existing versions** — check the parent POM and dependency management section first
+2. **Prefer the project's existing version management** — use `${property}` references, not hardcoded versions
+3. **Check for shaded/relocated packages** — the project may use shaded jars that relocate standard packages
+4. **Test scope matters** — if the import is only needed in tests, add with `<scope>test</scope>`
+5. **Log every dependency change** in session memory under Constraints: `- Added dependency: [artifact] to [module]/pom.xml _(Developer)_`
+
+---
+
 ## Context
 - Always use terminal output for test runs, build output, and error feedback during TDD cycles.
-- Use grep and small targeted reads for failing areas.
+- Use jdtls (preferred) or grep and small targeted reads for failing areas and pattern verification. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for find-references, symbol search, and type hierarchy — it's faster and more accurate than grep for verifying patterns.
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `05-developer.md`.
 - **When a test or build fails during a TDD cycle**, if the historian MCP is available: search the `errors` scope with the exact error message before reaching for a web search or guessing. If a prior session resolved the same failure, use `inspect` to recover the fix — validate it against the current code before applying, as the codebase may have changed. If historian is unavailable or returns nothing, proceed with normal diagnosis.
 

@@ -41,8 +41,105 @@ Append to the following sections in `session-memory.md`:
 
 ---
 
+## Step 0: Codebase Pattern Discovery (Before Designing ANY Interface)
+
+Before defining any new interface, abstraction, repository, service, or contract — **search the existing codebase for how the same kind of thing is already done.** The Designer is the source of truth for the Developer. If you prescribe the wrong base class, wrong annotation style, or wrong pattern, the Developer will faithfully implement it and the Reviewer will flag it as a blocker. Get it right here.
+
+### Discovery Protocol
+
+For **every** new type you are about to define in `03-designer.md`, run this search:
+
+1. **Repositories / DAOs**
+   - Search for: `*Repository.java`, `*Dao.java`, `*DaoImpl.java` in the target module and adjacent modules
+   - Determine: What base class/interface do they extend? What annotations? What query pattern (Spring Data method names, `@Query`, custom template, raw driver)?
+   - Prescribe: The exact base class, annotation style, and package location for any new repository
+
+2. **Services**
+   - Search for: `*Service.java`, `*ServiceImpl.java` in the target module
+   - Determine: Is there a base service? `@Service` vs `@Component`? Transaction patterns? How are dependencies injected (`@Autowired` field vs constructor)?
+   - Prescribe: The exact pattern and injection style
+
+3. **Controllers / Endpoints**
+   - Search for: `*Controller.java`, `*Endpoint.java` in the target module
+   - Determine: What annotations (`@RestController`, `@Controller`, custom)? What response wrapper? What error handling pattern? What URL structure?
+   - Prescribe: The exact annotation style, response type, and URL convention
+
+4. **Models / Entities**
+   - Search for: existing models in the target module
+   - Determine: What base class (`BaseMongoEntity`, `BaseEntity`, none)? What annotations (`@Document`, `@Entity`, custom)? Field naming (camelCase, snake_case)? Builders (Lombok, manual, records)?
+   - Prescribe: The exact base class, annotation style, and builder pattern
+
+5. **Configuration**
+   - Search for: `*Config.java`, `*Configuration.java`
+   - Determine: How beans are registered, what naming convention
+
+6. **Tests**
+   - Search for: existing test classes in the target module's test directory
+   - Determine: Test framework (JUnit 4/5, TestNG), assertion library, mock framework, base test class, test naming convention
+   - Prescribe: The exact test structure for QA and Developer to follow
+
+### When Multiple Patterns Exist
+
+If the codebase has more than one pattern for the same thing (e.g., old DAO pattern + new Repository pattern):
+- **Check which module the new code belongs to** — follow the pattern dominant in that module
+- **If the target module has no precedent** — follow the closest adjacent module
+- **Document the decision** in `03-designer.md` under a "Pattern Decisions" section:
+  ```
+  ## Pattern Decisions
+  - Repository pattern: Using `BaseMongoDaoImpl<T>` (from emf/ module, 20+ existing classes)
+    over Spring Data `MongoRepository` (only in pointsengine-emf/tiers/ — newer code).
+    Reason: Target module (emf/) uses the custom DAO pattern exclusively.
+  ```
+
+### When No Existing Pattern Exists
+
+Only when the codebase has zero precedent for the kind of type you need:
+- Design from scratch using SOLID principles
+- Ensure backward compatibility with existing code that will interact with the new types
+- Note in `03-designer.md`: "No existing pattern found for [X]. New pattern designed: [describe]."
+- Specify the full set of imports/packages the Developer should use
+
+### What Goes in `03-designer.md` for Each New Type
+
+For every interface/type defined, include:
+
+```markdown
+### [TypeName]
+- **Extends**: [exact base class from codebase, or "none"]
+- **Annotations**: [exact annotations used by existing similar types]
+- **Package**: [exact package path, following existing convention]
+- **Discovered from**: [which existing file(s) this pattern was derived from]
+- **Imports**: [key non-obvious imports the Developer needs — especially internal packages that shadow standard ones]
+- **Maven dependency**: [already in module pom.xml | needs adding: groupId:artifactId:version | inherited from parent]
+```
+
+### Dependency Check (Part of Pattern Discovery)
+
+For every new type you prescribe, verify its imports are backed by Maven/Gradle dependencies in the **target module's** build file:
+
+1. **Check the target module's `pom.xml`** for the required dependency:
+   ```bash
+   grep -A2 "<artifactId>spring-data-mongodb</artifactId>" <module>/pom.xml
+   ```
+
+2. **If not found** — check if it's inherited from a parent POM or BOM:
+   ```bash
+   mvn dependency:tree -pl <module> -q | grep "<artifact-fragment>"
+   ```
+
+3. **Record the finding** in `03-designer.md` for each type:
+   - `already in module pom.xml` — Developer can proceed without changes
+   - `needs adding: <groupId>:<artifactId>` — Developer must add this dependency before using the import
+   - `inherited from parent` — available via parent POM, no changes needed
+
+This prevents the Developer from writing code that won't compile due to missing dependencies. The Developer is responsible for actually adding the dependency (with user approval), but the Designer must flag it upfront so there are no surprises.
+
+This ensures the Developer never has to guess patterns, imports, or dependencies — they follow exactly what you prescribe.
+
+---
+
 ## Context
-- Search the codebase for consistency with existing types. Use symbol/outline and grep; avoid full-file reads.
+- Use jdtls (preferred) or grep and symbol search for pattern discovery and consistency checks. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for type hierarchy, find-references, and symbol search — it reveals base classes and inheritance chains faster than grep. Fall back to grep for text-pattern searches (annotations, import styles).
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `03-designer.md`.
 
 ## Output (Markdown)

@@ -252,29 +252,49 @@ Ask questions **one at a time** — present what you found from both sources, as
 
 ---
 
-## Questions for Product Team
+## Open Questions
+
+> Every question MUST have an **Owner** tag indicating which team or agent is responsible for answering it.
+>
+> Team tags: `[Product]` `[Design/UI]` `[Backend]` `[Infra]` `[AI/ML]` `[Cross-team]`
+> Agent tags: `[BA]` `[Architect]` `[Analyst]` `[ProductEx]`
+> Status: `open` | `resolved: <answer>` | `deferred: <reason>`
 
 ### Product Behaviour Questions
 [Questions about how the product should behave — gaps in understanding]
-| # | Question | Context | Why It Matters |
-|---|---|---|---|
-| 1 | [question] | [what prompted this — e.g. "BRD mentions X but docs only describe Y"] | [impact if unresolved] |
+| # | Owner | Question | Context | Why It Matters | Status |
+|---|---|---|---|---|---|
+| 1 | [Product] | [question] | [what prompted this] | [impact if unresolved] | open |
+
+### Design & UX Questions
+[Questions about UI flows, interaction design, visual specs]
+| # | Owner | Question | Context | Why It Matters | Status |
+|---|---|---|---|---|---|
+| 1 | [Design/UI] | [question] | [what prompted this] | [impact if unresolved] | open |
+
+### Backend & Technical Questions
+[Questions about API contracts, data models, service internals, feasibility]
+| # | Owner | Question | Context | Why It Matters | Status |
+|---|---|---|---|---|---|
+| 1 | [Backend] | [question] | [what prompted this] | [impact if unresolved] | open |
 
 ### Missing Specifications
 [Things the BRD doesn't address but should, based on product knowledge]
-| # | Missing Area | Current Product Behaviour | Recommendation |
-|---|---|---|---|
-| 1 | [what's missing] | [how product handles it today] | [what should be specified] |
+| # | Owner | Missing Area | Current Product Behaviour | Recommendation | Status |
+|---|---|---|---|---|---|
+| 1 | [Product] | [what's missing] | [how product handles it today] | [what should be specified] | open |
 
 ### Domain & Terminology Questions
 [Terms or concepts used in the BRD that don't match established product language]
-| # | BRD Term | Established Term | Clarification Needed |
-|---|---|---|---|
-| 1 | [term used in BRD] | [term in registry/docs] | [are they the same? different?] |
+| # | Owner | BRD Term | Established Term | Clarification Needed | Status |
+|---|---|---|---|---|---|
+| 1 | [Product] | [term used in BRD] | [term in registry/docs] | [are they the same?] | open |
 
 ### Cross-Cutting Concern Gaps
 [Cross-cutting areas the BRD touches but doesn't specify]
-- [concern]: [what the BRD should address for this area]
+| # | Owner | Concern | What BRD Should Address | Status |
+|---|---|---|---|---|
+| 1 | [Cross-team] | [concern] | [what needs to be specified] | open |
 
 ---
 
@@ -283,6 +303,17 @@ Ask questions **one at a time** — present what you found from both sources, as
 - **Total questions**: [count]
 - **High severity conflicts**: [count]
 - **Blocking gaps** (cannot proceed without answers): [count]
+
+### Questions by Owner
+| Owner | Open | Resolved | Blocking |
+|-------|------|----------|----------|
+| [Product] | [N] | [N] | [N] |
+| [Design/UI] | [N] | [N] | [N] |
+| [Backend] | [N] | [N] | [N] |
+| [Infra] | [N] | [N] | [N] |
+| [AI/ML] | [N] | [N] | [N] |
+| [Cross-team] | [N] | [N] | [N] |
+
 - **Recommendation**: [proceed with BA Q&A / pause for product team input first / critical gaps need resolution]
 ```
 
@@ -296,7 +327,7 @@ STATUS: complete
 ARTIFACT: brdQnA.md
 
 SUMMARY:
-- [count] questions for product team
+- [count] total questions ([count] Product, [count] Design/UI, [count] Backend, [count] other)
 - [count] conflicts with current product
 - [count] missing specifications
 - [key finding 1]
@@ -339,7 +370,16 @@ QUESTION: [the original question]
 ANSWER: [answer with source citation — or "Unable to determine from available knowledge sources"]
 SOURCE: [registry | docs.capillarytech.com | docs/product/<file> | none]
 ADDED_TO_BRD_QNA: yes | no
+OWNER: [Product | Design/UI | Backend | Infra | AI/ML | Cross-team]
 ```
+
+When appending an unresolved question to `brdQnA.md`, **always include the Owner tag** so it's clear which team needs to answer it. Classify ownership based on the nature of the question:
+- **[Product]** — product behaviour, business logic, feature scope, prioritisation
+- **[Design/UI]** — UI flows, interaction design, visual specs, user experience
+- **[Backend]** — API contracts, service internals, data models, technical feasibility
+- **[Infra]** — deployment, scaling, infrastructure, environment configuration
+- **[AI/ML]** — ML model behaviour, training data, algorithm choices
+- **[Cross-team]** — requires input from multiple teams to resolve
 
 ---
 
@@ -405,10 +445,10 @@ APPROVED ASPECTS:
 - [aspect]: [why it's correct per product knowledge]
 
 UNRESOLVED QUESTIONS:
-[Product questions that arose during verification that ProductEx cannot answer]
-| # | Question | Context | Added to brdQnA? |
-|---|---|---|---|
-| 1 | [question] | [why it matters] | [yes/no] |
+[Questions that arose during verification that ProductEx cannot answer]
+| # | Owner | Question | Context | Added to brdQnA? |
+|---|---|---|---|---|
+| 1 | [Product] | [question] | [why it matters] | [yes/no] |
 ```
 
 **Critical rules for `verify` mode**:
