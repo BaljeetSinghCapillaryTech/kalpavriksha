@@ -52,6 +52,12 @@ If `docs/product/registry.md` exists:
 
 If the registry is absent, proceed with codebase-only analysis and note the gap.
 
+## Guardrails
+
+**Read `.claude/skills/GUARDRAILS.md` at phase start.** During impact analysis, check Architect's solution against all CRITICAL guardrails (G-01 Timezone, G-03 Security, G-07 Multi-Tenancy). Raise a BLOCKER if the solution violates any CRITICAL guardrail. For HIGH guardrails, flag as a risk in the Risks & Concerns section.
+
+---
+
 ## Context
 - Search the codebase using jdtls (preferred) or grep and targeted file reads. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for semantic queries — find-references, incoming call chains, symbol search — before falling back to grep. Use call graphs and reference searches over loading large files.
 - Use terminal output when analyzing test/build failures.

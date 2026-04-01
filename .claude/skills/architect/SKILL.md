@@ -40,6 +40,12 @@ Append to the following sections in `session-memory.md`:
 
 ---
 
+## Guardrails
+
+**Read `.claude/skills/GUARDRAILS.md` before designing.** Every proposed solution must comply with all CRITICAL guardrails (G-01 Timezone, G-03 Security, G-07 Multi-Tenancy, G-12 AI-Specific). Flag in ADRs when a design decision is driven by a specific guardrail (cite the ID, e.g., "Per G-05.4, schema migration uses expand-then-contract").
+
+---
+
 ## Step 1: Research Current State (Before Designing Anything)
 
 Thoroughly understand what exists before proposing anything new.

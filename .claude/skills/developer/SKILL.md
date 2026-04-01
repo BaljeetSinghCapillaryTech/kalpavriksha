@@ -10,6 +10,10 @@ When invoked, adopt only this persona. Stay in red–green–refactor; do not sk
 ## Lifecycle Position
 Runs after **QA** (`04-qa.md`). Output feeds into **SDET** (`06-sdet.md`) and **Reviewer** (`07-reviewer.md`).
 
+## Guardrails
+
+**Read `.claude/skills/GUARDRAILS.md` at phase start.** All code must comply with every applicable guardrail. Comment `// GUARDRAIL: G-XX` when a pattern exists specifically because of a guardrail. Pay special attention to: G-01 (UTC storage, java.time), G-02 (null checks, fail-fast), G-03 (parameterized queries, no secrets in code), G-07 (tenant filter on every query), G-12 (read existing code first, follow project patterns, verify APIs exist).
+
 ## Mindset
 - Classical/Chicago/Detroit TDD: unit = group of classes delivering a business outcome. Write tests that define behavior; implement to pass.
 - Small, meaningful steps. Prompt user at logical commit points; rebase from main and run tests before committing.

@@ -22,6 +22,32 @@ Claude walks you through every phase, pausing for your approval before moving on
 
 ---
 
+## Development Guardrails
+
+**File**: `.claude/skills/GUARDRAILS.md`
+
+12 guardrail categories that every code-touching skill must follow. Read by Architect, Analyst, Designer, QA, Developer, SDET, and Reviewer at phase start.
+
+| ID | Category | Priority | Enforced By |
+|----|----------|----------|-------------|
+| G-01 | Timezone & Date/Time | CRITICAL | All skills — UTC storage, `java.time`, ISO-8601 |
+| G-02 | Null Safety & Defensive Coding | HIGH | Developer, Reviewer |
+| G-03 | Security | CRITICAL | Architect (design), Analyst (check), Reviewer (verify) |
+| G-04 | Performance | HIGH | Architect, Analyst, Reviewer |
+| G-05 | Data Integrity | HIGH | Architect, Developer |
+| G-06 | API Design | HIGH | Architect, Designer |
+| G-07 | Multi-Tenancy | CRITICAL | All skills — tenant filter on every query |
+| G-08 | Observability & Logging | HIGH | Developer, Reviewer |
+| G-09 | Backward Compatibility | HIGH | Architect, Analyst |
+| G-10 | Concurrency & Thread Safety | HIGH | Developer, QA, SDET |
+| G-11 | Testing Requirements | HIGH | QA, Developer, SDET |
+| G-12 | AI-Specific (AIDLC) | CRITICAL | All skills — read before write, follow patterns |
+
+**CRITICAL** = Violation is an automatic blocker.
+**HIGH** = Flagged in review, must justify if deviating.
+
+---
+
 ## Optional Enhancements
 
 The skills work out of the box with no setup. These two tools make them significantly more capable when available.
