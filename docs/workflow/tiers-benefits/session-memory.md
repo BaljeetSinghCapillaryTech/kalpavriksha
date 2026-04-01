@@ -52,6 +52,14 @@ _What was found in the codebase and docs, and how it behaves/is set up. Updated 
 - **program_slabs MySQL schema**: PK `(id, org_id)`, unique key `(org_id, program_id, serial_number)`. Fields: id, org_id, program_id, serial_number, name, description, created_on, metadata (varchar 30). _(Architect)_
 - **strategies MySQL schema**: PK `(id, org_id)`, unique key `(program_id, strategy_type_id, name)`. Strategy types include SLAB_UPGRADE, SLAB_DOWNGRADE. `property_values` stores serialized config. `StrategyType` MongoDB mirror has: POINT_ALLOCATION, POINT_EXPIRY, POINT_REDEMPTION_THRESHOLD, SLAB_UPGRADE, SLAB_DOWNGRADE, POINT_RETURN, EXPIRY_REMINDER, TRACKER. _(Architect)_
 - **customer_enrollment MySQL schema**: PK `(id, org_id)`, unique key `(org_id, program_id, customer_id, entity_type)`. Holds `current_slab_id`, `slab_expiry_date`, `lifetime_purchases`, `visits`. _(Architect)_
+- **Redis confirmed available in emf-parent**: `redisson.properties` configures Redis host/port. `ApplicationCacheConfig` creates `JedisConnectionFactory` with Sentinel, `RedisCacheManager`, `RedisTemplate`. `RedisCacheService` interface and `RedisCacheServiceImpl` exist. Named cache regions with TTLs (ONE_SECOND through ONE_DAY). This means `@DistributedLock` can use Redis without new infrastructure. _(Analyst)_
+- **LockManager (intouch-api-v3) uses non-atomic cache-entry pattern**: `LockManager.acquireLock()` uses `RedisCacheManager.getCache().get(key) == null` then `putIfAbsent()`. This has a race condition window. The emf-parent `@DistributedLock` should use `RedisTemplate.opsForValue().setIfAbsent(key, value, ttl)` for atomic locking. _(Analyst)_
+- **BaseMongoEntity is empty**: `BaseMongoEntity implements Serializable` with no fields. `ConfigBaseDocument extends BaseMongoEntity` must define all common fields from scratch (_id, orgId, status, version, parentId, timestamps, etc.). _(Analyst)_
+- **WebMvcConfig interceptor is global**: `registry.addInterceptor(new LoggerInterceptor())` has no path restriction. New `/api/v1/tiers` and `/api/v1/benefits` paths will be intercepted automatically. No config change needed. _(Analyst)_
+- **ShardContext.orgId is `int` type**: `ShardContext` stores orgId as `int`, `BaseMongoDaoImpl.getTemplate()` takes `Integer`. Architect doc specifies `orgId: Long` in document model — type mismatch needs resolution (use Integer in document model). _(Analyst)_
+- **No package conflicts**: Verified that proposed new packages (`model/config/`, `dao/TierConfigDao`, `validators/impl/tier/`, `models/tier/`, etc.) do not conflict with any existing package names. _(Analyst)_
+- **Spring XML component scan**: `spring-rest-endpoint-config.xml` referenced in pointsengine-emf — may need package additions for new controllers/services if scan base is narrowly scoped. Needs verification during Developer phase. _(Analyst)_
+- **customer_enrollment schema from cc-stack-crm**: `slab_expiry_date` is `datetime` (not timezone-aware), default `2114-12-31 23:59:59`. `current_slab_id` is `int` referencing `program_slabs.id`. Relevant for future sync iteration. _(Analyst)_
 
 ## Key Decisions
 _Significant decisions and their rationale. Format: `- [decision]: [rationale] _(phase)_`_
@@ -90,6 +98,9 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - @Lockable annotation exists only in intouch-api-v3, not in emf-parent. A @DistributedLock annotation must be created in emf-parent or imported as a shared library. Requires Redis. _(Architect)_
 - No REST API currently exists for tier (slab) CRUD in any visible service. This is entirely net-new. _(Architect)_
 - New MongoDB collections (tier_configs, benefit_configs) are owned by emf-parent, independent of intouch-api-v3's unified_promotions collection. _(Architect)_
+- `ShardContext.orgId` is `int` — all new code must use `Integer` (not `Long`) for orgId to match existing infrastructure. _(Analyst)_
+- New controllers should use `@RestController` (not `@Controller`) since they are hand-written, not Swagger-generated. Existing `@Controller` pattern is for Swagger codegen interface implementations. _(Analyst)_
+- `@DistributedLock` AOP aspect must be implemented in emf-parent — cannot be imported from intouch-api-v3 (different repo, no shared library). _(Analyst)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -99,6 +110,11 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - **Program context API is net-new**: The aiRa Context Layer API does not exist. It is also the hardest API to build (requires cross-store data aggregation). If this is treated as a simple task, E3 (aiRa) will be perpetually blocked. _(ProductEx)_ — Status: open
 - **Validate-downgrade-on-return-transaction deprecation**: Removing this toggle without a migration plan could silently break programs that rely on the behaviour. _(ProductEx)_ — Status: open
 - **MPL (Multi-Program Loyalty) not addressed in BRD**: EMF has active MPL handling. Changes to the tier config API must not break MPL de-duplication logic. _(ProductEx)_ — Status: open
+- **LockManager race condition in reference impl**: intouch-api-v3's `LockManager` uses non-atomic check-then-set pattern on Redis cache. The emf-parent `@DistributedLock` must NOT replicate this — use atomic `SET NX PX` via `RedisTemplate` instead. _(Analyst)_ — Status: open
+- **SNAPSHOT document accumulation**: Document-per-version pattern creates SNAPSHOT records on every edit approval. No cleanup/archival strategy defined. Collections will grow unboundedly over time. _(Analyst)_ — Status: open
+- **Circular service dependency**: `TierConfigService` validates linked benefits, `BenefitConfigService` validates linked tiers. Direct service-to-service injection will cause Spring circular dependency. Must use DAO-level injection for cross-entity lookups. _(Analyst)_ — Status: open
+- **Idempotency key mechanism undefined**: `X-Idempotency-Key` header specified but storage/checking mechanism deferred. Without it, retried POSTs create duplicate DRAFTs. _(Analyst)_ — Status: open
+- **US-11 diff computation unspecified**: Approvals listing requires old-vs-new field diff for edit approvals. Architect does not define the diff shape or computation strategy. _(Analyst)_ — Status: open
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -118,9 +134,12 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Nudge/communication config — exact field structure needs product team clarification before Architect designs schema. _(BA)_
 - [ ] How does new MongoDB tier config sync with legacy MySQL strategy tables consumed by EMF? Critical for subsequent iteration. _(BA)_
 - [ ] Member distribution data lives in customer_enrollment + program_slabs. DB constraints/indexes in cc-stack-crm. Relevant for future simulation feature. _(BA)_
-- [ ] Is Redis available in the emf-parent deployment environment? Required for @DistributedLock. If not, need alternative (MongoDB-based locking). _(Architect)_ — owner: Infrastructure
+- [x] Is Redis available in the emf-parent deployment environment? Required for @DistributedLock. _(resolved by Analyst: YES — redisson.properties, ApplicationCacheConfig with JedisConnectionFactory+Sentinel, RedisCacheManager, RedisTemplate, RedisCacheService all confirmed in emf-parent codebase)_
 - [ ] Idempotency key storage mechanism: Redis with TTL or MongoDB collection? Needed for POST endpoint retry safety. _(Architect)_ — owner: Developer
-- [ ] Should the new controllers use @Controller (existing pattern) or @RestController? Existing controllers implement Swagger-generated interfaces. New controllers are hand-written. _(Architect)_ — owner: Developer
+- [x] Should the new controllers use @Controller (existing pattern) or @RestController? _(resolved by Analyst: Use @RestController. Existing @Controller pattern is because those classes implement Swagger-generated interfaces with @ResponseBody. New hand-written controllers should use @RestController for clarity.)_
+- [ ] Does `spring-rest-endpoint-config.xml` component scan cover the proposed new packages, or does it need base-package additions? _(Analyst)_ — owner: Developer
+- [ ] What is the diff response shape for US-11 approvals listing (field-level old/new value comparison)? _(Analyst)_ — owner: Designer
+- [ ] SNAPSHOT cleanup policy: after how many days should SNAPSHOT documents be archived or deleted? _(Analyst)_ — owner: Product
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
