@@ -41,6 +41,17 @@ _What was found in the codebase and docs, and how it behaves/is set up. Updated 
 - **Multi-tenancy**: All core entities use `orgId` as part of composite PKs (e.g., `BenefitsAwardedStatsPK extends OrgEntityLongPKBase`). Tenant isolation is enforced at the data layer. New APIs must propagate orgId correctly. _(ProductEx)_
 - **No product registry exists**: `docs/product/registry.md` does not exist. This review was performed without a registry baseline. Registry should be bootstrapped after this workflow cycle. _(ProductEx)_
 - **No aiRa/LLM integration in codebase**: No files referencing aiRa, LLM, intent parsing, or NLP were found. The aiRa side panel mentioned in the BRD as "production-ready" (Section 3.5) is not visible in this repository. It may live in the Garuda frontend repo or a separate service repo not present in this workspace. _(ProductEx)_
+- **MongoDB DAO pattern**: All MongoDB DAOs extend `BaseMongoDaoImpl<T extends BaseMongoEntity>`, which uses `MongoDataSourceManager` for org-sharded connections. DAOs define `DATABASE_NAME` and `COLLECTION_NAME` as interface constants. Databases in use: `emf`, `peb`. Template is `MongoTemplateImpl`. _(Architect)_
+- **OrgId threading pattern**: `LoggerInterceptor` extracts `X-CAP-ORG-ID` header -> `ShardContext.set(orgId)` (ThreadLocal). `MongoDataSourceManager.getDataSource(orgId)` routes to correct MongoDB shard. OrgId must be passed explicitly to every DAO method — not taken from request body. _(Architect)_
+- **REST controller pattern**: Controllers in pointsengine-emf use `@Controller` (not `@RestController`), implementing Swagger-generated API interfaces. Located in `RESTEndpoint.controller.impl` package. _(Architect)_
+- **Validation pattern**: Two-layer approach. Layer 1: Bean Validation (`@Valid`, `@NotNull`, `@Size`) on DTOs. Layer 2: `ValidatorFactory` returning ordered `List<PromotionValidator>` per `ValidatorTypes` enum. Factory-based validation is the dominant pattern for business rules. _(Architect)_
+- **GlobalExceptionHandler**: `@RestControllerAdvice` handles `MethodArgumentNotValidException` (400), `RequestValidationException` (400), and `RuntimeException` (500). _(Architect)_
+- **@Lockable annotation (intouch-api-v3)**: Custom annotation with `key` (SpEL), `ttl` (ms), `acquireTime` (ms). Used on `changePromotionStatus()` and `orchestrateEdits()`. Backed by distributed lock (likely Redis). Does NOT exist in emf-parent — must be implemented or imported. _(Architect)_
+- **UnifiedPromotion approval flow detail**: `changePromotionStatus()` validates transition via `StatusTransitionValidator`, then switches on normalized action. Edit approval: active parent -> SNAPSHOT, draft -> inherits parent's status (ACTIVE or PAUSED). New approval: PENDING_APPROVAL -> ACTIVE. Rejection: PENDING_APPROVAL -> DRAFT. _(Architect)_
+- **PromotionStatus enum**: DRAFT, ACTIVE, PAUSED, PENDING_APPROVAL, STOPPED, SNAPSHOT, LIVE, UPCOMING, COMPLETED, PUBLISH_FAILED. Our ConfigStatus will use a subset: DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, SNAPSHOT. _(Architect)_
+- **program_slabs MySQL schema**: PK `(id, org_id)`, unique key `(org_id, program_id, serial_number)`. Fields: id, org_id, program_id, serial_number, name, description, created_on, metadata (varchar 30). _(Architect)_
+- **strategies MySQL schema**: PK `(id, org_id)`, unique key `(program_id, strategy_type_id, name)`. Strategy types include SLAB_UPGRADE, SLAB_DOWNGRADE. `property_values` stores serialized config. `StrategyType` MongoDB mirror has: POINT_ALLOCATION, POINT_EXPIRY, POINT_REDEMPTION_THRESHOLD, SLAB_UPGRADE, SLAB_DOWNGRADE, POINT_RETURN, EXPIRY_REMINDER, TRACKER. _(Architect)_
+- **customer_enrollment MySQL schema**: PK `(id, org_id)`, unique key `(org_id, program_id, customer_id, entity_type)`. Holds `current_slab_id`, `slab_expiry_date`, `lifetime_purchases`, `visits`. _(Architect)_
 
 ## Key Decisions
 _Significant decisions and their rationale. Format: `- [decision]: [rationale] _(phase)_`_
@@ -56,6 +67,16 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - All tier config fields from BRD in scope: eligibility, validity, renewal, downgrade, upgrade mode/bonus, nudge/communication, color, etc. _(BA)_
 - API uses "tier" terminology externally, "slab" internally where interfacing with existing EMF components. _(BA)_
 - Tier and benefit APIs built in emf-parent (kalpavriksha repo), not intouch-api-v3. _(BA)_
+- Document-per-version pattern (UnifiedPromotion) chosen for maker-checker: parentId links draft to active parent, version increments on edit, ACTIVE -> SNAPSHOT on edit approval. Chosen for consistency with only existing maker-checker in the org. _(Architect)_
+- Two new MongoDB collections: `tier_configs` and `benefit_configs` in `emf` database. No writes to MySQL strategy/program_slabs tables. _(Architect)_
+- Distributed lock (@DistributedLock) required for status change concurrency, modeled on @Lockable from intouch-api-v3. Requires Redis in emf-parent deployment. _(Architect)_
+- Two-layer validation: Bean Validation on DTOs (layer 1) + ValidatorFactory chains for business rules (layer 2). Follows existing ValidatorFactory pattern in pointsengine-emf. _(Architect)_
+- ConfigStatus enum: DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, SNAPSHOT. State machine modeled on StatusTransitionValidator from intouch-api-v3. _(Architect)_
+- API versioned at /api/v1. All endpoints under /api/v1/tiers and /api/v1/benefits. _(Architect)_
+- Each tier/benefit can independently have one pending draft. No program-level lock — multiple tiers can be PENDING_APPROVAL simultaneously. _(Architect)_
+- OrgId sourced from ShardContext (set by LoggerInterceptor from X-CAP-ORG-ID header), never from request body. _(Architect)_
+- Nudge/communication config modeled as flexible structure (enabled, reminderBeforeDays[], templateReferences) pending product clarification. _(Architect)_
+- Upgrade bonus modeled as numeric bonusPoints field. Can be extended with bonusBenefitId later if product decides. _(Architect)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -66,6 +87,9 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - All new REST APIs must enforce orgId-scoped multi-tenancy consistent with existing composite PK pattern _(ProductEx)_
 - EMF evaluation pipeline is Thrift-based; new REST APIs must not create dual write paths that bypass or conflict with the existing evaluation contract _(ProductEx)_
 - intouch-api-v3 appears to be the authority for writing promotion/benefit config to MongoDB; new benefit APIs should clarify their relationship to this service _(ProductEx)_
+- @Lockable annotation exists only in intouch-api-v3, not in emf-parent. A @DistributedLock annotation must be created in emf-parent or imported as a shared library. Requires Redis. _(Architect)_
+- No REST API currently exists for tier (slab) CRUD in any visible service. This is entirely net-new. _(Architect)_
+- New MongoDB collections (tier_configs, benefit_configs) are owned by emf-parent, independent of intouch-api-v3's unified_promotions collection. _(Architect)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -83,7 +107,7 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [x] resolved: Benefits are first-class entities (new standalone MongoDB documents), not a facade over V3 Promotions _(BA)_
 - [x] resolved: Interface philosophy not relevant — backend only, no frontend in this iteration _(BA)_
 - [x] resolved: Pending tier changes use MongoDB documents with UnifiedPromotion-style parentId/version pattern. Tier config writes owned by emf-parent. _(BA)_
-- [ ] How is orgId threaded through and validated in the new REST APIs? Existing pattern uses composite PKs. New APIs need to extract from JWT/header. _(BA)_ — owner: Architect
+- [x] resolved: OrgId is extracted from X-CAP-ORG-ID header by LoggerInterceptor -> ShardContext (ThreadLocal). Services read from ShardContext, never from request body. MongoDataSourceManager routes to correct shard by orgId. All queries include orgId filter. _(BA, resolved by Architect)_
 - [x] resolved: Benefit scoped to one program only. A program can have multiple benefits. _(BA)_
 - [x] resolved: Maker-checker auth at UI layer. Config flag at program level, defaults true. _(BA)_
 - [x] resolved: Simulation parked for this iteration _(BA)_
@@ -94,6 +118,9 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Nudge/communication config — exact field structure needs product team clarification before Architect designs schema. _(BA)_
 - [ ] How does new MongoDB tier config sync with legacy MySQL strategy tables consumed by EMF? Critical for subsequent iteration. _(BA)_
 - [ ] Member distribution data lives in customer_enrollment + program_slabs. DB constraints/indexes in cc-stack-crm. Relevant for future simulation feature. _(BA)_
+- [ ] Is Redis available in the emf-parent deployment environment? Required for @DistributedLock. If not, need alternative (MongoDB-based locking). _(Architect)_ — owner: Infrastructure
+- [ ] Idempotency key storage mechanism: Redis with TTL or MongoDB collection? Needed for POST endpoint retry safety. _(Architect)_ — owner: Developer
+- [ ] Should the new controllers use @Controller (existing pattern) or @RestController? Existing controllers implement Swagger-generated interfaces. New controllers are hand-written. _(Architect)_ — owner: Developer
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
