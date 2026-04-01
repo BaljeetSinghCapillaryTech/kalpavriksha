@@ -127,6 +127,10 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - **Circular service dependency**: `TierConfigService` validates linked benefits, `BenefitConfigService` validates linked tiers. Direct service-to-service injection will cause Spring circular dependency. Must use DAO-level injection for cross-entity lookups. _(Analyst)_ — Status: mitigated (Designer: cross-entity validation uses DAO injection, not service injection)
 - **Idempotency key mechanism undefined**: `X-Idempotency-Key` header specified but storage/checking mechanism deferred. Without it, retried POSTs create duplicate DRAFTs. _(Analyst)_ — Status: mitigated (Designer: IdempotencyKeyGuard using Redis SET NX with 5-min TTL)
 - **US-11 diff computation unspecified**: Approvals listing requires old-vs-new field diff for edit approvals. Architect does not define the diff shape or computation strategy. _(Analyst)_ — Status: mitigated (Designer: ConfigDiffComputer produces ConfigDiffResult with FieldDiff list)
+- **STOPPED benefit still linked from ACTIVE tiers**: If a benefit is STOPPED but ACTIVE tiers still reference it via linkedBenefits, the system behavior is undefined. Should tier validation reject linking to STOPPED benefits? Should stopping a benefit force-unlink it from tiers? _(QA)_ — Status: open
+- **Concurrent create with same name — race condition**: Two simultaneous POST /tiers with name "Gold" could both pass uniqueness validation before either writes. Requires DB-level unique index or application-level lock. _(QA)_ — Status: open
+- **Validity fixedDate in past not explicitly rejected**: BA does not specify whether validity.fixedDate can be a past date. No validation exists to prevent creating a tier with an already-expired validity. _(QA)_ — Status: open
+- **Maker-checker flag=false lifecycle gaps**: Most test scenarios and design work assumes flag=true. The flag=false path (direct ACTIVE on create, direct update of ACTIVE) has less coverage for edge cases like "what happens when flag changes mid-lifecycle." _(QA)_ — Status: open
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -155,6 +159,9 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 
 - [ ] Should ConfigDiffComputer use Jackson ObjectMapper or BSON codec for document-to-map serialization? Both are available. Jackson is simpler but may not handle BSON types (ObjectId, Instant) correctly without custom serializers. _(Designer)_ — owner: Developer
 - [ ] BenefitTypeParameterValidator requires type-specific parameter schemas (e.g., COUPON_ISSUANCE needs couponTemplateId). Are these template IDs validated against an external service, or just checked for presence? _(Designer)_ — owner: Product/Developer
+- [ ] Should validity.fixedDate be validated as a future date? Requirements do not say, but creating a tier with a past fixed date seems nonsensical. _(QA)_ — owner: Product
+- [ ] What happens when a STOPPED benefit is still referenced by an ACTIVE tier's linkedBenefits? Should the system prevent stopping, or force-unlink, or allow the inconsistency? _(QA)_ — owner: Product
+- [ ] When maker-checker flag=false and an ACTIVE tier is updated directly, should version still increment? Or does versioning only apply to maker-checker flow? _(QA)_ — owner: BA/Architect
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]/2 — raised by [Phase X] — severity: trivial|critical — issue: [brief] — resolved: yes|no`_
