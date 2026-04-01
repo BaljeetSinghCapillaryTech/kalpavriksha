@@ -522,6 +522,80 @@ When reading the registry, check `Last updated` date. If older than 30 days, war
 
 ---
 
+### Mode 8: `brd-check` — Validate BRD Against Standards (User-Invokable)
+
+**When**: Before submitting a BRD to the AIDLC pipeline, or when reviewing a BRD for quality.
+
+**Input**: A BRD file path (PDF, DOCX, or Markdown) or BRD text in conversation.
+
+**Purpose**: Checks the BRD against the standardised structure defined in `docs/product/brd-standards.md` and produces a quality report highlighting what's missing, what's good, and what needs fixing before the BRD is AIDLC-ready.
+
+**Steps**:
+
+1. **Read the BRD** — extract from PDF/DOCX if needed, or read directly
+2. **Read `docs/product/brd-standards.md`** — load the standard checklist and mandatory sections
+3. **Check each mandatory section** against the BRD:
+
+   **a. Structure Check:**
+   - [ ] Metadata header present with all required fields (title, owner, version, status, audience, date, program/module, Jira)
+   - [ ] Executive summary ≤ 1 paragraph
+   - [ ] Problem statement with persona impact and business urgency
+
+   **b. Epic & Story Quality Check:**
+   - [ ] Every epic has a granular priority (P0.1, P0.2, P1, P1.1... — not just "P0")
+   - [ ] Every user story has a priority within its epic
+   - [ ] Every user story has an ownership tag (`[UI]`, `[Backend]`, `[UI + Backend]`, `[AI/ML]`, `[Infra]`, `[Cross-team]`)
+   - [ ] Complex stories have concrete examples (input → expected output)
+   - [ ] Every story has testable acceptance criteria (Given/When/Then or checklist)
+
+   **c. Technical Readiness Check:**
+   - [ ] Backend-tagged stories have API contract sketches (endpoint, request/response, validations, errors)
+   - [ ] Dependencies between epics/stories are mapped
+   - [ ] Scope boundaries explicit (in-scope, out-of-scope, dependencies)
+
+   **d. Product Alignment Check:**
+   - [ ] Glossary defines all product-specific terms
+   - [ ] Open questions listed with owners and priority
+   - [ ] All P0 open questions resolved
+   - [ ] Success metrics have baselines, targets, timeframes, owners
+
+4. **Cross-reference with Product Registry** (if available):
+   - Do the modules mentioned in the BRD exist in the registry?
+   - Are the terms consistent with registry Domain Model?
+   - Are there cross-cutting concerns the BRD should address?
+
+5. **Produce the BRD Quality Report**
+
+**Output**: Inline report (conversation) with this structure:
+
+```markdown
+# BRD Quality Report
+
+> BRD: [title]
+> Checked against: docs/product/brd-standards.md
+> Date: [date]
+
+## Score: [X/14 checks passed]
+
+## ✅ What the BRD Does Well
+- [strength 1]
+- [strength 2]
+
+## ❌ Missing / Incomplete (Must Fix Before AIDLC)
+| # | Gap | Impact | How to Fix |
+|---|-----|--------|-----------|
+| 1 | [what's missing] | [what BA/Architect will ask] | [specific action for PM] |
+
+## ⚠️ Recommendations (Improve Quality)
+- [suggestion 1]
+- [suggestion 2]
+
+## AIDLC Readiness: [Ready / Needs Work / Not Ready]
+[One-line verdict]
+```
+
+---
+
 ## Invocation
 
 ```
@@ -530,6 +604,7 @@ When reading the registry, check `Last updated` date. If older than 30 days, war
 /productex query <question>         — answer a product question from the registry
 /productex map <module-name>        — deep-dive into a specific module
 /productex brief <feature-area>     — produce a product brief for BA/Architect
+/productex brd-check <file-path>    — validate a BRD against standards before AIDLC submission
 ```
 
 **Workflow-only modes** (not invoked manually):
@@ -550,6 +625,7 @@ When reading the registry, check `Last updated` date. If older than 30 days, war
 | `brd-review` | `<artifacts-path>/brdQnA.md` | Product gaps, conflicts, and questions for the product team |
 | `consult` | Inline (returned to BA) | Answer or `UNRESOLVED` + appended to `brdQnA.md` |
 | `verify` | Inline (returned to Analyst) | `approved` or `changes_needed` with evidence-backed issues |
+| `brd-check` | Inline (conversation) | BRD quality report — score, gaps, recommendations, AIDLC readiness |
 
 ---
 
