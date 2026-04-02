@@ -77,6 +77,7 @@
     }
     .badge-critical { background: #e74c3c; color: #fff; }
     .badge-high { background: #f39c12; color: #000; }
+    .badge-new { background: #2ecc71; color: #000; }
     .nav {
       position: fixed;
       top: 0;
@@ -101,6 +102,7 @@
       white-space: nowrap;
     }
     .nav a:hover { background: #21262d; }
+    .nav a.new { border-color: #2ecc71; color: #2ecc71; }
     .spacer { height: 3.5rem; }
     .section-divider {
       text-align: center;
@@ -122,6 +124,11 @@
     <a href="#chart7">Rework Loop</a>
     <a href="#chart8">Communication Map</a>
     <a href="#chart9">Guardrails</a>
+    <a href="#chart10" class="new">BA Validation</a>
+    <a href="#chart11" class="new">QA Coverage</a>
+    <a href="#chart12" class="new">SDET Test Strategy</a>
+    <a href="#chart13" class="new">Reviewer Traceability</a>
+    <a href="#chart14" class="new">API Handoff</a>
     <a href="#tables">Tables</a>
   </nav>
   <div class="spacer"></div>
@@ -132,13 +139,14 @@
   <!-- 1. Complete Workflow -->
   <div class="chart-section" id="chart1">
     <h2>1. Complete Workflow — End-to-End</h2>
-    <p>From BRD input through to merge-ready code. Includes LSP init, BRD extraction, parallel Phase 00, verification cycle, and guardrail enforcement.</p>
+    <p>From BRD input through to merge-ready code. Includes LSP init, BRD extraction, knowledge bank, parallel Phase 00, verification cycle, Reviewer traceability, and API handoff.</p>
     <pre class="mermaid">
 flowchart TB
     BRD_IN["BRD Input\nPDF / DOCX / Text"] --> EXTRACT["Extract & Save\nbrd-raw.md"]
 
     subgraph INIT["Initialisation"]
-        EXTRACT --> LSP["Step -1: LSP Init\njdtls daemon"]
+        EXTRACT --> KB["Read knowledge-bank.md\n&lpar;pre-exists in repo&rpar;"]
+        KB --> LSP["Step -1: LSP Init\njdtls daemon"]
         LSP --> SM["Step 0: Init\nsession-memory.md"]
     end
 
@@ -146,11 +154,12 @@ flowchart TB
         direction LR
         subgraph BA_TRACK["BA Track &lpar;interactive&rpar;"]
             BA_R["1. Read brd-raw.md\n+ Registry + Docs"]
-            BA_A["2. Analyse & Classify"]
+            BA_V["1b. BRD Validation Gate\nExtract behaviours"]
+            BA_A["2. Analyse & Classify\n+ Check Knowledge Bank"]
             BA_C["3. Consult\nProductEx + Architect"]
-            BA_Q["4. User Q&A"]
-            BA_O["5. Output 00-ba.md"]
-            BA_R --> BA_A --> BA_C --> BA_Q --> BA_O
+            BA_Q["4. User Q&A\n&lpar;remaining only&rpar;"]
+            BA_O["5. Output 00-ba.md\n+ Acceptance Criteria"]
+            BA_R --> BA_V --> BA_A --> BA_C --> BA_Q --> BA_O
         end
         subgraph PEX_TRACK["ProductEx Track &lpar;background&rpar;"]
             PEX_BRD["BRD Review\nbrdQnA.md"]
@@ -177,11 +186,24 @@ flowchart TB
     end
 
     DESIGNER["Phase 03: Designer"]
-    QA_PHASE["Phase 04: QA"]
+    QA_PHASE["Phase 04: QA\n+ AC Coverage Matrix"]
     DEV["Phase 05: Developer &lpar;interactive&rpar;"]
-    SDET["Phase 06: SDET"]
-    REVIEWER["Phase 07: Reviewer"]
+    SDET["Phase 06: SDET\nUT + IT Planning"]
+    REVIEWER["Phase 07: Reviewer\nBuild + Traceability + Code"]
+
+    subgraph REVIEWER_GATE["Reviewer Requirements Gate"]
+        REV_TRACE["Requirements\nTraceability Check"]
+        REV_ROUTE{"Gaps\nfound?"}
+        REV_TRACE --> REV_ROUTE
+        REV_ROUTE -->|"A: Rerun"| RERUN["Rerun from\nearliest phase"]
+        REV_ROUTE -->|"B: Manual"| MANUAL["Human fixes\nthen re-verify"]
+        REV_ROUTE -->|"C: Accept risk"| ACCEPT["Log in session\nmemory"]
+        REV_ROUTE -->|no gaps| CODE_REV["Proceed to\nCode Review"]
+    end
+
     MERGE(["Merge Ready"])
+
+    API_HANDOFF["API Handoff\n&lpar;optional — on demand&rpar;\napi-handoff.md\n+ OpenAPI YAML"]
 
     SM --> PHASE00
     BA_O --> REVIEW_GATE
@@ -191,7 +213,13 @@ flowchart TB
     HUMAN_R --> ARCH
     ARCH --> ANALYST
     PASS --> DESIGNER
-    DESIGNER --> QA_PHASE --> DEV --> SDET --> REVIEWER --> MERGE
+    DESIGNER --> QA_PHASE --> DEV --> SDET --> REVIEWER
+    REVIEWER --> REVIEWER_GATE
+    CODE_REV --> MERGE
+    ACCEPT --> CODE_REV
+
+    DESIGNER -.->|"api-handoff cmd"| API_HANDOFF
+    DEV -.->|"api-handoff cmd"| API_HANDOFF
 
     GUARDRAILS_CHECK -.->|read at start| ARCH & ANALYST & DESIGNER & QA_PHASE & DEV & SDET & REVIEWER
 
@@ -202,13 +230,16 @@ flowchart TB
     style MERGE fill:#2ecc71,stroke:#fff,color:#fff
     style GUARDRAILS_CHECK fill:#2c3e50,stroke:#e74c3c,color:#fff
     style BRD_IN fill:#3498db,stroke:#fff,color:#fff
+    style REVIEWER_GATE fill:#16213e,stroke:#e94560,color:#fff
+    style API_HANDOFF fill:#9b59b6,stroke:#fff,color:#fff
+    style KB fill:#f39c12,stroke:#fff,color:#000
     </pre>
   </div>
 
   <!-- 2. BRD Input Resolution -->
   <div class="chart-section" id="chart2">
-    <h2>2. BRD Input Resolution</h2>
-    <p>How the workflow accepts BRDs in PDF, DOCX, Markdown, or conversation text — and the optional brd-check pre-validation</p>
+    <h2>2. BRD Input Resolution + Knowledge Bank</h2>
+    <p>How the workflow accepts BRDs in PDF, DOCX, Markdown, or conversation text. Knowledge bank is a permanent repo file — human populates before each pipeline run.</p>
     <pre class="mermaid">
 flowchart TB
     START["User invokes /workflow"] --> CHK{"brd: param\nprovided?"}
@@ -229,61 +260,93 @@ flowchart TB
 
     SAVE["Save to brd-raw.md\nwith source metadata"]
 
-    SAVE --> READY["BRD Ready\nProceed to LSP Init"]
+    SAVE --> KB_READ["Read .claude/skills/\nknowledge-bank.md"]
+    KB_READ --> KB_CHK{"Has content\nbeyond template?"}
+    KB_CHK -->|yes| READY_KB["BA will use KB\nto resolve concerns"]
+    KB_CHK -->|"empty"| READY_NO["BA will ask all\nquestions directly"]
+    READY_KB --> READY
+    READY_NO --> READY
+
+    READY["BRD + Knowledge Bank Ready\nProceed to LSP Init"]
+
+    subgraph KNOWLEDGE_BANK["Knowledge Bank &lpar;human-populated&rpar;"]
+        direction TB
+        KB_SCOPE["Scope decisions"]
+        KB_RULES["Business rules"]
+        KB_TERMS["Domain terminology"]
+        KB_EDGE["Known edge cases"]
+        KB_QA["Pre-answered Q&A"]
+        KB_CTX["Context not in BRD"]
+    end
 
     subgraph OPTIONAL["Optional Pre-Check"]
         BRDCHK["/productex brd-check file.pdf\nValidate against standards\nScore: X/14"]
     end
 
     BRDCHK -.->|"improve BRD\nbefore workflow"| START
+    KNOWLEDGE_BANK -.->|"reduces BA\nquestions"| READY
 
     style SAVE fill:#2ecc71,stroke:#fff,color:#000
     style PROMPT fill:#e74c3c,stroke:#fff,color:#fff
     style OPTIONAL fill:#2c3e50,stroke:#3498db,color:#fff
     style BRDCHK fill:#3498db,stroke:#fff,color:#fff
+    style KNOWLEDGE_BANK fill:#f39c12,stroke:#fff,color:#000
+    style KB_READ fill:#f39c12,stroke:#fff,color:#000
     </pre>
   </div>
 
   <!-- 3. BA Consultations -->
   <div class="chart-section" id="chart3">
-    <h2>3. BA Internal Consultation Protocol (Phase 00 — Step 3)</h2>
-    <p>3-tier routing: product concerns to ProductEx, code/backend to Architect (jdtls-powered), business intent to human</p>
+    <h2>3. BA Internal Consultation Protocol (Phase 00 — Steps 2-4)</h2>
+    <p>Knowledge bank checked first. Then 3-tier routing: product concerns to ProductEx, code/backend to Architect, business intent to human. No concern silently dropped.</p>
     <pre class="mermaid">
 flowchart TB
-    START["BA Step 2 Complete\nConcerns classified"] --> CLASSIFY{"Classify\nconcern type"}
+    START["BA Step 2: Analyse\nthrough 3 lenses"] --> CONCERNS["Collect all concerns\n&lpar;Architect + Analyst + QA lens&rpar;"]
+
+    CONCERNS --> KB{"Check\nKnowledge Bank"}
+
+    KB -->|"answer found"| VERIFY["Cross-verify\nagainst BRD"]
+    VERIFY -->|consistent| RESOLVED_KB["Resolved\n&lpar;by knowledge bank&rpar;"]
+    VERIFY -->|conflict| FLAG["Flag conflict\nroute to human"]
+
+    KB -->|"no answer"| CLASSIFY{"Classify\nconcern type"}
 
     CLASSIFY -->|"Product concern"| PEX["Spawn ProductEx\nconsult mode"]
-    CLASSIFY -->|"Code/backend concern"| ARCH["Spawn Architect\nresearch-only\n&lpar;jdtls preferred&rpar;"]
-    CLASSIFY -->|"Business intent"| HUMAN["Ask User\none at a time"]
+    CLASSIFY -->|"Code/backend"| ARCH["Spawn Architect\nresearch-only\n&lpar;jdtls preferred&rpar;"]
+    CLASSIFY -->|"Business intent"| HUMAN["Route to\nUser Q&A"]
 
     PEX --> PEX_R{"ProductEx\nresponse?"}
-    PEX_R -->|resolved| USE_P["BA uses answer\nwith source citation"]
-    PEX_R -->|unresolved| BRD["Added to brdQnA.md\nfor product team"]
+    PEX_R -->|resolved| RESOLVED_PEX["Resolved\n&lpar;by ProductEx&rpar;"]
+    PEX_R -->|unresolved| BRD["Added to brdQnA.md\nwith owner tag"]
 
     ARCH --> ARCH_R{"Architect\nresponse?"}
-    ARCH_R -->|resolved| USE_A["BA uses answer\nwith code evidence"]
+    ARCH_R -->|resolved| RESOLVED_ARCH["Resolved\n&lpar;by Architect&rpar;"]
     ARCH_R -->|unresolved| PAUSE["WORKFLOW PAUSES\nEscalate to Human"]
 
     PAUSE --> H_INPUT{"Human\nresponds?"}
-    H_INPUT -->|answer| RESUME["BA incorporates\nresumes"]
-    H_INPUT -->|skip| OPEN["Mark as open\nquestion"]
+    H_INPUT -->|answer| RESUME["Resolved\n&lpar;by human&rpar;"]
+    H_INPUT -->|skip| OPEN["Open Question\n&lpar;tracked&rpar;"]
 
-    USE_P --> NEXT["Next concern"]
-    USE_A --> NEXT
-    BRD --> NEXT
-    RESUME --> NEXT
-    OPEN --> NEXT
-    HUMAN --> NEXT
+    RESOLVED_KB & RESOLVED_PEX & RESOLVED_ARCH & RESUME & OPEN & BRD & FLAG --> NEXT["Next concern"]
 
-    NEXT --> DONE{"All\nresolved?"}
-    DONE -->|no| CLASSIFY
+    NEXT --> DONE{"All concerns\naccounted for?"}
+    DONE -->|no| KB
     DONE -->|yes| STEP4["Step 4: User Q&A\nremaining human Qs only"]
+
+    subgraph GUARANTEE["Concern Resolution Guarantee"]
+        direction LR
+        G1["Every concern must end as:\n1. Resolved by KB\n2. Resolved by consultation\n3. Asked to human"]
+        G2["Never silently dropped"]
+    end
 
     style PAUSE fill:#e74c3c,stroke:#fff,color:#fff
     style BRD fill:#f39c12,stroke:#fff,color:#fff
     style PEX fill:#3498db,stroke:#fff,color:#fff
     style ARCH fill:#9b59b6,stroke:#fff,color:#fff
     style HUMAN fill:#2ecc71,stroke:#fff,color:#fff
+    style KB fill:#f39c12,stroke:#fff,color:#000
+    style GUARANTEE fill:#2c3e50,stroke:#2ecc71,color:#fff
+    style RESOLVED_KB fill:#2ecc71,stroke:#fff,color:#000
     </pre>
   </div>
 
@@ -334,7 +397,7 @@ flowchart TB
   <!-- 5. ProductEx Modes -->
   <div class="chart-section" id="chart5">
     <h2>5. ProductEx — All 8 Modes and Touchpoints</h2>
-    <p>4 user-invokable modes (discover, query, map, brief, brd-check) + 3 workflow-internal modes (brd-review, consult, verify)</p>
+    <p>5 user-invokable modes (discover, query, map, brief, brd-check) + 3 workflow-internal modes (brd-review, consult, verify)</p>
     <pre class="mermaid">
 flowchart TB
     subgraph UMODES["User-Invokable Modes"]
@@ -393,7 +456,7 @@ flowchart TB
   <!-- 6. Artifacts Flow -->
   <div class="chart-section" id="chart6">
     <h2>6. Artifact & Session Memory Flow</h2>
-    <p>Which phase writes which artifacts and session memory sections. All phases also read GUARDRAILS.md.</p>
+    <p>Which phase writes which artifacts and session memory sections. Includes knowledge bank and api-handoff.</p>
     <pre class="mermaid">
 flowchart LR
     subgraph PHASES["Phases"]
@@ -408,11 +471,13 @@ flowchart LR
         DV["Developer"]
         SD["SDET"]
         RV["Reviewer"]
+        AH["API Handoff"]
     end
 
     subgraph ARTIFACTS["Artifacts"]
         direction TB
         RAW["brd-raw.md"]
+        KBF["knowledge-bank.md"]
         BQ["brdQnA.md"]
         A0["00-ba.md"]
         PD["docs/product/\nfeature.md"]
@@ -423,6 +488,7 @@ flowchart LR
         A5["05-developer.md"]
         A6["06-sdet.md"]
         A7["07-reviewer.md"]
+        AHF["api-handoff.md\n+ .openapi.yaml"]
     end
 
     subgraph SESSION["Session Memory Sections"]
@@ -444,6 +510,7 @@ flowchart LR
     end
 
     ORCH --> RAW
+    ORCH -.->|reads| KBF
     PBR --> BQ
     PBR --> DT & CB
 
@@ -471,15 +538,22 @@ flowchart LR
     RV --> A7
     RV --> RC & OQ & KD
 
+    AH --> AHF
+
     ORCH --> RL & VCL
 
     AR & AN & DE & QA & DV & SD & RV -.->|read| GR
     BA & AN & PBR -.->|read| REG
+    BA -.->|read| KBF
+    AH -.->|reads| A1 & A3 & A5
 
     style PHASES fill:#0f3460,stroke:#533483,color:#fff
     style ARTIFACTS fill:#1a1a2e,stroke:#e94560,color:#fff
     style SESSION fill:#16213e,stroke:#0f3460,color:#fff
     style SHARED_READ fill:#2c3e50,stroke:#e74c3c,color:#fff
+    style AH fill:#9b59b6,stroke:#fff,color:#fff
+    style AHF fill:#9b59b6,stroke:#fff,color:#fff
+    style KBF fill:#f39c12,stroke:#fff,color:#000
     </pre>
   </div>
 
@@ -537,7 +611,7 @@ flowchart TB
   <!-- 8. Communication Map -->
   <div class="chart-section" id="chart8">
     <h2>8. Complete Skill Communication Map</h2>
-    <p>Every skill-to-skill connection: subagent spawns, blockers, shared state, guardrail reads</p>
+    <p>Every skill-to-skill connection: subagent spawns, blockers, shared state, guardrail reads. Includes API Handoff utility.</p>
     <pre class="mermaid">
 graph TB
     HUMAN(("Human"))
@@ -546,7 +620,8 @@ graph TB
     subgraph STANDALONE["Standalone Skills"]
         DEBUG["Debug"]
         TUTOR["Tutor"]
-        PEXS["ProductEx\nstandalone\n&lpar;discover/query/map/brief/brd-check&rpar;"]
+        PEXS["ProductEx\nstandalone"]
+        APIHO["API Handoff"]
     end
 
     subgraph P00["Phase 00 — Parallel"]
@@ -574,20 +649,23 @@ graph TB
     REG[("registry.md")]
     BRDQ[("brdQnA.md")]
     GR[("GUARDRAILS.md")]
-    STD[("brd-standards.md")]
+    KBK[("knowledge-bank.md")]
 
     HUMAN <-->|"requirement\n+ BRD"| ORCH
     HUMAN <-->|Q&A| BA
     HUMAN <-->|escalated code Qs| ARCL
     HUMAN <-->|commits| DEV
-    HUMAN <-->|anytime| DEBUG & TUTOR & PEXS
+    HUMAN <-->|anytime| DEBUG & TUTOR & PEXS & APIHO
+    HUMAN -->|pre-populate| KBK
 
     ORCH -->|spawns parallel| BA & PEXB
     ORCH -->|spawns| ARCH & ANAL & DSGN & QA & SDET & REV
     ORCH -->|resumes| DEV
+    ORCH -->|on demand| APIHO
 
     BA -->|product Q| PEXC
     BA -->|code Q| ARCL
+    BA -.->|reads| KBK
     PEXC -.->|unresolved| BRDQ
     PEXB -->|writes| BRDQ
 
@@ -599,12 +677,14 @@ graph TB
     QA -->|BLOCKER| DSGN
     QA -->|BLOCKER| BA
     SDET -->|BLOCKER| DEV
+    REV -->|"Req gaps\nrouted to\nearliest phase"| ARCH & DSGN & QA
+
+    APIHO -.->|reads| DSGN & ARCH & DEV
 
     BA & ARCH & ANAL & DSGN & QA & DEV & SDET & REV --> SM
     BA & ANAL & PEXB & PEXC & PEXV --> REG
 
     ARCH & ANAL & DSGN & QA & DEV & SDET & REV -.->|read| GR
-    PEXS -.->|brd-check reads| STD
 
     style P00 fill:#1a1a2e,stroke:#e94560,color:#fff
     style VERIFY fill:#16213e,stroke:#0f3460,color:#fff
@@ -614,7 +694,8 @@ graph TB
     style REG fill:#3498db,stroke:#fff,color:#fff
     style BRDQ fill:#f39c12,stroke:#fff,color:#fff
     style GR fill:#e74c3c,stroke:#fff,color:#fff
-    style STD fill:#9b59b6,stroke:#fff,color:#fff
+    style KBK fill:#f39c12,stroke:#fff,color:#000
+    style APIHO fill:#9b59b6,stroke:#fff,color:#fff
     </pre>
   </div>
 
@@ -671,11 +752,271 @@ flowchart TB
     </pre>
   </div>
 
+  <!-- 10. BA BRD Validation Gate (NEW) -->
+  <div class="chart-section" id="chart10">
+    <h2>10. BA — BRD Validation Gate &amp; Knowledge Bank <span class="badge badge-new">NEW</span></h2>
+    <p>Format-agnostic validation: extracts concrete behaviours from any BRD format. Knowledge bank pre-answers anticipated questions. No concern silently dropped.</p>
+    <pre class="mermaid">
+flowchart TB
+    BRD["Read brd-raw.md\n&lpar;any format&rpar;"] --> Q{"Can you extract\nat least ONE concrete\nexpected behaviour?"}
+
+    Q -->|"NO — zero behaviours"| HARD_BLOCK["HARD BLOCKER\nEscalate to human:\nDescribe what should happen"]
+    HARD_BLOCK --> HUMAN_INPUT["Human provides\nbehaviours"] --> BRD
+
+    Q -->|"YES — behaviours found"| COUNT["Report count\n+ note gaps"]
+
+    COUNT --> GAPS{"Other context\nthin?"}
+    GAPS -->|"no why, no scope, etc."| NOTE["Note gaps as concerns\nfor Q&A — do NOT block"]
+    GAPS -->|sufficient| PROCEED["Proceed to Step 2"]
+    NOTE --> PROCEED
+
+    PROCEED --> EXTRACT_OQ["Extract BRD's own\nopen questions / TBDs"]
+    EXTRACT_OQ --> STEP2["Step 2: Internal Analysis\n3-lens concern collection"]
+
+    STEP2 --> KB_READ["Read knowledge-bank.md"]
+    KB_READ --> EACH_CONCERN{"For each concern"}
+
+    EACH_CONCERN --> KB_HAS{"Knowledge Bank\nhas answer?"}
+    KB_HAS -->|yes| CROSS_VERIFY["Cross-verify\nagainst BRD"]
+    CROSS_VERIFY -->|consistent| MARK_RESOLVED["Mark resolved\n&lpar;by KB&rpar;"]
+    CROSS_VERIFY -->|conflict| ROUTE_HUMAN["Route to human\n&lpar;flag conflict&rpar;"]
+
+    KB_HAS -->|no| CLASSIFY["Classify and route\nnormally"]
+
+    MARK_RESOLVED --> NEXT_C["Next concern"]
+    ROUTE_HUMAN --> NEXT_C
+    CLASSIFY --> NEXT_C
+    NEXT_C --> EACH_CONCERN
+
+    subgraph BEHAVIOUR_DEF["What counts as a behaviour"]
+        direction LR
+        B1["What should happen"]
+        B2["What should change"]
+        B3["How something should work"]
+        B4["Any style: user stories,\nbullets, API specs,\nnarrative prose"]
+    end
+
+    style HARD_BLOCK fill:#e74c3c,stroke:#fff,color:#fff
+    style KB_READ fill:#f39c12,stroke:#fff,color:#000
+    style MARK_RESOLVED fill:#2ecc71,stroke:#fff,color:#000
+    style BEHAVIOUR_DEF fill:#16213e,stroke:#0f3460,color:#fff
+    </pre>
+  </div>
+
+  <!-- 11. QA Acceptance Criteria Coverage (NEW) -->
+  <div class="chart-section" id="chart11">
+    <h2>11. QA — Acceptance Criteria Coverage Matrix <span class="badge badge-new">NEW</span></h2>
+    <p>Every acceptance criterion from BA must map to at least one test scenario. No silent skipping. Gaps block upstream.</p>
+    <pre class="mermaid">
+flowchart TB
+    START["QA reads 00-ba.md"] --> EXTRACT["Extract ALL\nacceptance criteria"]
+    EXTRACT --> EACH{"For each AC"}
+
+    EACH --> MAP{"Can map to\ntest scenario?"}
+
+    MAP -->|yes| COVERED["Map AC to TS-XX\nStatus: Covered"]
+    MAP -->|"too vague"| BLOCK_BA["BLOCKER to BA\nCriterion too vague\nneeds clarification"]
+    MAP -->|"no testable interface"| BLOCK_DSGN["BLOCKER to Designer\nNo way to verify\nthis criterion"]
+
+    COVERED --> NEXT["Next AC"]
+    BLOCK_BA --> NEXT
+    BLOCK_DSGN --> NEXT
+    NEXT --> EACH
+
+    EACH --> DONE["All ACs processed"]
+    DONE --> MATRIX["Produce Coverage Matrix"]
+
+    subgraph MATRIX_FORMAT["Coverage Matrix Output"]
+        direction TB
+        M_TABLE["AC # | Criterion | Test Scenarios | Status\nAC-1 | ... | TS-01, TS-03 | Covered\nAC-2 | ... | TS-05 | Covered\nAC-3 | ... | — | No scenario &lpar;reason&rpar;"]
+    end
+
+    MATRIX --> SCENARIOS["Produce test scenarios\nwith edge cases"]
+    SCENARIOS --> OUTPUT["Write 04-qa.md"]
+
+    style BLOCK_BA fill:#e74c3c,stroke:#fff,color:#fff
+    style BLOCK_DSGN fill:#e74c3c,stroke:#fff,color:#fff
+    style COVERED fill:#2ecc71,stroke:#fff,color:#000
+    style MATRIX_FORMAT fill:#16213e,stroke:#0f3460,color:#fff
+    </pre>
+  </div>
+
+  <!-- 12. SDET Test Strategy (NEW) -->
+  <div class="chart-section" id="chart12">
+    <h2>12. SDET — Test Layer Strategy &amp; IT Discovery <span class="badge badge-new">NEW</span></h2>
+    <p>UT vs IT classification, convention-inference IT discovery (learn from existing suite), test efficiency protocol (min tests, max coverage).</p>
+    <pre class="mermaid">
+flowchart TB
+    START["SDET reads 04-qa.md\nscenarios"] --> LAYER{"Classify each\nscenario into\ntest layer"}
+
+    LAYER -->|"Pure logic,\nvalidation,\ncalculation"| UT["Unit Test"]
+    LAYER -->|"API, DB, service\ninteraction"| IT["Integration Test"]
+
+    UT --> EFFICIENCY["Test Efficiency Protocol\nCombine related conditions\ninto single test using\ncollections / parameterization"]
+
+    IT --> DISCOVERY["IT Infrastructure\nDiscovery Protocol"]
+
+    subgraph IT_DISCOVERY["5-Step IT Discovery"]
+        direction TB
+        S1["Step 1: Run existing suite\nRecord baseline\nmvn verify -pl module"]
+        S2["Step 2: Learn from suite\nBuild file deps\nBase classes\n2-3 exemplar ITs"]
+        S3["Step 3: Convention Snapshot\nBase class, annotations,\nassertions, data setup,\ncleanup, containers,\nnaming, profiles,\ncontext reuse, test slicing"]
+        S4["Step 4: Module Boundary\nAssessment\nModules touched,\ncross-module feasibility"]
+        S5["Step 5: Plan each IT\nwith reference exemplar"]
+        S1 --> S2 --> S3 --> S4 --> S5
+    end
+
+    DISCOVERY --> S1
+
+    subgraph EFFICIENCY_RULES["Test Efficiency Rules"]
+        direction TB
+        E1["1-2 tests per field\nfor validation"]
+        E2["1 test per CRUD op\nwith multiple assertions"]
+        E3["Group error scenarios\ninto parameterized tests"]
+        E4["Max 15 methods per class\nor consolidate"]
+    end
+
+    EFFICIENCY --> PLAN["Test Plan Output"]
+    S5 --> PLAN
+
+    subgraph IT_GUARDRAILS["IT Performance Guardrails"]
+        direction TB
+        IG1["Reuse existing Spring context"]
+        IG2["Use shared containers"]
+        IG3["Narrowest test slice possible"]
+        IG4["Flag new context creation"]
+    end
+
+    PLAN --> OUTPUT["Write 06-sdet.md\nUT count + IT count\n+ efficiency ratio"]
+
+    style IT_DISCOVERY fill:#16213e,stroke:#0f3460,color:#fff
+    style EFFICIENCY_RULES fill:#0f3460,stroke:#533483,color:#fff
+    style IT_GUARDRAILS fill:#2c3e50,stroke:#e74c3c,color:#fff
+    style UT fill:#3498db,stroke:#fff,color:#fff
+    style IT fill:#9b59b6,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- 13. Reviewer Requirements Traceability (NEW) -->
+  <div class="chart-section" id="chart13">
+    <h2>13. Reviewer — Requirements Traceability &amp; Gap Routing <span class="badge badge-new">NEW</span></h2>
+    <p>Cross-verifies ALL phase artifacts against BA requirements. Routes gaps to earliest concerned phase. Human chooses: rerun, manual fix, or accept risk.</p>
+    <pre class="mermaid">
+flowchart TB
+    START["Reviewer Phase 07"] --> BUILD["Step 1: Build Verification\nmvn verify"]
+    BUILD --> LOAD["Step 1a: Load requirements\nfrom 00-ba.md + brdQnA.md"]
+    LOAD --> CROSS["Step 1b: Cross-verify\neach artifact\n01-arch through 06-sdet"]
+
+    CROSS --> MATRIX["Step 1c: Build\nTraceability Matrix\nREQ-ID per phase\nPASS / FAIL / PARTIAL"]
+
+    MATRIX --> BRD_Q["Step 1d: Check\nunresolved BRD questions\nfrom brdQnA.md"]
+
+    BRD_Q --> GAPS{"Requirements\ngaps found?"}
+
+    GAPS -->|no| CODE["Proceed to\nCode Review"]
+    GAPS -->|yes| ROUTE["Step 1e: Route gaps\nto EARLIEST\nconcerned phase"]
+
+    ROUTE --> HUMAN_CHOICE{"Human chooses\nper gap:"}
+
+    HUMAN_CHOICE -->|"A: Rerun"| RERUN["Rerun from earliest\naffected phase\nCascade through pipeline"]
+    HUMAN_CHOICE -->|"B: Manual fix"| MANUAL["Human fixes\nSays continue\nReviewer re-verifies"]
+    HUMAN_CHOICE -->|"C: Accept risk"| ACCEPT["Log in session memory\nas accepted risk"]
+
+    RERUN --> RE_REVIEW["Reviewer re-runs\nfull flow"]
+    MANUAL --> RE_REVIEW
+    ACCEPT --> CODE
+
+    CODE --> MERGE_CHECK{"Code review\npasses?"}
+    MERGE_CHECK -->|yes| DONE["Merge Ready"]
+    MERGE_CHECK -->|no| BLOCK["BLOCKS MERGE"]
+
+    subgraph TRACE_TABLE["Traceability Matrix"]
+        direction LR
+        TT["REQ-ID | Phase | Status\nREQ-1 | Architect | PASS\nREQ-2 | Designer | PARTIAL\nREQ-3 | QA | FAIL"]
+    end
+
+    style ROUTE fill:#e94560,stroke:#fff,color:#fff
+    style RERUN fill:#e67e22,stroke:#fff,color:#fff
+    style MANUAL fill:#f39c12,stroke:#fff,color:#000
+    style ACCEPT fill:#3498db,stroke:#fff,color:#fff
+    style DONE fill:#2ecc71,stroke:#fff,color:#000
+    style BLOCK fill:#e74c3c,stroke:#fff,color:#fff
+    style TRACE_TABLE fill:#16213e,stroke:#0f3460,color:#fff
+    </pre>
+  </div>
+
+  <!-- 14. API Handoff (NEW) -->
+  <div class="chart-section" id="chart14">
+    <h2>14. API Handoff — UI Team Contract Document <span class="badge badge-new">NEW</span></h2>
+    <p>Standalone utility. Extracts API contracts from architect + designer + developer artifacts. Produces resource-oriented markdown + optional OpenAPI 3.1 YAML for mock servers.</p>
+    <pre class="mermaid">
+flowchart TB
+    INVOKE["/api-handoff artifacts-path\nor api-handoff at pause prompt"]
+
+    subgraph STEP1["Step 1: Discover API Surface"]
+        direction TB
+        READ_ARCH["Read 01-architect.md\nAPI approach, endpoints"]
+        READ_DSGN["Read 03-designer.md\nInterface signatures, DTOs"]
+        READ_DEV["Read 05-developer.md\n&lpar;if exists — deviations&rpar;"]
+        READ_BA["Read 00-ba.md\nUser stories for mapping"]
+        READ_SM["Read session-memory.md\nAuth, pagination, constraints"]
+    end
+
+    subgraph STEP2["Step 2: Scan Codebase &lpar;optional&rpar;"]
+        direction TB
+        CTRL["Find controller classes\nExtract URL mappings"]
+        DTO["Read request/response DTOs\nExact field names + types"]
+        WRAP["Check response wrappers\nError handlers"]
+    end
+
+    subgraph STEP2B["Step 2b: Discover API Patterns"]
+        direction TB
+        RESP["Response wrapper pattern"]
+        ERR["Error format &lpar;envelope&rpar;"]
+        PAG["Pagination pattern"]
+        NAMING["Field naming convention"]
+        AUTH["Auth pattern"]
+    end
+
+    subgraph OUTPUT["Step 3: API Contract Document"]
+        direction TB
+        OUT_MD["api-handoff.md\nResource-oriented\nRealistic JSON examples\nError cases table\nEnums & constants\nFeature-to-endpoint map"]
+    end
+
+    subgraph OPENAPI["Step 4: OpenAPI Spec &lpar;optional&rpar;"]
+        direction TB
+        OUT_YAML["api-handoff.openapi.yaml\nOpenAPI 3.1\nFor Postman / Prism\nmock server / codegen"]
+    end
+
+    INVOKE --> STEP1
+    STEP1 --> STEP2B
+    STEP2B --> STEP2
+    STEP2 --> OUTPUT
+    OUTPUT --> OPENAPI
+
+    subgraph AUDIENCE["Written for Frontend Dev"]
+        direction LR
+        AUD1["UI-centric language"]
+        AUD2["Example values, not just types"]
+        AUD3["All error cases documented"]
+        AUD4["TBD for unknowns, never guess"]
+        AUD5["Self-contained — no backend docs needed"]
+    end
+
+    style STEP1 fill:#0f3460,stroke:#533483,color:#fff
+    style STEP2 fill:#16213e,stroke:#0f3460,color:#fff
+    style STEP2B fill:#1a1a2e,stroke:#e94560,color:#fff
+    style OUTPUT fill:#2ecc71,stroke:#fff,color:#000
+    style OPENAPI fill:#9b59b6,stroke:#fff,color:#fff
+    style AUDIENCE fill:#2c3e50,stroke:#3498db,color:#fff
+    </pre>
+  </div>
+
   <div class="section-divider">- - - REFERENCE TABLES - - -</div>
 
   <!-- Tables -->
   <div class="chart-section" id="tables">
-    <h2>10. Execution Mode Summary</h2>
+    <h2>15. Execution Mode Summary</h2>
     <table>
       <tr><th>Phase</th><th>Execution Mode</th><th>Interactive?</th><th>Spawns Subagents?</th><th>Reads Guardrails?</th></tr>
       <tr><td>Orchestrator (pre-phase)</td><td>Main context</td><td>Yes (BRD input)</td><td>LSP init</td><td>No</td></tr>
@@ -688,12 +1029,13 @@ flowchart TB
       <tr><td>Developer (05)</td><td>Main context</td><td>Yes (commits)</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
       <tr><td>SDET (06)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
       <tr><td>Reviewer (07)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
+      <tr><td>API Handoff <span class="badge badge-new">NEW</span></td><td>Subagent (on demand)</td><td>No</td><td>No</td><td>No</td></tr>
       <tr><td>Debug</td><td>Main context</td><td>Yes</td><td>No</td><td>No</td></tr>
       <tr><td>Tutor</td><td>Main context</td><td>Yes</td><td>No</td><td>No</td></tr>
       <tr><td>ProductEx (standalone)</td><td>Main context</td><td>Yes (discover)</td><td>No</td><td>No</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">11. Blocker Target Map</h2>
+    <h2 style="margin-top:2rem;">16. Blocker Target Map</h2>
     <table>
       <tr><th>Raising Phase</th><th>Can Target</th><th>Reason</th></tr>
       <tr><td>Architect (01)</td><td>BA</td><td>Requirements ambiguous / contradictory / infeasible</td></tr>
@@ -702,11 +1044,11 @@ flowchart TB
       <tr><td>Designer (03)</td><td>Analyst</td><td>Security risk needs interface mitigation</td></tr>
       <tr><td>QA (04)</td><td>Designer</td><td>Untestable interfaces</td></tr>
       <tr><td>QA (04)</td><td>BA</td><td>Vague acceptance criteria</td></tr>
-      <tr><td>SDET (06)</td><td>Developer</td><td>Critical test scenarios missing</td></tr>
-      <tr><td>Reviewer (07)</td><td><em>blocks merge</em></td><td>Unmet criteria, contradicted decisions, unmitigated risks, GUARDRAIL violations</td></tr>
+      <tr><td>SDET (06)</td><td>Developer</td><td>Critical test scenarios missing from implementation</td></tr>
+      <tr><td>Reviewer (07) <span class="badge badge-new">NEW</span></td><td>Earliest affected phase</td><td>Requirements traceability gaps — routed per REQ-ID to Architect, Designer, QA, or Developer</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">12. Guardrails Quick Reference</h2>
+    <h2 style="margin-top:2rem;">17. Guardrails Quick Reference</h2>
     <table>
       <tr><th>ID</th><th>Category</th><th>Priority</th><th>Key Rules</th><th>Enforced By</th></tr>
       <tr><td>G-01</td><td>Timezone & Date/Time</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Store UTC, display local, java.time only, ISO-8601, test with IST/NPT offsets</td><td>All code-touching skills</td></tr>
@@ -723,22 +1065,23 @@ flowchart TB
       <tr><td>G-12</td><td>AI-Specific (AIDLC)</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Read before write, follow project patterns, verify APIs exist, simplest solution</td><td>All skills</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">13. Artifact Files</h2>
+    <h2 style="margin-top:2rem;">18. Artifact Files</h2>
     <table>
       <tr><th>Phase</th><th>Artifact</th><th>Session Memory Sections Written</th></tr>
-      <tr><td>Orchestrator (pre-phase)</td><td><code>brd-raw.md</code></td><td><em>(none — raw input only)</em></td></tr>
+      <tr><td>Orchestrator (pre-phase)</td><td><code>brd-raw.md</code> (writes), <code>knowledge-bank.md</code> (reads) <span class="badge badge-new">NEW</span></td><td><em>(none — input files only)</em></td></tr>
       <tr><td>ProductEx BRD Review</td><td><code>brdQnA.md</code></td><td>Domain Terminology, Codebase Behaviour</td></tr>
       <tr><td>BA (00)</td><td><code>00-ba.md</code> + <code>docs/product/feature.md</code></td><td>Domain Terminology, Codebase Behaviour, Constraints, Key Decisions, Open Questions</td></tr>
       <tr><td>Architect (01)</td><td><code>01-architect.md</code></td><td>Codebase Behaviour, Key Decisions, Constraints, Open Questions</td></tr>
       <tr><td>Analyst (02)</td><td><code>02-analyst.md</code></td><td>Codebase Behaviour, Risks & Concerns, Constraints, Open Questions</td></tr>
       <tr><td>Designer (03)</td><td><code>03-designer.md</code></td><td>Key Decisions, Constraints, Open Questions</td></tr>
-      <tr><td>QA (04)</td><td><code>04-qa.md</code></td><td>Risks & Concerns, Open Questions</td></tr>
+      <tr><td>QA (04)</td><td><code>04-qa.md</code> + <em>AC Coverage Matrix</em> <span class="badge badge-new">NEW</span></td><td>Risks & Concerns, Open Questions</td></tr>
       <tr><td>Developer (05)</td><td><code>05-developer.md</code></td><td>Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns</td></tr>
-      <tr><td>SDET (06)</td><td><code>06-sdet.md</code></td><td>Constraints, Open Questions</td></tr>
-      <tr><td>Reviewer (07)</td><td><code>07-reviewer.md</code></td><td>Risks & Concerns, Open Questions, Key Decisions</td></tr>
+      <tr><td>SDET (06)</td><td><code>06-sdet.md</code> + <em>UT/IT split, Convention Snapshot</em> <span class="badge badge-new">NEW</span></td><td>Constraints, Open Questions</td></tr>
+      <tr><td>Reviewer (07)</td><td><code>07-reviewer.md</code> + <em>Traceability Matrix</em> <span class="badge badge-new">NEW</span></td><td>Risks & Concerns, Open Questions, Key Decisions</td></tr>
+      <tr><td>API Handoff <span class="badge badge-new">NEW</span></td><td><code>api-handoff.md</code> + <code>api-handoff.openapi.yaml</code></td><td><em>(none — reads only)</em></td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">14. ProductEx Mode Reference</h2>
+    <h2 style="margin-top:2rem;">19. ProductEx Mode Reference</h2>
     <table>
       <tr><th>Mode</th><th>Type</th><th>Triggered By</th><th>Output</th></tr>
       <tr><td><code>discover</code></td><td>User-invokable</td><td>Human</td><td><code>docs/product/registry.md</code></td></tr>
@@ -751,7 +1094,7 @@ flowchart TB
       <tr><td><code>verify</code></td><td>Workflow-internal</td><td>Analyst (Phase 02)</td><td>Approved or changes_needed with evidence</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">15. BRD Standards Checklist (for Product Managers)</h2>
+    <h2 style="margin-top:2rem;">20. BRD Standards Checklist (for Product Managers)</h2>
     <table>
       <tr><th>#</th><th>Check</th><th>Category</th></tr>
       <tr><td>1</td><td>Metadata header (title, owner, version, status, module, Jira)</td><td>Structure</td></tr>
@@ -770,11 +1113,38 @@ flowchart TB
       <tr><td>14</td><td>Success metrics with baselines, targets, owners</td><td>Product</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">16. Circuit Breaker Limits</h2>
+    <h2 style="margin-top:2rem;">21. Circuit Breaker Limits</h2>
     <table>
       <tr><th>Loop Type</th><th>Max Cycles</th><th>After Exhaustion</th></tr>
       <tr><td>General rework (any blocker)</td><td>2</td><td>Human escalation with 4 options (revisit, accept, mark risk, other)</td></tr>
       <tr><td>Architect-Analyst-ProductEx verification</td><td>3</td><td>Human escalation with 4 options (manual adjust, accept, revisit BA, consult product team)</td></tr>
+    </table>
+
+    <h2 style="margin-top:2rem;">22. Pause Prompt Commands</h2>
+    <table>
+      <tr><th>Command</th><th>Action</th><th>Available When</th></tr>
+      <tr><td><code>continue</code></td><td>Proceed to next phase</td><td>Any pause</td></tr>
+      <tr><td><code>skip</code></td><td>Skip next phase (if optional: Analyst, SDET)</td><td>Any pause</td></tr>
+      <tr><td><code>api-handoff</code> <span class="badge badge-new">NEW</span></td><td>Generate API contract doc for UI team</td><td>After Designer or Developer</td></tr>
+      <tr><td><code>revert</code></td><td>Open revert menu — pick a phase to roll back to</td><td>Any pause</td></tr>
+      <tr><td><code>revert to N</code></td><td>Quick revert to phase N</td><td>Any pause</td></tr>
+      <tr><td><code>status</code></td><td>Show full workflow progress dashboard</td><td>Any pause</td></tr>
+      <tr><td><code>exit</code></td><td>Save state and exit (resume later)</td><td>Any pause</td></tr>
+      <tr><td><code>resolve</code></td><td>Take manual control of a blocker</td><td>During rework cycles</td></tr>
+    </table>
+
+    <h2 style="margin-top:2rem;">23. New Enhancements Summary</h2>
+    <table>
+      <tr><th>Enhancement</th><th>Skill</th><th>What it does</th></tr>
+      <tr><td>BRD Validation Gate</td><td>BA (Step 1b)</td><td>Format-agnostic check — blocks only when zero concrete behaviours extractable. Reads for meaning, not patterns.</td></tr>
+      <tr><td>Knowledge Bank</td><td>BA (Step 2) + Workflow</td><td>Human pre-populates context before pipeline. BA checks it before asking questions. Reduces back-and-forth.</td></tr>
+      <tr><td>AC Coverage Matrix</td><td>QA</td><td>Every acceptance criterion from BA must map to at least one test scenario. No silent skipping.</td></tr>
+      <tr><td>Test Efficiency Protocol</td><td>SDET</td><td>Combine conditions using collections/parameterization. Max 15 methods per class. Min tests, max coverage.</td></tr>
+      <tr><td>Test Layer Strategy</td><td>SDET</td><td>UT vs IT classification with decision table. No IT for pure logic, no UT for API/DB behaviour.</td></tr>
+      <tr><td>IT Infrastructure Discovery</td><td>SDET</td><td>5-step convention-inference protocol. Learns from existing test suite, not hardcoded patterns.</td></tr>
+      <tr><td>Requirements Traceability</td><td>Reviewer</td><td>Cross-verifies all artifacts against BA requirements. Routes gaps to earliest concerned phase.</td></tr>
+      <tr><td>Gap Routing</td><td>Reviewer + Workflow</td><td>Human chooses per gap: rerun from phase, manual fix, or accept as known risk.</td></tr>
+      <tr><td>API Handoff</td><td>New standalone skill</td><td>Extracts API contracts for UI team. Resource-oriented markdown + optional OpenAPI 3.1 YAML.</td></tr>
     </table>
   </div>
 

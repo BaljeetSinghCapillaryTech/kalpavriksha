@@ -45,7 +45,24 @@ Append to the following sections in `session-memory.md`:
 - Search the codebase and existing tests. Use grep for test patterns; prefer targeted reads over loading all test files.
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `04-qa.md`.
 
+## Acceptance Criteria Coverage (Mandatory)
+
+Before producing output, read `00-ba.md` and extract every acceptance criterion. Each acceptance criterion must have **at least one** test scenario mapped to it. Track this as a coverage matrix:
+
+```markdown
+## Acceptance Criteria Coverage
+| AC # | Acceptance Criterion (from 00-ba.md) | Test Scenario(s) | Status |
+|------|--------------------------------------|-------------------|--------|
+| AC-1 | [criterion text]                     | TS-01, TS-03      | ✅ Covered |
+| AC-2 | [criterion text]                     | TS-05             | ✅ Covered |
+| AC-3 | [criterion text]                     | —                 | ❌ No scenario possible (reason) |
+```
+
+- If an acceptance criterion cannot be translated into a test scenario, it must be flagged as a **BLOCKER → BA** (criterion too vague) or **BLOCKER → Designer** (no testable interface).
+- Do NOT silently skip any acceptance criterion. Every one must appear in the matrix with a status.
+
 ## Output (Markdown)
+- **Acceptance criteria coverage matrix** — every AC from `00-ba.md` mapped to test scenarios (see above)
 - **Test scenarios** — table or list: scenario name, description, expected outcome
 - **Edge cases** — boundaries, null/empty, invalid input, errors
 - **Existing tests to extend or touch** — file/class names (from search/grep)

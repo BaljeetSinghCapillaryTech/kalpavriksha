@@ -56,6 +56,14 @@ The workflow needs a BRD (Business Requirements Document) as input for BA and Pr
 
 Do not proceed to Step -1 (LSP init) until BRD input is resolved and `brd-raw.md` is written.
 
+### Knowledge Bank
+
+The knowledge bank file lives at `.claude/skills/knowledge-bank.md` in the repo. It is a permanent file — the human populates it before running the pipeline for each epic/story.
+
+At workflow start, read `.claude/skills/knowledge-bank.md`. If it has content beyond the template comments, note it: "Knowledge bank has content — BA will use it to resolve concerns before asking questions." If it is empty (only template), note: "Knowledge bank is empty — BA will ask all questions directly."
+
+Do not create or overwrite this file. It is the human's responsibility to populate it before running the pipeline.
+
 ## Phase Sequence
 
 ```
@@ -124,6 +132,8 @@ _Tracks re-run cycles to detect unresolved loops. Format: `- [Phase N] cycle [N]
 ```
 
 If `session-memory.md` already exists at the path (resuming a workflow), read it and continue — do not overwrite.
+
+Also read `.claude/skills/knowledge-bank.md` to check if the human has populated it for this epic.
 
 ---
 
@@ -202,6 +212,53 @@ After BA finishes its Q&A and writes `00-ba.md`, check if ProductEx BRD Review h
 - **If blocking gaps exist in brdQnA.md**: Do NOT proceed to Architect until the user resolves them or explicitly chooses to proceed with gaps noted as risks.
 
 - **If still running**: Wait for it to complete before showing the phase summary. Notify the user: "Waiting for ProductEx BRD review to complete..."
+
+### Reviewer Requirements Gap Handling
+
+When Reviewer returns blockers with `TARGET: [Phase Name]` from the Requirements Traceability review, the orchestrator presents the human with a choice for **each** gap (or grouped by target phase):
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Reviewer found requirements gaps in artifact(s):
+
+[For each target phase with gaps:]
+  🔴 [Phase Name] ([NN-artifact.md]) — [count] gap(s):
+     • REQ-[ID]: [requirement] — [what's missing]
+     • REQ-[ID]: [requirement] — [what's missing]
+
+Options:
+  [A] Rerun from [earliest affected phase]
+      Re-runs [Phase] → all downstream phases → Reviewer.
+      Fixes cascade automatically through the pipeline.
+
+  [B] Verify manually
+      Mark gaps as acknowledged. You review and fix them yourself.
+      Reviewer proceeds to code review with gaps noted as known issues.
+
+  [C] Accept as known risk
+      Log gaps in session memory as accepted risks and proceed to merge.
+
+Enter choice (A/B/C) [per phase, or a single choice for all]:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Option A — Rerun from phase:**
+- Follow the existing Rework Loop / Cascade Rules (inject the requirements gap as a BLOCKER into the target phase's prompt)
+- After the cascade completes, Reviewer re-runs its full flow (build → traceability → code review)
+- Track in Rework Log: `- [Phase N] requirements gap — raised by Reviewer — REQ-[IDs] — resolved: yes|no`
+
+**Option B — Verify manually:**
+- Human fixes the issue themselves (edits artifacts, code, or both)
+- When the human says `continue`, Reviewer re-runs the full flow to verify
+- If gaps persist, show the prompt again
+
+**Option C — Accept as known risk:**
+- Log each gap in session memory under `## Risks & Concerns`: `- [risk] REQ-[ID] gap in [Phase]: [description] _(Reviewer)_ — Status: accepted`
+- Reviewer proceeds to code review, noting accepted gaps in the review output
+
+Do not proceed to code review until the human makes a decision for all requirements gaps.
+
+---
 
 ### Analytical Phases (spawn as subagents)
 
@@ -294,15 +351,34 @@ After each phase (except during BA Q&A), output exactly this prompt:
 Next: [Next Phase Name] (Phase NN)
 
 Commands:
-  continue  — proceed to next phase
-  skip      — skip next phase (if optional)
-  revert    — roll back to a previous phase
-  status    — show full workflow progress
-  exit      — save state and exit (resume later)
+  continue    — proceed to next phase
+  skip        — skip next phase (if optional)
+  api-handoff — generate API contract doc for UI team (available after Designer or Developer)
+  revert      — roll back to a previous phase
+  status      — show full workflow progress
+  exit        — save state and exit (resume later)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 Do not proceed until the user responds. Handle each command as described below.
+
+### API Handoff Command
+
+When the user types `api-handoff` at any pause prompt (typically after Designer or Developer):
+
+1. Spawn the API Handoff skill as a subagent:
+   ```
+   Agent tool:
+     subagent_type: general-purpose
+     prompt: |
+       You are running the API Handoff skill.
+       Artifacts path: <artifacts-path>
+       Follow the api-handoff skill exactly as defined in .claude/skills/api-handoff/SKILL.md.
+       Read the skill file first, then execute all steps.
+       Write output to <artifacts-path>/api-handoff.md
+       Return the structured summary.
+   ```
+2. Display the result and return to the same pause prompt (do not advance to the next phase).
 
 ## Architect-Analyst-ProductEx Verification Cycle
 

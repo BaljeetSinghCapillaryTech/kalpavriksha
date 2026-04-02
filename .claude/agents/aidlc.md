@@ -62,6 +62,7 @@ Read and follow `.claude/skills/workflow/SKILL.md` exactly. That file defines th
 - ProductEx BRD review (parallel with BA)
 - Architect-Analyst-ProductEx verification cycle
 - Rework loop and circuit breaker handling
+- Reviewer requirements traceability and gap routing (rerun/manual/accept-risk)
 
 **Additional orchestrator responsibilities** (beyond workflow/SKILL.md):
 

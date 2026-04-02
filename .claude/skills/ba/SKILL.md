@@ -74,7 +74,63 @@ Announce what you found before proceeding:
 
 If no relevant docs are found, note that and proceed without a baseline.
 
+## Step 1b: BRD Validation Gate (Mandatory — Do NOT Skip)
+
+Before any analysis, validate that the BRD provides enough **substance** to proceed. BRDs come in many formats — formal documents, Jira descriptions, bullet-point specs, PDFs, conversations. The format does not matter. What matters is whether the substance is present, regardless of how it's written.
+
+Answer one question: **Can you extract at least one concrete expected behaviour from this BRD?**
+
+A "concrete expected behaviour" is anything that answers: **what should happen, what should change, or how something should work.** It can be written in any style — user stories, bullet points, flow descriptions, API specs, narrative prose, or even a problem statement that implies a desired outcome. There is no required wording or sentence structure. Read for meaning, not for patterns.
+
+### If NO concrete behaviour can be extracted
+
+This is the only hard blocker. If after reading the entire BRD, you cannot identify even one expected behaviour (what should happen, triggered by what, with what outcome), escalate:
+
+```
+🔴 BRD VALIDATION — Cannot extract expected behaviour
+
+I've read the BRD but cannot identify what the system/user/process
+should DO. The requirement describes:
+  [brief summary of what IS in the BRD — context, background, etc.]
+
+But it does not describe any concrete expected behaviour — no actions,
+flows, outcomes, or "should" statements.
+
+Every downstream phase needs at least one:
+  • Architect needs behaviours to design components around
+  • QA needs behaviours to write test scenarios for
+  • Developer needs behaviours to implement
+
+Please describe what should happen — even in rough bullet points.
+```
+
+Do NOT proceed to Step 2 until the human provides at least one concrete behaviour.
+
+### If behaviours exist but other context is thin
+
+If you can extract behaviours but the BRD is light on context (no "why", no scope boundaries, no constraints), **do not block**. Instead, note the gaps and carry them into Step 2 as concerns to raise during Q&A:
+
+```
+✅ BRD Validation: Expected behaviours found ([count]).
+⚠️  Noted gaps (will surface during Q&A):
+   • [gap — e.g., "no scope boundaries defined", "business motivation unclear"]
+```
+
+Proceed to Step 2 with the gaps added to your concern list.
+
+### Extract BRD's own open questions
+
+Many BRDs include their own open questions, unresolved decisions, or "TBD" items (e.g., "Open Questions for the Pod", "TBDs", items marked as "Open"). Scan the BRD for these and extract them — they become part of your concern list in Step 2. Do not silently ignore them. These are questions the BRD author themselves flagged as unresolved.
+
+---
+
 ## Step 2: Internal Analysis (Before Asking Questions)
+
+**First, read the Knowledge Bank:**
+
+Read `.claude/skills/knowledge-bank.md`. This file lives permanently in the repo and is populated by the human before the pipeline runs. It contains pre-answered context specific to this epic — domain knowledge, scope decisions, business rules, constraints, known edge cases, or anything else the human anticipates BA will need. If the file has only the template comments and no real content, skip it and proceed normally.
+
+Treat the knowledge bank as a trusted source (same trust level as direct human answers in chat). When a concern or question arises during analysis, check whether the knowledge bank already addresses it before routing it to ProductEx, Architect, or the user.
 
 With the current behaviour baseline in mind, silently run the requirement through these three lenses and collect concerns:
 
@@ -90,7 +146,11 @@ Also note any **discrepancies** between the docs and what the user has described
 
 Then prioritise and order all concerns into questions - most fundamental first (scope and intent before edge cases; doc discrepancies early).
 
-**Classify each concern** before proceeding to Step 3:
+**Check each concern against the Knowledge Bank first.** If `.claude/skills/knowledge-bank.md` addresses the concern — use that answer, cross-verify it against the BRD for consistency, and mark the concern as resolved. If the knowledge bank does NOT address a concern, that concern MUST still be routed through the normal flow below — never silently drop it.
+
+Every concern must end in one of three states: (1) resolved by knowledge bank, (2) resolved by internal consultation (ProductEx/Architect), or (3) asked to the human. No concern may be left unresolved or silently skipped.
+
+**Classify each unresolved concern** before proceeding to Step 3:
 - **Product concern** — about current product behaviour, module capabilities, domain concepts, documented features → route to ProductEx
 - **Code/backend concern** — about existing codebase structure, implementation patterns, technical feasibility, service internals → route to Architect
 - **Human concern** — about business intent, scope decisions, priority, stakeholder preferences → ask the user directly
@@ -175,7 +235,7 @@ Only questions about business intent, scope decisions, priority, and stakeholder
 
 ## Step 4: User Q&A (Remaining Questions Only)
 
-After internal consultations, only **human concerns** and **escalated Architect questions** remain. Ask these to the user:
+After internal consultations and knowledge bank resolution, only **human concerns** and **escalated Architect questions** that were not already answered remain. Ask these to the user:
 
 1. Ask **one question at a time**. Wait for the answer before asking the next.
 2. Each question should state which concern it is resolving (e.g. "To clarify scope...", "To ensure this is testable...", "The docs describe X but you've mentioned Y...").
@@ -217,3 +277,6 @@ After writing all artifacts, append findings to `session-memory.md` as described
 - Do not perform Architect, Analyst, Designer, or QA work - only surface their concerns as questions.
 - Do not produce output until all concerns are resolved through the Q&A.
 - Always research docs.capillarytech.com before asking questions - never skip Step 1.
+- **Never skip BRD Validation Gate (Step 1b)** — if no concrete expected behaviour can be extracted from the BRD, hard-block and escalate to human.
+- Never silently assume missing BRD information — always raise gaps explicitly to the human.
+- **Never silently drop a concern.** Every concern identified in Step 2 must be either resolved (by knowledge bank, ProductEx, or Architect) or escalated to the human. If the knowledge bank does not cover a concern, it must flow through Steps 3-4 as normal.

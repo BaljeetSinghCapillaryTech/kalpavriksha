@@ -165,7 +165,7 @@ What would you like to do?
 
 Wait for the user's decision. After the user fixes and says `continue`, Reviewer re-runs the full verification sequence one more time. If it passes, proceed to code review. If it still fails, show the error and ask again (no cycle limit for human-driven fixes).
 
-### On Success — Proceed to Code Review
+### On Success — Proceed to Requirements Traceability
 
 If all three steps (compile, UT, IT) pass:
 
@@ -176,32 +176,176 @@ If all three steps (compile, UT, IT) pass:
    Unit Tests: ✅ ([count] tests, [count] passed, [count] skipped)
    Integration Tests: ✅ ([count] tests) | ⏭️ Skipped (none found)
 
-Proceeding to code review...
+Proceeding to requirements traceability review...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Then proceed to the code review output below.
+Then proceed to Step 1 below.
+
+---
+
+## Step 1: Requirements Traceability Review (Before Code Review)
+
+After build verification passes, systematically verify that **every** artifact in the pipeline fulfils the requirements defined in BA (`00-ba.md`) and ProductEx (`brdQnA.md`). This catches drift, missing coverage, and misalignment that accumulated across phases — before they reach production.
+
+### 1a: Load the Requirements Baseline
+
+Read these two files as the authoritative requirements source:
+
+1. **`00-ba.md`** — Extract all:
+   - Acceptance criteria (numbered or bulleted)
+   - User stories / use cases
+   - Scope boundaries (in-scope and out-of-scope)
+   - Non-functional requirements (performance, security, etc.)
+
+2. **`brdQnA.md`** — Extract all:
+   - Resolved answers that add/clarify requirements
+   - Blocking gaps that were resolved (these become additional requirements)
+   - Any unresolved questions still marked as open (flag these separately)
+
+Build a **Requirements Checklist** — a flat list of every discrete requirement (functional and non-functional) with a short ID for reference (e.g., `REQ-01`, `REQ-02`, ...).
+
+### 1b: Cross-Verify Each Artifact
+
+For each artifact, verify that it addresses the requirements relevant to its phase:
+
+**`01-architect.md` (Architect)**
+- Does the architecture cover all modules/components needed by the requirements?
+- Are all data flows, integrations, and system boundaries from the BA reflected?
+- Are non-functional requirements (scalability, security, performance) addressed architecturally?
+
+**`02-analyst.md` (Analyst)** _(skip if phase was skipped)_
+- Does the impact analysis cover all areas affected by the requirements?
+- Are all security considerations from BA/BRD addressed?
+- Are all integration points and side effects identified?
+
+**`03-designer.md` (Designer)**
+- Is there an interface/type for every operation required by the BA?
+- Do method signatures cover all input/output defined in acceptance criteria?
+- Are error cases from BA requirements reflected in the interface contracts?
+
+**`04-qa.md` (QA)**
+- Is there at least one test scenario for every acceptance criterion in `00-ba.md`?
+- Are edge cases and negative scenarios from BA scope covered?
+- Are non-functional test scenarios present (if BA defined NFRs)?
+
+**`05-developer.md` (Developer)**
+- Does the implementation summary cover all designed interfaces from `03-designer.md`?
+- Are all QA scenarios from `04-qa.md` testable against the implementation?
+
+**`06-sdet.md` (SDET)** _(skip if phase was skipped)_
+- Does the test implementation cover the QA plan from `04-qa.md`?
+- Are integration/E2E tests present for cross-cutting requirements?
+
+### 1c: Build the Traceability Matrix
+
+Produce a **Requirements Traceability Matrix** in `07-reviewer.md`:
+
+```markdown
+## Requirements Traceability Matrix
+
+| ID | Requirement (from BA/BRD) | Architect | Analyst | Designer | QA | Developer | SDET | Status |
+|----|---------------------------|-----------|---------|----------|----|-----------|------|--------|
+| REQ-01 | [requirement summary] | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
+| REQ-02 | [requirement summary] | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | FAIL → Designer |
+| REQ-03 | [requirement summary] | ✅ | N/A | ✅ | ❌ | ✅ | N/A | FAIL → QA |
+```
+
+**Status rules:**
+- `PASS` — all applicable phases cover this requirement
+- `FAIL → [Phase]` — route to the **earliest** phase where the gap exists (fixing upstream cascades downstream)
+- `N/A` — phase was skipped or requirement is not relevant to that phase
+- `PARTIAL` — partially covered; note what's missing
+
+### 1d: Unresolved BRD Questions Check
+
+Check `brdQnA.md` for any questions still marked as unresolved/open. For each:
+- Determine if the open question affects any implemented requirement
+- If yes → flag it with the affected requirements and responsible phase
+- If no → note it as informational (no impact on current scope)
+
+```markdown
+## Unresolved BRD Questions
+| Question | Owner | Affects Requirements | Impact |
+|----------|-------|---------------------|--------|
+| [question text] | [Product] | REQ-03, REQ-07 | Designer interface missing error case |
+| [question text] | [Backend] | None | Out of current scope |
+```
+
+### 1e: Route Gaps to Concerned Phases
+
+For each `FAIL` in the traceability matrix, raise a **requirements gap blocker**:
+
+```
+REQUIREMENTS GAP:
+  Requirement: [REQ-ID] — [requirement text]
+  Earliest gap: [Phase Name] ([NN-artifact.md])
+  Evidence: [what's missing or misaligned — be specific]
+  Downstream impact: [which later phases are also affected because of this gap]
+```
+
+**Routing rule**: Always route to the **earliest** phase where the gap exists. If Designer missed an interface, route to Designer — not to Developer who couldn't implement what wasn't designed.
+
+### 1f: Requirements Traceability Summary
+
+After completing the cross-verification, show a summary before proceeding:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Requirements Traceability Review
+   Total requirements: [count]
+   PASS: [count]
+   FAIL: [count] (gaps found)
+   PARTIAL: [count]
+
+   Gaps by phase:
+     Architect: [count] gaps
+     Designer:  [count] gaps
+     QA:        [count] gaps
+     Developer: [count] gaps
+
+   Unresolved BRD questions affecting scope: [count]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**If ALL requirements PASS** → proceed to Step 2 (Code Review).
+
+**If any requirements FAIL** → these become blockers in the Reviewer output. The orchestrator will handle routing (see Return to Orchestrator section).
 
 ---
 
 ## Output (Markdown)
 
-The review output in `07-reviewer.md` includes the build verification results at the top, followed by the code review:
+The review output in `07-reviewer.md` includes three major sections in order:
 
-- **Build verification** — compilation status, UT results (count/pass/fail), IT results (count/pass/fail or skipped)
-- **Requirements alignment** — checklist: matches problem statement, interfaces, test plan?
+### Section 1: Build Verification
+- Compilation status, UT results (count/pass/fail), IT results (count/pass/fail or skipped)
+
+### Section 2: Requirements Traceability
+- **Requirements Traceability Matrix** — full table mapping every BA requirement to each phase artifact (see Step 1c)
+- **Unresolved BRD Questions** — open questions from `brdQnA.md` and their impact (see Step 1d)
+- **Requirements Gaps** — each FAIL with the responsible phase, evidence, and downstream impact (see Step 1e)
+
+### Section 3: Code Review
 - **Session memory alignment** — are Key Decisions reflected? Are Constraints respected? Are Risks addressed?
 - **Security verification** — for each security consideration raised by Analyst (or Risks & Concerns in session memory), verify with code evidence that it was addressed in implementation; not implied by "constraints respected" — check explicitly
 - **Guardrails compliance** — check each CRITICAL guardrail (G-01, G-03, G-07, G-12) explicitly; flag HIGH guardrails with ID
 - **Documentation check** — are README, API docs, ADRs, and changelog updated where needed?
 - **Code review** — file/line or region, finding, suggestion
-- **Blockers** — must-fix before merge
+- **Blockers** — must-fix before merge (code-level)
 - **Non-blocking** — nice-to-have
 - Checklists and short code snippets only where needed
 
 ## When to Raise a BLOCKER
 
 A finding is a **blocker** (must-fix before merge) if any of the following are true:
+
+### Requirements Traceability Blockers (from Step 1)
+- A BA requirement has no coverage in an artifact that should address it (FAIL in traceability matrix)
+- An unresolved BRD question directly affects an implemented requirement
+- A requirement is only PARTIAL — partially covered with a significant gap
+
+### Code Review Blockers (from Step 2)
 - Implementation does not satisfy an acceptance criterion from `00-ba.md`
 - A Key Decision in session memory is contradicted by the implementation
 - A Constraint in session memory is violated in the code
@@ -225,15 +369,24 @@ BUILD VERIFICATION:
 - Integration Tests: pass ([count] tests) | fail | skipped (none found)
 - Build-fix cycles used: [0-3]/3
 
+REQUIREMENTS TRACEABILITY:
+- Total requirements: [count]
+- PASS: [count]
+- FAIL: [count] — gaps routed to: [list phases]
+- PARTIAL: [count]
+- Unresolved BRD questions affecting scope: [count]
+
 SUMMARY:
-- [requirements alignment: pass / fail with reason]
+- [requirements traceability: pass / [count] gaps across [count] phases]
 - [session memory alignment: pass / fail with reason]
 - [guardrails compliance: pass / [count] CRITICAL violations / [count] HIGH flags]
 - [docs check: pass / fail]
-- [blocker count] blockers, [non-blocking count] non-blocking findings
+- [blocker count] code-review blockers, [non-blocking count] non-blocking findings
 
 BLOCKERS:
 - [each must-fix item — or "None"]
+  For requirements gaps, format as:
+  - TARGET: [Phase Name] | REQ: [REQ-ID] | ISSUE: [what's missing in that phase's artifact]
 
 SESSION MEMORY UPDATES:
 - [brief list of what was added to which sections]
@@ -245,8 +398,10 @@ When spawned as a subagent by the workflow:
 - Complete the full review before returning — do not pause for user input
 
 ## Constraints
-- Only review and list required changes. Do not implement fixes — route them to Developer or QA via blockers.
-- Always run build verification (compile → UT → IT) before code review. Never skip it.
+- Only review and list required changes. Do not implement fixes — route them to the concerned phase via blockers.
+- Always run build verification (Step 0: compile → UT → IT) before anything else. Never skip it.
+- Always run requirements traceability (Step 1) after build passes and before code review. Never skip it.
 - Always read the full session memory before starting review — it is the authoritative record of what was agreed.
 - Always write to session memory after producing output.
 - Build-fix cycle is max 3 rounds. After 3, escalate to human with full error context.
+- Requirements gaps route to the **earliest** phase where the gap exists — not the latest.
