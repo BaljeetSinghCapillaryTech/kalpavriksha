@@ -84,6 +84,27 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - `PeCustomerEnrollmentDao` has NO member-count-per-slab query — must be added _(Phase 5)_
 - New member count query + customer_enrollment index needed for GET /tiers member count AND soft-delete validation (no members in tier) _(Phase 5)_
 - 3 repos all require changes: intouch-api-v3 (~14 new + 2 modified), emf-parent (1-2 migrations + 4 modified), cc-stack-crm (2 DDL modifications) _(Phase 5)_
+- HLD pattern: MongoDB-First with SQL Sync on Approval — mirrors UnifiedPromotion _(Phase 6)_
+- 6 ADRs documented: ADR-01 MongoDB-first, ADR-02 separate TierController, ADR-03 TierStatus enum, ADR-04 Thrift boundary, ADR-05 is_active soft delete, ADR-06 member count cross-service _(Phase 6)_
+- API endpoints: GET /v3/tiers, GET /v3/tiers/{id}, POST /v3/tiers, PUT /v3/tiers/{id}, DELETE /v3/tiers/{id}, POST /v3/tiers/{id}/status _(Phase 6)_
+- MongoDB document: TierDocument with full tier config, strategy configs (upgrade/downgrade/renewal), status, version tracking _(Phase 6)_
+- MySQL changes: ALTER TABLE program_slabs ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1; new index on customer_enrollment _(Phase 6)_
+- 17-step implementation plan with build order and dependencies _(Phase 6)_
+- Thrift: new deactivateSlab + getMemberCountBySlabIds methods needed _(Phase 6)_
+- Migration strategy: no Flyway/Liquibase — raw SQL DDL files in cc-stack-crm; migrations applied manually per environment. DDL migrations must deploy BEFORE application code. _(Migrator)_
+- MIG-01 (ADD COLUMN is_active to program_slabs): fully backward-compatible, DEFAULT 1, no expand-then-contract required, no backfill required. Existing rows all active by architecture guarantee (MongoDB-first). _(Migrator)_
+- MIG-02 (CREATE INDEX idx_ce_slab_count on customer_enrollment): additive index, online DDL (MySQL 5.6+). Schedule during off-peak due to unknown table size. _(Migrator)_
+- UNIQUE constraint on program_slabs (org_id, program_id, serial_number) — serial numbers of soft-deleted slabs remain reserved (no reuse). Architecture is already designed to add tiers at top only. Constraint stays intact. _(Migrator)_
+- customer_enrollment already has is_active column (enrollment active flag, tinyint(1)). Proposed composite index uses existing columns — no structural table change needed. _(Migrator)_
+- `PeProgramSlabDao` has exactly 3 JPQL queries that need `is_active=1` filter added: `findByProgram`, `findByProgramSlabNumber`, `findNumberOfSlabs` _(Analyst)_
+- `InfoLookupService.getProgramSlabs()` delegates to `PeProgramSlabDao.findByProgram()` — transparent fix when DAO updated, but **cache eviction required on soft-delete** _(Analyst)_
+- `cacheEvictHelper.evictProgramIdCache(orgId, programId)` called in `createOrUpdateSlab` (line 1686) — must also be called in `deactivateSlab` _(Analyst)_
+- `getProgramSlabById()` uses generic `findById()` — no `is_active` filter. Soft-deleted slabs loadable by PK. Consider adding `findActiveById()` _(Analyst)_
+- SLAB_UPGRADE `threshold_values` CSV has N-1 entries for N slabs, correlated by index. Soft-delete breaks mapping unless CSV is updated _(Analyst)_
+- SLAB_DOWNGRADE `TierDowngradeStrategyConfiguration` JSON contains per-slab configs. Soft-delete leaves stale entries _(Analyst)_
+- Thrift IDL for `PointsEngineRuleService` NOT in emf-parent or intouch-api-v3 — potential 4th repo _(Analyst)_
+- GET /tiers makes 2 calls (MongoDB + Thrift for member count) — acceptable for typical program sizes (<10 tiers) _(Analyst)_
+- No `@Transactional` on `PointsEngineRuleConfigThriftImpl` slab methods — verify transaction management for `deactivateSlab` _(Analyst)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -97,6 +118,10 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - Base tier cannot be soft-deleted _(BA)_
 - Cannot soft-delete a tier that is another active tier's downgrade target _(BA)_
 - UnifiedPromotion pattern: controller in intouch-api-v3, Thrift+service in emf-parent, ResponseWrapper for all responses, TargetGroupErrorAdvice for validation errors _(BA)_
+- `deactivateSlab` must update SLAB_UPGRADE threshold CSV AND SLAB_DOWNGRADE JSON — cannot just set `is_active=0` in isolation _(Analyst)_
+- APPROVE flow must be idempotent — retry after network timeout must not create duplicate MySQL slabs _(Analyst)_
+- Thrift IDL changes require emf-parent deployed BEFORE intouch-api-v3 (deployment ordering constraint) _(Analyst)_
+- New timestamp fields (createdOn, lastModifiedOn) in TierDocument/TierResponse must use `Instant`/`java.time`, not `java.util.Date` (G-01 compliance) _(Analyst)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -111,6 +136,20 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - `PartnerProgramTierSyncConfiguration` references must be checked on soft delete — BA missed this _(Analyst)_ — Status: open (blocks soft delete design)
 - No Flyway migration mechanism found — migration approach unclear _(Analyst)_ — Status: open (blocks schema migration)
 - `program_slabs` UNIQUE constraint on `(org_id, program_id, serial_number)` conflicts with soft delete — serial number gaps _(Analyst)_ — Status: open (blocks soft delete design)
+- [MIG-R-01] CREATE INDEX on customer_enrollment may lock table on old MySQL version — MySQL version in production unknown _(Migrator)_ — Status: open
+- [MIG-R-02] Incorrect deploy order (application before DDL) will cause is_active=1 filter to fail on missing column _(Migrator)_ — Status: open — Mitigation: DDL before app deploy, enforced in pipeline
+- [MIG-R-03] Member count query will run as full table scan if application deploys before MIG-02 index is created _(Migrator)_ — Status: open — Mitigation: deploy DDL first; non-critical (query still correct, just slower)
+- [MIG-R-04] UNIQUE constraint (org_id, program_id, serial_number) — serial numbers of deleted slabs remain reserved. Architecture already handles this (add at top only). _(Migrator)_ — Status: mitigated
+- [MIG-R-05] No migration tool — manual application across environments creates drift risk _(Migrator)_ — Status: open (process risk, future Flyway adoption recommended)
+- [MIG-R-06] Rollback of MIG-01 (DROP COLUMN) while new code still runs causes column not found errors — must roll back app first _(Migrator)_ — Status: open — Mitigation: strict rollback sequencing
+- R-1 CRITICAL: Soft-delete breaks SLAB_UPGRADE threshold CSV / slab list index mapping — evaluation engine may upgrade customers to wrong tiers _(Analyst)_ — Status: open
+- R-2 HIGH: Soft-delete leaves stale slab entries in SLAB_DOWNGRADE strategy JSON — downgrade engine may target non-existent slab _(Analyst)_ — Status: open
+- R-3 HIGH: `InfoLookupService` cache not evicted on soft-delete — evaluation engine sees deleted slabs until TTL expiry _(Analyst)_ — Status: open
+- R-4 MEDIUM: `getProgramSlabById()` has no `is_active` filter — soft-deleted slabs loadable by direct PK lookup _(Analyst)_ — Status: open
+- R-5 HIGH: Thrift IDL in separate repo — 4th repo modification needed, adds deployment complexity _(Analyst)_ — Status: open
+- R-6 HIGH: MongoDB-MySQL divergence on APPROVE Thrift failure — must implement rollback _(Analyst)_ — Status: open
+- R-8 MEDIUM: No idempotency on APPROVE — retry may create duplicate MySQL slab _(Analyst)_ — Status: open
+- R-10 MEDIUM: No `@Transactional` on Thrift impl slab methods — partial failure risk in `deactivateSlab` _(Analyst)_ — Status: open
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -121,11 +160,19 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Can a benefit be linked to multiple programs or scoped to one? (BRD Section 12, Q4) _(Phase 0)_ — OUT OF SCOPE (benefits deferred)
 - [ ] Should aiRa handle multi-turn disambiguation? (BRD Section 12, Q5) _(Phase 0)_ — OUT OF SCOPE (aiRa deferred)
 - [x] resolved: `isDowngradeOnReturnEnabled` included as-is in new tier CRUD API — backend logic already exists _(BA)_
-- [ ] What is the actual migration mechanism for emf-parent schema changes? No Flyway found. _(Analyst)_
+- [x] resolved: Migration mechanism is manual SQL DDL in cc-stack-crm. No Flyway in emf-parent. cc-stack-crm DDL files are reference definitions only — ALTER scripts applied manually per environment. _(resolved by Migrator)_
 - [ ] Does tier CRUD API need to create/update slab upgrade/downgrade/renewal rulesets, or is that managed separately? _(Analyst)_
 - [ ] Should `RequestManagementController` be generalized for multi-entity support, or should tiers get a separate status change endpoint? _(Analyst)_
 - [ ] What does `ProgramSlab.metadata` VARCHAR(30) store? Should it be exposed in tier CRUD API? _(Analyst)_
 - [ ] Should soft delete validation also check `PartnerProgramTierSyncConfiguration` references? _(Analyst)_
+- [x] resolved: Separate TierController endpoint for status changes. Do NOT touch RequestManagementController. _(resolved by Phase 4 B-1)_
+- [x] resolved: `ProgramSlab.metadata` VARCHAR(30) stores `SlabMetaData` JSON (contains `colorCode`). Exposed in tier CRUD API as `colorCode` field. _(resolved by Analyst: code-analysis-emf-parent section 1, `getSlabThrift()` line 2178)_
+- [x] resolved: Soft delete MUST check PartnerProgramTierSyncConfiguration references — included in HLD DELETE validations. _(resolved by Phase 4 H-3)_
+- [ ] Should `deactivateSlab` update SLAB_UPGRADE threshold CSV and SLAB_DOWNGRADE JSON to remove the deleted slab's entries? _(Analyst)_
+- [ ] Where is the Thrift IDL repo for PointsEngineRuleService? Is it accessible for adding new methods? _(Analyst)_
+- [ ] When an existing tier's threshold is changed via PUT → APPROVE, does `createOrUpdateSlab` auto-update the SLAB_UPGRADE strategy threshold CSV? _(Analyst)_
+- [ ] Should serial numbers be renumbered after soft-delete to maintain contiguous ordering for threshold array indexing? _(Analyst)_
+- [ ] Should KPI type immutability (all tiers share same `currentValueType`) be enforced at API level during create? _(Analyst)_
 
 ## Analyst (Compliance) Findings
 _Key findings from gap-analysis-brd.md. Full details in that file._
@@ -142,6 +189,11 @@ _Key findings from gap-analysis-brd.md. Full details in that file._
 - `PeProgramSlabDao` already provides `findByProgram()`, `findByProgramSlabNumber()`, `findNumberOfSlabs()` — reusable for GET endpoints _(Analyst)_
 - `program_slabs` has UNIQUE constraint on `(org_id, program_id, serial_number)` — soft delete leaves gaps in serial numbers _(Analyst)_
 - ProgramSlab uses composite PK (`@EmbeddedId` with id + orgId) — all operations must include orgId _(Analyst)_
+
+- [ ] [Q-MIG-01] What MySQL version is running in production? Required to confirm CREATE INDEX syntax and online DDL support. _(Migrator)_
+- [ ] [Q-MIG-02] Approximate row count of customer_enrollment in production? Required for MIG-02 duration estimate and tool choice (native vs pt-online-schema-change). _(Migrator)_
+- [ ] [Q-MIG-03] Is there an existing manual DDL deployment runbook for cc-stack-crm? _(Migrator)_
+- [ ] [Q-MIG-04] Are there any existing program_slabs rows that should be treated as inactive before migration runs? (Architecture guarantee says no, but prod state should be verified by DBA.) _(Migrator)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
