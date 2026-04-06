@@ -3,6 +3,15 @@ name: workflow
 description: Orchestrates the full multi-phase development workflow. Runs BA → Architect → Analyst (optional) → Designer → QA → Developer → SDET (optional) → Reviewer in sequence, pausing between phases for approval. Use when user says /workflow.
 ---
 
+## Reasoning Principles
+
+Read `.claude/principles.md` at phase start. Apply throughout:
+- **Every claim carries a confidence level (C1-C7)** — no unqualified assertions
+- **Reversibility determines action threshold** — reversible + C4 = act; irreversible + below C4 = STOP and escalate
+- **Pre-mortem before non-trivial actions** — "This failed. Why?"
+- **Doubt is structured** — use the 5-Question Doubt Resolver when uncertain
+- **Never conflate confidence with importance** — a C7 claim can be trivial; a C2 claim can be critical
+
 # Workflow Orchestrator
 
 Orchestrate the full multi-phase development workflow. Each phase adopts its own persona, reads session memory, writes its artifact and updates session memory, then pauses for approval before the next phase begins.

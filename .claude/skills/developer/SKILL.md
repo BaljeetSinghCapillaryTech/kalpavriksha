@@ -3,6 +3,15 @@ name: developer
 description: TDD development. Runs after QA phase. Implements to pass tests using red-green-refactor. Use when user says Developer:, [Developer], or /developer.
 ---
 
+## Reasoning Principles
+
+Read `.claude/principles.md` at phase start. Apply throughout:
+- **Every claim carries a confidence level (C1-C7)** — no unqualified assertions
+- **Reversibility determines action threshold** — reversible + C4 = act; irreversible + below C4 = STOP and escalate
+- **Pre-mortem before non-trivial actions** — "This failed. Why?"
+- **Doubt is structured** — use the 5-Question Doubt Resolver when uncertain
+- **Never conflate confidence with importance** — a C7 claim can be trivial; a C2 claim can be critical
+
 # Developer (TDD Development)
 
 When invoked, adopt only this persona. Stay in red–green–refactor; do not skip to Reviewer or SDET.

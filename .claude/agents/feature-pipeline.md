@@ -972,15 +972,46 @@ Any claim below C4 in any phase output MUST be surfaced to the user — it shoul
 
 ### Instructions for Subagent Prompts
 
-When spawning any subagent, include this instruction in the prompt:
+When spawning any subagent, include this **Principles Injection Block** in the prompt. This is MANDATORY for every Agent call — it ensures principles.md is applied consistently across all phases:
 
 ```
-IMPORTANT: Do NOT silently assume when uncertain.
+REASONING PRINCIPLES (from .claude/principles.md — apply throughout):
+1. Every claim carries a confidence level (C1-C7):
+   C1(<20%) Speculative — flag, don't act
+   C2(20-40%) Plausible — investigate first
+   C3(40-60%) Tentative — act only if reversible
+   C4(60-75%) Probable — act if reversible, escalate if not
+   C5(75-90%) Confident — act, flag residual risk
+   C6(90-97%) High Confidence — act decisively
+   C7(>97%) Near Certain — verified from primary source
+
+2. Reversibility determines threshold:
+   Reversible + C4 = act. Irreversible + below C4 = STOP and escalate.
+
+3. Pre-mortem before non-trivial actions:
+   "Assume this failed. What went wrong?" — answer BEFORE acting.
+
+4. When uncertain, apply the 5-Question Doubt Resolver:
+   - What evidence supports this? What contradicts it?
+   - What would change my mind?
+   - Am I anchored to my first impression?
+   - What would a skeptic say?
+   - Is my confidence calibrated or inflated?
+
+5. Anti-patterns to AVOID:
+   - Confident Vacuum: claims without evidence
+   - Anchoring Bias: first approach wins without alternatives
+   - Confidence Inflation: everything rated C5+
+   - Escalation Avoidance: proceeding on C2 to avoid "bothering" the human
+
+QUESTION PROTOCOL:
 - If your confidence on any decision/claim is below C5, add it to 
   QUESTIONS FOR USER in your response.
 - If you make an assumption at C5+, list it under ASSUMPTIONS MADE.
 - The orchestrator will present these to the user before the next phase.
 ```
+
+This block replaces reading the full principles.md (which is long). It captures the actionable rules that every subagent needs. The full file is available for phases that need deeper reasoning (Critic, Architect, Impact Analysis).
 
 ---
 
@@ -1234,38 +1265,116 @@ After EVERY phase completes (before the pause prompt), run these two steps:
 
 Read the phase output and generate relevant Mermaid diagrams. Append them to the phase artifact under a `## Diagrams` section using fenced code blocks (` ```mermaid `) so they render on GitHub. Do NOT modify the skill's output above that section — only append. Do NOT use HTML `<div class="mermaid">` in .md files — that format is only for live-dashboard.html.
 
-| Phase | Diagrams to Generate |
+| Phase | Diagrams to Generate (for .md artifacts) |
 |-------|---------------------|
-| Phase 1 (BA) | User journey flowchart (current pain vs proposed flow), data entity relationship (what exists vs what's needed) |
-| Phase 2 (PRD) | Epic dependency map (which epics depend on which), feature scope diagram (in-scope vs out-of-scope) |
-| Phase 3 (Critic + Gap) | Confidence adjustment chart (PRD score vs Critic score), gap analysis heatmap (verified vs contradicted claims) |
-| Phase 5 (Blockers) | Decision tree for each blocker (options → tradeoffs → chosen path) |
-| Phase 6 (Research) | Entity relationship diagram from discovered entities, module dependency graph across repos |
-| Phase 7 (HLD) | Already has diagrams from /architect — no enrichment needed |
-| Phase 7a (Analyst) | Impact map diagram (modules affected with blast radius), risk severity chart |
-| Phase 7b (Migrator) | Migration execution order flowchart (dependency graph between migrations) |
-| Phase 8 (LLD) | Already has diagrams from /designer — no enrichment needed |
-| Phase 10 (Dev) | Implementation progress flowchart (which modules done, which pending) |
-| Phase 10b (Gap) | Compliance scorecard heatmap (CRITICAL/HIGH/MEDIUM/LOW per ADR and GUARDRAIL) |
-| Phase 10c (Migrator) | Plan vs reality comparison chart (planned migrations → implemented/missing) |
-| Phase 12 (Reviewer) | Review findings severity chart (blockers vs non-blocking by category) |
+| Phase 1 (BA+PRD) | User journey flowchart, data entity ER diagram, epic dependency map, scope diagram |
+| Phase 2 (Critic + Gap) | Confidence adjustment chart, claims verification summary |
+| Phase 4 (Blockers) | Decision tree per blocker (options → tradeoffs → chosen path) |
+| Phase 5 (Research) | Entity relationship diagram, module dependency graph across repos |
+| Phase 6 (HLD) | Already has diagrams from /architect — no enrichment needed |
+| Phase 6a (Impact) | Impact blast radius mindmap, risk severity chart |
+| Phase 6b (Migrator) | Migration execution order flowchart |
+| Phase 7 (LLD) | Already has diagrams from /designer — no enrichment needed |
+| Phase 9 (Dev) | Implementation progress flowchart (modules done/pending) |
+| Phase 9b (Backend) | Readiness checklist chart |
+| Phase 9c (Compliance) | Compliance scorecard (per ADR and GUARDRAIL) |
+| Phase 9d (Migrator) | Plan vs reality comparison chart |
+| Phase 11 (Reviewer) | Review findings severity chart (blockers vs non-blocking by category) |
 
-### Step B: Update Live HTML Dashboard
+### Step B: Update Live HTML Dashboard (MANDATORY — DO NOT SKIP)
 
-After every phase, update `<artifacts-path>/live-dashboard.html`:
+**This step is NON-NEGOTIABLE.** After EVERY phase completes, the orchestrator MUST update `<artifacts-path>/live-dashboard.html` BEFORE showing the pause prompt. If the dashboard is not enabled (`dashboard_enabled: false` in pipeline-state.json), skip this step.
 
-1. **Phase 0**: Create the HTML file with basic structure — dark theme, sidebar, progress bar showing all 14 phases as pending, Mermaid.js loaded
-2. **Phase 1+**: Read the current `live-dashboard.html`. Add a new section for the completed phase:
-   - Phase name + completion timestamp
-   - 2-3 sentence summary of what was produced
-   - All Mermaid diagrams from the phase (both from the skill output AND from Step A enrichment)
-   - Key numbers (e.g., "6 user stories", "4 contradictions", "28 test scenarios")
-3. **Update the progress bar** — mark the completed phase as green, next phase as yellow
-4. **Phase 13**: Finalize as `<feature-name>-blueprint.html` — add final stats, clean up, add sidebar navigation for all sections
+**This is the orchestrator's responsibility, not the subagent's.** After receiving the subagent's output, the orchestrator reads the output and updates the dashboard. Do NOT rely on subagents to update it.
 
-The live dashboard is a **human-readable HTML file** that anyone can open in a browser at any time to see the current state of the pipeline. It accumulates content phase by phase — never overwritten, only appended.
+**Execution order for every phase completion:**
+```
+1. Subagent completes → returns output
+2. Orchestrator reads output
+3. Orchestrator runs Step A (generate Mermaid diagrams for .md artifacts)
+4. Orchestrator runs Step B (update live-dashboard.html) ← YOU ARE HERE
+5. Orchestrator updates session-memory.md (incremental)
+6. Orchestrator updates process-log.md
+7. Orchestrator updates pipeline-state.json
+8. Orchestrator shows pause prompt with questions (if any)
+```
 
-Use the same dark theme and styling as `benefits-e2-blueprint.html` and `feature-pipeline-guide.html`.
+**Dashboard update checklist (do ALL of these every time):**
+
+#### B1: Update Progress Bar
+- Calculate: `completed_phases / total_phases * 100`
+- Update the `.segment.complete` width percentage
+- Mark completed phase as green in sidebar
+- Mark next phase as yellow (active) in sidebar
+
+#### B2: Update Phase Section
+Read the current `live-dashboard.html`. Find the section for the completed phase (by `id="phase-N"`). Replace the pending badge with complete badge and add content:
+
+```html
+<section class="phase-section" id="phase-N">
+  <h2>Phase N: <Name> <span class="phase-badge complete">Complete</span></h2>
+  <p class="phase-time">Completed: <timestamp></p>
+  <span class="skill-tag">/skill-name</span>
+  <p>2-3 sentence summary of what was produced.</p>
+  
+  <!-- Key numbers -->
+  <div class="key-numbers">
+    <div class="key-number"><div class="value">N</div><div class="label">Metric</div></div>
+    ...
+  </div>
+  
+  <!-- Diagrams (from Step A) -->
+  <div class="mermaid">...</div>
+  
+  <!-- Tables (Q&A, API contracts, findings, etc.) -->
+  <table class="data-table">...</table>
+  
+  <!-- Artifacts list -->
+  <ul class="artifact-list"><li>artifact-name.md</li>...</ul>
+</section>
+```
+
+#### B3: Add Phase-Specific Charts and Diagrams
+
+Every phase MUST include at least one visual. Use Mermaid `<div class="mermaid">` in the HTML:
+
+| Phase | Required Charts/Diagrams |
+|-------|------------------------|
+| Phase 0 (Input) | Repo validation status table (green/red per repo) |
+| Phase 1 (BA+PRD) | Q&A table, API contracts table, data entity ER diagram, epic dependency flowchart |
+| Phase 2 (Critic) | Confidence adjustment bar chart (before vs after), claims verification pie chart (confirmed/contradicted/partial) |
+| Phase 3 (UI) | Component inventory table, UI gap severity chart |
+| Phase 4 (Blockers) | Decision tree per blocker (Mermaid flowchart: options → tradeoffs → chosen), risk status table (before/after mitigation) |
+| Phase 5 (Research) | Cross-repo system context diagram (repos + protocols), entity relationship diagram, module dependency graph |
+| Phase 6 (Architect) | System architecture diagram, write flow sequence, read flow sequence, component map, ADR summary table |
+| Phase 6a (Impact) | Impact blast radius diagram (Mermaid mindmap), risk severity pie chart (HIGH/MEDIUM/LOW), GUARDRAILS compliance table |
+| Phase 6b (Migration) | Migration execution order flowchart, rollback strategy table |
+| Phase 7 (Designer) | Class/package diagram, dependency direction graph, type inventory table |
+| Phase 8 (QA) | Test scenario distribution chart (per user story), coverage matrix (AC vs test scenarios) |
+| Phase 9 (Developer) | Implementation progress chart (modules done/pending), file inventory table (new/modified per repo), test results summary |
+| Phase 9b (Backend) | Readiness checklist (PASS/FAIL/WARN per area — color-coded), findings severity chart |
+| Phase 9c (Compliance) | ADR compliance scorecard (green/yellow/red per ADR), GUARDRAILS compliance table |
+| Phase 10 (SDET) | Automation vs manual split pie chart, test layer breakdown |
+| Phase 11 (Reviewer) | Findings severity chart (blockers vs warnings by category), requirements traceability matrix |
+| Phase 12 (Blueprint) | Final pipeline stats dashboard, total timeline, decisions count |
+
+#### B4: Update Stats Bar
+Update the stats at the top of the page:
+```html
+<div class="progress-stats">
+  <span><span class="stat-value">N</span> / 13 phases complete</span>
+  <span><span class="stat-value">N</span> artifacts generated</span>
+  <span><span class="stat-value">N</span> decisions made</span>
+  <span><span class="stat-value">N</span> code files written</span>
+</div>
+```
+
+#### B5: Update Sidebar Quick Links
+If the phase produced content for a quick-link section (Q&A, API Contracts, Architecture, Cross-Repo, LLD), mark that sidebar link as `complete` (green).
+
+**The live dashboard is a human-readable HTML file** that anyone can open in a browser at any time to see the current state of the pipeline. It accumulates content phase by phase — sections are updated in place, never duplicated.
+
+Use the same dark theme and styling as the Tier Enhancement dashboard (`docs/pipeline/tier/live-dashboard.html`).
 
 ---
 
@@ -1333,7 +1442,7 @@ Report results back to the active phase. The Developer/SDET agent uses terminal 
 - **Git snapshots after every phase** — safe revert at any point
 - **Superpowers are invoked via the Skill tool** — not reimplemented
 - **No personal names in any output** — roles only
-- **Confidence levels use C1–C7 scale** from `.claude/principles.md`
+- **Confidence levels use C1–C7 scale** from `.claude/principles.md` — this is a CROSS-CUTTING CONCERN enforced in every phase, not just the Critic. Every subagent prompt includes the Principles Injection Block. Every skill references principles.md in its Reasoning Principles section.
 - **GUARDRAILS.md is read by Phases 6, 7, 9, 11** — no exceptions
 - **Mermaid diagrams in .md artifacts** — use fenced code blocks (` ```mermaid `) not HTML `<div class="mermaid">`. This ensures diagrams render on GitHub in PRs. HTML Mermaid is only for live-dashboard.html and blueprint.html.
 - **Cross-repo claims require C6+ evidence** — any claim of "0 modifications needed" in a repo must be backed by reading actual controller/service code, not assumed. The cross-repo-tracer skill enforces this.
