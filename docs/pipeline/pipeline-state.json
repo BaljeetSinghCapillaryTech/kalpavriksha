@@ -26,15 +26,19 @@
     "6b": {"status": "complete", "started_at": "2026-04-06T12:30:00Z", "completed_at": "2026-04-06T12:45:00Z", "artifacts": ["01b-migrator.md"]},
     "7": {"status": "complete", "started_at": "2026-04-06T12:50:00Z", "completed_at": "2026-04-06T13:10:00Z", "artifacts": ["03-designer.md"]},
     "8": {"status": "complete", "started_at": "2026-04-06T13:15:00Z", "completed_at": "2026-04-06T13:30:00Z", "artifacts": ["04-qa.md"]},
-    "9": {"status": "pending"},
-    "9b": {"status": "pending"},
-    "9c": {"status": "pending"},
-    "9d": {"status": "pending"},
-    "10": {"status": "pending"},
-    "11": {"status": "pending"},
+    "9": {"status": "complete", "started_at": "2026-04-06T14:00:00Z", "completed_at": "2026-04-06T15:30:00Z", "artifacts": ["05-developer.md"]},
+    "9b": {"status": "complete", "started_at": "2026-04-06T15:30:00Z", "completed_at": "2026-04-06T15:45:00Z", "artifacts": ["backend-readiness.md"]},
+    "9c": {"status": "complete", "started_at": "2026-04-06T15:45:00Z", "completed_at": "2026-04-06T16:00:00Z", "artifacts": ["05b-gap-analysis.md"]},
+    "9d": {"status": "complete", "started_at": "2026-04-06T16:00:00Z", "completed_at": "2026-04-06T16:00:00Z", "artifacts": [], "note": "skipped — no migration scripts written during dev phase"},
+    "10": {"status": "complete", "started_at": "2026-04-06T16:00:00Z", "completed_at": "2026-04-06T16:15:00Z", "artifacts": ["06-sdet.md"]},
+    "11": {"status": "complete", "started_at": "2026-04-06T16:15:00Z", "completed_at": "2026-04-06T16:45:00Z", "artifacts": ["07-reviewer.md"]},
     "12": {"status": "pending"}
   },
   "git_branch": "raidlc/test_branch_v3",
   "git_tags": ["raidlc/test_branch_v3/phase-00", "raidlc/test_branch_v3/phase-01", "raidlc/test_branch_v3/phase-06", "raidlc/test_branch_v3/phase-06a", "raidlc/test_branch_v3/phase-06b"],
-  "rework_cycles": []
+  "rework_cycles": [],
+  "blocker_resolutions": {
+    "BLOCKER-1": "ACCEPTED RISK — matches UnifiedPromotion pattern. Simple try-catch rollback, no WAL. Ghost MySQL slab on MongoDB failure is a known gap shared with UnifiedPromotion.",
+    "BLOCKER-2": "DEFERRED — is_active DDL pending lead approval. Must apply before STOP/DELETE flows are enabled in production."
+  }
 }

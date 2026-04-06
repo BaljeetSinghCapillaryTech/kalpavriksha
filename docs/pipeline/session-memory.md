@@ -120,7 +120,7 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - PUT on ACTIVE tier: copy-on-write — creates a new DRAFT with parentObjectId pointing to ACTIVE version. On APPROVE, existing ACTIVE becomes SNAPSHOT, new version becomes ACTIVE. Same as UnifiedPromotion versioning flow. _(QA→User)_
 - Edit lock pattern (like UnifiedPromotion) for both CREATE and UPDATE: prevents concurrent duplicate DRAFTs. No idempotency key header needed. _(QA→User)_
 - If DRAFT already exists for an ACTIVE tier, PUT edits the existing DRAFT — does NOT create a second DRAFT. Only after DRAFT is published can a new one be created. _(QA→User)_
-- APPROVE two-phase commit: use write-ahead log (WAL) pattern. Log intent before executing Thrift + MongoDB. Recover from log on partial failure in either direction. _(QA→User)_
+- APPROVE two-phase commit: simple try-catch rollback — matches UnifiedPromotion approve pattern (no WAL, no reconciliation). If Thrift succeeds but MongoDB save fails, ghost MySQL slab is created — accepted risk. UnifiedPromotion has the exact same gap (PUBLISH_FAILED status exists for Thrift failure direction only, reverse case unhandled). WAL deferred to future iteration if needed. _(QA→User→Reviewer, resolved)_
 - TierStatus enum updated: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED, plus SNAPSHOT for superseded ACTIVE versions. _(QA→User)_
 - Strategy CSV handling on soft-delete: do NOT rewrite any strategy CSVs. Evaluation engine ignores CSV entries at positions corresponding to inactive slab serial numbers. Applies to all 4 strategy types. CSVs stay intact for reactivation. _(QA→User)_
 - Strategy CSV handling on APPROVE (new slab): `createOrUpdateSlab()` auto-handles POINTS_ALLOCATION + POINTS_EXPIRY. Explicit CSV append required for SLAB_UPGRADE thresholds + SLAB_DOWNGRADE targets. _(Codebase C7)_
@@ -277,3 +277,27 @@ _(continued — QA additions)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
+
+---
+
+## Reviewer Additions (Phase 11)
+
+### Risks & Concerns (Reviewer additions)
+
+- [APPROVE reverse failure gap] If `createOrUpdateSlab` Thrift succeeds but `tierRepository.save(tier)` fails (MongoDB transient error), a MySQL slab row exists with no matching ACTIVE MongoDB document. A retry of APPROVE will call Thrift again (idempotency check at slabId=null passes), potentially creating a duplicate slab row. Session memory Q-WAL (line 203) is the formal open question for this. _(Reviewer)_ — Status: open — CONDITIONAL BLOCKER
+- [is_active DDL operational gap] `is_active` column not in cc-stack-crm DDL. Every STOP/DELETE call fails at runtime until DDL is applied. Accepted risk per user decision during pipeline. _(Reviewer)_ — Status: open — OPERATIONAL BLOCKER before any production deployment
+
+### Open Questions (Reviewer additions)
+
+- [ ] [Q-R-01] WAL pattern for APPROVE (F-05): Is the simple try-catch rollback accepted for production? If yes: close F-05 and document known gap. If no: route to Developer to implement WAL. _(Reviewer)_
+- [ ] [Q-R-02] programId source (F-03): Should programId come from request body (current), query param, or other source? Update HLD + LLD to match accepted approach. _(Reviewer)_
+- [ ] [Q-R-03] Strategy CSV/JSON update on soft-delete (F-02): Which session-memory decision prevails — line 108 (no update needed) or line 141 (update required)? If line 141, route to Developer. _(Reviewer)_
+- [ ] [Q-R-04] getMemberCountPerSlab degradation: Is memberCount=null on Thrift failure accepted? If yes, document in API spec. _(Reviewer)_
+
+### Key Decisions (Reviewer)
+
+- [x] F-01 (partner sync check) confirmed resolved at Thrift layer — `deactivateSlab` ThriftImpl:4192-4197 checks `countByLoyaltyProgramSlabId` and throws if count > 0. Resolved by Reviewer. _(Reviewer)_
+- [x] F-06 (stale STOP response) confirmed resolved — TierFacade.java:316-318 reloads from MongoDB after deleteTier. Verified at C7. _(Reviewer)_
+- [x] SNAPSHOT status (5th enum value beyond ADR-4) confirmed as intentional evolution documented in session memory line 124. Not a violation. _(Reviewer)_
+- [x] MongoDB compound indexes on TierDocument confirmed present (TierDocument.java:31-35). W-1 from backend-readiness resolved in implementation. _(Reviewer)_
+- [x] @Lockable on deleteTier confirmed present (TierFacade.java:242). W-4 from backend-readiness resolved in implementation. _(Reviewer)_

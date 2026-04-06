@@ -64,5 +64,15 @@ _Format: Decision — Rationale — Phase_
 | Q-QA-1 | GET /tiers/{id} for STOPPED tier — 404 or return? | (a) 404, (b) Return with status | **(b) Return with status=STOPPED** | "only truly deleted (is_active=0) returns 404" — STOPPED tiers remain visible in MongoDB |
 | Q-QA-2 | Second PUT on ACTIVE with existing in-flight DRAFT? | (a) 409, (b) Edit existing DRAFT | **(b) Edit existing DRAFT** | "do not create a new Draft from ACTIVE doc, instead edit the existing DRAFT until that DRAFT published and become ACTIVE" |
 | Q-QA-3 | POST idempotency — idempotency key header or edit lock? | (a) X-Idempotency-Key, (b) Edit lock | **(b) Edit lock like UnifiedPromotion** | "configure edit lock in code just like in UnifiedPromotion... same goes to create case" |
-| Q-QA-4 | Rollback when Thrift OK but MongoDB fails? | (a) Compensating call, (b) Manual, (c) WAL | **(c) Write-ahead log pattern** | "we have to do that Write-ahead log pattern for two-phase commit" |
+| Q-QA-4 | Rollback when Thrift OK but MongoDB fails? | (a) Compensating call, (b) Manual, (c) WAL | **(c) Initially WAL → REVISED to (a) simple try-catch** | Originally "we have to do that Write-ahead log pattern". Revised in Phase 11: user asked to check UnifiedPromotion — confirmed it uses simple try-catch with same gap (no WAL). Decision: "implement the same here as well" — accepted risk. |
 | Q-QA-5 | PUT on ACTIVE tier — copy-on-write or in-place? | (a) New DRAFT + parentObjectId, (b) In-place to PENDING | **(a) Copy-on-write with SNAPSHOT** | "Create a DRAFT then transition to PENDING_APPROVAL then to ACTIVE after making existing ACTIVE as SNAPSHOT by maintaining parentObjectId similar to the UnifiedPromotion flow itself" |
+
+### Reviewer Decisions (Phase 11)
+
+| # | Question | Options | Decision | Rationale |
+|---|---------|---------|----------|-----------|
+| R-BLOCKER-1 | WAL pattern for APPROVE two-phase commit | (A) Accept simple rollback, (B) Implement WAL | **(A) Accept — matches UnifiedPromotion** | User: "check for the UnifiedPromotion flow... implement the same here as well". Research confirmed UnifiedPromotion has PUBLISH_FAILED for Thrift→fail but NO handling for reverse (Thrift OK, Mongo fail). Same gap accepted. |
+| R-BLOCKER-2 | is_active DDL deployment | Deploy now vs defer | **Deferred** | "no need to trigger any altering to DB for now... leads needs to approve it" — operational prerequisite, not a code issue |
+| R-NB-2 | programId source — body vs query param | (a) Keep in body, (b) Move to query param | **Deferred** | Non-blocking — current body approach works. Document in API handoff if needed. |
+| R-NB-3 | F-02 strategy CSV contradictory decisions | (a) No update, (b) Update CSVs on delete | **No update needed** | Session-memory line 108: evaluation engine uses active tiers only, stale entries harmless. Line 141 superseded. |
+| R-NB-8 | getMemberCountPerSlab failure — null or 500? | (a) null degradation, (b) HTTP 500 | **null (degraded mode)** | Consistent with implementation. UI must handle null gracefully. |
