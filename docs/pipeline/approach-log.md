@@ -15,3 +15,14 @@
 
 ## Decisions
 _Format: Decision — Rationale — Phase_
+
+### BA Q&A Decisions (Phase 1)
+
+| # | Question | Options Presented | User's Decision | Rationale |
+|---|----------|-------------------|-----------------|-----------|
+| Q1 | Scope: all 4 epics or subset? | (a) All 4, (b) E1+E4, (c) E1 only, (d) other | **(b) E1+E4 backend only** | "just create Tier CRUD APIs and only backend implementation for now" — aiRa, comparison matrix, audit log, simulation all future |
+| Q2 | Tier deletion/insertion constraints? | (a) Keep both, (b) relax insertion, (c) relax deletion, (d) both | **(c) Relax deletion — soft delete** | Add `active` flag (default 1) to program_slabs, set to 0 on delete. GET returns active only. |
+| Q3 | Prior TierConfigController implementation? | (a) Existing branch, (b) stale artifacts, (c) investigate | **(b) Proceed fresh** | "controller layer should be in intouch-api-v3 just like UnifiedPromotion only the thrifts and later flows be there in emf-parent" |
+| Q4 | CRUD operations in scope? | Listed 8 operations (5 CRUD + 3 deferred) | **Confirmed 5 CRUD ops** | APIs must return field-level errors — "as aiRa will use APIs in future so APIs should also have constraints like UI" |
+| Q5 | Maker-checker in scope? + Tier status lifecycle? | (a) Simple, (b) with pause, (c) mirror promotion | **Maker-checker IN SCOPE + (a) Simple lifecycle** | "yes we have to include maker-checker... refer already present maker checker for UnifiedPromotion" |
+| Q6 | "validate on return transaction" toggle? | (a) Include as-is, (b) exclude, (c) deprecate | **(a) Include as-is** | Backend logic exists, real business need, API completeness |
