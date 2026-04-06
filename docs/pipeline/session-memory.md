@@ -122,6 +122,9 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - If DRAFT already exists for an ACTIVE tier, PUT edits the existing DRAFT — does NOT create a second DRAFT. Only after DRAFT is published can a new one be created. _(QA→User)_
 - APPROVE two-phase commit: use write-ahead log (WAL) pattern. Log intent before executing Thrift + MongoDB. Recover from log on partial failure in either direction. _(QA→User)_
 - TierStatus enum updated: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED, plus SNAPSHOT for superseded ACTIVE versions. _(QA→User)_
+- Strategy CSV handling on soft-delete: do NOT rewrite any strategy CSVs. Evaluation engine ignores CSV entries at positions corresponding to inactive slab serial numbers. Applies to all 4 strategy types. CSVs stay intact for reactivation. _(QA→User)_
+- Strategy CSV handling on APPROVE (new slab): `createOrUpdateSlab()` auto-handles POINTS_ALLOCATION + POINTS_EXPIRY. Explicit CSV append required for SLAB_UPGRADE thresholds + SLAB_DOWNGRADE targets. _(Codebase C7)_
+- Transaction manager for emf-parent: `@Transactional(value = "warehouse", rollbackFor = Exception.class)` — verified from PointsEngineRuleService class-level annotation. _(Codebase C7)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -238,10 +241,10 @@ _(continued from above — Designer additions)_
 
 ## Open Questions
 _(continued — Designer additions)_
-- [ ] Q-D1: `PeCustomerEnrollmentDao.countMembersPerSlab()` — does `GenericDao` support `List<Object[]>` JPQL return, or must `nativeQuery = true` be used? _(Designer)_
-- [ ] Q-D2: `deactivateSlab` — exact algorithm for rebuilding SLAB_UPGRADE threshold CSV after removing one entry. Must be verified against `ThresholdBasedSlabUpgradeStrategyImpl`. _(Designer)_
-- [ ] Q-D3: Does `PointsEngineRuleEditor.createOrUpdateSlab()` auto-update SLAB_UPGRADE CSV on threshold change? Unresolved A-2 from Analyst. _(Designer)_
-- [ ] Q-D4: Confirm `@Transactional("warehouse")` is the correct transaction manager name for `deactivateSlab` in emf-parent. _(Designer)_
+- [x] Q-D1: RESOLVED — Try JPQL first for `countMembersPerSlab()`. If GenericDao doesn't support `List<Object[]>` return, fallback to `nativeQuery = true`. _(Designer→User)_
+- [x] Q-D2: RESOLVED — Do NOT rewrite strategy CSVs on soft-delete. Evaluation engine filters out CSV entries for inactive slab serials at read-time. CSV stays intact for reactivation. Applies to ALL strategy types (SLAB_UPGRADE, SLAB_DOWNGRADE, POINTS_ALLOCATION, POINTS_EXPIRY). _(Designer→User)_
+- [x] Q-D3: RESOLVED — `createOrUpdateSlab()` auto-updates POINTS_ALLOCATION + POINTS_EXPIRY CSVs only (for new slabs). SLAB_UPGRADE + SLAB_DOWNGRADE CSVs are NOT auto-updated — explicit append logic needed on APPROVE. Verified from PointsEngineRuleService.java:3709-3763 (C7). _(Designer→Codebase)_
+- [x] Q-D4: RESOLVED — `@Transactional(value = "warehouse", rollbackFor = Exception.class)` is correct. Verified from class-level annotation on PointsEngineRuleService.java:154 and consistent usage across emf-parent (C7). _(Designer→Codebase)_
 - [x] Q-D5: RESOLVED — Copy-on-write: PUT on ACTIVE creates new DRAFT with parentObjectId → on APPROVE, existing ACTIVE becomes SNAPSHOT, new version becomes ACTIVE. Same as UnifiedPromotion. _(Designer→QA→User)_
 
 ## Risks & Concerns
