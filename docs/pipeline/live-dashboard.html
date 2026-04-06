@@ -97,8 +97,8 @@
     <a href="#phase-6a"><span class="status status-done"></span>6a. Impact Analysis</a>
     <a href="#phase-6b"><span class="status status-done"></span>6b. Migration Planning</a>
     <a href="#phase-7"><span class="status status-done"></span>7. LLD (Designer)</a>
-    <a href="#phase-8"><span class="status status-active"></span>8. QA</a>
-    <a href="#phase-9"><span class="status status-pending"></span>9. Developer</a>
+    <a href="#phase-8"><span class="status status-done"></span>8. QA</a>
+    <a href="#phase-9"><span class="status status-active"></span>9. Developer</a>
     <a href="#phase-9b"><span class="status status-pending"></span>9b. Backend Readiness</a>
     <a href="#phase-9c"><span class="status status-pending"></span>9c. Compliance</a>
     <a href="#phase-10"><span class="status status-pending"></span>10. SDET</a>
@@ -123,8 +123,8 @@
     <div class="step done" title="Phase 6a"></div>
     <div class="step done" title="Phase 6b"></div>
     <div class="step done" title="Phase 7"></div>
-    <div class="step active" title="Phase 8"></div>
-    <div class="step" title="Phase 9"></div>
+    <div class="step done" title="Phase 8"></div>
+    <div class="step active" title="Phase 9"></div>
     <div class="step" title="Phase 9b"></div>
     <div class="step" title="Phase 9c"></div>
     <div class="step" title="Phase 10"></div>
@@ -730,8 +730,84 @@ stateDiagram-v2
   </div>
 
   <div class="card" id="phase-8">
-    <h2>Phase 8: QA <span class="badge badge-amber">PENDING</span></h2>
-    <p>Test scenarios, edge cases, acceptance criteria. Content will appear here.</p>
+    <h2>Phase 8: QA <span class="badge badge-green">COMPLETE</span></h2>
+    <p><strong>72 test scenarios</strong> covering all 35 acceptance criteria across 7 user stories. 8 new test classes needed across intouch-api-v3 and emf-parent.</p>
+
+    <h3>Summary</h3>
+    <table>
+      <tr><th>Category</th><th>Count</th></tr>
+      <tr><td>Happy-path scenarios</td><td>12</td></tr>
+      <tr><td>Validation error scenarios</td><td>14</td></tr>
+      <tr><td>State machine scenarios</td><td>10</td></tr>
+      <tr><td>Concurrency scenarios</td><td>4</td></tr>
+      <tr><td>Tenant isolation (G-07)</td><td>4</td></tr>
+      <tr><td>Edge cases</td><td>10</td></tr>
+      <tr><td>Failure / resilience</td><td>8</td></tr>
+      <tr><td>Soft-delete scenarios</td><td>6</td></tr>
+      <tr><td>Idempotency scenarios</td><td>4</td></tr>
+      <tr><td>GUARDRAIL-specific</td><td>8</td></tr>
+      <tr style="font-weight:bold; color: var(--accent);"><td>Total</td><td>72</td></tr>
+    </table>
+
+    <h3>New Test Classes</h3>
+    <table>
+      <tr><th>Class</th><th>Repo</th><th>Type</th></tr>
+      <tr><td>TierControllerTest</td><td>intouch-api-v3</td><td>Unit (Mockito)</td></tr>
+      <tr><td>TierFacadeTest</td><td>intouch-api-v3</td><td>Unit (Mockito)</td></tr>
+      <tr><td>TierValidatorTest</td><td>intouch-api-v3</td><td>Unit (pure)</td></tr>
+      <tr><td>TierRepositoryTest</td><td>intouch-api-v3</td><td>Integration (Testcontainer)</td></tr>
+      <tr><td>PeProgramSlabDaoTest</td><td>emf-parent</td><td>Integration</td></tr>
+      <tr><td>PeCustomerEnrollmentDaoTest</td><td>emf-parent</td><td>Integration</td></tr>
+      <tr><td>TierControllerIntegrationTest</td><td>intouch-api-v3</td><td>Integration (full stack)</td></tr>
+      <tr><td>ThriftImplDeactivateTest</td><td>emf-parent</td><td>Integration</td></tr>
+    </table>
+
+    <h3>GUARDRAIL Coverage</h3>
+    <table>
+      <tr><th>Guardrail</th><th>What It Tests</th><th>Scenarios</th><th>Priority</th></tr>
+      <tr><td>G-01.7</td><td>UTC timestamps across 3 timezones</td><td>TS-70</td><td style="color:var(--red)">CRITICAL</td></tr>
+      <tr><td>G-02.1</td><td>Null collections &rarr; [] not null</td><td>TS-71</td><td style="color:var(--amber)">HIGH</td></tr>
+      <tr><td>G-05.1</td><td>@Transactional rollback on deactivateSlab</td><td>TS-59</td><td style="color:var(--amber)">HIGH</td></tr>
+      <tr><td>G-06.1</td><td>Idempotent APPROVE retry</td><td>TS-43, TS-44</td><td style="color:var(--amber)">HIGH</td></tr>
+      <tr><td>G-07.4</td><td>Tenant isolation (Org A &ne; Org B)</td><td>TS-65&ndash;68</td><td style="color:var(--red)">CRITICAL</td></tr>
+      <tr><td>G-10.2</td><td>Optimistic locking on concurrent APPROVE</td><td>TS-61</td><td style="color:var(--amber)">HIGH</td></tr>
+      <tr><td>G-11.5</td><td>Concurrent access tests</td><td>TS-61, TS-62</td><td style="color:var(--amber)">HIGH</td></tr>
+      <tr><td>G-11.8</td><td>Tenant isolation integration tests</td><td>TS-65&ndash;68</td><td style="color:var(--red)">CRITICAL</td></tr>
+    </table>
+
+    <h3>QA Risks Identified</h3>
+    <ul>
+      <li><strong>QA-R-01:</strong> Partial APPROVE failure &mdash; Thrift succeeds but MongoDB.save() fails &rarr; state divergence (no rollback designed for this direction)</li>
+      <li><strong>QA-R-02:</strong> Duplicate DRAFT on POST retry without idempotency key</li>
+      <li><strong>QA-R-03:</strong> Concurrent serialNumber conflict &mdash; MongoDB lacks unique index on (orgId, programId, serialNumber)</li>
+      <li><strong>QA-R-04:</strong> GET /tiers/{id} behavior for STOPPED tier undefined &mdash; 404 vs return-with-status</li>
+      <li><strong>QA-R-05:</strong> Second PUT on ACTIVE tier with in-flight DRAFT &mdash; 409 vs return existing DRAFT</li>
+      <li><strong>QA-R-06:</strong> SLAB_UPGRADE CSV rebuild algorithm not specified for deactivateSlab</li>
+    </ul>
+
+    <h3>Open Questions</h3>
+    <table>
+      <tr><th>#</th><th>Question</th><th>Affected</th><th>Confidence</th></tr>
+      <tr><td>Q-QA-1</td><td>Should GET /tiers/{id} return STOPPED tier or 404?</td><td>TS-48</td><td>C3</td></tr>
+      <tr><td>Q-QA-2</td><td>Second PUT on ACTIVE with in-flight DRAFT?</td><td>TS-52</td><td>C2</td></tr>
+      <tr><td>Q-QA-3</td><td>POST idempotency key support?</td><td>TS-72</td><td>C2</td></tr>
+      <tr><td>Q-QA-4</td><td>Rollback when Thrift OK but MongoDB fails?</td><td>TS-54</td><td>C2</td></tr>
+      <tr><td>Q-QA-5</td><td>PUT on ACTIVE = copy-on-write confirmed?</td><td>TS-51, TS-52</td><td>C3</td></tr>
+    </table>
+
+    <h3>Test Scenario Distribution</h3>
+    <div class="mermaid">
+pie title Test Scenario Distribution (72 total)
+    "Happy Path" : 12
+    "Validation" : 14
+    "State Machine" : 10
+    "Concurrency" : 4
+    "Tenant Isolation" : 4
+    "Edge Cases" : 10
+    "Failure/Resilience" : 8
+    "Soft-Delete" : 6
+    "Idempotency" : 4
+    </div>
   </div>
 
   <div class="card" id="phase-9">
