@@ -54,6 +54,7 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - Maker-checker IN SCOPE: tier create/update goes through approval workflow (same as UnifiedPromotion) _(BA)_
 - Tier status lifecycle: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED. Rejected goes back to DRAFT. No PAUSED/LIVE/UPCOMING. _(BA)_
 - Simulation and changelog endpoints: deferred _(BA)_
+- Maker-checker approver logic (who approves) is handled at UI/frontend level, NOT backend — same as UnifiedPromotion. Backend only handles status transitions (submit, approve, reject). No approver assignment or routing in API. _(BA)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -76,6 +77,11 @@ _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitiga
 - Tier status lifecycle (Active/Draft/Pending/Stopped) not in current `ProgramSlab` schema — requires new columns (active + status). Flyway migration needed. _(ProductEx)_ — Status: open (in scope)
 - Maker-checker not wired for tier entity type — `RequestManagementController` works for promotions only today. EntityType.TIER + routing needed. _(ProductEx)_ — Status: open (in scope)
 - `BenefitsType` enum only has VOUCHER/POINTS — new types require backward-compatible schema change _(ProductEx)_ — Status: open (E2 deferred)
+- `RequestManagementController` return type is `ResponseWrapper<UnifiedPromotion>` — cannot reuse for TIER without generalizing _(Analyst)_ — Status: open (blocks maker-checker design)
+- Tier creation involves rulesets/strategies orchestration (`BasicProgramCreator`) — CRUD API may need to handle this _(Analyst)_ — Status: open (blocks architecture)
+- `PartnerProgramTierSyncConfiguration` references must be checked on soft delete — BA missed this _(Analyst)_ — Status: open (blocks soft delete design)
+- No Flyway migration mechanism found — migration approach unclear _(Analyst)_ — Status: open (blocks schema migration)
+- `program_slabs` UNIQUE constraint on `(org_id, program_id, serial_number)` conflicts with soft delete — serial number gaps _(Analyst)_ — Status: open (blocks soft delete design)
 
 ## Open Questions
 _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: answer _(phase)_`_
@@ -86,6 +92,27 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] Can a benefit be linked to multiple programs or scoped to one? (BRD Section 12, Q4) _(Phase 0)_ — OUT OF SCOPE (benefits deferred)
 - [ ] Should aiRa handle multi-turn disambiguation? (BRD Section 12, Q5) _(Phase 0)_ — OUT OF SCOPE (aiRa deferred)
 - [x] resolved: `isDowngradeOnReturnEnabled` included as-is in new tier CRUD API — backend logic already exists _(BA)_
+- [ ] What is the actual migration mechanism for emf-parent schema changes? No Flyway found. _(Analyst)_
+- [ ] Does tier CRUD API need to create/update slab upgrade/downgrade/renewal rulesets, or is that managed separately? _(Analyst)_
+- [ ] Should `RequestManagementController` be generalized for multi-entity support, or should tiers get a separate status change endpoint? _(Analyst)_
+- [ ] What does `ProgramSlab.metadata` VARCHAR(30) store? Should it be exposed in tier CRUD API? _(Analyst)_
+- [ ] Should soft delete validation also check `PartnerProgramTierSyncConfiguration` references? _(Analyst)_
+
+## Analyst (Compliance) Findings
+_Key findings from gap-analysis-brd.md. Full details in that file._
+
+- All 15 BA/PRD codebase claims verified: 11 confirmed, 4 partial, 0 contradicted _(Analyst)_
+- `RequestManagementController.changeStatus()` returns `ResponseWrapper<UnifiedPromotion>` — cannot reuse as-is for tiers without generalizing return type _(Analyst)_
+- `PromotionStatus` enum has 10 values (not just the 4 BA listed): includes PAUSED, SNAPSHOT, LIVE, UPCOMING, COMPLETED, PUBLISH_FAILED _(Analyst)_
+- Tier creation today involves creating slab upgrade/downgrade/renewal rulesets via `BasicProgramCreator` — not just a ProgramSlab row insert _(Analyst)_
+- `PartnerProgramTierSyncConfiguration` maps partner slabs to loyalty slabs — soft delete must check these references (BA missed this) _(Analyst)_
+- No Flyway migration framework found in emf-parent — schema managed via SQL scripts in integration-test resources _(Analyst)_
+- `ProgramSlab.metadata` VARCHAR(30) field exists but BA/PRD does not mention it _(Analyst)_
+- `APIMigrationInterceptor` intercepts all `/v3/**` paths — new tier endpoints will be subject to migration rules _(Analyst)_
+- `TierConfiguration` DTO has additional fields not enumerated in BA: `isDowngradeOnPartnerProgramDeLinkingEnabled`, `downgradeConfirmationConfig`, `renewalConfirmationConfig`, `reminders`, `thresholdValues`, `currentValueType`, `trackerId`, `trackerConditionId` _(Analyst)_
+- `PeProgramSlabDao` already provides `findByProgram()`, `findByProgramSlabNumber()`, `findNumberOfSlabs()` — reusable for GET endpoints _(Analyst)_
+- `program_slabs` has UNIQUE constraint on `(org_id, program_id, serial_number)` — soft delete leaves gaps in serial numbers _(Analyst)_
+- ProgramSlab uses composite PK (`@EmbeddedId` with id + orgId) — all operations must include orgId _(Analyst)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
