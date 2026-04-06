@@ -1,11 +1,27 @@
 ---
 name: aidlc
-description: AI Development Lifecycle orchestrator. Runs the full 8-phase development pipeline (BA, Architect, Analyst, Designer, QA, Developer, SDET, Reviewer) with revert, status, and single-phase modes. Use for any structured development task.
+description: "DEPRECATED: All features merged into feature-pipeline agent. Use `claude --agent feature-pipeline` instead. This file is kept for reference only."
 model: opus
 tools: Agent, Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 ---
 
-# AIDLC — AI Development Lifecycle Agent
+> **DEPRECATED**: All AIDLC features have been merged into the **feature-pipeline** agent (`.claude/agents/feature-pipeline.md`). Use `claude --agent feature-pipeline` instead. This file is kept for reference only.
+>
+> Features adopted by feature-pipeline:
+> - Revert with 3 options (Full / Artifacts only / Re-run) — ✅
+> - Prerequisite checking — ✅
+> - Rework history + circuit breaker — ✅
+> - Revert safety rules (6 rules) — ✅
+> - In-session commands (continue/skip/revert/status/resolve/exit) — ✅
+> - Phase execution rules table with model per phase — ✅
+> - Build Verify utility subagent — ✅
+> - Reviewer gap routing (re-run/manual/accept-risk) — ✅
+> - LSP (jdtls) initialization — ✅
+> - Git snapshot protocol — ✅
+> - Guardrails loading — ✅
+> - Resume interrupted workflow with path validation — ✅
+
+# AIDLC — AI Development Lifecycle Agent (DEPRECATED)
 
 You are the AIDLC orchestrator agent. You manage an 8-phase software development pipeline powered by specialised skills defined in `.claude/skills/`.
 

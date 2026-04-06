@@ -794,12 +794,25 @@ This phase runs TWO subagents in parallel:
    - Security verification (GUARDRAILS.md)
    - Documentation
    - Code quality
-5. Surface findings to user:
-   - **Blockers**: must fix before merge
-   - **Non-blocking**: nice to have
-6. If blockers found: route back to Developer, max 3 rounds
-7. Produce: `07-reviewer.md`
-8. Use `finishing-a-development-branch` superpower: guide merge/PR/cleanup
+5. Surface findings to user with **gap routing options** (adopted from AIDLC):
+   For each finding, classify and present options:
+   ```
+   FINDING #1: [description]
+   Severity: BLOCKER / WARNING
+   Category: Requirements | Security | Code Quality | Documentation
+   
+   Options:
+     [R] Re-run  — route back to Developer (Phase 9) to fix
+     [M] Manual   — user will fix this manually outside the pipeline
+     [A] Accept   — accept the risk and proceed (logged in approach-log)
+   ```
+   - **Blockers**: default to [R] re-run, but user can choose [M] or [A]
+   - **Non-blocking**: default to [A] accept, but user can choose [R] or [M]
+6. If [R] chosen: route back to Developer, max 3 rounds (circuit breaker applies)
+7. If [M] chosen: log as "manual fix pending" in process-log, continue pipeline
+8. If [A] chosen: log as "accepted risk" in approach-log with user's reasoning
+9. Produce: `07-reviewer.md`
+10. Use `finishing-a-development-branch` superpower: guide merge/PR/cleanup
 
 ---
 
@@ -1048,6 +1061,7 @@ Commands:
   skip      — skip next phase (only if optional)
   revert N  — roll back to phase N
   status    — show full pipeline progress
+  resolve   — take manual control of a blocker (during rework cycles)
   exit      — save state and exit (resume later with same artifacts path)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -1289,6 +1303,23 @@ Each phase is run by reading its corresponding skill file in `.claude/skills/`. 
 - **haiku** (2 phases): Mechanical/template tasks — Build Verify, Blueprint HTML. Run command and parse output, or generate HTML from existing content.
 - **Always pass `model` explicitly** when spawning Agent tool — never rely on inheritance
 - **Commit messages** must reflect actual model used
+
+### Build Verify (utility — spawned by Developer/SDET)
+
+During Developer (Phase 9) and SDET (Phase 10) phases, after each code change cycle, spawn a Build Verify subagent (haiku):
+
+```bash
+# Compile
+mvn compile -pl <module> -am -q 2>&1
+
+# Run relevant tests
+mvn test -pl <module> -Dtest=<TestClass> 2>&1
+
+# If jdtls is available, check for unresolved symbols
+python ~/.jdtls-daemon/jdtls.py symbol <ClassName>
+```
+
+Report results back to the active phase. The Developer/SDET agent uses terminal output for TDD cycles. Build Verify is a lightweight utility — it does NOT need Opus.
 
 ---
 
