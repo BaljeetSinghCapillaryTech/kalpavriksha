@@ -102,7 +102,18 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - `getProgramSlabById()` uses generic `findById()` — no `is_active` filter. Soft-deleted slabs loadable by PK. Consider adding `findActiveById()` _(Analyst)_
 - SLAB_UPGRADE `threshold_values` CSV has N-1 entries for N slabs, correlated by index. Soft-delete breaks mapping unless CSV is updated _(Analyst)_
 - SLAB_DOWNGRADE `TierDowngradeStrategyConfiguration` JSON contains per-slab configs. Soft-delete leaves stale entries _(Analyst)_
-- Thrift IDL for `PointsEngineRuleService` NOT in emf-parent or intouch-api-v3 — potential 4th repo _(Analyst)_
+- Thrift IDL for `PointsEngineRuleService` located at `/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-pointsengine-rules/pointsengine_rules.thrift` — 4th repo confirmed _(Phase 6a)_
+- Thrift `SlabInfo` struct has: id, programId, serialNumber, name, description, colorCode, updatedViaNewUI — NO active/status field currently _(Phase 6a)_
+- Existing slab Thrift methods: `getAllSlabs`, `createSlabAndUpdateStrategies`, `createOrUpdateSlab` — adding `deactivateSlab` + `getMemberCountPerSlab` is backward-compatible (new methods) _(Phase 6a)_
+- R-1/R-2 RESOLVED: Evaluation engine (upgrades, downgrades, renewals) ONLY considers active tiers. DAO queries filtered by is_active=1, so strategy CSV/JSON with stale slab entries is harmless — evaluation skips soft-deleted slabs. No need to update strategy JSON on soft-delete. _(Phase 6a)_
+- R-3 CONFIRMED: Cache MUST be purged in soft-delete API. `deactivateSlab` must call `cacheEvictHelper.evictProgramIdCache(orgId, programId)`. _(Phase 6a)_
+- R-6 CONFIRMED: Rollback mechanism required for APPROVE flow (MongoDB→Thrift failure). Follow existing promotion rollback pattern. _(Phase 6a)_
+- R-4 RESOLVED: Add new `findActiveById()` method in `PeProgramSlabDao` with `is_active=1` filter. Do NOT override generic `findById()`. Use `findActiveById()` in all tier-CRUD-relevant code paths (soft-delete validation, downgrade target check, partner sync check). _(Phase 6a)_
+- R-7 RESOLVED: Accept serial number gaps on soft-delete. Soft-delete is reversible — user may reactivate tiers in future. No renumbering. UNIQUE constraint (org_id, program_id, serial_number) stays intact. _(Phase 6a)_
+- R-8 RESOLVED: APPROVE flow must be transactional-like. If user retries after first request completes → return error "already processed". If retries during processing → return "request already processing". Check UnifiedPromotion approve flow for the concurrency/locking pattern used. _(Phase 6a)_
+- PI-1 RESOLVED: KPI type (`currentValueType`) is IMMUTABLE per program. Enforce in `TierFacade.createTier()`: if other tiers exist for program, new tier's currentValueType must match. MySQL strategies table already enforces this consistency — MongoDB must match. _(Phase 6a)_
+- MySQL version in production: 8.x — online DDL supported natively, no pt-online-schema-change needed _(Phase 6a)_
+- customer_enrollment approximate size: 10–100 million rows. CREATE INDEX will take 10–60 minutes. Schedule off-peak with monitoring. MySQL 8 online DDL (ALGORITHM=INPLACE, LOCK=NONE) is safe. _(Phase 6a)_
 - GET /tiers makes 2 calls (MongoDB + Thrift for member count) — acceptable for typical program sizes (<10 tiers) _(Analyst)_
 - No `@Transactional` on `PointsEngineRuleConfigThriftImpl` slab methods — verify transaction management for `deactivateSlab` _(Analyst)_
 
@@ -194,6 +205,38 @@ _Key findings from gap-analysis-brd.md. Full details in that file._
 - [ ] [Q-MIG-02] Approximate row count of customer_enrollment in production? Required for MIG-02 duration estimate and tool choice (native vs pt-online-schema-change). _(Migrator)_
 - [ ] [Q-MIG-03] Is there an existing manual DDL deployment runbook for cc-stack-crm? _(Migrator)_
 - [ ] [Q-MIG-04] Are there any existing program_slabs rows that should be treated as inactive before migration runs? (Architecture guarantee says no, but prod state should be verified by DBA.) _(Migrator)_
+- [x] resolved: Controller annotation pattern: `@RestController @RequestMapping("/v3/tiers")`, constructor injection with `@Autowired`, `AbstractBaseAuthenticationToken` param, `ResponseEntity<ResponseWrapper<T>>` returns. Discovered from `UnifiedPromotionController.java`. _(Designer)_
+- [x] resolved: Facade annotation: `@Component` (not `@Service`). Field `@Autowired` injection. Pattern from `UnifiedPromotionFacade.java`. _(Designer)_
+- [x] resolved: MongoDB Document pattern: `@Document(collection = "tiers")`, Lombok `@Data @Builder @NoArgsConstructor @AllArgsConstructor`, `@Id String objectId`, `@JsonProperty("id")` alias, `@IgnoreGenerated`. Discovered from `UnifiedPromotion.java`. _(Designer)_
+- [x] resolved: TierRepository extends `MongoRepository<TierDocument, String>`. Must be registered in `EmfMongoConfig.includeFilters` alongside `UnifiedPromotionRepository`. _(Designer)_
+- [x] resolved: ProgramSlab entity adds `isActive boolean` with `@Basic @Column(name = "is_active")`, manual getter/setter (no Lombok). Uses `javax.persistence.*` (not `jakarta`). _(Designer)_
+- [x] resolved: PeProgramSlabDao adds `isActive = true` filter to 3 existing queries + new `findActiveById(int id, int orgId)` returning `Optional<ProgramSlab>`. _(Designer)_
+- [x] resolved: PeCustomerEnrollmentDao adds `countMembersPerSlab(@Param orgId, programId, slabIds)` returning `List<Object[]>` for GROUP BY JPQL. _(Designer)_
+- [x] resolved: `deactivateSlab` in `PointsEngineRuleConfigThriftImpl` needs `@Transactional("warehouse")` (R-10). Cache eviction: `cacheEvictHelper.evictProgramIdCache(orgId, programId)`. _(Designer)_
+- [x] resolved: Thrift IDL adds `MemberCountEntry` + `MemberCountPerSlabResponse` structs, plus `deactivateSlab` + `getMemberCountPerSlab` methods to `PointsEngineRuleService`. Backward-compatible (additive only). _(Designer)_
+- [x] resolved: All new timestamp fields (TierDocument, TierResponse) use `java.time.Instant`. ProgramSlab entity keeps `java.util.Date` for JPA compatibility (G-01 compliant: Instant in API surface, Date only in legacy JPA layer). _(Designer)_
+- [x] resolved: APPROVE idempotency: if `slabId` already set on TierDocument, return existing response without re-calling Thrift (R-8). _(Designer)_
+- [x] resolved: APPROVE rollback: if Thrift fails, revert TierDocument status to PENDING_APPROVAL before propagating exception (R-6). _(Designer)_
+- [x] resolved: Version field on TierDocument (`@Builder.Default Integer version = 1`) used for optimistic locking (G-10). APPROVE checks version before write to detect concurrent approval. _(Designer)_
+- [x] resolved: `programId` passed to `deactivateSlab` (in addition to `slabId`) because cache eviction requires both. _(Designer)_
+
+## Constraints
+_(continued from above — Designer additions)_
+- `TierDocument` timestamps must use `java.time.Instant`, not `java.util.Date`. ProgramSlab entity uses `java.util.Date` (legacy JPA — do not change). _(Designer)_
+- `TierRepository` MUST appear in `EmfMongoConfig.includeFilters` or it silently uses wrong MongoDB. _(Designer)_
+- `deactivateSlab` Thrift impl MUST be `@Transactional("warehouse")` — multiple DAO writes. _(Designer)_
+- `deactivateSlab` MUST call `cacheEvictHelper.evictProgramIdCache(orgId, programId)` — same as `createOrUpdateSlab`. _(Designer)_
+- `findActiveById()` is a NEW method in `PeProgramSlabDao` — do NOT override the generic `findById()`. _(Designer)_
+- Thrift IDL changes in thrifts repo must be compiled and jar updated in emf-parent pom.xml before emf-parent code compiles. _(Designer)_
+- `PointsEngineRulesThriftService` adds `createOrUpdateSlab`, `deactivateSlab`, `getMemberCountPerSlab` wrapper methods — no changes to any other method in that class. _(Designer)_
+
+## Open Questions
+_(continued — Designer additions)_
+- [ ] Q-D1: `PeCustomerEnrollmentDao.countMembersPerSlab()` — does `GenericDao` support `List<Object[]>` JPQL return, or must `nativeQuery = true` be used? _(Designer)_
+- [ ] Q-D2: `deactivateSlab` — exact algorithm for rebuilding SLAB_UPGRADE threshold CSV after removing one entry. Must be verified against `ThresholdBasedSlabUpgradeStrategyImpl`. _(Designer)_
+- [ ] Q-D3: Does `PointsEngineRuleEditor.createOrUpdateSlab()` auto-update SLAB_UPGRADE CSV on threshold change? Unresolved A-2 from Analyst. _(Designer)_
+- [ ] Q-D4: Confirm `@Transactional("warehouse")` is the correct transaction manager name for `deactivateSlab` in emf-parent. _(Designer)_
+- [ ] Q-D5: For PUT on ACTIVE tier — copy-on-write (new DRAFT with parentId) or in-place update to PENDING_APPROVAL? _(Designer)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._

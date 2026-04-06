@@ -22,7 +22,7 @@
     "4": {"status": "complete", "started_at": "2026-04-06T11:10:00Z", "completed_at": "2026-04-06T11:30:00Z", "artifacts": ["blocker-decisions.md"]},
     "5": {"status": "complete", "started_at": "2026-04-06T11:30:00Z", "completed_at": "2026-04-06T12:00:00Z", "artifacts": ["code-analysis-intouch-api-v3.md", "code-analysis-emf-parent.md", "code-analysis-cc-stack-crm.md", "cross-repo-trace.md"]},
     "6": {"status": "complete", "started_at": "2026-04-06T12:00:00Z", "completed_at": "2026-04-06T12:30:00Z", "artifacts": ["01-architect.md"]},
-    "6a": {"status": "in_progress", "started_at": "2026-04-06T12:30:00Z"},
+    "6a": {"status": "complete", "started_at": "2026-04-06T12:30:00Z", "completed_at": "2026-04-06T12:50:00Z", "artifacts": ["02-analyst.md"]},
     "6b": {"status": "complete", "started_at": "2026-04-06T12:30:00Z", "completed_at": "2026-04-06T12:45:00Z", "artifacts": ["01b-migrator.md"]},
     "7": {"status": "pending"},
     "8": {"status": "pending"},
@@ -35,6 +35,6 @@
     "12": {"status": "pending"}
   },
   "git_branch": "raidlc/test_branch_v3",
-  "git_tags": ["raidlc/test_branch_v3/phase-00", "raidlc/test_branch_v3/phase-01"],
+  "git_tags": ["raidlc/test_branch_v3/phase-00", "raidlc/test_branch_v3/phase-01", "raidlc/test_branch_v3/phase-06", "raidlc/test_branch_v3/phase-06a", "raidlc/test_branch_v3/phase-06b"],
   "rework_cycles": []
 }
