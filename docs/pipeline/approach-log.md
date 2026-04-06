@@ -26,3 +26,18 @@ _Format: Decision — Rationale — Phase_
 | Q4 | CRUD operations in scope? | Listed 8 operations (5 CRUD + 3 deferred) | **Confirmed 5 CRUD ops** | APIs must return field-level errors — "as aiRa will use APIs in future so APIs should also have constraints like UI" |
 | Q5 | Maker-checker in scope? + Tier status lifecycle? | (a) Simple, (b) with pause, (c) mirror promotion | **Maker-checker IN SCOPE + (a) Simple lifecycle** | "yes we have to include maker-checker... refer already present maker checker for UnifiedPromotion" |
 | Q6 | "validate on return transaction" toggle? | (a) Include as-is, (b) exclude, (c) deprecate | **(a) Include as-is** | Backend logic exists, real business need, API completeness |
+
+### Blocker Decisions (Phase 4)
+
+| # | Blocker | Options | Decision | Rationale |
+|---|---------|---------|----------|-----------|
+| B-1 | EntityType/RequestManagementController coupling | (a) Separate endpoint, (b) generalize controller, (c) parallel method | **(a) Separate TierController endpoint** | "a is the safest option" — zero risk to promotions |
+| B-2+B-3 | Soft-delete leakage + DRAFT in evaluation | (a) Filter queries, (b) manual DAO update, (c) separate table | **MongoDB-first architecture** | "use MongoDB implementation just like UnifiedPromotion to save TIER data along with config and Benefits data" — DRAFT in Mongo only, SQL on APPROVE only |
+| B-4 | Evaluation logic unaffected claim | N/A | **Auto-resolved** | DRAFT tiers never enter program_slabs |
+| H-1 | Threshold validation create vs update | N/A | **Neighbor-ordering validation** | "validation should exist for threshold" — thresholds in strategy tables, MongoDB holds config |
+| H-2 | Tier creation ruleset orchestration | Direct EMF calls vs Thrift | **Thrift endpoints only** | "APPROVE should only call EMF Thrift endpoints not their internal methods" |
+| H-3 | PartnerProgramTierSync references | N/A | **Add validation check** | "yes validation should be present" |
+| GQ-1 | dailyDowngradeEnabled scope | Per-tier vs per-program | **Program-level** | "yes these are program level configs" |
+| GQ-2 | Soft-deleted tier members | Leave in place vs force-migrate | **User must migrate first** | "end user will have to migrate all customers from that tier... add validations" |
+| GQ-3 | Member count in GET | Include vs defer | **Include** | "member count should be present for Get tier info" |
+| GQ-4 | PUT vs PATCH | Both vs PUT only | **PUT only** | "integrate PUT only like UnifiedPromotion" |

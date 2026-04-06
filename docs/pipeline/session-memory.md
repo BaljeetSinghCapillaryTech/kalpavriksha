@@ -52,9 +52,28 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - APIs must return structured field-level validation errors (not generic 500s): future-proofing for aiRa consumption. Same validation in API as would be in UI. _(BA)_
 - GET /tiers should return tier config only (no linked benefits info — benefits deferred to E2) _(BA)_
 - Maker-checker IN SCOPE: tier create/update goes through approval workflow (same as UnifiedPromotion) _(BA)_
-- Tier status lifecycle: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED. Rejected goes back to DRAFT. No PAUSED/LIVE/UPCOMING. _(BA)_
+- Tier status lifecycle in MongoDB: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED. Rejected goes back to DRAFT. No PAUSED/LIVE/UPCOMING. _(BA)_
+- Status column NOT needed in program_slabs SQL — only `active` column needed. Status lives in MongoDB only. SQL write only happens on APPROVE (= ACTIVE). Soft-delete sets active=0. _(Phase 4)_
 - Simulation and changelog endpoints: deferred _(BA)_
 - Maker-checker approver logic (who approves) is handled at UI/frontend level, NOT backend — same as UnifiedPromotion. Backend only handles status transitions (submit, approve, reject). No approver assignment or routing in API. _(BA)_
+- BLOCKER B-1 resolved: Separate TierController endpoint for status changes (option a). Do NOT touch RequestManagementController. New `POST /v3/tiers/{tierId}/status` with own TierStatus enum. Zero risk to existing promotion flow. _(Phase 4)_
+- BLOCKER B-2 + B-3 resolved: Use MongoDB (like UnifiedPromotion) to store tier documents. DRAFT/PENDING tiers live ONLY in MongoDB. On APPROVE, write to program_slabs (MySQL). Evaluation engine only reads program_slabs = only ACTIVE tiers. No existing query changes needed. _(Phase 4)_
+- MongoDB tier document will hold full config + future benefits linkage (E2 extensible). Same pattern as UnifiedPromotion MongoDB storage. _(Phase 4)_
+- Soft-delete (active flag) still needed in program_slabs for ACTIVE→STOPPED transition, but B-2 blast radius is massively reduced since only the CRUD API reads MongoDB, and evaluation reads MySQL. _(Phase 4)_
+- BLOCKER B-4 auto-resolved: "evaluation logic unaffected" is now genuinely true — DRAFT tiers never enter program_slabs. _(Phase 4)_
+- Threshold + tier config stored in strategy tables (strategy_types: SLAB_UPGRADE, SLAB_DOWNGRADE, etc.), NOT in program_slabs directly. MongoDB document holds full config including strategy data. On APPROVE, sync MongoDB doc → program_slabs + strategy tables. _(Phase 4)_
+- Threshold validation on update: must check neighbor ordering (tier[n-1].threshold < new < tier[n+1].threshold). Validation runs against MongoDB docs. _(Phase 4)_
+- On APPROVE: intouch-api-v3 calls EMF Thrift endpoints (NOT internal methods like BasicProgramCreator directly). Thrift endpoints handle ruleset/strategy creation + program_slabs write. Clean service boundary. _(Phase 4)_
+- HIGH H-2 resolved: Tier creation orchestration handled by EMF via Thrift on APPROVE. CRUD API only writes MongoDB. _(Phase 4)_
+- HIGH H-3 resolved: Soft-delete validation must also check PartnerProgramTierSyncConfiguration references. Return error with partner sync dependencies if any exist. _(Phase 4)_
+- MongoDB tier document contains ALL slab info: name, description, color, metadata, serialNumber, threshold, strategy configs (upgrade/downgrade/renewal), TierConfiguration DTO fields, status. Complete representation. _(Phase 4)_
+- Schema migration for `active` column: add to cc-stack-crm repo at `schema/dbmaster/warehouse/program_slabs.sql`. Third code repo for this pipeline. _(Phase 4)_
+- No Flyway — schema managed via SQL DDL files in cc-stack-crm. ALTER TABLE script needed for existing deployments. _(Phase 4)_
+- GQ-1 resolved: `dailyDowngradeEnabled`, `retainPoints` are program-level configs (TierConfiguration DTO). Stored in MongoDB doc as program-level fields, not per-tier. _(Phase 4)_
+- GQ-2 resolved: Soft-delete requires user to migrate ALL members out of the tier FIRST. Validation: cannot soft-delete a tier that still has members. New validation query needed — must check indexes exist for performance. Simulation phase (future) will surface member count info to user. _(Phase 4)_
+- GQ-3 resolved: Member count per tier included in GET /tiers response. Cross-service query needed — must check indexes for performance. _(Phase 4)_
+- GQ-4 resolved: PUT only for updates, no PATCH. Same as UnifiedPromotion. _(Phase 4)_
+- All new validation queries must use existing indexes. If new indexes needed, flag during implementation. _(Phase 4)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
