@@ -94,10 +94,10 @@
     <a href="#phase-4"><span class="status status-done"></span>4. Blocker Resolution</a>
     <a href="#phase-5"><span class="status status-done"></span>5. Codebase Research</a>
     <a href="#phase-6"><span class="status status-done"></span>6. HLD (Architect)</a>
-    <a href="#phase-6a"><span class="status status-active"></span>6a. Impact Analysis</a>
-    <a href="#phase-6b"><span class="status status-active"></span>6b. Migration Planning</a>
-    <a href="#phase-7"><span class="status status-pending"></span>7. LLD (Designer)</a>
-    <a href="#phase-8"><span class="status status-pending"></span>8. QA</a>
+    <a href="#phase-6a"><span class="status status-done"></span>6a. Impact Analysis</a>
+    <a href="#phase-6b"><span class="status status-done"></span>6b. Migration Planning</a>
+    <a href="#phase-7"><span class="status status-done"></span>7. LLD (Designer)</a>
+    <a href="#phase-8"><span class="status status-active"></span>8. QA</a>
     <a href="#phase-9"><span class="status status-pending"></span>9. Developer</a>
     <a href="#phase-9b"><span class="status status-pending"></span>9b. Backend Readiness</a>
     <a href="#phase-9c"><span class="status status-pending"></span>9c. Compliance</a>
@@ -120,10 +120,10 @@
     <div class="step done" title="Phase 4"></div>
     <div class="step done" title="Phase 5"></div>
     <div class="step done" title="Phase 6"></div>
-    <div class="step active" title="Phase 6a"></div>
-    <div class="step active" title="Phase 6b"></div>
-    <div class="step" title="Phase 7"></div>
-    <div class="step" title="Phase 8"></div>
+    <div class="step done" title="Phase 6a"></div>
+    <div class="step done" title="Phase 6b"></div>
+    <div class="step done" title="Phase 7"></div>
+    <div class="step active" title="Phase 8"></div>
     <div class="step" title="Phase 9"></div>
     <div class="step" title="Phase 9b"></div>
     <div class="step" title="Phase 9c"></div>
@@ -532,27 +532,201 @@ CREATE INDEX idx_ce_slab_count ON customer_enrollment (org_id, program_id, curre
   </div>
 
   <!-- ============================================================ -->
-  <!-- Phase 6a: Impact Analysis (In Progress) -->
+  <!-- Phase 6a: Impact Analysis -->
   <!-- ============================================================ -->
   <div class="card" id="phase-6a">
-    <h2>Phase 6a: Impact Analysis <span class="badge badge-amber">IN PROGRESS</span></h2>
-    <p>Analyst (--impact mode) analyzing blast radius, security, performance, and GUARDRAILS compliance. Content will appear here after phase completes.</p>
+    <h2>Phase 6a: Impact Analysis <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 10 risks &middot; 0 blockers &middot; All CRITICAL guardrails compliant &middot; 12/12 product requirements fulfilled</p>
+
+    <h3>Risk Register (Top Items)</h3>
+    <table>
+      <tr><th>#</th><th>Risk</th><th>Severity</th><th>Resolution</th></tr>
+      <tr>
+        <td>R-1</td>
+        <td>Threshold CSV / slab list mismatch after soft-delete</td>
+        <td><span class="badge badge-red">CRITICAL</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> Evaluation only uses active tiers (is_active=1 filter)</td>
+      </tr>
+      <tr>
+        <td>R-2</td>
+        <td>Downgrade config JSON references soft-deleted slab</td>
+        <td><span class="badge badge-red">HIGH</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> Active-only filtering handles it</td>
+      </tr>
+      <tr>
+        <td>R-3</td>
+        <td>Cache staleness after soft-delete (InfoLookupService)</td>
+        <td><span class="badge badge-red">HIGH</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> deactivateSlab calls cacheEvictHelper</td>
+      </tr>
+      <tr>
+        <td>R-5</td>
+        <td>Thrift IDL in a 4th repo</td>
+        <td><span class="badge badge-red">HIGH</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> Repo at <code>/thrifts</code>, IDL found</td>
+      </tr>
+      <tr>
+        <td>R-6</td>
+        <td>MongoDB-MySQL divergence on APPROVE failure</td>
+        <td><span class="badge badge-red">HIGH</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> Rollback to PENDING_APPROVAL on Thrift failure</td>
+      </tr>
+      <tr>
+        <td>R-8</td>
+        <td>APPROVE not idempotent (retry creates duplicates)</td>
+        <td><span class="badge badge-amber">MED</span></td>
+        <td><span class="badge badge-green">RESOLVED</span> Transactional-like flow, error on duplicate</td>
+      </tr>
+    </table>
+
+    <h3>GUARDRAILS Compliance</h3>
+    <table>
+      <tr><th>Guardrail</th><th>Status</th><th>Notes</th></tr>
+      <tr><td>G-01 Timezone</td><td><span class="badge badge-green">COMPLIANT</span></td><td>Instant for new fields. Legacy Date in JPA only.</td></tr>
+      <tr><td>G-03 Security</td><td><span class="badge badge-green">COMPLIANT</span></td><td>Auth enforced globally. Bean Validation on DTOs.</td></tr>
+      <tr><td>G-07 Multi-Tenancy</td><td><span class="badge badge-green">COMPLIANT</span></td><td>orgId in all MongoDB + MySQL queries.</td></tr>
+    </table>
+
+    <h3>Impact Map</h3>
+    <div class="mermaid">
+graph LR
+    subgraph "LOW impact"
+        CC[cc-stack-crm - DDL only]
+        API[intouch-api-v3 - new package]
+    end
+    subgraph "MEDIUM impact"
+        THR[thrifts - 2 new methods]
+        CE[PeCustomerEnrollmentDao]
+    end
+    subgraph "HIGH impact"
+        PS[PeProgramSlabDao - 3 query mods]
+        ILS[InfoLookupService - cache]
+        EMF[ThriftImpl - deactivateSlab]
+    end
+    PS --> ILS
+    EMF --> PS
+    EMF --> CE
+    </div>
   </div>
 
   <!-- ============================================================ -->
-  <!-- Phase 6b: Migration Planning (In Progress) -->
+  <!-- Phase 6b: Migration Planning -->
   <!-- ============================================================ -->
   <div class="card" id="phase-6b">
-    <h2>Phase 6b: Migration Planning <span class="badge badge-amber">IN PROGRESS</span></h2>
-    <p>Migrator analyzing schema changes: <code>is_active</code> column + <code>customer_enrollment</code> index. Content will appear here after phase completes.</p>
+    <h2>Phase 6b: Migration Planning <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 2 migrations &middot; Overall LOW-MEDIUM risk &middot; MySQL 8 (online DDL) &middot; No expand-then-contract needed</p>
+
+    <h3>Migration Inventory</h3>
+    <table>
+      <tr><th>ID</th><th>Change</th><th>Table</th><th>Risk</th><th>Duration</th></tr>
+      <tr>
+        <td>MIG-01</td>
+        <td><code>ALTER TABLE ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1</code></td>
+        <td>program_slabs</td>
+        <td><span class="badge badge-green">LOW</span></td>
+        <td>Sub-second (metadata-only, MySQL 8)</td>
+      </tr>
+      <tr>
+        <td>MIG-02</td>
+        <td><code>CREATE INDEX idx_ce_slab_count (org_id, program_id, current_slab_id, is_active)</code></td>
+        <td>customer_enrollment</td>
+        <td><span class="badge badge-amber">MEDIUM</span></td>
+        <td>10-60 min (10-100M rows, off-peak)</td>
+      </tr>
+    </table>
+
+    <h3>Execution Order</h3>
+    <div class="mermaid">
+flowchart LR
+    M1[MIG-01 - is_active column] --> D1[Deploy emf-parent]
+    M2[MIG-02 - member count index] --> D2[Deploy intouch-api-v3]
+    M1 --> M2
+    D1 --> D2
+    </div>
+
+    <h3>Key Facts</h3>
+    <ul>
+      <li>No Flyway/Liquibase &mdash; manual DDL applied by DBAs per environment</li>
+      <li>DDL must deploy BEFORE application code</li>
+      <li>MySQL 8 in production &mdash; online DDL (<code>ALGORITHM=INPLACE, LOCK=NONE</code>) is safe</li>
+      <li>Both migrations are backward-compatible &mdash; no expand-then-contract needed</li>
+      <li>Rollback: <code>ALTER TABLE DROP COLUMN is_active</code> (but must roll back app first)</li>
+    </ul>
   </div>
 
   <!-- ============================================================ -->
-  <!-- Remaining phases (placeholders) -->
+  <!-- Phase 7: LLD (Designer) -->
   <!-- ============================================================ -->
   <div class="card" id="phase-7">
-    <h2>Phase 7: LLD (Designer) <span class="badge badge-amber">PENDING</span></h2>
-    <p>Interface contracts, class diagrams, compile-safe signatures. Content will appear here.</p>
+    <h2>Phase 7: LLD (Designer) <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 19 types &middot; 3 repos &middot; All patterns discovered from existing codebase (C7)</p>
+
+    <h3>Type Inventory</h3>
+    <table>
+      <tr><th>Repo</th><th>Type</th><th>Kind</th><th>Pattern Source</th></tr>
+      <tr><td rowspan="14"><strong>intouch-api-v3</strong></td><td><code>TierController</code></td><td>REST (6 endpoints)</td><td>UnifiedPromotionController</td></tr>
+      <tr><td><code>TierFacade</code></td><td>Business logic</td><td>UnifiedPromotionFacade</td></tr>
+      <tr><td><code>TierDocument</code></td><td>MongoDB document</td><td>UnifiedPromotion</td></tr>
+      <tr><td><code>TierRepository</code></td><td>MongoDB repo (7 queries)</td><td>UnifiedPromotionRepository</td></tr>
+      <tr><td><code>TierRequest</code></td><td>Input DTO</td><td>PromotionReviewRequest</td></tr>
+      <tr><td><code>TierResponse</code></td><td>Output DTO</td><td>UnifiedPromotion response</td></tr>
+      <tr><td><code>TierStatusRequest</code></td><td>Status change DTO</td><td>PromotionReviewRequest</td></tr>
+      <tr><td><code>EligibilityConfig</code></td><td>Nested DTO</td><td>Lombok @Data @Builder</td></tr>
+      <tr><td><code>ValidityConfig</code></td><td>Nested DTO</td><td>Lombok @Data @Builder</td></tr>
+      <tr><td><code>RenewalConfig</code></td><td>Nested DTO</td><td>Lombok @Data @Builder</td></tr>
+      <tr><td><code>DowngradeConfig</code></td><td>Nested DTO</td><td>Lombok @Data @Builder</td></tr>
+      <tr><td><code>TierStatus</code></td><td>Enum (4 values)</td><td>PromotionStatus</td></tr>
+      <tr><td><code>TierAction</code></td><td>Enum (4 values)</td><td>PromotionAction</td></tr>
+      <tr><td><code>TierValidator</code></td><td>Validation (6 methods)</td><td>UnifiedPromotionValidatorService</td></tr>
+      <tr><td rowspan="4"><strong>emf-parent</strong></td><td><code>ProgramSlab</code></td><td>+isActive field</td><td>Existing entity pattern</td></tr>
+      <tr><td><code>PeProgramSlabDao</code></td><td>3 modified + 1 new query</td><td>Existing @Query JPQL</td></tr>
+      <tr><td><code>PeCustomerEnrollmentDao</code></td><td>+countMembersPerSlab</td><td>GenericDao pattern</td></tr>
+      <tr><td><code>ThriftImpl</code></td><td>+deactivateSlab, +getMemberCount</td><td>@Trace @MDCData pattern</td></tr>
+      <tr><td><strong>thrifts</strong></td><td>2 structs + 2 methods</td><td>Thrift IDL</td><td>Existing PointsEngineRuleService</td></tr>
+    </table>
+
+    <h3>Dependency Direction</h3>
+    <div class="mermaid">
+graph TB
+    C[TierController] --> F[TierFacade]
+    F --> R[TierRepository - MongoDB]
+    F --> V[TierValidator]
+    F --> T[ThriftService]
+    T -->|Thrift RPC| I[ThriftImpl - emf-parent]
+    I --> D1[PeProgramSlabDao]
+    I --> D2[PeCustomerEnrollmentDao]
+    I --> CE[cacheEvictHelper]
+    </div>
+
+    <h3>GUARDRAILS Enforced Structurally</h3>
+    <ul>
+      <li><strong>G-01</strong>: <code>Instant</code> in TierDocument + TierResponse. Legacy <code>Date</code> only in ProgramSlab JPA entity.</li>
+      <li><strong>G-07</strong>: <code>orgId</code> required param in every method signature + every MongoDB @Query.</li>
+      <li><strong>G-10</strong>: <code>version</code> field on TierDocument for optimistic locking. APPROVE checks version before commit.</li>
+      <li><strong>R-3</strong>: Cache eviction in <code>deactivateSlab</code> ThriftImpl (same as <code>createOrUpdateSlab</code>).</li>
+      <li><strong>R-6</strong>: MongoDB rollback to PENDING_APPROVAL on Thrift failure in APPROVE flow.</li>
+      <li><strong>R-8</strong>: Idempotency &mdash; if <code>slabId</code> already set, return existing response.</li>
+      <li><strong>R-10</strong>: <code>@Transactional("warehouse")</code> on <code>deactivateSlab</code> (multi-step write).</li>
+    </ul>
+
+    <h3>API Contract (from Designer)</h3>
+    <div class="api-endpoint"><span class="method get">GET</span> /v3/tiers?programId={id}&amp;includeInactive=false &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;List&lt;TierResponse&gt;&gt;&gt;</code></div>
+    <div class="api-endpoint"><span class="method get">GET</span> /v3/tiers/{tierId} &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;TierResponse&gt;&gt;</code></div>
+    <div class="api-endpoint"><span class="method post">POST</span> /v3/tiers &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;TierResponse&gt;&gt;</code> (201, DRAFT)</div>
+    <div class="api-endpoint"><span class="method put">PUT</span> /v3/tiers/{tierId} &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;TierResponse&gt;&gt;</code></div>
+    <div class="api-endpoint"><span class="method delete">DELETE</span> /v3/tiers/{tierId} &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;Void&gt;&gt;</code></div>
+    <div class="api-endpoint"><span class="method post">POST</span> /v3/tiers/{tierId}/status &rarr; <code>ResponseEntity&lt;ResponseWrapper&lt;TierResponse&gt;&gt;</code></div>
+
+    <h3>State Machine</h3>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT: POST /tiers
+    DRAFT --> PENDING_APPROVAL: SUBMIT_FOR_APPROVAL
+    PENDING_APPROVAL --> ACTIVE: APPROVE (Thrift sync)
+    PENDING_APPROVAL --> DRAFT: REJECT
+    ACTIVE --> STOPPED: STOP (deactivateSlab)
+    ACTIVE --> DRAFT: PUT (copy-on-write)
+    </div>
   </div>
 
   <div class="card" id="phase-8">
