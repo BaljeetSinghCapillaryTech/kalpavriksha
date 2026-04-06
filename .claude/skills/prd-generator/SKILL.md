@@ -1,7 +1,9 @@
 ---
 name: prd-generator
-description: Generates a Product Requirements Document (PRD) from BA output (00-ba.md) and source BRD. Reads docs.capillarytech.com for product context, surfaces grooming questions requiring human input, and produces a comprehensive PRD with epics, user stories, personas, API contracts, success metrics, and open questions. Use when user says PRD:, [PRD], or /prd-generator.
+description: "DEPRECATED: Merged into /ba. The BA skill now produces both BA and PRD outputs as its final step (Step 6). This file is kept for reference only."
 ---
+
+> **DEPRECATED**: This skill has been merged into `/ba`. The BA skill now produces both BA and PRD outputs as its final step. This file is kept for reference only.
 
 # PRD Generator (BRD to PRD Transformation)
 

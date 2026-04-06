@@ -1,6 +1,6 @@
 ---
 name: feature-pipeline
-description: Full-stack feature pipeline from raw BRD to production code. 14 phases — Input Collection, BA, PRD, Critic, UI, Blockers, Codebase Research (agent team), HLD, LLD, QA, Developer (agent team + superpowers), SDET, Reviewer, Blueprint. Generates 19 documents. Resumable from any phase.
+description: Full-stack feature pipeline from raw BRD to production code. 13 phases — Input Collection, BA+PRD, Critic, UI, Blockers, Codebase Research + Cross-Repo Tracing, HLD, LLD, QA, Developer (agent team + superpowers) + Backend Readiness, SDET, Reviewer, Blueprint. MECE skills. Incremental session-memory. Resumable from any phase.
 model: opus
 tools: Agent, Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, TodoWrite
 ---
@@ -226,10 +226,11 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
 
 ---
 
-## Phase 1: BA Deep-Dive + ProductEx BRD Review (Main Context + Background Subagent)
+## Phase 1: BA Deep-Dive + PRD Generation + ProductEx BRD Review (Main Context + Background Subagent)
 
-**Skills**: `/ba` (`.claude/skills/ba/SKILL.md`) + `/productex` (`.claude/skills/productex/SKILL.md`)
+**Skills**: `/ba` (`.claude/skills/ba/SKILL.md` — now includes PRD generation as final step) + `/productex` (`.claude/skills/productex/SKILL.md`)
 **Mode**: BA runs interactive (main context). ProductEx runs in parallel as background subagent.
+**Note**: Phase 1 now produces BOTH BA and PRD outputs. Phase 2 (PRD) has been removed — PRD generation is the final step of the BA skill.
 
 ### 1a: ProductEx BRD Review (Background — parallel with BA)
 
@@ -266,53 +267,37 @@ ProductEx runs in background. BA does NOT wait for it — they work simultaneous
    - Step 3: Question protocol — ask user one question at a time (only business intent questions — product questions go to ProductEx, code questions resolved by codebase research)
    - Step 4: Produce output
 5. Write: `00-ba.md` (human-readable) and `00-ba-machine.md` (YAML frontmatter)
-6. Check if ProductEx background agent completed. If yes, merge any findings into `brdQnA.md`. If still running, note in process-log.
-7. Update `session-memory.md` with BA findings
-8. Update `process-log.md` with Phase 1 summary
-9. Update `approach-log.md` with questions asked and answers received
-10. Write `pipeline-state.json`
-11. Git: `git add <artifacts>/*.md && git commit -m "raidlc: BA phase complete" && git tag -f raidlc/<ticket>/phase-01`
+6. **PRD Generation** (final BA step — no separate phase):
+   - Read 00-ba.md, 00-ba-machine.md, session-memory.md
+   - Generate `00-prd.md` (human-readable PRD with epics, user stories, acceptance criteria)
+   - Generate `00-prd-machine.md` (YAML frontmatter for downstream phases)
+   - Skip grooming questions (Phase 4 handles those)
+7. Check if ProductEx background agent completed. If yes, merge any findings into `brdQnA.md`. If still running, note in process-log.
+8. **INCREMENTAL SESSION-MEMORY**: Update `session-memory.md` after EVERY decision during Q&A, not just at phase end. This ensures context survives if Claude's context compacts mid-phase.
+9. Update `process-log.md` with Phase 1 summary
+10. Update `approach-log.md` with questions asked and answers received
+11. Write `pipeline-state.json`
+12. Git: `git add <artifacts>/*.md && git commit -m "raidlc: BA + PRD phase complete" && git tag -f raidlc/<ticket>/phase-01`
 
 **Pause prompt**:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Phase 1: BA Deep-Dive complete
-📄 Artifacts: 00-ba.md, 00-ba-machine.md
+✅ Phase 1: BA Deep-Dive + PRD Generation complete
+📄 Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
 📝 Session memory updated
 🏷️  Snapshot: raidlc/<ticket>/phase-01
 
-Next: Phase 2 — PRD Generation (subagent)
+Next: Phase 2 — Critic + Gap Analysis
 Commands: continue | status | revert | exit
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
 
-## Phase 2: PRD Generation (Subagent)
+## Phase 2: Critic + Gap Analysis (Subagent + Subagent)
 
-**Skill**: `/prd-generator` (`.claude/skills/prd-generator/SKILL.md`)
-**Mode**: Subagent — reads BA output, produces PRD without human interaction
-
-1. Spawn subagent with prompt:
-   ```
-   You are running the /prd-generator skill.
-   Artifacts path: <artifacts-path>
-   Read: 00-ba.md, 00-ba-machine.md, session-memory.md
-   BRD source: <brd-path>
-   Follow .claude/skills/prd-generator/SKILL.md exactly.
-   Skip grooming questions (Phase 5 handles those).
-   Produce: 00-prd.md and 00-prd-machine.md
-   Write to session-memory.md when done.
-   ```
-2. After subagent returns, display summary
-3. Update process-log, pipeline-state, git tag
-
----
-
-## Phase 3: Critic + Gap Analysis (Subagent + Subagent)
-
-**Skills**: `principles.md` heuristics + `/gap-analyser` (`.claude/skills/gap-analyser/SKILL.md`)
-**Mode**: Two parallel subagents — Critic challenges claims, Gap Analyser verifies them against code
+**Skills**: `principles.md` heuristics + `/analyst --compliance` (`.claude/skills/analyst/SKILL.md`)
+**Mode**: Two parallel subagents — Critic challenges claims, Analyst (compliance mode) verifies them against code
 
 This phase runs TWO subagents in parallel:
 
@@ -333,12 +318,12 @@ This phase runs TWO subagents in parallel:
    Format: Contradiction #N → Source → Claim → Challenge → Evidence needed → Recommendation
    ```
 
-### 3b: Gap Analyser — BRD/PRD Claims vs Codebase Reality
+### 2b: Analyst (Compliance Mode) — BRD/PRD Claims vs Codebase Reality
 
 1. Spawn subagent in parallel with Critic:
    ```
-   You are running the /gap-analyser skill in standalone mode.
-   Read: .claude/skills/gap-analyser/SKILL.md
+   You are running the /analyst skill in compliance mode.
+   Read: .claude/skills/analyst/SKILL.md
    Read: .claude/skills/GUARDRAILS.md
    
    Intent sources: 00-ba.md, 00-prd.md (these describe what we WANT to build)
@@ -365,7 +350,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 4: UI Requirements Extraction (Main Context — if screenshots provided)
+## Phase 3: UI Requirements Extraction (Main Context — if screenshots provided)
 
 **Mode**: Main context — reads images, may ask user clarifying questions
 
@@ -382,7 +367,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 5: Grooming Questions + Blocker Resolution (Main Context — Interactive)
+## Phase 4: Grooming Questions + Blocker Resolution (Main Context — Interactive)
 
 **Mode**: Interactive — compiles questions from ALL prior phases, asks human
 
@@ -413,9 +398,10 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 6: Codebase Research (Agent Team — Parallel)
+## Phase 5: Codebase Research + Cross-Repo Tracing (Agent Team — Parallel)
 
-**Mode**: Agent team — one teammate per code repo, messages each other
+**Skills**: Per-repo exploration + `/cross-repo-tracer` (`.claude/skills/cross-repo-tracer/SKILL.md`)
+**Mode**: Agent team — one teammate per code repo + one cross-repo tracer agent
 
 1. Use the `dispatching-parallel-agents` superpower to spawn one research agent per code repo:
    ```
@@ -430,14 +416,35 @@ This phase runs TWO subagents in parallel:
        
        Format: Key Architectural Insights at top, then per-category findings."
    ```
-2. Wait for all agents to complete
-3. If agents found cross-repo patterns (e.g., intouch-api-v3 maker-checker used by emf-parent), note in session-memory
-4. Produce one `code-analysis-<name>.md` per repo
-5. Update process-log, session-memory
+2. Wait for all per-repo agents to complete
+3. **Cross-Repo Tracing** (runs AFTER per-repo research completes):
+   Spawn cross-repo tracer agent:
+   ```
+   You are running the /cross-repo-tracer skill.
+   Read: .claude/skills/cross-repo-tracer/SKILL.md
+   Read: session-memory.md, 00-ba-machine.md
+   Read: ALL code-analysis-*.md files from step 1
+   
+   For EACH proposed write/read operation in the feature:
+   1. Trace the full path across repos (HTTP, Thrift, direct DB)
+   2. Identify generic routing mechanisms (EntityType enums, StrategyType dispatchers)
+   3. Check if the new entity/operation type exists in those routers
+   4. Map which repos need NEW files vs MODIFIED files
+   
+   Produce: cross-repo-trace.md with:
+   - Write path sequence diagrams (Mermaid)
+   - Read path sequence diagrams
+   - Per-repo change inventory (new files, modified files, WHY)
+   - Any claim of "0 modifications" must be C6+ with evidence
+   ```
+4. If agents found cross-repo patterns (e.g., intouch-api-v3 maker-checker used by emf-parent), note in session-memory
+5. Produce one `code-analysis-<name>.md` per repo + `cross-repo-trace.md`
+6. **INCREMENTAL SESSION-MEMORY**: Update session-memory.md with each codebase finding as it's discovered
+7. Update process-log, session-memory
 
 ---
 
-## Phase 7: HLD — Architecture (Main Context + Research Subagents)
+## Phase 6: HLD — Architecture (Main Context + Research Subagents)
 
 **Skill**: `/architect` (`.claude/skills/architect/SKILL.md`)
 **Mode**: Main context (interactive — user approves pattern choices). Uses `brainstorming` and `writing-plans` superpowers.
@@ -456,9 +463,9 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 7a: Impact Analysis (Subagent)
+## Phase 6a: Impact Analysis (Subagent)
 
-**Skill**: `/analyst` (`.claude/skills/analyst/SKILL.md`)
+**Skill**: `/analyst --impact` (`.claude/skills/analyst/SKILL.md`)
 **Mode**: Subagent — reads HLD, maps side effects, security, blast radius
 
 1. Spawn subagent:
@@ -503,7 +510,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 7b: Migration Planning (Subagent — if schema changes identified)
+## Phase 6b: Migration Planning (Subagent — if schema changes identified)
 
 **Skill**: `/migrator` (`.claude/skills/migrator/SKILL.md`)
 **Mode**: Subagent — reads HLD, produces migration plan
@@ -542,7 +549,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 8: LLD — Designer (Subagent)
+## Phase 7: LLD — Designer (Subagent)
 
 **Skill**: `/designer` (`.claude/skills/designer/SKILL.md`)
 **Mode**: Subagent — reads architect output
@@ -562,7 +569,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 9: QA (Subagent)
+## Phase 8: QA (Subagent)
 
 **Skill**: `/qa` (`.claude/skills/qa/SKILL.md`)
 **Mode**: Subagent
@@ -573,7 +580,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 10: Developer (Agent Team + Superpowers)
+## Phase 9: Developer (Agent Team + Superpowers)
 
 **Skill**: `/developer` (`.claude/skills/developer/SKILL.md`)
 **Mode**: Main context with superpowers. For independent modules, spawns agent team.
@@ -593,15 +600,46 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 10b: Gap Analysis — Architecture vs Code (Subagent)
+## Phase 9b: Backend Readiness (Subagent)
 
-**Skill**: `/gap-analyser` (`.claude/skills/gap-analyser/SKILL.md`)
+**Skill**: `/backend-readiness` (`.claude/skills/backend-readiness/SKILL.md`)
+**Mode**: Subagent — validates backend production readiness before review
+
+1. Spawn subagent:
+   ```
+   You are running the /backend-readiness skill.
+   Read: .claude/skills/backend-readiness/SKILL.md
+   Read: session-memory.md, 01-architect.md, cross-repo-trace.md
+   Read: All code files changed/created by Developer in Phase 9
+   
+   Check ALL areas:
+   a. Query Performance: N+1, missing indexes, missing tenant filter
+   b. Thrift Backward Compatibility: optional fields, no removed fields
+   c. Cache Invalidation: modified cached data, refresh on write path
+   d. Connection/Resource Management: timeouts, pool reuse, leaks
+   e. Error Handling at Boundaries: HTTP timeout, Thrift exception, DB deadlock
+   f. Flyway Migration Safety: expand-then-contract, idempotent, rollback
+   
+   Produce: backend-readiness.md with:
+   - PASS/FAIL/WARN per area
+   - Specific findings with file:line
+   - Overall verdict: READY / NOT READY / READY WITH WARNINGS
+   ```
+2. Display verdict to user
+3. If NOT READY: route back to Developer for fix — max 2 rounds
+4. Update process-log, session-memory
+
+---
+
+## Phase 9c: Gap Analysis — Architecture vs Code (Subagent)
+
+**Skill**: `/analyst --compliance` (`.claude/skills/analyst/SKILL.md`)
 **Mode**: Subagent — compares what was designed against what was built
 
 1. Spawn subagent:
    ```
-   You are running the /gap-analyser skill in AIDLC pipeline mode.
-   Read: .claude/skills/gap-analyser/SKILL.md
+   You are running the /analyst skill in compliance mode.
+   Read: .claude/skills/analyst/SKILL.md
    Read: .claude/skills/GUARDRAILS.md
    Artifacts path: <artifacts-path>
    
@@ -637,7 +675,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 10c: Migration Validation (Subagent — if migrations exist)
+## Phase 9d: Migration Validation (Subagent — if migrations exist)
 
 **Skill**: `/migrator` (`.claude/skills/migrator/SKILL.md`)
 **Mode**: Subagent — validates migration scripts written during development
@@ -670,7 +708,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 11: SDET (Subagent)
+## Phase 10: SDET (Subagent)
 
 **Skill**: `/sdet` (`.claude/skills/sdet/SKILL.md`)
 **Mode**: Subagent
@@ -681,7 +719,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 12: Reviewer (Subagent → Main Context for findings)
+## Phase 11: Reviewer (Subagent → Main Context for findings)
 
 **Skill**: `/reviewer` (`.claude/skills/reviewer/SKILL.md`)
 **Mode**: Subagent does review, then surfaces findings to main context
@@ -705,7 +743,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 13: Documentation & Blueprint (Subagent)
+## Phase 12: Documentation & Blueprint (Subagent)
 
 **Mode**: Subagent generates all final documentation
 
@@ -815,24 +853,24 @@ Ticket: raidlc/<ticket>
 Started: <date>
 
 Phase Status:
-  ✅   0. Input Collection               — complete
-  ✅   1. BA + ProductEx (parallel)       — complete
-  ✅   2. PRD Generation                  — complete
-  🔄   3. Critic + Gap Analysis           — IN PROGRESS
-  ⬜   4. UI Extraction                   — pending
-  ⬜   5. Blocker Resolution              — pending
-  ⬜   6. Codebase Research (agent team)  — pending
-  ⬜   7. HLD (Architect)                 — pending
-  ⬜  7a. Impact Analysis (Analyst)       — pending
-  ⬜  7b. Migration Planning              — pending (conditional)
-  ⬜   8. LLD (Designer)                  — pending
-  ⬜   9. QA                              — pending
-  ⬜  10. Developer (agent team)          — pending
-  ⬜ 10b. Gap Analysis (arch vs code)     — pending
-  ⬜ 10c. Migration Validation            — pending (conditional)
-  ⬜  11. SDET                            — pending
-  ⬜  12. Reviewer                        — pending
-  ⬜  13. Blueprint                       — pending
+  ✅   0. Input Collection                    — complete
+  ✅   1. BA + PRD + ProductEx (parallel)     — complete
+  🔄   2. Critic + Gap Analysis               — IN PROGRESS
+  ⬜   3. UI Extraction                       — pending
+  ⬜   4. Blocker Resolution                  — pending
+  ⬜   5. Codebase Research + Cross-Repo Trace — pending
+  ⬜   6. HLD (Architect)                     — pending
+  ⬜  6a. Impact Analysis (Analyst --impact)  — pending
+  ⬜  6b. Migration Planning                  — pending (conditional)
+  ⬜   7. LLD (Designer)                      — pending
+  ⬜   8. QA                                  — pending
+  ⬜   9. Developer (agent team)              — pending
+  ⬜  9b. Backend Readiness                   — pending
+  ⬜  9c. Gap Analysis (Analyst --compliance) — pending
+  ⬜  9d. Migration Validation                — pending (conditional)
+  ⬜  10. SDET                                — pending
+  ⬜  11. Reviewer                            — pending
+  ⬜  12. Blueprint                           — pending
 
 Artifacts: <count> files in <path>
 Git branch: raidlc/<ticket>
@@ -865,7 +903,7 @@ After EVERY phase completes (before the pause prompt), run these two steps:
 
 ### Step A: Generate Mermaid Diagrams
 
-Read the phase output and generate relevant Mermaid diagrams. Append them to the phase artifact under a `## Diagrams` section. Do NOT modify the skill's output above that section — only append.
+Read the phase output and generate relevant Mermaid diagrams. Append them to the phase artifact under a `## Diagrams` section using fenced code blocks (` ```mermaid `) so they render on GitHub. Do NOT modify the skill's output above that section — only append. Do NOT use HTML `<div class="mermaid">` in .md files — that format is only for live-dashboard.html.
 
 | Phase | Diagrams to Generate |
 |-------|---------------------|
@@ -905,11 +943,14 @@ Use the same dark theme and styling as `benefits-e2-blueprint.html` and `feature
 ## Constraints
 
 - **All existing skills are used as-is** — this agent orchestrates, it doesn't replace skills
+- **Skills are MECE** — mutually exclusive (no overlap) and cumulatively exhaustive (no gaps). BA includes PRD. Analyst includes gap analysis (impact + compliance modes). Cross-repo-tracer covers multi-repo coordination. Backend-readiness covers production gates.
 - **Every phase updates process-log.md** — complete audit trail
 - **Every user decision goes to approach-log.md** — with the question, options, and reasoning
-- **Session memory is shared across all phases** — no phase starts from scratch
+- **INCREMENTAL SESSION-MEMORY** — session-memory.md is updated after EVERY decision/finding, not batch at phase end. This ensures context survives if Claude's context window compacts mid-phase. Rule: if you made a decision, write it to session-memory.md IMMEDIATELY.
 - **Git snapshots after every phase** — safe revert at any point
 - **Superpowers are invoked via the Skill tool** — not reimplemented
 - **No personal names in any output** — roles only
 - **Confidence levels use C1–C7 scale** from `.claude/principles.md`
-- **GUARDRAILS.md is read by Phases 7, 8, 10, 12** — no exceptions
+- **GUARDRAILS.md is read by Phases 6, 7, 9, 11** — no exceptions
+- **Mermaid diagrams in .md artifacts** — use fenced code blocks (` ```mermaid `) not HTML `<div class="mermaid">`. This ensures diagrams render on GitHub in PRs. HTML Mermaid is only for live-dashboard.html and blueprint.html.
+- **Cross-repo claims require C6+ evidence** — any claim of "0 modifications needed" in a repo must be backed by reading actual controller/service code, not assumed. The cross-repo-tracer skill enforces this.

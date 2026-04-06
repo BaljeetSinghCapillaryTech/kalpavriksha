@@ -1,7 +1,9 @@
 ---
 name: gap-analyser
-description: Architecture-to-code compliance analysis. Compares architectural intent (AIDLC artifacts, ADRs, design docs) against actual codebase structure. Produces severity-ranked scorecard and generates ArchUnit test classes for CI enforcement. Works standalone or as an optional pipeline phase after Developer. Use when user says Gap:, [Gap], /gap-analyser, or /gap.
+description: "DEPRECATED: Merged into /analyst --compliance. The Analyst skill now supports both impact and compliance modes. This file is kept for reference only."
 ---
+
+> **DEPRECATED**: This skill has been merged into `/analyst --compliance`. The Analyst skill now supports both impact and compliance modes. This file is kept for reference only.
 
 # Gap Analyser (Architecture-Code Compliance)
 

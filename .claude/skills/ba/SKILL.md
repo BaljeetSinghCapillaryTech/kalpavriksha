@@ -1,6 +1,6 @@
 ---
 name: ba
-description: Business Analysis - refines raw product requirements into structured specs before any technical phase. Reads current product docs at docs.capillarytech.com, asks clarifying questions one at a time, flags conflicts, produces requirements doc and product documentation. Runs as Phase 00 before Architect. Use when user says BA:, [BA], or /ba.
+description: Business Analysis + PRD Generation — refines raw product requirements into structured specs, then generates a PRD with epics, user stories, and acceptance criteria. Reads current product docs at docs.capillarytech.com, asks clarifying questions one at a time, flags conflicts. Produces 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md. Runs as Phase 00-01 before Architect. Use when user says BA:, [BA], or /ba.
 ---
 
 # Business Analyst (Requirements Refinement)
@@ -271,6 +271,52 @@ After internal consultations and knowledge bank resolution, only **human concern
 
 ### 3. Write to Session Memory
 After writing all artifacts, append findings to `session-memory.md` as described in the Session Memory section above.
+**INCREMENTAL WRITES**: Update session-memory.md after EVERY decision during Q&A, not just at the end. This ensures context survives if Claude's context window compacts mid-phase.
+
+---
+
+## Step 6: PRD Generation (Final Step — replaces separate /prd-generator skill)
+
+After BA output is complete, generate the PRD as the final step of this skill. Do NOT wait for a separate phase.
+
+### Inputs
+- `00-ba.md` and `00-ba-machine.md` (just produced in Step 5)
+- `session-memory.md` (accumulated context)
+- Original BRD source (for cross-reference)
+
+### PRD Generation Process
+1. Read 00-ba.md for scope, user stories, acceptance criteria, constraints
+2. Read 00-ba-machine.md for structured data (entities, dependencies, file paths)
+3. Organize user stories into **Epics** with dependency ordering
+4. For each epic, assign a confidence score (C1-C7) based on:
+   - How well-defined the acceptance criteria are
+   - Whether codebase evidence supports feasibility
+   - How many open questions remain
+5. Generate grooming questions (but do NOT ask them — Phase 4 Blocker Resolution handles this)
+6. Estimate new files, modified files, new tables (from codebase analysis)
+
+### PRD Output
+
+#### 4. Artifact: `00-prd.md` (human-readable)
+- **Epics** — grouped user stories with dependency ordering
+- **Per-epic**: user stories, acceptance criteria, confidence score, estimated complexity
+- **Architecture diagram** (Mermaid) — high-level view of new vs existing components
+- **API endpoints** — preliminary list based on user stories
+- **Data model changes** — new tables, modified tables, new fields
+- **Non-functional requirements** — performance, security, scalability
+- **Grooming questions** — questions for the pod (NOT asked here, routed to Phase 4)
+- **Out of scope** — explicitly listed
+
+#### 5. Artifact: `00-prd-machine.md` (machine-readable)
+- YAML frontmatter with: feature_id, domain, epics[], dependencies, codebase_sources
+- Per-story: acceptance criteria as `- [ ]` checklists
+- File tree: new files, modified files
+- DDL: new tables, altered tables
+- API signatures: method, path, request/response types
+
+### After PRD Generation
+- Update `session-memory.md` with PRD findings (new KDs, constraints, epic structure)
+- Announce: "BA + PRD generation complete. Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md"
 
 ## Constraints
 - Do not write code, interfaces, or tests.
