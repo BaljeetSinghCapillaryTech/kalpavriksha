@@ -74,6 +74,16 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - GQ-3 resolved: Member count per tier included in GET /tiers response. Cross-service query needed — must check indexes for performance. _(Phase 4)_
 - GQ-4 resolved: PUT only for updates, no PATCH. Same as UnifiedPromotion. _(Phase 4)_
 - All new validation queries must use existing indexes. If new indexes needed, flag during implementation. _(Phase 4)_
+- Soft-delete column should be `is_active` (not `active`) — matches convention in ~20 other tables in cc-stack-crm _(Phase 5)_
+- `customer_enrollment` table is the member-tier mapping. Needs new index on `(org_id, program_id, current_slab_id, is_active)` for member count queries _(Phase 5)_
+- MongoDB: must register TierRepository in `EmfMongoConfig.includeFilters` or it silently uses wrong database _(Phase 5)_
+- Two MongoDB namespaces exist: primary (`mongoTemplate`) and EMF (`emfMongoTemplate`). Tier uses EMF namespace. _(Phase 5)_
+- Thrift IDL (.thrift files) not in emf-parent repo — in dependency jar. Existing method `createOrUpdateSlab` confirmed. No `deactivateSlab` method exists — must be added. _(Phase 5)_
+- SLAB_UPGRADE thresholds stored as CSV in strategies.property_values: `{"current_value_type":"CUMULATIVE_PURCHASES","threshold_values":"500,1000"}` _(Phase 5)_
+- SLAB_DOWNGRADE config stored as full TierConfiguration JSON in strategies.property_values _(Phase 5)_
+- `PeCustomerEnrollmentDao` has NO member-count-per-slab query — must be added _(Phase 5)_
+- New member count query + customer_enrollment index needed for GET /tiers member count AND soft-delete validation (no members in tier) _(Phase 5)_
+- 3 repos all require changes: intouch-api-v3 (~14 new + 2 modified), emf-parent (1-2 migrations + 4 modified), cc-stack-crm (2 DDL modifications) _(Phase 5)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_

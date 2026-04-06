@@ -20,7 +20,7 @@
     "2": {"status": "complete", "started_at": "2026-04-06T10:50:00Z", "completed_at": "2026-04-06T11:05:00Z", "artifacts": ["contradictions.md", "gap-analysis-brd.md"]},
     "3": {"status": "complete", "started_at": "2026-04-06T11:05:00Z", "completed_at": "2026-04-06T11:05:00Z", "artifacts": [], "note": "skipped — no UI screenshots"},
     "4": {"status": "complete", "started_at": "2026-04-06T11:10:00Z", "completed_at": "2026-04-06T11:30:00Z", "artifacts": ["blocker-decisions.md"]},
-    "5": {"status": "pending"},
+    "5": {"status": "complete", "started_at": "2026-04-06T11:30:00Z", "completed_at": "2026-04-06T12:00:00Z", "artifacts": ["code-analysis-intouch-api-v3.md", "code-analysis-emf-parent.md", "code-analysis-cc-stack-crm.md", "cross-repo-trace.md"]},
     "6": {"status": "pending"},
     "6a": {"status": "pending"},
     "6b": {"status": "pending"},
