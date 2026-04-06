@@ -41,3 +41,18 @@ _Format: Decision — Rationale — Phase_
 | GQ-2 | Soft-deleted tier members | Leave in place vs force-migrate | **User must migrate first** | "end user will have to migrate all customers from that tier... add validations" |
 | GQ-3 | Member count in GET | Include vs defer | **Include** | "member count should be present for Get tier info" |
 | GQ-4 | PUT vs PATCH | Both vs PUT only | **PUT only** | "integrate PUT only like UnifiedPromotion" |
+
+### Impact Analysis Decisions (Phase 6a)
+
+| # | Question | Options Presented | User's Decision | Rationale |
+|---|----------|-------------------|-----------------|-----------|
+| R-1/R-2 | Strategy CSV/JSON stale after soft-delete — update or leave? | (a) Update strategy on delete, (b) Leave — evaluation uses active tiers only | **(b) No update needed** | "all upgrades, downgrades, renewals will happen after taking only active tiers in consideration" — DAO filters is_active=1, so stale strategy entries are harmless |
+| R-3 | Cache purge on soft-delete? | Confirmed | **Yes — purge cache** | "cache should be purged in soft delete API" |
+| R-5 | Thrift IDL repo location? | User provided path | **`/Users/baljeetsingh/IdeaProjects/thrifts`** | 4th repo confirmed. IDL file: `thrift-ifaces-pointsengine-rules/pointsengine_rules.thrift` |
+| R-6 | Rollback on APPROVE failure? | Confirmed | **Yes — rollback mechanism required** | "we have rollback setup for promotions as well" — follow same pattern |
+| R-4 | `getProgramSlabById()` bypasses is_active filter | (a) Override findById, (b) New findActiveById | **(b) New `findActiveById()` method** | "create a new method with active check, check all the relevant places where it needs to be used for our epic" — don't touch generic DAO |
+| R-7 | Serial number gaps after soft-delete | (a) Renumber, (b) Accept gaps | **(b) Accept gaps** | "soft delete later in future user might again make the tiers active" — reversible operation, serial numbers preserved for reactivation |
+| R-8 | APPROVE idempotency — simple if-check or transactional? | (a) Simple if-check, (b) Transactional locking like promotions | **(b) Transactional-like flow** | "system should give an error like request already processing or already processed... check this in UnifiedPromotion how it works there" |
+| PI-1 | KPI type immutability — enforce at API? | Confirmed | **Yes — enforce in TierFacade** | "definitely should be Immutable because currently mysql slab config stores in strategies table in property_values which has this consistency so same should be adhered in mongo end" |
+| Q5 | MySQL version in production | N/A | **MySQL 8.x** | Online DDL natively supported |
+| Q6 | customer_enrollment row count | N/A | **10–100 million** | CREATE INDEX: 10-60 min, schedule off-peak with monitoring |

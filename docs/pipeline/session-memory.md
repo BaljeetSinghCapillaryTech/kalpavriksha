@@ -238,5 +238,22 @@ _(continued — Designer additions)_
 - [ ] Q-D4: Confirm `@Transactional("warehouse")` is the correct transaction manager name for `deactivateSlab` in emf-parent. _(Designer)_
 - [ ] Q-D5: For PUT on ACTIVE tier — copy-on-write (new DRAFT with parentId) or in-place update to PENDING_APPROVAL? _(Designer)_
 
+## Risks & Concerns
+_(continued — QA additions)_
+- [QA-R-01] Partial failure gap: APPROVE flow rollback documented for Thrift failure → MongoDB revert. BUT if Thrift succeeds and MongoDB.save() then fails, MySQL has a new row while MongoDB still shows PENDING_APPROVAL. No rollback strategy defined for this direction. _(QA)_ — Status: open
+- [QA-R-02] POST /tiers (CREATE) has no idempotency key mechanism. Network retries create duplicate DRAFT documents in MongoDB. G-06.1 requires all write ops to be idempotent. _(QA)_ — Status: open
+- [QA-R-03] Concurrent CREATE of two tiers with the same serialNumber may both pass the check-then-insert unless a unique index is enforced at MongoDB level on `(orgId, programId, serialNumber)` — application-level check alone is not race-safe. _(QA)_ — Status: open
+- [QA-R-04] Notification on SUBMIT_FOR_APPROVAL (US-6 AC) is listed as an acceptance criterion but no notification service contract exists in any phase artifact. This AC cannot be tested. _(QA)_ — Status: open — BLOCKER→BA
+- [QA-R-05] No server-side role-based authorization defined for tier operations (SEC-4 from Analyst). CREATE/APPROVE/DELETE can be called by any authenticated user. Authorization test scenarios cannot be written without role definitions. _(QA)_ — Status: open — BLOCKER→BA
+- [QA-R-06] getMemberCountPerSlab Thrift call failure during GET /tiers has no defined degradation behavior. If it throws, does the endpoint fail with 500 or return tiers with memberCount=null? _(QA)_ — Status: open
+
+## Open Questions
+_(continued — QA additions)_
+- [ ] Q-QA-1: Should `GET /v3/tiers/{tierId}` return a STOPPED tier (status=STOPPED in response) or HTTP 404? AC-2-2 says 404 for soft-deleted, but document still exists in MongoDB. _(QA)_
+- [ ] Q-QA-2: What happens on a second `PUT /v3/tiers/{activeTierId}` when an in-flight DRAFT with the same parentId already exists? Return 409 conflict, or return/update existing DRAFT? _(QA)_
+- [ ] Q-QA-3: Should POST /tiers support an idempotency key header (e.g., `X-Idempotency-Key`) to prevent duplicate DRAFT creation on retry? _(QA)_
+- [ ] Q-QA-4: What is the rollback strategy when Thrift succeeds (MySQL row created) but subsequent MongoDB status update fails during APPROVE? Current R-6 only covers Thrift failure direction. _(QA)_
+- [ ] Q-QA-5: Q-D5 confirmation needed — is PUT on ACTIVE tier copy-on-write (new DRAFT with parentId) or in-place update? Test scenarios TS-51 and TS-52 depend on this answer. _(QA)_
+
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
