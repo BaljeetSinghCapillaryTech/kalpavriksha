@@ -74,6 +74,12 @@ I need a few inputs to get started:
    • URL (Figma/v0/web)
    • "none" — no UI for this feature
 
+7. Live Dashboard (recommended):
+   • "yes" — create a live HTML dashboard that updates after every phase
+     (dark theme, sidebar nav, Mermaid diagrams, Q&A history, API contracts,
+      HLD/LLD flowcharts — viewable in browser at any time)
+   • "no" — skip dashboard, markdown artifacts only
+
 Enter your inputs (or type "help" for examples):
 ```
 
@@ -102,7 +108,8 @@ Existing artifacts (provide paths — leave blank to skip):
 
 After collecting:
 1. Copy provided artifacts into the artifacts path (if not already there)
-2. Initialize `pipeline-state.json` marking provided phases as complete
+2. **Validate all code repo paths** — if any path doesn't exist, ask the user to provide the correct path for this machine (same as Mode 2 path validation).
+3. Initialize `pipeline-state.json` marking provided phases as complete
 3. Initialize `session-memory.md` — if provided, use it; if not, generate from artifacts
 4. Detect the first missing phase:
    ```
@@ -124,7 +131,30 @@ After collecting:
 
 ### Mode 2: Resume — Show State
 
-Read `pipeline-state.json` from the artifacts path. Show:
+Read `pipeline-state.json` from the artifacts path.
+
+**Path Validation on Resume** (handles different machines / teammates):
+Before showing state, validate ALL paths in `pipeline-state.json`:
+- Check each `code_repos` path exists on this machine
+- Check `brd_path` exists (if stored)
+- Check `ui_screenshots` paths exist (if stored)
+
+If ANY path is invalid (e.g., `/Users/ritwik/...` on Karan's machine):
+```
+⚠️  Some paths from the previous run don't exist on this machine:
+
+  ❌ /Users/ritwik/Desktop/emf-parent/intouch-api-v3  (not found)
+  ❌ /Users/ritwik/Desktop/emf-parent/peb              (not found)
+  ✅ pointsengine-emf/                                  (relative, found)
+
+Please provide updated paths:
+  intouch-api-v3: _______________
+  peb: _______________
+```
+
+After the user provides corrected paths, update `pipeline-state.json` with the new paths and continue. This ensures the pipeline works when resuming on a different machine or by a different teammate.
+
+Show:
 
 ```
 🏗️  FEATURE PIPELINE — Resuming
@@ -190,10 +220,17 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
 1. Collect all inputs from the user (menu above)
 2. Validate inputs:
    - BRD file exists and is readable (PDF → extract text, DOCX → extract text, URL → WebFetch)
+   - **Do NOT copy files to artifacts path.** Read BRD, code repos, and UI screenshots from their ORIGINAL locations. Only extract text to `brd-raw.md` if the source is PDF/DOCX (binary formats Claude can't re-read). For .md/.txt files and URLs, just store the path/URL in pipeline-state.json and read from source each time.
+   - **NEVER copy or clone external repos into this repo.** When code repos are provided (e.g., intouch-api-v3, peb, Thrift, api/prototype), read/grep/search them at their original paths. Do NOT copy them into emf-parent or the artifacts directory. Store their absolute paths in pipeline-state.json and use those paths for all subsequent phases.
    - Code repo paths exist (`ls <path>/src` succeeds)
    - UI screenshots exist (if provided)
-3. Create artifacts directory: `mkdir -p <artifacts-path>`
-4. Create git branch: `git checkout -b raidlc/<ticket>`
+3. **LSP Initialization** (per CLAUDE.md Rule 5):
+   Check if jdtls is available: `python ~/.jdtls-daemon/jdtls.py`
+   - If available: initialize all code repos with the LSP service. All subsequent code traversal (find references, go to definition, find implementations, symbol search) MUST use jdtls — not grep/file reads as a substitute.
+   - If NOT available: ask the user: "jdtls doesn't appear to be running. Can you start it so I can use LSP for code traversal? If not, I'll fall back to grep/file reads." Only proceed with grep after user confirms.
+   Note this in pipeline-state.json: `"lsp_enabled": true/false`
+4. Create artifacts directory: `mkdir -p <artifacts-path>`
+5. Create git branch: `git checkout -b raidlc/<ticket>`
 5. Initialize `session-memory.md` with the template from `/workflow` skill
 6. Initialize `process-log.md`:
    ```markdown
@@ -220,9 +257,32 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    ## User Inputs
    | Input | Value | Why It Matters |
    ```
-8. Write `pipeline-state.json`
-9. Create git tag: `git tag -f raidlc/<ticket>/phase-00`
-10. Show confirmation and proceed to Phase 1
+8. **Live Dashboard** (if user chose "yes" in input 7):
+   Create `<artifacts-path>/live-dashboard.html` immediately with:
+   - Dark theme (background: #1a1a2e, text: #e0e0e0, accent: #00d4ff)
+   - Sidebar navigation (empty sections for each phase — filled as phases complete)
+   - Progress bar showing all 13 phases as pending (Phase 0 = green)
+   - Mermaid.js loaded via CDN (`<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js">`)
+   - Header: Feature name, ticket, start date, pipeline version
+   - Phase 0 section: inputs summary, repo validation results
+   - **Template sections** (pre-created, filled later):
+     - "BA Q&A" — questions and answers (Phase 1)
+     - "Architecture" — system context, write/read flows, component map (Phase 6)
+     - "API Contracts" — endpoint signatures for UI team handoff (Phase 6-7)
+     - "HLD Diagrams" — Mermaid architecture diagrams (Phase 6)
+     - "LLD Diagrams" — class/sequence diagrams (Phase 7)
+     - "Cross-Repo Map" — which repos change and why (Phase 5)
+     - "Implementation" — code stats, test coverage (Phase 9)
+     - "Review Findings" — blockers, warnings (Phase 11)
+   
+   Use consistent styling matching `benefits-e2-blueprint.html` and `feature-pipeline-guide.html`.
+   The dashboard is a living document — every subsequent phase APPENDS to it, never overwrites.
+
+   If user chose "no": skip dashboard creation. Set `dashboard_enabled: false` in pipeline-state.json.
+
+9. Write `pipeline-state.json` (include `dashboard_enabled: true/false`)
+10. Create git tag: `git tag -f raidlc/<ticket>/phase-00`
+11. Show confirmation and proceed to Phase 1
 
 ---
 
@@ -791,6 +851,96 @@ This phase runs TWO subagents in parallel:
 
 ---
 
+## Prerequisite Checking (Before Every Phase — adopted from AIDLC)
+
+**MANDATORY**: Before starting any phase, check that required prior artifacts exist. If missing, warn the user:
+
+```
+⚠️  Starting Phase 7 (LLD Designer) but 01-architect.md is missing.
+Designer needs the architecture to produce interface contracts.
+Continue anyway? (y/n)
+```
+
+Prerequisite map:
+| Phase | Requires |
+|-------|----------|
+| Phase 1 (BA+PRD) | BRD input (brd-raw.md or original file path) |
+| Phase 2 (Critic) | 00-ba.md, 00-prd.md |
+| Phase 3 (UI) | UI screenshots (if provided in inputs) |
+| Phase 4 (Blockers) | 00-ba.md, 00-prd.md, contradictions.md |
+| Phase 5 (Research) | 00-ba-machine.md, session-memory.md |
+| Phase 6 (HLD) | code-analysis-*.md, session-memory.md |
+| Phase 6a (Impact) | 01-architect.md |
+| Phase 7 (LLD) | 01-architect.md, session-memory.md |
+| Phase 8 (QA) | 03-designer.md |
+| Phase 9 (Developer) | 04-qa.md, 03-designer.md |
+| Phase 9b (Backend) | Code files from Phase 9 |
+| Phase 9c (Compliance) | 01-architect.md, code files from Phase 9 |
+| Phase 10 (SDET) | 04-qa.md, 05-developer.md |
+| Phase 11 (Reviewer) | All prior artifacts + build passing |
+| Phase 12 (Blueprint) | All prior artifacts |
+
+If a prerequisite is missing and the user chooses to continue anyway, log it in process-log.md: `⚠️ Phase N started without prerequisite: <missing file>`
+
+---
+
+## Rework History (adopted from AIDLC)
+
+When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back to Developer), log it in both `process-log.md` and `pipeline-state.json`:
+
+```markdown
+## Rework History
+| Cycle | From Phase | To Phase | Reason | Severity | Resolved |
+|-------|-----------|----------|--------|----------|----------|
+| 1 | Phase 11 (Reviewer) | Phase 9 (Developer) | Missing tenant filter in TierChangeLogDao | BLOCKER | yes |
+| 2 | Phase 9c (Compliance) | Phase 9 (Developer) | Interface mismatch on TierFacade.publishDraft | HIGH | yes |
+```
+
+In `pipeline-state.json`, track rework:
+```json
+"rework_cycles": [
+  {"from": "11", "to": "9", "reason": "...", "severity": "BLOCKER", "resolved": true}
+]
+```
+
+Circuit breaker: if the same phase pair has cycled **3 times**, stop and escalate to user:
+```
+🔴 CIRCUIT BREAKER — Phase 11 (Reviewer) has routed back to Phase 9 (Developer) 3 times.
+This suggests a systemic issue, not a simple fix. Please review the findings and decide:
+  [A] Try one more cycle
+  [B] Accept current state with known issues
+  [C] Revert to an earlier phase
+```
+
+---
+
+## Phase Start Announcement (Before Every Phase)
+
+**MANDATORY**: At the START of every phase, before doing any work, announce which skill(s) will be used:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 Starting Phase N: <Phase Name>
+🔧 Skills: /skill-name [mode if applicable]
+📋 What this phase does: <1-line description>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Examples:
+- Phase 1: `🔧 Skills: /ba (includes PRD generation) + /productex (background)`
+- Phase 2: `🔧 Skills: /analyst --compliance + principles.md (Critic)`
+- Phase 5: `🔧 Skills: /cross-repo-tracer + parallel repo exploration`
+- Phase 6: `🔧 Skills: /architect + brainstorming superpower + writing-plans superpower`
+- Phase 7: `🔧 Skills: /designer`
+- Phase 9: `🔧 Skills: /developer + TDD superpower + executing-plans superpower`
+- Phase 9b: `🔧 Skills: /backend-readiness`
+- Phase 9c: `🔧 Skills: /analyst --compliance`
+- Phase 11: `🔧 Skills: /reviewer + verification-before-completion superpower`
+
+This helps the user understand what is running at each step and makes the pipeline transparent.
+
+---
+
 ## Pause Prompt (Between Every Phase)
 
 After each phase, show:
@@ -817,26 +967,104 @@ Commands:
 
 ---
 
-## Revert Protocol
+## Revert Protocol (Enhanced — adopted from AIDLC)
 
 When user types `revert N`:
 
-1. Read `pipeline-state.json` to find completed phases
-2. Check git tag `raidlc/<ticket>/phase-<N>` exists
-3. Show what will be lost:
-   ```
-   Reverting to Phase N (<Phase Name>).
-   This will discard:
-     • Phase N+1 artifacts: <list>
-     • Phase N+2 artifacts: <list>
-     • Code changes from Phase 10+ (if applicable)
-   
-   Proceed? (yes / no)
-   ```
-4. If confirmed:
-   - `git reset --hard raidlc/<ticket>/phase-<N>`
-   - Update `pipeline-state.json` to mark subsequent phases as pending
-   - Resume from Phase N+1
+### Step 1: Scan State
+
+Read `pipeline-state.json`, git tags, and artifacts to determine impact:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 REVERT — Scanning pipeline state...
+
+Revert target: Phase N (<Phase Name>)
+
+This will discard everything AFTER Phase N:
+
+  ARTIFACTS to delete:
+    • <path>/04-qa.md
+    • <path>/05-developer.md
+    • ... (list all)
+
+  CODE CHANGES to revert (from Developer phase):
+    • src/.../TierResource.java        (new file)
+    • src/.../TierFacade.java           (new file)
+    • ... +N more files
+
+  SESSION MEMORY: entries from phases after N will be removed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Step 2: Show Options
+
+```
+Options:
+  [A] Full revert
+      Delete artifacts + revert code + clean session memory.
+      Restores codebase to exact state after Phase N completed.
+
+  [B] Artifacts only
+      Delete artifact files + clean session memory.
+      Keep code changes intact.
+      (Use when code is good but you want to re-run QA/Review)
+
+  [C] Re-run from here
+      Keep everything, but re-run from Phase N onward.
+      Overwrites artifacts, does NOT revert prior code.
+      (Use when you want a different design approach)
+
+  [D] Cancel — go back
+
+Enter choice (A/B/C/D):
+```
+
+### Step 3: Execute
+
+**Option A — Full revert:**
+- `git reset --hard raidlc/<ticket>/phase-<N>`
+- Delete artifact files after target phase
+- Surgical session memory cleanup: remove only entries tagged with later phases (by `_(Phase)_` suffix)
+- Update `pipeline-state.json` to mark subsequent phases as pending
+- Log to rework history
+
+**Option B — Artifacts only:**
+- Delete artifact files after target phase
+- Surgical session memory cleanup
+- Keep all code files untouched
+- Update `pipeline-state.json`
+- Log to rework history
+
+**Option C — Re-run from here:**
+- Do not delete or revert anything
+- Start running phases from Phase N onward
+- Each phase overwrites its own artifact
+- Log to rework history
+
+### Step 4: After Revert
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Reverted to Phase N (<Phase Name>)
+   Git restored to: raidlc/<ticket>/phase-<N>
+   Artifacts cleaned: <list>
+   Session memory: <phases> entries removed
+
+What next?
+  [1] Continue pipeline from Phase N+1
+  [2] Re-run Phase N with modifications
+  [3] Exit and resume later
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Revert Safety Rules
+1. **Always confirm before executing** — never auto-revert
+2. **Always show file-level impact** — user must see exactly what changes
+3. **Git tags are force-updated** — after revert, re-running a phase updates its tag
+4. **Session memory cleanup is surgical** — only remove entries from reverted phases, identified by the `_(Phase)_` suffix
+5. **Rework log is preserved** — reverts are logged in process-log.md: `- Revert to Phase N — requested by user — [timestamp] — reason: [user's reason]`
+6. **Never revert past the branch creation point** — the raidlc branch start is the hard floor
 
 ---
 

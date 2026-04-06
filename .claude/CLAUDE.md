@@ -1,5 +1,70 @@
 - Never use ExitPlanMode tool. When done planning, just say Plan is ready and wait for user input.
 
+## Project Context
+
+This is a **Java backend loyalty platform** (Capillary). The codebase spans multiple repos:
+- **emf-parent** (this repo) — points engine, tier/slab entities, strategies, Thrift services
+- **intouch-api-v3** — REST API gateway, maker-checker workflows, Spring MVC
+- **peb** — Points Engine Backend, tier downgrade calculators
+- **Thrift** — IDL definitions for cross-service RPC
+- **api/prototype** — Customer-facing REST APIs, JAX-RS (Jersey)
+
+Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito.
+
+## Feature Pipeline
+
+This repo includes a **feature-pipeline agent** (`.claude/agents/feature-pipeline.md`) that automates BRD-to-production in 13 phases. To use it:
+
+```
+claude --agent feature-pipeline
+```
+
+### Pipeline Skills (in `.claude/skills/`)
+
+| Skill | Purpose | Phase |
+|-------|---------|-------|
+| `/ba` | Business analysis + PRD generation (merged) | 1 |
+| `/architect` | HLD, ADRs, pattern evaluation | 6 |
+| `/analyst` | Impact analysis (`--impact`) + compliance checking (`--compliance`) | 6a, 9c |
+| `/designer` | LLD, interface contracts, compile-safe signatures | 7 |
+| `/qa` | Test scenarios, edge cases, acceptance criteria | 8 |
+| `/developer` | TDD implementation (Chicago/Detroit school) | 9 |
+| `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 9b |
+| `/cross-repo-tracer` | Multi-repo write/read path tracing | 5 |
+| `/sdet` | Test automation planning | 10 |
+| `/reviewer` | Code review against requirements | 11 |
+| `/productex` | Product knowledge base, BRD review | 1 (parallel) |
+| `/migrator` | Schema migration analysis | 6b, 9d |
+| `/debug` | Root cause analysis (standalone) | on-demand |
+| `/tutor` | Codebase teaching (standalone, read-only) | on-demand |
+| `/api-handoff` | API contract doc for UI team | after 7 or 9 |
+
+**Deprecated** (kept for reference): `/prd-generator` (merged into `/ba`), `/gap-analyser` (merged into `/analyst --compliance`)
+
+### Pipeline Rules
+- **Session memory** (`session-memory.md`) is the shared context across all phases. Updated incrementally after every decision — never batch at phase end.
+- **Live dashboard** (`live-dashboard.html`) is an HTML file that updates after every phase. Dark theme, sidebar nav, Mermaid diagrams, Q&A history, API contracts.
+- **Cross-repo claims** of "0 modifications needed" require C6+ evidence from reading actual code. The `/cross-repo-tracer` skill enforces this.
+- **Mermaid diagrams** in `.md` files use fenced code blocks (` ```mermaid `). HTML `<div class="mermaid">` is only for the live dashboard and blueprint.
+- **Git snapshots** after every phase: `raidlc/<ticket>/phase-NN` tags.
+- **No file copying** — read BRD, code repos, UI screenshots from original locations. Only extract text to `brd-raw.md` for binary formats (PDF/DOCX).
+
+### Superpowers Plugin (required)
+
+The pipeline uses the **Superpowers** plugin for advanced workflows. Install it:
+```
+claude install-plugin superpowers
+```
+
+Key superpowers used: `brainstorming`, `writing-plans`, `executing-plans`, `test-driven-development`, `verification-before-completion`, `dispatching-parallel-agents`, `subagent-driven-development`.
+
+### For New Teammates
+
+1. Clone the repo — `.claude/` directory comes with it (skills, agents, CLAUDE.md, principles.md)
+2. Install Superpowers: `claude install-plugin superpowers`
+3. (Optional) Start jdtls for LSP-based code traversal
+4. Run: `claude --agent feature-pipeline`
+
 ## Engineering Rules
 
 ### Rule 1 - Evidence-Based Claims
