@@ -884,6 +884,93 @@ If a prerequisite is missing and the user chooses to continue anyway, log it in 
 
 ---
 
+## Clarifying Question Protocol (CLAUDE.md Rule 4)
+
+**Problem**: Subagent phases complete autonomously without asking the user anything. This leads to assumptions being made silently — the same problem the pipeline was built to prevent.
+
+**Solution**: Every phase that makes decisions must surface questions to the user. There are two mechanisms:
+
+### Mechanism 1: Subagent Question Collection
+
+When a subagent phase encounters something uncertain (confidence below C5), it must NOT silently assume. Instead, it collects the question and returns it in its output:
+
+```
+PHASE: Designer
+STATUS: complete
+ARTIFACT: 03-designer.md
+
+QUESTIONS FOR USER (before next phase proceeds):
+  Q1: TierFacade uses @Inject but SlabFacade uses @Autowired. Which pattern for new code? [C4]
+  Q2: Should TierResource extend AbstractResource or be standalone? [C3]
+  
+ASSUMPTIONS MADE (user should verify):
+  A1: Using Jackson not Gson for DTOs (based on existing ManualSlabAdjustmentRequestData) [C5]
+```
+
+The **orchestrator** (main context) reads these questions and presents them to the user BEFORE proceeding to the next phase:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Phase 7: LLD (Designer) complete
+
+❓ Designer has questions before we proceed:
+
+Q1: TierFacade uses @Inject but SlabFacade uses @Autowired. 
+    Which pattern for new code? [C4]
+    (a) @Inject (CDI standard)
+    (b) @Autowired (Spring-specific)
+    
+Q2: Should TierResource extend AbstractResource or be standalone? [C3]
+    (a) Extend AbstractResource (follows SlabResource pattern)
+    (b) Standalone (simpler, less coupling)
+
+📋 Assumptions made (verify or override):
+  A1: Using Jackson not Gson for DTOs [C5] — OK? (yes/no)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Mechanism 2: Mandatory Question Checkpoints
+
+At these specific points, the pipeline MUST pause and ask the user — even if no questions were raised:
+
+| Checkpoint | When | What to Ask |
+|-----------|------|-------------|
+| **After Phase 1 (BA+PRD)** | Before Critic runs | "BA produced N user stories and M open questions. Anything you want to add or change before we challenge these?" |
+| **After Phase 2 (Critic)** | Before UI/Blockers | "Critic found N contradictions. Gap Analyser found M discrepancies. Review these findings — any you disagree with?" |
+| **After Phase 5 (Research)** | Before Architect | "Codebase research found N patterns across M repos. Cross-repo tracer identified K repos needing changes. Anything surprising or wrong here?" |
+| **After Phase 6 (Architect)** | Before LLD | "Architecture uses [pattern]. N ADRs documented. APIs: [list]. Does this direction look right before we go to detailed design?" |
+| **After Phase 8 (QA)** | Before Developer | "QA identified N test scenarios. Before coding begins — any scenarios missing? Any edge cases you know about?" |
+| **After Phase 9 (Developer)** | Before Review | "Developer wrote N files with M test methods. Before review — anything you want to check or are concerned about?" |
+
+### Mechanism 3: Confidence-Based Escalation
+
+Any claim below C4 in any phase output MUST be surfaced to the user — it should NOT silently proceed:
+
+```
+⚠️  Low confidence findings from Phase 6a (Impact Analysis):
+
+  [C3] "OrgConfigController publish endpoint exists" — NOT VERIFIED
+       → Should we verify this before proceeding, or accept the risk?
+  
+  [C2] "No cache invalidation needed for tier config" — SPECULATIVE
+       → Do you know if tier config is cached anywhere?
+```
+
+### Instructions for Subagent Prompts
+
+When spawning any subagent, include this instruction in the prompt:
+
+```
+IMPORTANT: Do NOT silently assume when uncertain.
+- If your confidence on any decision/claim is below C5, add it to 
+  QUESTIONS FOR USER in your response.
+- If you make an assumption at C5+, list it under ASSUMPTIONS MADE.
+- The orchestrator will present these to the user before the next phase.
+```
+
+---
+
 ## Rework History (adopted from AIDLC)
 
 When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back to Developer), log it in both `process-log.md` and `pipeline-state.json`:
@@ -1165,6 +1252,43 @@ After every phase, update `<artifacts-path>/live-dashboard.html`:
 The live dashboard is a **human-readable HTML file** that anyone can open in a browser at any time to see the current state of the pipeline. It accumulates content phase by phase — never overwritten, only appended.
 
 Use the same dark theme and styling as `benefits-e2-blueprint.html` and `feature-pipeline-guide.html`.
+
+---
+
+## Phase Execution Rules
+
+Each phase is run by reading its corresponding skill file in `.claude/skills/`. When spawning subagents, **always pass the model explicitly** — subagents do NOT inherit the orchestrator's model.
+
+| Phase | Skill File | Execution Mode | Model | Why |
+|-------|-----------|---------------|-------|-----|
+| ProductEx BRD Review | `.claude/skills/productex/SKILL.md` | Background subagent | sonnet | Synthesis from docs, moderate reasoning |
+| BA + PRD (Phase 1) | `.claude/skills/ba/SKILL.md` | Interactive (main context) | opus | Deep reasoning over BRD, nuanced judgment, Q&A |
+| Critic (Phase 2) | `principles.md` (inline) | Subagent | opus | Adversarial depth, finding subtle flaws |
+| Analyst --compliance (Phase 2) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | Cross-referencing evidence, high-stakes accuracy |
+| UI Extraction (Phase 3) | (inline) | Interactive (main context) | sonnet | Vision capability sufficient for screenshot parsing |
+| Blocker Resolution (Phase 4) | (inline) | Interactive (main context) | opus | Judgment-heavy, compiling and prioritizing across phases |
+| Codebase Research (Phase 5) | (inline — per-repo exploration) | Parallel subagents | sonnet | Mechanical navigation + pattern recognition |
+| Cross-Repo Tracer (Phase 5) | `.claude/skills/cross-repo-tracer/SKILL.md` | Subagent | sonnet | Systematic traversal, moderate reasoning |
+| Architect (Phase 6) | `.claude/skills/architect/SKILL.md` | Interactive (main context) | opus | Trade-off evaluation, long-term consequence reasoning |
+| Analyst --impact (Phase 6a) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | High-stakes blast radius, security, risk assessment |
+| Migrator (Phase 6b) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Structured DDL scripts, mechanical correctness |
+| Designer (Phase 7) | `.claude/skills/designer/SKILL.md` | Subagent | sonnet | Code generation strength, compile-safe output |
+| QA (Phase 8) | `.claude/skills/qa/SKILL.md` | Subagent | sonnet | Combinatorial but structured scenario generation |
+| Developer (Phase 9) | `.claude/skills/developer/SKILL.md` | Interactive (main context) | sonnet | Sonnet benchmarks highest on SWE-bench coding tasks |
+| Backend Readiness (Phase 9b) | `.claude/skills/backend-readiness/SKILL.md` | Subagent | sonnet | Pattern-matching against known anti-patterns |
+| Analyst --compliance (Phase 9c) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | Cross-referencing architecture vs code, high accuracy |
+| Migrator Validation (Phase 9d) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Mechanical comparison of plan vs reality |
+| SDET (Phase 10) | `.claude/skills/sdet/SKILL.md` | Subagent | sonnet | Structured planning, moderate complexity |
+| Reviewer (Phase 11) | `.claude/skills/reviewer/SKILL.md` | Subagent | sonnet | Strong coding model for code review |
+| Blueprint (Phase 12) | (inline) | Subagent | haiku | Template-driven HTML output, low reasoning |
+| Build Verify (utility) | (inline) | Subagent | haiku | Mechanical: run command, parse output, pass/fail |
+
+**Model assignment rationale:**
+- **opus** (6 phases): Judgment-heavy, high-stakes reasoning — BA, Critic, Compliance, Blocker Resolution, Architect, Impact Analysis. These phases make irreversible decisions that shape the entire feature.
+- **sonnet** (13 phases): Coding, structured generation, exploration — Developer, Designer, QA, Research, Reviewer, SDET. Sonnet outperforms Opus on SWE-bench coding benchmarks and is faster + cheaper.
+- **haiku** (2 phases): Mechanical/template tasks — Build Verify, Blueprint HTML. Run command and parse output, or generate HTML from existing content.
+- **Always pass `model` explicitly** when spawning Agent tool — never rely on inheritance
+- **Commit messages** must reflect actual model used
 
 ---
 
