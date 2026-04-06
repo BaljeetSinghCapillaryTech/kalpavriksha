@@ -98,11 +98,11 @@
     <a href="#phase-6b"><span class="status status-done"></span>6b. Migration Planning</a>
     <a href="#phase-7"><span class="status status-done"></span>7. LLD (Designer)</a>
     <a href="#phase-8"><span class="status status-done"></span>8. QA</a>
-    <a href="#phase-9"><span class="status status-active"></span>9. Developer</a>
-    <a href="#phase-9b"><span class="status status-pending"></span>9b. Backend Readiness</a>
-    <a href="#phase-9c"><span class="status status-pending"></span>9c. Compliance</a>
-    <a href="#phase-10"><span class="status status-pending"></span>10. SDET</a>
-    <a href="#phase-11"><span class="status status-pending"></span>11. Reviewer</a>
+    <a href="#phase-9"><span class="status status-done"></span>9. Developer</a>
+    <a href="#phase-9b"><span class="status status-done"></span>9b. Backend Readiness</a>
+    <a href="#phase-9c"><span class="status status-done"></span>9c. Compliance</a>
+    <a href="#phase-10"><span class="status status-done"></span>10. SDET</a>
+    <a href="#phase-11"><span class="status status-active"></span>11. Reviewer</a>
     <a href="#phase-12"><span class="status status-pending"></span>12. Blueprint</a>
   </nav>
 </div>
@@ -124,11 +124,11 @@
     <div class="step done" title="Phase 6b"></div>
     <div class="step done" title="Phase 7"></div>
     <div class="step done" title="Phase 8"></div>
-    <div class="step active" title="Phase 9"></div>
-    <div class="step" title="Phase 9b"></div>
-    <div class="step" title="Phase 9c"></div>
-    <div class="step" title="Phase 10"></div>
-    <div class="step" title="Phase 11"></div>
+    <div class="step done" title="Phase 9"></div>
+    <div class="step done" title="Phase 9b"></div>
+    <div class="step done" title="Phase 9c"></div>
+    <div class="step done" title="Phase 10"></div>
+    <div class="step active" title="Phase 11"></div>
     <div class="step" title="Phase 12"></div>
   </div>
 
@@ -810,24 +810,189 @@ pie title Test Scenario Distribution (72 total)
     </div>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 9: Developer -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-9">
-    <h2>Phase 9: Developer <span class="badge badge-amber">PENDING</span></h2>
-    <p>Implementation stats, code changes. Content will appear here.</p>
+    <h2>Phase 9: Developer <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 9 Implementation Modules &middot; 4 repos &middot; ~1005 lines added &middot; All compiled</p>
+
+    <h3>Implementation Modules</h3>
+    <table>
+      <tr><th>IM</th><th>Module</th><th>Repo</th><th>Status</th></tr>
+      <tr><td>IM-1</td><td>Thrift IDL &mdash; <code>deactivateSlab</code>, <code>getMemberCountPerSlab</code>, backward-compat fields</td><td>thrifts</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-2</td><td><code>ProgramSlab.isActive</code> field</td><td>emf-parent</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-3</td><td>DAO queries (<code>is_active</code> filter) + <code>countMembersPerSlab</code></td><td>emf-parent</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-4</td><td>Enums (<code>TierStatus</code>, <code>TierAction</code>) + DTOs (9 classes)</td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-5</td><td><code>TierDocument</code>, <code>TierRepository</code>, <code>EmfMongoConfig</code></td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-6</td><td><code>TierValidator</code> &mdash; 7 validation methods</td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-7</td><td><code>PointsEngineRulesThriftService</code> &mdash; 3 new Thrift client methods</td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-8</td><td><code>TierFacade</code> &mdash; CRUD orchestration, @Lockable, copy-on-write, APPROVE rollback</td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+      <tr><td>IM-9</td><td><code>TierController</code> &mdash; 6 REST endpoints</td><td>intouch-api-v3</td><td><span class="badge badge-green">Done</span></td></tr>
+    </table>
+
+    <h3>Key Implementation Patterns</h3>
+    <ul>
+      <li><strong>@Lockable</strong> on <code>createTier</code>, <code>updateTier</code>, <code>changeTierStatus</code>, <code>deleteTier</code> &mdash; prevents concurrent operations</li>
+      <li><strong>Copy-on-write</strong>: PUT on ACTIVE creates/edits DRAFT with <code>parentId</code>. On APPROVE, old ACTIVE &rarr; SNAPSHOT</li>
+      <li><strong>R-6 Rollback</strong>: Thrift failure during APPROVE &rarr; MongoDB reverts to PENDING_APPROVAL</li>
+      <li><strong>R-8 Idempotency</strong>: If <code>slabId</code> already set + status=ACTIVE, return existing without Thrift call</li>
+      <li><strong>Graceful degradation</strong>: <code>getMemberCountPerSlab</code> failure returns null, doesn't fail the request</li>
+    </ul>
+
+    <h3>Thrift Version Strategy</h3>
+    <p>Local <strong>1.82-SNAPSHOT</strong> build to avoid disrupting CI/Jenkins. Added backward-compat fields (<code>milestoneId</code>, <code>targetPeriodId</code>) to match nightly build.</p>
+
+    <h3>Files Changed</h3>
+    <div class="mermaid">
+graph LR
+    subgraph "thrifts"
+        T1[pointsengine_rules.thrift]
+    end
+    subgraph "emf-parent"
+        E1[ProgramSlab.java +isActive]
+        E2[PeProgramSlabDao.java +filter]
+        E3[PeCustomerEnrollmentDao.java +count]
+        E4[ThriftImpl.java +2 methods]
+        E5[PartnerSyncDao.java +validation]
+    end
+    subgraph "intouch-api-v3"
+        I1[TierController.java NEW]
+        I2[TierFacade.java NEW]
+        I3[TierValidator.java NEW]
+        I4[TierDocument.java NEW]
+        I5[TierRepository.java NEW]
+        I6[9 DTOs + 2 Enums NEW]
+        I7[ThriftService.java +3 methods]
+        I8[EmfMongoConfig.java +filter]
+    end
+    T1 --> E4
+    E4 --> I7
+    </div>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 9b: Backend Readiness -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-9b">
-    <h2>Phase 9b: Backend Readiness <span class="badge badge-amber">PENDING</span></h2>
-    <p>Production readiness gate. Content will appear here.</p>
+    <h2>Phase 9b: Backend Readiness <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; Verdict: READY WITH WARNINGS &middot; 0 blockers (DDL deferred) &middot; 2 warnings fixed &middot; 2 accepted</p>
+
+    <h3>Checklist Results</h3>
+    <table>
+      <tr><th>Area</th><th>Status</th><th>Notes</th></tr>
+      <tr><td>Query Performance</td><td><span class="badge badge-amber">WARN</span></td><td>W-1: Added @CompoundIndex on TierDocument (fixed)</td></tr>
+      <tr><td>Thrift Compatibility</td><td><span class="badge badge-green">PASS</span></td><td>All new methods additive. No breaks. (C7)</td></tr>
+      <tr><td>Cache Invalidation</td><td><span class="badge badge-green">PASS</span></td><td>cacheEvictHelper called in both write paths (C7)</td></tr>
+      <tr><td>Resource Management</td><td><span class="badge badge-green">PASS</span></td><td>All pooled connections, correct @Transactional (C6)</td></tr>
+      <tr><td>Error Handling</td><td><span class="badge badge-amber">WARN</span></td><td>W-4: Added @Lockable to deleteTier (fixed)</td></tr>
+      <tr><td>Migration Safety</td><td><span class="badge badge-blue">DEFERRED</span></td><td>B-1: DDL pending lead approval</td></tr>
+    </table>
+
+    <h3>Fixes Applied</h3>
+    <ul>
+      <li><strong>W-1 Fixed</strong>: Added 3 <code>@CompoundIndex</code> on TierDocument &mdash; <code>{orgId, programId}</code>, <code>{tierId, orgId}</code> (unique), <code>{parentId, orgId, status}</code></li>
+      <li><strong>W-4 Fixed</strong>: Added <code>@Lockable</code> to <code>deleteTier</code> &mdash; prevents race with <code>changeTierStatus(STOP)</code></li>
+      <li><strong>W-2 Accepted</strong>: <code>@Lockable</code> ignores ttl/acquireTime &mdash; pre-existing framework behavior</li>
+      <li><strong>W-3 Accepted</strong>: <code>createOrUpdateSlab</code> loads all slabs for audit &mdash; pre-existing code</li>
+    </ul>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 9c: Compliance -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-9c">
-    <h2>Phase 9c: Compliance <span class="badge badge-amber">PENDING</span></h2>
-    <p>Architecture vs code gap analysis. Content will appear here.</p>
+    <h2>Phase 9c: Gap Analysis (Architecture vs Code) <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; Overall: HIGH compliance &middot; 3 HIGH fixed &middot; 3 MEDIUM accepted &middot; 4 LOW documented</p>
+
+    <h3>Compliance Scorecard</h3>
+    <table>
+      <tr><th>ADR / Decision</th><th>Status</th></tr>
+      <tr><td>ADR-1: MongoDB-First</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>ADR-2: Separate TierController</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>ADR-3: Soft Delete is_active</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>ADR-4: TierStatus Enum</td><td><span class="badge badge-green">EVOLVED (+SNAPSHOT)</span></td></tr>
+      <tr><td>ADR-5: Thrift Boundary</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>ADR-6: Member Count via Thrift</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>R-6 Rollback</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>R-8 Idempotency</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>@Lockable Concurrency</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>Copy-on-write PUT</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>KPI Type Immutability</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>Cache Eviction</td><td><span class="badge badge-green">COMPLIANT</span></td></tr>
+      <tr><td>G-01, G-02, G-03, G-06, G-07, G-10</td><td><span class="badge badge-green">ALL COMPLIANT</span></td></tr>
+    </table>
+
+    <h3>HIGH Findings (All Resolved)</h3>
+    <table>
+      <tr><th>#</th><th>Finding</th><th>Resolution</th></tr>
+      <tr><td>F-01</td><td>Missing PartnerProgramTierSyncConfiguration check on delete</td><td><span class="badge badge-green">FIXED</span> Added validation in <code>deactivateSlab</code> (emf-parent)</td></tr>
+      <tr><td>F-02</td><td>Strategy CSV contradiction in session memory</td><td><span class="badge badge-green">RESOLVED</span> Per R-1/R-2: evaluation filters by is_active, no CSV rewrite needed</td></tr>
+      <tr><td>F-06</td><td>STOP action returned stale ACTIVE status</td><td><span class="badge badge-green">FIXED</span> Reloads from MongoDB after deleteTier</td></tr>
+    </table>
+
+    <h3>MEDIUM Findings (Accepted)</h3>
+    <ul>
+      <li><strong>F-03</strong>: <code>programId</code> in TierRequest body &mdash; keeps request self-contained</li>
+      <li><strong>F-04</strong>: <code>deleteTier</code> adds <code>userId</code> param &mdash; needed for audit trail</li>
+      <li><strong>F-05</strong>: Simple rollback instead of WAL &mdash; sufficient for MongoDB</li>
+    </ul>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 10: SDET -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-10">
-    <h2>Phase 10: SDET <span class="badge badge-amber">PENDING</span></h2>
-    <p>Test automation plan. Content will appear here.</p>
+    <h2>Phase 10: SDET <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 26 test methods &middot; 11 UTs + 15 ITs &middot; 5 manual steps &middot; 72 QA scenarios covered (2.8:1 efficiency)</p>
+
+    <h3>Test Summary</h3>
+    <table>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>QA scenarios mapped</td><td>72 (TS-01 &ndash; TS-72)</td></tr>
+      <tr><td>Test methods planned</td><td>26</td></tr>
+      <tr><td>Unit Tests (UT)</td><td>11</td></tr>
+      <tr><td>Integration Tests (IT)</td><td>15</td></tr>
+      <tr><td>Manual test steps</td><td>5</td></tr>
+      <tr><td>Efficiency ratio</td><td>72 &rarr; 26 (2.8 : 1)</td></tr>
+    </table>
+
+    <h3>IT Infrastructure Discovered</h3>
+    <ul>
+      <li><strong>Base class</strong>: <code>AbstractContainerTest</code> with shared static Testcontainers</li>
+      <li><strong>Containers</strong>: MongoDB 4.2.3, MySQL 8.0.33, Redis, RabbitMQ</li>
+      <li><strong>Framework</strong>: JUnit 5 + Mockito (intouch-api-v3), JUnit 4 (emf-parent)</li>
+      <li><strong>Exemplars</strong>: <code>UnifiedPromotionControllerTest</code>, <code>UnifiedPromotionFacadeTest</code></li>
+      <li><strong>IT placement</strong>: <code>integrationTests/</code> in intouch-api-v3</li>
+    </ul>
+
+    <h3>Test Layer Breakdown</h3>
+    <table>
+      <tr><th>Test Class</th><th>Layer</th><th>Scenarios</th></tr>
+      <tr><td><code>TierValidatorTest</code></td><td><span class="badge badge-blue">UT</span></td><td>TS-13&ndash;21, TS-31&ndash;39, TS-60</td></tr>
+      <tr><td><code>TierFacadeTest</code></td><td><span class="badge badge-blue">UT</span></td><td>TS-08&ndash;10, TS-43, TS-51&ndash;53</td></tr>
+      <tr><td><code>TierControllerIT</code></td><td><span class="badge badge-amber">IT</span></td><td>TS-01&ndash;06, TS-12, TS-27&ndash;29, TS-37&ndash;50, TS-53&ndash;68, TS-70&ndash;72</td></tr>
+    </table>
+
+    <h3>Test Distribution</h3>
+    <div class="mermaid">
+pie title Test Methods by Layer (26 total)
+    "Unit Tests" : 11
+    "Integration Tests" : 15
+    </div>
+
+    <h3>Developer Verification Commands</h3>
+    <pre><code># Red phase: new tests fail
+mvn test -pl . -Dtest=TierValidatorTest -am
+
+# Green phase: all UTs pass
+mvn test -pl . -am
+
+# Full verify: UTs + ITs pass
+mvn verify -pl . -am
+
+# emf-parent UTs
+mvn test -pl pointsengine-emf-ut -am -Dtest=DeactivateSlabTest</code></pre>
   </div>
 
   <div class="card" id="phase-11">

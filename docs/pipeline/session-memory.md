@@ -142,6 +142,12 @@ _Technical, business, and regulatory constraints all phases must respect. Format
 - APPROVE flow must be idempotent — retry after network timeout must not create duplicate MySQL slabs _(Analyst)_
 - Thrift IDL changes require emf-parent deployed BEFORE intouch-api-v3 (deployment ordering constraint) _(Analyst)_
 - New timestamp fields (createdOn, lastModifiedOn) in TierDocument/TierResponse must use `Instant`/`java.time`, not `java.util.Date` (G-01 compliance) _(Analyst)_
+- All new ITs must extend `AbstractContainerTest` — shared static containers (MongoDB 4.2.3, MySQL 8.0.33, Redis, RabbitMQ) started once per JVM. Never create a new Spring context. _(SDET)_
+- `EmfMongoConfigTest` must register `TierRepository.class` in `includeFilters` before TierControllerIT can run. Without it, TierRepository uses wrong MongoDB. _(SDET)_
+- Test-scoped `program_slabs.sql` in `src/test/resources` must include `is_active` column (mirrors B-1 blocker) before STOP/DELETE IT flows can be tested. _(SDET)_
+- emf-parent unit tests use JUnit 4 (`@RunWith(MockitoJUnitRunner.Silent.class)`), not JUnit 5. New DAO tests must follow this convention. _(SDET)_
+- intouch-api-v3 controller UTs use JUnit 5 + `@ExtendWith(MockitoExtension.class)` — no Spring context loaded. _(SDET)_
+- IT-15 (TS-40 partner sync validation) is blocked until F-01 is fixed in `TierValidator.validateDelete`. Use `@Disabled` annotation with explanation. _(SDET)_
 
 ## Risks & Concerns
 _Flagged risks and concerns. Format: `- [risk] _(phase)_ — Status: open/mitigated`_
@@ -193,6 +199,11 @@ _Unresolved questions. Format: `- [ ] [question] _(phase)_` or `- [x] resolved: 
 - [ ] When an existing tier's threshold is changed via PUT → APPROVE, does `createOrUpdateSlab` auto-update the SLAB_UPGRADE strategy threshold CSV? _(Analyst)_
 - [ ] Should serial numbers be renumbered after soft-delete to maintain contiguous ordering for threshold array indexing? _(Analyst)_
 - [ ] Should KPI type immutability (all tiers share same `currentValueType`) be enforced at API level during create? _(Analyst)_
+- [ ] Should `GET /v3/tiers/{tierId}` return HTTP 200 + status=STOPPED for stopped tiers, or HTTP 404? IT-03 currently expects 404 per AC-2-2. _(SDET)_
+- [ ] Is the simple try-catch rollback on APPROVE (no WAL) accepted for production? Affects M-05 manual test scope. If yes, update session memory F-05 decision. _(SDET)_
+- [ ] Is @Lockable `acquireTime` ignore-on-contention accepted behavior (W-2)? Affects IT-11 concurrency test expectations. _(SDET)_
+- [ ] When `getMemberCountPerSlab` Thrift fails during GET /tiers: return `memberCount=null` (degraded) or HTTP 500? IT-10 assumes degraded. _(SDET)_
+- [ ] Does POST /tiers support idempotency keys (`X-Idempotency-Key`)? If not, duplicate DRAFT creation on retry is accepted behavior and TS-72 remains manual-only. _(SDET)_
 
 ## Analyst (Compliance) Findings
 _Key findings from gap-analysis-brd.md. Full details in that file._
