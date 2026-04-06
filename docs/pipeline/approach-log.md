@@ -56,3 +56,13 @@ _Format: Decision — Rationale — Phase_
 | PI-1 | KPI type immutability — enforce at API? | Confirmed | **Yes — enforce in TierFacade** | "definitely should be Immutable because currently mysql slab config stores in strategies table in property_values which has this consistency so same should be adhered in mongo end" |
 | Q5 | MySQL version in production | N/A | **MySQL 8.x** | Online DDL natively supported |
 | Q6 | customer_enrollment row count | N/A | **10–100 million** | CREATE INDEX: 10-60 min, schedule off-peak with monitoring |
+
+### QA Resolution Decisions (Phase 8 → Before Phase 9)
+
+| # | Question | Options | Decision | Rationale |
+|---|---------|---------|----------|-----------|
+| Q-QA-1 | GET /tiers/{id} for STOPPED tier — 404 or return? | (a) 404, (b) Return with status | **(b) Return with status=STOPPED** | "only truly deleted (is_active=0) returns 404" — STOPPED tiers remain visible in MongoDB |
+| Q-QA-2 | Second PUT on ACTIVE with existing in-flight DRAFT? | (a) 409, (b) Edit existing DRAFT | **(b) Edit existing DRAFT** | "do not create a new Draft from ACTIVE doc, instead edit the existing DRAFT until that DRAFT published and become ACTIVE" |
+| Q-QA-3 | POST idempotency — idempotency key header or edit lock? | (a) X-Idempotency-Key, (b) Edit lock | **(b) Edit lock like UnifiedPromotion** | "configure edit lock in code just like in UnifiedPromotion... same goes to create case" |
+| Q-QA-4 | Rollback when Thrift OK but MongoDB fails? | (a) Compensating call, (b) Manual, (c) WAL | **(c) Write-ahead log pattern** | "we have to do that Write-ahead log pattern for two-phase commit" |
+| Q-QA-5 | PUT on ACTIVE tier — copy-on-write or in-place? | (a) New DRAFT + parentObjectId, (b) In-place to PENDING | **(a) Copy-on-write with SNAPSHOT** | "Create a DRAFT then transition to PENDING_APPROVAL then to ACTIVE after making existing ACTIVE as SNAPSHOT by maintaining parentObjectId similar to the UnifiedPromotion flow itself" |

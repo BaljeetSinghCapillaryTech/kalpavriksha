@@ -116,6 +116,12 @@ _Significant decisions and their rationale. Format: `- [decision]: [rationale] _
 - customer_enrollment approximate size: 10–100 million rows. CREATE INDEX will take 10–60 minutes. Schedule off-peak with monitoring. MySQL 8 online DDL (ALGORITHM=INPLACE, LOCK=NONE) is safe. _(Phase 6a)_
 - GET /tiers makes 2 calls (MongoDB + Thrift for member count) — acceptable for typical program sizes (<10 tiers) _(Analyst)_
 - No `@Transactional` on `PointsEngineRuleConfigThriftImpl` slab methods — verify transaction management for `deactivateSlab` _(Analyst)_
+- GET /tiers/{tierId} returns STOPPED tiers with status=STOPPED visible. Only is_active=0 (truly soft-deleted in MySQL) returns 404. MongoDB documents for STOPPED tiers remain accessible. _(QA→User)_
+- PUT on ACTIVE tier: copy-on-write — creates a new DRAFT with parentObjectId pointing to ACTIVE version. On APPROVE, existing ACTIVE becomes SNAPSHOT, new version becomes ACTIVE. Same as UnifiedPromotion versioning flow. _(QA→User)_
+- Edit lock pattern (like UnifiedPromotion) for both CREATE and UPDATE: prevents concurrent duplicate DRAFTs. No idempotency key header needed. _(QA→User)_
+- If DRAFT already exists for an ACTIVE tier, PUT edits the existing DRAFT — does NOT create a second DRAFT. Only after DRAFT is published can a new one be created. _(QA→User)_
+- APPROVE two-phase commit: use write-ahead log (WAL) pattern. Log intent before executing Thrift + MongoDB. Recover from log on partial failure in either direction. _(QA→User)_
+- TierStatus enum updated: DRAFT → PENDING_APPROVAL → ACTIVE → STOPPED, plus SNAPSHOT for superseded ACTIVE versions. _(QA→User)_
 
 ## Constraints
 _Technical, business, and regulatory constraints all phases must respect. Format: `- [constraint] _(phase)_`_
@@ -236,12 +242,12 @@ _(continued — Designer additions)_
 - [ ] Q-D2: `deactivateSlab` — exact algorithm for rebuilding SLAB_UPGRADE threshold CSV after removing one entry. Must be verified against `ThresholdBasedSlabUpgradeStrategyImpl`. _(Designer)_
 - [ ] Q-D3: Does `PointsEngineRuleEditor.createOrUpdateSlab()` auto-update SLAB_UPGRADE CSV on threshold change? Unresolved A-2 from Analyst. _(Designer)_
 - [ ] Q-D4: Confirm `@Transactional("warehouse")` is the correct transaction manager name for `deactivateSlab` in emf-parent. _(Designer)_
-- [ ] Q-D5: For PUT on ACTIVE tier — copy-on-write (new DRAFT with parentId) or in-place update to PENDING_APPROVAL? _(Designer)_
+- [x] Q-D5: RESOLVED — Copy-on-write: PUT on ACTIVE creates new DRAFT with parentObjectId → on APPROVE, existing ACTIVE becomes SNAPSHOT, new version becomes ACTIVE. Same as UnifiedPromotion. _(Designer→QA→User)_
 
 ## Risks & Concerns
 _(continued — QA additions)_
-- [QA-R-01] Partial failure gap: APPROVE flow rollback documented for Thrift failure → MongoDB revert. BUT if Thrift succeeds and MongoDB.save() then fails, MySQL has a new row while MongoDB still shows PENDING_APPROVAL. No rollback strategy defined for this direction. _(QA)_ — Status: open
-- [QA-R-02] POST /tiers (CREATE) has no idempotency key mechanism. Network retries create duplicate DRAFT documents in MongoDB. G-06.1 requires all write ops to be idempotent. _(QA)_ — Status: open
+- [QA-R-01] Partial failure gap: RESOLVED — Use write-ahead log (WAL) pattern for two-phase commit. Covers both directions (Thrift fail and MongoDB fail). _(QA)_ — Status: mitigated
+- [QA-R-02] POST /tiers duplicate DRAFT: RESOLVED — Use edit lock pattern (like UnifiedPromotion) for both CREATE and UPDATE. Prevents concurrent duplicate creation. _(QA)_ — Status: mitigated
 - [QA-R-03] Concurrent CREATE of two tiers with the same serialNumber may both pass the check-then-insert unless a unique index is enforced at MongoDB level on `(orgId, programId, serialNumber)` — application-level check alone is not race-safe. _(QA)_ — Status: open
 - [QA-R-04] Notification on SUBMIT_FOR_APPROVAL (US-6 AC) is listed as an acceptance criterion but no notification service contract exists in any phase artifact. This AC cannot be tested. _(QA)_ — Status: open — BLOCKER→BA
 - [QA-R-05] No server-side role-based authorization defined for tier operations (SEC-4 from Analyst). CREATE/APPROVE/DELETE can be called by any authenticated user. Authorization test scenarios cannot be written without role definitions. _(QA)_ — Status: open — BLOCKER→BA
@@ -249,11 +255,11 @@ _(continued — QA additions)_
 
 ## Open Questions
 _(continued — QA additions)_
-- [ ] Q-QA-1: Should `GET /v3/tiers/{tierId}` return a STOPPED tier (status=STOPPED in response) or HTTP 404? AC-2-2 says 404 for soft-deleted, but document still exists in MongoDB. _(QA)_
-- [ ] Q-QA-2: What happens on a second `PUT /v3/tiers/{activeTierId}` when an in-flight DRAFT with the same parentId already exists? Return 409 conflict, or return/update existing DRAFT? _(QA)_
-- [ ] Q-QA-3: Should POST /tiers support an idempotency key header (e.g., `X-Idempotency-Key`) to prevent duplicate DRAFT creation on retry? _(QA)_
-- [ ] Q-QA-4: What is the rollback strategy when Thrift succeeds (MySQL row created) but subsequent MongoDB status update fails during APPROVE? Current R-6 only covers Thrift failure direction. _(QA)_
-- [ ] Q-QA-5: Q-D5 confirmation needed — is PUT on ACTIVE tier copy-on-write (new DRAFT with parentId) or in-place update? Test scenarios TS-51 and TS-52 depend on this answer. _(QA)_
+- [x] Q-QA-1: RESOLVED — GET /tiers/{tierId} returns STOPPED tier with status=STOPPED. Only truly soft-deleted tiers (is_active=0 in MySQL, no MongoDB doc) return 404. _(QA→User)_
+- [x] Q-QA-2: RESOLVED — If DRAFT already exists for an ACTIVE tier, do NOT create a new DRAFT. Instead, edit the existing DRAFT. Only after that DRAFT is published (becomes ACTIVE) can a new DRAFT be created. _(QA→User)_
+- [x] Q-QA-3: RESOLVED — Configure edit lock in code just like UnifiedPromotion. Same applies to create case. No idempotency key header — use edit lock pattern instead. _(QA→User)_
+- [x] Q-QA-4: RESOLVED — Use write-ahead log (WAL) pattern for two-phase commit. Log the intent before executing, recover from the log if either side fails. _(QA→User)_
+- [x] Q-QA-5: RESOLVED — PUT on ACTIVE tier: create a DRAFT → transition to PENDING_APPROVAL → on APPROVE, make existing ACTIVE into SNAPSHOT (by maintaining parentObjectId), new version becomes ACTIVE. Same as UnifiedPromotion flow. _(QA→User)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
