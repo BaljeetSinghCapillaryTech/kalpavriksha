@@ -107,7 +107,7 @@ claude mcp add claude-historian-mcp -- npx claude-historian-mcp
 
 **ProductEx BRD Review** runs in parallel with BA as a background subagent — it independently analyses the BRD against the product registry and official docs, producing `brdQnA.md` with questions for the product team. Both outputs are reviewed at the "Review Gate" before proceeding to Architect.
 
-`/debug` and `/tutor` are standalone — invoke them at any time, independent of the workflow.
+`/debug`, `/tutor`, `/gap-analyser`, and `/migrator` are standalone — invoke them at any time, independent of the workflow. Within the workflow, `gap` and `migrate` are available as on-demand commands at pause prompts.
 
 ---
 
@@ -330,6 +330,58 @@ Builds and maintains a structured product knowledge base — the **product regis
 
 ---
 
+### `/gap-analyser` (or `/gap`) — Gap Analyser (Standalone + On-Demand in Workflow)
+
+Compares **what was designed** against **what was built**. Works in two modes:
+
+- **Pipeline mode** — reads AIDLC artifacts (01-architect.md, 03-designer.md) as the source of architectural intent, compares against the code written during Developer phase
+- **Standalone mode** — reads ADRs, design docs, or infers architecture from the codebase itself
+
+**Analyses five dimensions:**
+1. **Structural compliance** — do designed modules exist as actual packages?
+2. **Dependency direction** — do dependencies flow correctly (no layer violations, no cycles)?
+3. **API contract drift** — do implemented endpoints match designed contracts?
+4. **ADR compliance** — does code respect specific architectural decisions?
+5. **Guardrail compliance** — checks CRITICAL guardrails (G-01, G-03, G-07, G-12) against code
+
+**Key output:**
+- **Scorecard** — severity-ranked findings (Critical/High/Medium/Low) with evidence (file:line, rule source) and per-dimension scores (0-10)
+- **ArchUnit test classes** — structural rules encoded as JUnit tests for CI enforcement. Uses ArchUnit's freeze mechanism to baseline existing violations.
+- **Remediation steps** — not just "this is wrong" but what to change and which phase to route to
+
+**Produces:** `05b-gap-analyser.md` (pipeline) or `gap-analysis-report.md` (standalone)
+
+---
+
+### `/migrator` (or `/migrate`) — Migrator (Standalone + On-Demand in Workflow)
+
+Analyses migration needs — primarily database schema, secondarily framework/pattern transitions. Does not execute migrations; produces plans for human review.
+
+**Three modes:**
+
+1. **`schema`** (primary focus) — database schema migration analysis:
+   - Detects migration tool (Flyway/Liquibase/Atlas)
+   - Audits existing migrations (naming, sequencing, responsibility)
+   - Classifies proposed changes by risk (ADD TABLE=LOW, RENAME COLUMN=CRITICAL)
+   - Checks backward compatibility (old + new code running simultaneously during rolling deploy)
+   - Enforces expand-then-contract for non-additive changes
+   - Detects schema drift (entity classes vs migration scripts)
+
+2. **`framework`** — framework/library version upgrade analysis:
+   - Breaking API changes, dependency conflicts, config changes
+   - Produces ordered migration checklist with risk levels
+
+3. **`pattern`** — architectural pattern transition analysis:
+   - Component mapping (keep/modify/replace/new/remove)
+   - Phased transition plan (foundation → dual-run → cutover → cleanup)
+   - Strangler fig boundaries
+
+**Key guardrails enforced:** G-05.4 (expand-then-contract mandatory), G-07.1 (new tables must include tenant column), G-09.1 (backward-compatible schema changes).
+
+**Produces:** `01b-migrator.md` or `05c-migrator.md` (pipeline) or `migration-analysis-report.md` (standalone)
+
+---
+
 ### `/debug` — Debugger (Standalone)
 
 Invoke any time — not part of the linear flow. Works evidence-first:
@@ -384,6 +436,8 @@ docs/workflow/TICKET-123/
 ├── 03-designer.md          ← interfaces, contracts
 ├── 04-qa.md                ← test scenarios, edge cases
 ├── 05-developer.md         ← implementation summary
+├── 05b-gap-analyser.md     ← architecture-code scorecard + ArchUnit rules  (on-demand)
+├── 05c-migrator.md         ← migration analysis report  (on-demand, or 01b after Architect)
 ├── 06-sdet.md              ← test plan, CI instructions  (optional)
 └── 07-reviewer.md          ← review findings, blockers
 
