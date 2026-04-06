@@ -35,7 +35,7 @@
   .status-pending { background: var(--border); }
 
   /* Main */
-  .main { margin-left: 260px; padding: 32px 40px; flex: 1; max-width: 1000px; }
+  .main { margin-left: 260px; padding: 32px 40px; flex: 1; max-width: 1100px; }
   .main h1 { color: var(--accent); font-size: 28px; margin-bottom: 8px; }
   .main .subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 32px; }
 
@@ -49,11 +49,16 @@
   .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 24px; }
   .card h2 { color: var(--accent); font-size: 18px; margin-bottom: 12px; }
   .card h3 { color: var(--text); font-size: 15px; margin: 16px 0 8px; }
+  .card h4 { color: var(--accent); font-size: 13px; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
   .card p, .card li { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
   .card ul { padding-left: 20px; }
+  .card ol { padding-left: 20px; }
   .card table { width: 100%; border-collapse: collapse; margin: 12px 0; }
   .card th { text-align: left; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 8px; border-bottom: 1px solid var(--border); }
   .card td { padding: 8px; font-size: 13px; color: var(--text-dim); border-bottom: 1px solid rgba(35,53,84,0.5); }
+  .card code { background: rgba(0,212,255,0.1); color: var(--accent); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  .card pre { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+  .card pre code { background: none; padding: 0; color: var(--text-dim); font-size: 12px; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge-green { background: rgba(100,255,218,0.15); color: var(--green); }
   .badge-amber { background: rgba(255,217,61,0.15); color: var(--amber); }
@@ -62,6 +67,17 @@
 
   .timestamp { color: var(--text-dim); font-size: 12px; font-style: italic; }
   .mermaid { margin: 16px 0; }
+  .qa-item { border-left: 3px solid var(--accent); padding-left: 12px; margin: 12px 0; }
+  .qa-item .q { color: var(--amber); font-weight: 600; font-size: 13px; }
+  .qa-item .a { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  .decision-box { background: rgba(100,255,218,0.05); border: 1px solid rgba(100,255,218,0.2); border-radius: 6px; padding: 12px; margin: 8px 0; }
+  .decision-box .label { color: var(--green); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .api-endpoint { background: rgba(0,0,0,0.3); border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-family: monospace; font-size: 13px; }
+  .api-endpoint .method { font-weight: 700; margin-right: 8px; }
+  .api-endpoint .method.get { color: var(--green); }
+  .api-endpoint .method.post { color: var(--amber); }
+  .api-endpoint .method.put { color: var(--accent); }
+  .api-endpoint .method.delete { color: var(--red); }
 </style>
 </head>
 <body>
@@ -71,15 +87,15 @@
   <div class="feature-name">tier-crud</div>
   <div class="ticket">raidlc/test_branch_v3 &middot; 2026-04-06</div>
   <nav>
-    <a href="#phase-0" class="active"><span class="status status-done"></span>0. Input Collection</a>
-    <a href="#phase-1"><span class="status status-pending"></span>1. BA + PRD</a>
-    <a href="#phase-2"><span class="status status-pending"></span>2. Critic + Gap Analysis</a>
-    <a href="#phase-3"><span class="status status-pending"></span>3. UI Extraction</a>
-    <a href="#phase-4"><span class="status status-pending"></span>4. Blocker Resolution</a>
-    <a href="#phase-5"><span class="status status-pending"></span>5. Codebase Research</a>
-    <a href="#phase-6"><span class="status status-pending"></span>6. HLD (Architect)</a>
-    <a href="#phase-6a"><span class="status status-pending"></span>6a. Impact Analysis</a>
-    <a href="#phase-6b"><span class="status status-pending"></span>6b. Migration Planning</a>
+    <a href="#phase-0"><span class="status status-done"></span>0. Input Collection</a>
+    <a href="#phase-1"><span class="status status-done"></span>1. BA + PRD</a>
+    <a href="#phase-2"><span class="status status-done"></span>2. Critic + Gap Analysis</a>
+    <a href="#phase-3"><span class="status status-done"></span>3. UI Extraction</a>
+    <a href="#phase-4"><span class="status status-done"></span>4. Blocker Resolution</a>
+    <a href="#phase-5"><span class="status status-done"></span>5. Codebase Research</a>
+    <a href="#phase-6"><span class="status status-done"></span>6. HLD (Architect)</a>
+    <a href="#phase-6a"><span class="status status-active"></span>6a. Impact Analysis</a>
+    <a href="#phase-6b"><span class="status status-active"></span>6b. Migration Planning</a>
     <a href="#phase-7"><span class="status status-pending"></span>7. LLD (Designer)</a>
     <a href="#phase-8"><span class="status status-pending"></span>8. QA</a>
     <a href="#phase-9"><span class="status status-pending"></span>9. Developer</a>
@@ -92,20 +108,20 @@
 </div>
 
 <div class="main">
-  <h1>tier-crud — Feature Pipeline</h1>
-  <div class="subtitle">Tiers & Benefits PRD v2.0 &middot; aiRa-Powered Conversational Configuration</div>
+  <h1>tier-crud &mdash; Feature Pipeline</h1>
+  <div class="subtitle">Tier CRUD REST APIs with Maker-Checker &middot; E1 + E4 Backend Only &middot; MongoDB-First Architecture</div>
 
   <!-- Progress Bar -->
   <div class="progress-bar">
     <div class="step done" title="Phase 0"></div>
-    <div class="step" title="Phase 1"></div>
-    <div class="step" title="Phase 2"></div>
-    <div class="step" title="Phase 3"></div>
-    <div class="step" title="Phase 4"></div>
-    <div class="step" title="Phase 5"></div>
-    <div class="step" title="Phase 6"></div>
-    <div class="step" title="Phase 6a"></div>
-    <div class="step" title="Phase 6b"></div>
+    <div class="step done" title="Phase 1"></div>
+    <div class="step done" title="Phase 2"></div>
+    <div class="step done" title="Phase 3 (skipped)"></div>
+    <div class="step done" title="Phase 4"></div>
+    <div class="step done" title="Phase 5"></div>
+    <div class="step done" title="Phase 6"></div>
+    <div class="step active" title="Phase 6a"></div>
+    <div class="step active" title="Phase 6b"></div>
     <div class="step" title="Phase 7"></div>
     <div class="step" title="Phase 8"></div>
     <div class="step" title="Phase 9"></div>
@@ -116,7 +132,9 @@
     <div class="step" title="Phase 12"></div>
   </div>
 
+  <!-- ============================================================ -->
   <!-- Phase 0 -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-0">
     <h2>Phase 0: Input Collection <span class="badge badge-green">COMPLETE</span></h2>
     <p class="timestamp">2026-04-06</p>
@@ -126,78 +144,422 @@
       <tr><td>BRD</td><td>Tiers_Benefits_PRD_v2_AiLed.docx.pdf (23 pages)</td><td><span class="badge badge-green">Valid</span></td></tr>
       <tr><td>Primary Repo</td><td>emf-parent (multi-module Maven)</td><td><span class="badge badge-green">Valid</span></td></tr>
       <tr><td>Secondary Repo</td><td>intouch-api-v3 (Spring MVC)</td><td><span class="badge badge-green">Valid</span></td></tr>
+      <tr><td>Schema Repo</td><td>cc-stack-crm (DDL files)</td><td><span class="badge badge-green">Valid</span></td></tr>
       <tr><td>UI Screenshots</td><td>None</td><td><span class="badge badge-blue">Skipped</span></td></tr>
       <tr><td>LSP (jdtls)</td><td>Available</td><td><span class="badge badge-green">Ready</span></td></tr>
     </table>
     <h3>BRD Summary</h3>
     <ul>
       <li><strong>4 Epics</strong>: E1 Tier Intelligence, E2 Benefits as Product, E3 aiRa Config Layer, E4 API-First Contract</li>
-      <li><strong>3 Personas</strong>: Maya (Program Manager), Alex (Approver), Priya (Data Analyst)</li>
-      <li><strong>9 Key Endpoints</strong>: /tiers, /benefits, /approvals, /simulate, /context, /aira/intent</li>
-      <li><strong>6 Open Questions</strong> from Section 12 (all status: Open)</li>
-      <li><strong>Interface Philosophy</strong>: Option A (Hybrid — Direct UI + aiRa) recommended</li>
+      <li><strong>Scope Decision</strong>: E1 + E4 backend only. E2, E3 deferred.</li>
+      <li><strong>3 Repos</strong>: intouch-api-v3 (REST + MongoDB), emf-parent (Thrift + MySQL), cc-stack-crm (DDL)</li>
     </ul>
   </div>
 
-  <!-- BA Q&A (Phase 1 placeholder) -->
+  <!-- ============================================================ -->
+  <!-- Phase 1: BA + PRD -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-1">
-    <h2>Phase 1: BA + PRD <span class="badge badge-amber">PENDING</span></h2>
-    <p>BA deep-dive, Q&A, PRD generation. Content will appear here after phase completes.</p>
+    <h2>Phase 1: BA + PRD <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 7 user stories &middot; 2 epics &middot; 6 Q&amp;A decisions</p>
+
+    <h3>Scope Decision</h3>
+    <p>BRD covers 4 epics. User scoped to <strong>E1 (Tier Intelligence) + E4 (API-First Contract), backend only</strong>. No aiRa, no comparison matrix UI, no audit log, no simulation.</p>
+
+    <h3>User Stories</h3>
+    <table>
+      <tr><th>ID</th><th>Story</th><th>Confidence</th><th>Complexity</th></tr>
+      <tr><td>US-1</td><td>List Tiers (GET /tiers)</td><td><span class="badge badge-green">C6</span></td><td>Low</td></tr>
+      <tr><td>US-2</td><td>Get Single Tier (GET /tiers/{id})</td><td><span class="badge badge-green">C6</span></td><td>Low</td></tr>
+      <tr><td>US-3</td><td>Create Tier (POST /tiers)</td><td><span class="badge badge-blue">C5</span></td><td>Medium</td></tr>
+      <tr><td>US-4</td><td>Update Tier (PUT /tiers/{id})</td><td><span class="badge badge-blue">C5</span></td><td>Medium</td></tr>
+      <tr><td>US-5</td><td>Soft Delete Tier (DELETE /tiers/{id})</td><td><span class="badge badge-amber">C4</span></td><td>Medium</td></tr>
+      <tr><td>US-6</td><td>Submit Tier for Approval</td><td><span class="badge badge-blue">C5</span></td><td>Medium</td></tr>
+      <tr><td>US-7</td><td>Approve / Reject Tier</td><td><span class="badge badge-blue">C5</span></td><td>Medium</td></tr>
+    </table>
+
+    <h3>BA Q&amp;A History</h3>
+    <div class="qa-item">
+      <div class="q">Q1: Scope &mdash; all 4 epics or subset?</div>
+      <div class="a"><strong>Decision:</strong> E1 + E4 backend only. "Just create Tier CRUD APIs and only backend implementation for now."</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">Q2: Tier deletion/insertion constraints?</div>
+      <div class="a"><strong>Decision:</strong> Soft delete with <code>is_active</code> flag (default 1). Set to 0 on delete. GET returns active only.</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">Q3: Prior TierConfigController implementation?</div>
+      <div class="a"><strong>Decision:</strong> Proceed fresh. Controller in intouch-api-v3, Thrift+service in emf-parent.</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">Q4: CRUD operations in scope?</div>
+      <div class="a"><strong>Decision:</strong> 5 CRUD ops confirmed. APIs must return field-level errors for future aiRa consumption.</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">Q5: Maker-checker in scope?</div>
+      <div class="a"><strong>Decision:</strong> YES &mdash; follow UnifiedPromotion pattern. Simple lifecycle: DRAFT &rarr; PENDING_APPROVAL &rarr; ACTIVE &rarr; STOPPED.</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">Q6: "validate on return transaction" toggle?</div>
+      <div class="a"><strong>Decision:</strong> Include <code>isDowngradeOnReturnEnabled</code> as-is. Backend logic exists.</div>
+    </div>
+
+    <h3>Key Insights</h3>
+    <ul>
+      <li><strong>Tier = Slab</strong> in codebase (<code>ProgramSlab</code> entity, <code>program_slabs</code> table)</li>
+      <li>Maker-checker approver logic handled at UI level, not backend (same as UnifiedPromotion)</li>
+      <li>PUT only, no PATCH (same as UnifiedPromotion)</li>
+    </ul>
   </div>
 
-  <!-- Phase 2 placeholder -->
+  <!-- ============================================================ -->
+  <!-- Phase 2: Critic + Gap Analysis -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-2">
-    <h2>Phase 2: Critic + Gap Analysis <span class="badge badge-amber">PENDING</span></h2>
-    <p>Contradictions, verified claims, gap analysis. Content will appear here.</p>
+    <h2>Phase 2: Critic + Gap Analysis <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 13 contradictions &middot; 15 claims verified &middot; 12 gaps found</p>
+
+    <h3>Critical Findings (BLOCKERs)</h3>
+    <table>
+      <tr><th>#</th><th>Finding</th><th>Severity</th><th>Resolution</th></tr>
+      <tr>
+        <td>C-1</td>
+        <td><code>EntityType</code> enum is promotion-coupled. <code>RequestManagementController</code> returns <code>ResponseWrapper&lt;UnifiedPromotion&gt;</code></td>
+        <td><span class="badge badge-red">BLOCKER</span></td>
+        <td>Separate TierController endpoint (Phase 4, B-1)</td>
+      </tr>
+      <tr>
+        <td>C-2</td>
+        <td>Soft-delete breaks ALL existing <code>PeProgramSlabDao</code> queries (no active filter)</td>
+        <td><span class="badge badge-red">BLOCKER</span></td>
+        <td>MongoDB-first architecture (Phase 4, B-2+B-3)</td>
+      </tr>
+      <tr>
+        <td>C-3</td>
+        <td>DRAFT tiers visible to evaluation engine (<code>SlabUpgradeService</code> loads all slabs)</td>
+        <td><span class="badge badge-red">BLOCKER</span></td>
+        <td>MongoDB-first &mdash; DRAFT never in MySQL (Phase 4, B-2+B-3)</td>
+      </tr>
+      <tr>
+        <td>C-6</td>
+        <td>"Evaluation logic unaffected" rated C6 with zero evidence</td>
+        <td><span class="badge badge-red">BLOCKER</span></td>
+        <td>Auto-resolved by MongoDB-first pattern</td>
+      </tr>
+    </table>
+
+    <h3>Gap Analysis: Verified Claims</h3>
+    <p><strong>15 claims checked</strong>: 11 confirmed, 4 partial. Key gaps: tier creation involves ruleset orchestration (<code>BasicProgramCreator</code>), <code>RequestManagementController</code> can't be reused, <code>PartnerProgramTierSyncConfiguration</code> references missed by BA.</p>
+
+    <h3>Confidence Adjustments</h3>
+    <ul>
+      <li>EntityType extension: BA C6 &rarr; Critic C3 (coupling deeper than enum addition)</li>
+      <li>"Evaluation unaffected": BA C6 &rarr; Critic C2 (zero evidence provided)</li>
+      <li>Soft-delete backward compat: BA C5 &rarr; Critic C3 (query-level incompatibility)</li>
+    </ul>
   </div>
 
-  <!-- Phase 3 placeholder -->
+  <!-- ============================================================ -->
+  <!-- Phase 3: UI Extraction (Skipped) -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-3">
     <h2>Phase 3: UI Extraction <span class="badge badge-blue">SKIPPED</span></h2>
-    <p>No UI screenshots provided. Phase skipped.</p>
+    <p>No UI screenshots provided. Backend-only implementation.</p>
   </div>
 
-  <!-- Phase 4 placeholder -->
+  <!-- ============================================================ -->
+  <!-- Phase 4: Blocker Resolution -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-4">
-    <h2>Phase 4: Blocker Resolution <span class="badge badge-amber">PENDING</span></h2>
-    <p>Grooming questions, blocker decisions. Content will appear here.</p>
+    <h2>Phase 4: Blocker Resolution <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 4 blockers resolved &middot; 4 HIGH issues resolved &middot; 4 grooming questions answered</p>
+
+    <h3>BLOCKER Decisions</h3>
+
+    <div class="decision-box">
+      <div class="label">B-1: EntityType / RequestManagementController coupling</div>
+      <p>Separate <code>TierController</code> endpoint: <code>POST /v3/tiers/{tierId}/status</code> with own <code>TierStatus</code> enum. Zero risk to promotions.</p>
+    </div>
+
+    <div class="decision-box">
+      <div class="label">B-2 + B-3: Soft-delete leakage + DRAFT in evaluation (MAJOR PIVOT)</div>
+      <p><strong>MongoDB-first architecture</strong> (like UnifiedPromotion). DRAFT/PENDING in MongoDB only. On APPROVE &rarr; sync to MySQL via Thrift. Evaluation engine reads MySQL only = completely unaffected.</p>
+    </div>
+
+    <div class="decision-box">
+      <div class="label">B-4: "Evaluation logic unaffected" claim</div>
+      <p>Auto-resolved: DRAFT tiers never enter <code>program_slabs</code>.</p>
+    </div>
+
+    <h3>Architecture Summary (from Blocker Decisions)</h3>
+    <div class="mermaid">
+flowchart LR
+    subgraph "Config (MongoDB)"
+        D[DRAFT] --> PA[PENDING]
+        PA -->|REJECT| D
+        PA -->|APPROVE| A[ACTIVE]
+        A --> S[STOPPED]
+    end
+    subgraph "Operational (MySQL)"
+        PS[program_slabs]
+        STR[strategies]
+    end
+    A -->|Thrift sync| PS
+    A -->|Thrift sync| STR
+    S -->|is_active=0| PS
+    </div>
+
+    <h3>Grooming Decisions</h3>
+    <table>
+      <tr><th>Question</th><th>Decision</th></tr>
+      <tr><td>GQ-1: dailyDowngradeEnabled scope</td><td>Program-level (not per-tier)</td></tr>
+      <tr><td>GQ-2: Soft-deleted tier members</td><td>User must migrate ALL members first</td></tr>
+      <tr><td>GQ-3: Member count in GET</td><td>Include (cross-service Thrift query)</td></tr>
+      <tr><td>GQ-4: PUT vs PATCH</td><td>PUT only (like UnifiedPromotion)</td></tr>
+    </table>
   </div>
 
-  <!-- Phase 5 placeholder -->
+  <!-- ============================================================ -->
+  <!-- Phase 5: Codebase Research -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-5">
-    <h2>Phase 5: Codebase Research <span class="badge badge-amber">PENDING</span></h2>
-    <p>Per-repo analysis, cross-repo tracing. Content will appear here.</p>
+    <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 3 repos analyzed &middot; 8 operations traced &middot; ~20 files affected</p>
+
+    <h3>Cross-Repo Change Map</h3>
+    <table>
+      <tr><th>Repo</th><th>New Files</th><th>Modified Files</th><th>Key Changes</th></tr>
+      <tr><td><strong>intouch-api-v3</strong></td><td>~14</td><td>~2</td><td>TierController, TierFacade, TierDocument, TierRepository, DTOs, TierStatus enum, TierValidator</td></tr>
+      <tr><td><strong>emf-parent</strong></td><td>1-2</td><td>4</td><td>ProgramSlab (is_active), PeProgramSlabDao (filter), PeCustomerEnrollmentDao (count), Thrift impl (deactivate + memberCount)</td></tr>
+      <tr><td><strong>cc-stack-crm</strong></td><td>0</td><td>2</td><td>program_slabs.sql (is_active column), customer_enrollment.sql (count index)</td></tr>
+    </table>
+
+    <h3>Critical Path: APPROVE Flow</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant TF as TierFacade
+    participant M as MongoDB
+    participant THR as Thrift
+    participant EMF as emf-parent
+    participant SQL as MySQL
+
+    C->>TF: POST /tiers/{id}/status APPROVE
+    TF->>M: Read TierDocument
+    TF->>TF: Build SlabInfo
+    TF->>THR: createOrUpdateSlab()
+    THR->>EMF: Thrift RPC
+    EMF->>SQL: INSERT/UPDATE program_slabs + strategies
+    SQL-->>EMF: OK
+    EMF-->>TF: SlabInfo (with MySQL ID)
+    TF->>M: Update status=ACTIVE, store slabId
+    </div>
+
+    <h3>Key Discoveries</h3>
+    <ul>
+      <li>Two MongoDB namespaces: primary (<code>mongoTemplate</code>) and EMF (<code>emfMongoTemplate</code>). Tier uses EMF namespace.</li>
+      <li>TierRepository MUST be registered in <code>EmfMongoConfig.includeFilters</code> or silently uses wrong DB.</li>
+      <li>Thresholds stored as CSV in <code>strategies.property_values</code> with <code>strategy_type=SLAB_UPGRADE</code>.</li>
+      <li>No <code>deactivateSlab</code> Thrift method exists &mdash; must be added.</li>
+      <li>No <code>getMemberCountPerSlab</code> Thrift method exists &mdash; must be added.</li>
+      <li><code>is_active</code> naming convention used in ~20 tables in cc-stack-crm.</li>
+      <li><code>customer_enrollment</code> needs new index for member count queries.</li>
+    </ul>
   </div>
 
-  <!-- Architecture placeholder -->
+  <!-- ============================================================ -->
+  <!-- Phase 6: HLD (Architect) -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-6">
-    <h2>Phase 6: HLD (Architect) <span class="badge badge-amber">PENDING</span></h2>
-    <p>Architecture diagrams, ADRs, API design. Content will appear here.</p>
+    <h2>Phase 6: HLD (Architect) <span class="badge badge-green">COMPLETE</span></h2>
+    <p class="timestamp">2026-04-06 &middot; 6 ADRs &middot; 6 endpoints &middot; 17-step implementation plan &middot; 4 sequence diagrams</p>
+
+    <h3>Architecture: MongoDB-First with SQL Sync on Approval</h3>
+    <div class="mermaid">
+graph TB
+    subgraph "Consumers"
+        UI[Garuda UI - Future]
+        AIRA[aiRa - Future]
+        EXT[External API Consumer]
+    end
+    subgraph "intouch-api-v3"
+        TC[TierController /v3/tiers]
+        TF[TierFacade]
+        TR[TierRepository - MongoDB]
+        THC[Thrift Client]
+    end
+    subgraph "MongoDB EMF namespace"
+        MONGO[(tiers collection)]
+    end
+    subgraph "emf-parent"
+        THRIFT[PointsEngineRuleConfigThriftImpl]
+        SVC[PointsEngineRuleService]
+        DAO[PeProgramSlabDao + PeStrategyDao + PeCustomerEnrollmentDao]
+    end
+    subgraph "MySQL"
+        PS[(program_slabs)]
+        ST[(strategies)]
+        CE[(customer_enrollment)]
+    end
+    UI --> TC
+    AIRA --> TC
+    EXT --> TC
+    TC --> TF
+    TF --> TR
+    TF --> THC
+    TR --> MONGO
+    THC -->|Thrift RPC| THRIFT
+    THRIFT --> SVC
+    SVC --> DAO
+    DAO --> PS
+    DAO --> ST
+    DAO --> CE
+    </div>
+
+    <h3>ADRs (Architecture Decision Records)</h3>
+    <table>
+      <tr><th>ADR</th><th>Decision</th><th>Key Rationale</th></tr>
+      <tr><td>ADR-1</td><td>MongoDB-First Architecture</td><td>DRAFT tiers isolated from evaluation engine. Rich document model for config.</td></tr>
+      <tr><td>ADR-2</td><td>Separate TierController</td><td>Zero risk to existing promotion flow. No RequestManagementController changes.</td></tr>
+      <tr><td>ADR-3</td><td>Soft Delete with <code>is_active</code></td><td>Matches ~20 table convention. Blast radius minimal (only ACTIVE in MySQL).</td></tr>
+      <tr><td>ADR-4</td><td>New TierStatus Enum</td><td>4 values vs PromotionStatus's 10. Clean separation of concerns.</td></tr>
+      <tr><td>ADR-5</td><td>EMF Thrift Boundary</td><td>Clean service boundary. Never call internal EMF methods directly.</td></tr>
+      <tr><td>ADR-6</td><td>Member Count via Cross-Service Query</td><td>New DAO method + index on customer_enrollment required.</td></tr>
+    </table>
+
+    <h3>API Contract</h3>
+    <div class="api-endpoint"><span class="method get">GET</span> /v3/tiers?includeInactive=false &rarr; <code>ResponseWrapper&lt;List&lt;TierResponse&gt;&gt;</code></div>
+    <div class="api-endpoint"><span class="method get">GET</span> /v3/tiers/{tierId} &rarr; <code>ResponseWrapper&lt;TierResponse&gt;</code></div>
+    <div class="api-endpoint"><span class="method post">POST</span> /v3/tiers &rarr; <code>ResponseWrapper&lt;TierResponse&gt;</code> (201, creates DRAFT in MongoDB)</div>
+    <div class="api-endpoint"><span class="method put">PUT</span> /v3/tiers/{tierId} &rarr; <code>ResponseWrapper&lt;TierResponse&gt;</code></div>
+    <div class="api-endpoint"><span class="method delete">DELETE</span> /v3/tiers/{tierId} &rarr; <code>ResponseWrapper&lt;null&gt;</code> (soft-delete with 4 validations)</div>
+    <div class="api-endpoint"><span class="method post">POST</span> /v3/tiers/{tierId}/status &rarr; <code>ResponseWrapper&lt;TierResponse&gt;</code> (SUBMIT/APPROVE/REJECT/STOP)</div>
+
+    <h3>Delete Validations</h3>
+    <ol>
+      <li>Cannot delete base tier (serialNumber=1)</li>
+      <li>Cannot delete if tier has members (count > 0)</li>
+      <li>Cannot delete if tier is downgrade target of another active tier</li>
+      <li>Cannot delete if referenced in PartnerProgramTierSyncConfiguration</li>
+    </ol>
+
+    <h3>MongoDB Document Model</h3>
+    <div class="mermaid">
+classDiagram
+    class TierDocument {
+        +String objectId
+        +String tierId UUID
+        +TierMetadata metadata
+        +EligibilityConfig eligibility
+        +ValidityConfig validity
+        +RenewalConfig renewal
+        +DowngradeConfig downgrade
+        +UpgradeBonusConfig upgradeBonus
+        +String parentId
+        +Integer version
+        +Integer slabId
+    }
+    class TierMetadata {
+        +Integer orgId
+        +Integer programId
+        +String name
+        +TierStatus status
+        +Integer serialNumber
+        +DateTime createdOn
+    }
+    class EligibilityConfig {
+        +String currentValueType
+        +Double thresholdValue
+        +Integer trackerId
+    }
+    class DowngradeConfig {
+        +String targetType
+        +Integer targetSlabId
+        +Boolean isDowngradeOnReturnEnabled
+    }
+    TierDocument --> TierMetadata
+    TierDocument --> EligibilityConfig
+    TierDocument --> DowngradeConfig
+    </div>
+
+    <h3>Approve Sequence (Critical Path)</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant TC as TierController
+    participant TF as TierFacade
+    participant TR as TierRepository
+    participant M as MongoDB
+    participant THR as Thrift Client
+    participant EMF as EMF Thrift Service
+    participant SQL as MySQL
+
+    C->>TC: POST /tiers/{id}/status APPROVE
+    TC->>TF: changeTierStatus(tierId, APPROVE)
+    TF->>TR: findByTierIdAndOrgId()
+    TR->>M: Query
+    M-->>TF: TierDocument PENDING_APPROVAL
+    TF->>TF: Validate status
+    TF->>TF: Build SlabInfo from doc
+    TF->>THR: createOrUpdateSlab(slabInfo)
+    THR->>EMF: Thrift RPC
+    EMF->>SQL: INSERT program_slabs + UPDATE strategies
+    SQL-->>EMF: OK
+    EMF-->>TF: SlabInfo with MySQL slabId
+    TF->>TF: Set status=ACTIVE store slabId
+    TF->>TR: save(TierDocument)
+    TR->>M: Update
+    TF-->>TC: TierResponse
+    TC-->>C: 200 ResponseWrapper
+    </div>
+
+    <h3>Schema Changes</h3>
+    <pre><code>-- program_slabs: Add soft-delete column
+ALTER TABLE program_slabs ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1;
+
+-- customer_enrollment: Add member count index
+CREATE INDEX idx_ce_slab_count ON customer_enrollment (org_id, program_id, current_slab_id, is_active);</code></pre>
+
+    <h3>Risks</h3>
+    <table>
+      <tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr>
+      <tr><td>Thrift IDL not in emf-parent repo</td><td><span class="badge badge-red">HIGH</span></td><td>May need Thrift repo changes + regeneration</td></tr>
+      <tr><td>MongoDB write OK but Thrift fails on APPROVE</td><td><span class="badge badge-red">HIGH</span></td><td>Retry + rollback MongoDB status to PENDING</td></tr>
+      <tr><td><code>is_active</code> not in all existing queries</td><td><span class="badge badge-amber">MED</span></td><td>Only 3 DAO queries to update (ACTIVE tiers only in MySQL)</td></tr>
+      <tr><td><code>customer_enrollment</code> index on large table</td><td><span class="badge badge-amber">MED</span></td><td>Schedule index creation during off-peak</td></tr>
+      <tr><td>Two sources of truth (Mongo + MySQL)</td><td><span class="badge badge-amber">MED</span></td><td>MongoDB authoritative for config. MySQL derived on APPROVE.</td></tr>
+    </table>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 6a: Impact Analysis (In Progress) -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-6a">
-    <h2>Phase 6a: Impact Analysis <span class="badge badge-amber">PENDING</span></h2>
-    <p>Blast radius, security, risk assessment. Content will appear here.</p>
+    <h2>Phase 6a: Impact Analysis <span class="badge badge-amber">IN PROGRESS</span></h2>
+    <p>Analyst (--impact mode) analyzing blast radius, security, performance, and GUARDRAILS compliance. Content will appear here after phase completes.</p>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- Phase 6b: Migration Planning (In Progress) -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-6b">
-    <h2>Phase 6b: Migration Planning <span class="badge badge-amber">PENDING</span></h2>
-    <p>Schema changes, migration scripts. Content will appear here (conditional).</p>
+    <h2>Phase 6b: Migration Planning <span class="badge badge-amber">IN PROGRESS</span></h2>
+    <p>Migrator analyzing schema changes: <code>is_active</code> column + <code>customer_enrollment</code> index. Content will appear here after phase completes.</p>
   </div>
 
-  <!-- LLD placeholder -->
+  <!-- ============================================================ -->
+  <!-- Remaining phases (placeholders) -->
+  <!-- ============================================================ -->
   <div class="card" id="phase-7">
     <h2>Phase 7: LLD (Designer) <span class="badge badge-amber">PENDING</span></h2>
-    <p>Interface contracts, class diagrams. Content will appear here.</p>
+    <p>Interface contracts, class diagrams, compile-safe signatures. Content will appear here.</p>
   </div>
 
-  <!-- QA placeholder -->
   <div class="card" id="phase-8">
     <h2>Phase 8: QA <span class="badge badge-amber">PENDING</span></h2>
-    <p>Test scenarios, edge cases. Content will appear here.</p>
+    <p>Test scenarios, edge cases, acceptance criteria. Content will appear here.</p>
   </div>
 
-  <!-- Developer placeholder -->
   <div class="card" id="phase-9">
     <h2>Phase 9: Developer <span class="badge badge-amber">PENDING</span></h2>
     <p>Implementation stats, code changes. Content will appear here.</p>
@@ -213,19 +575,16 @@
     <p>Architecture vs code gap analysis. Content will appear here.</p>
   </div>
 
-  <!-- SDET placeholder -->
   <div class="card" id="phase-10">
     <h2>Phase 10: SDET <span class="badge badge-amber">PENDING</span></h2>
     <p>Test automation plan. Content will appear here.</p>
   </div>
 
-  <!-- Reviewer placeholder -->
   <div class="card" id="phase-11">
     <h2>Phase 11: Reviewer <span class="badge badge-amber">PENDING</span></h2>
     <p>Review findings, blockers. Content will appear here.</p>
   </div>
 
-  <!-- Blueprint placeholder -->
   <div class="card" id="phase-12">
     <h2>Phase 12: Blueprint <span class="badge badge-amber">PENDING</span></h2>
     <p>Final documentation, blueprint HTML. Content will appear here.</p>
