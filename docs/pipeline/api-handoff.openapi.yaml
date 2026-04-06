@@ -1,0 +1,1091 @@
+openapi: 3.1.0
+
+info:
+  title: Tier CRUD API
+  version: 1.0.0
+  description: |
+    Tier CRUD REST APIs for the Capillary loyalty platform (intouch-api-v3).
+    Implements a maker-checker approval workflow: tiers are created in DRAFT,
+    submitted for approval, approved to become ACTIVE (synced to loyalty engine),
+    or soft-deleted.
+
+    **Auth**: All endpoints require a Bearer token. OrgId is derived server-side
+    from the token — never pass it explicitly.
+
+    **Response envelope**: All responses (success and error) are wrapped in
+    `{ "data": ..., "errors": [...], "warnings": [...] }`.
+
+servers:
+  - url: https://api.example.capillary.in
+    description: Production (replace with actual host)
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Tiers
+    description: Tier CRUD and lifecycle management
+
+paths:
+
+  /v3/tiers:
+
+    get:
+      tags: [Tiers]
+      operationId: listTiers
+      summary: List tiers for a program
+      description: |
+        Returns all tiers for the specified program.
+        By default excludes STOPPED tiers. Pass `includeInactive=true` to include them.
+        `memberCount` is populated for ACTIVE tiers only.
+      parameters:
+        - name: programId
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 1001
+          description: The loyalty program to list tiers for.
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: false
+          description: If true, includes STOPPED tiers in the response.
+      responses:
+        '200':
+          description: Tiers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TierListResponse'
+              example:
+                data:
+                  - tierId: "a1b2c3d4-0000-0000-0000-000000000001"
+                    objectId: "6614a2b3e1f0a1234567890a"
+                    slabId: 10
+                    name: "Silver"
+                    description: "Entry-level tier"
+                    colorCode: "#C0C0C0"
+                    serialNumber: 1
+                    status: "ACTIVE"
+                    eligibility:
+                      currentValueType: "CUMULATIVE_PURCHASES"
+                      thresholdValue: 0.01
+                      trackerId: null
+                      trackerConditionId: null
+                    validity:
+                      periodType: "MONTHS"
+                      periodValue: 12
+                    renewal: null
+                    downgrade: null
+                    upgradeBonus: null
+                    metadata: null
+                    memberCount: 1842
+                    programId: 1001
+                    orgId: 50001
+                    parentId: null
+                    createdOn: "2025-01-15T08:00:00Z"
+                    lastModifiedOn: "2025-01-15T08:00:00Z"
+                    createdBy: 100
+                    lastModifiedBy: 100
+                    version: 1
+                  - tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    objectId: "6614a2b3e1f0a1234567890b"
+                    slabId: 42
+                    name: "Gold"
+                    description: "Mid-tier loyalty level for regular customers"
+                    colorCode: "#FFD700"
+                    serialNumber: 2
+                    status: "ACTIVE"
+                    eligibility:
+                      currentValueType: "CUMULATIVE_PURCHASES"
+                      thresholdValue: 5000.00
+                      trackerId: null
+                      trackerConditionId: null
+                    validity:
+                      periodType: "MONTHS"
+                      periodValue: 12
+                    renewal:
+                      conditions:
+                        - conditionType: "PURCHASES"
+                          thresholdValue: 3000.00
+                          timeUnit: "MONTHS"
+                      conditionOperator: "ANY"
+                      customExpression: null
+                      extensionType: "BY_VALIDITY_PERIOD"
+                    downgrade:
+                      targetType: "SINGLE_BELOW"
+                      targetSlabId: null
+                      gracePeriodDays: 30
+                      isDowngradeOnReturnEnabled: false
+                      isDowngradeOnPartnerProgramDeLinkingEnabled: false
+                      confirmationConfig: null
+                      reminders: null
+                    upgradeBonus:
+                      points: 500
+                    metadata: null
+                    memberCount: 376
+                    programId: 1001
+                    orgId: 50001
+                    parentId: null
+                    createdOn: "2025-01-15T09:00:00Z"
+                    lastModifiedOn: "2025-03-20T14:22:00Z"
+                    createdBy: 100
+                    lastModifiedBy: 110
+                    version: 3
+                errors: null
+                warnings: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [Tiers]
+      operationId: createTier
+      summary: Create a new tier
+      description: |
+        Creates a new tier in DRAFT status. The tier does not affect the live loyalty
+        engine until it is approved via POST /v3/tiers/{tierId}/status with action=APPROVE.
+
+        `orgId` is extracted from the auth token automatically.
+
+        Business rules enforced:
+        - `eligibility.currentValueType` is immutable per program (must match existing tiers)
+        - `eligibility.thresholdValue` must be strictly greater than all lower-serialNumber tiers
+        - `serialNumber` must be unique per program (active/draft tiers only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TierRequest'
+            examples:
+              minimal:
+                summary: Minimal (base tier)
+                value:
+                  programId: 1001
+                  name: "Silver"
+                  serialNumber: 1
+                  eligibility:
+                    currentValueType: "CUMULATIVE_PURCHASES"
+                    thresholdValue: 0.01
+              full:
+                summary: Full example
+                value:
+                  programId: 1001
+                  name: "Gold"
+                  description: "Mid-tier loyalty level for regular customers"
+                  colorCode: "#FFD700"
+                  serialNumber: 2
+                  eligibility:
+                    currentValueType: "CUMULATIVE_PURCHASES"
+                    thresholdValue: 5000.00
+                    trackerId: null
+                    trackerConditionId: null
+                  validity:
+                    periodType: "MONTHS"
+                    periodValue: 12
+                  renewal:
+                    conditions:
+                      - conditionType: "PURCHASES"
+                        thresholdValue: 3000.00
+                        timeUnit: "MONTHS"
+                    conditionOperator: "ANY"
+                    customExpression: null
+                    extensionType: "BY_VALIDITY_PERIOD"
+                  downgrade:
+                    targetType: "SINGLE_BELOW"
+                    targetSlabId: null
+                    gracePeriodDays: 30
+                    isDowngradeOnReturnEnabled: false
+                    isDowngradeOnPartnerProgramDeLinkingEnabled: false
+                  upgradeBonus:
+                    points: 500
+                  metadata: null
+      responses:
+        '201':
+          description: Tier created in DRAFT status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TierSingleResponse'
+              example:
+                data:
+                  tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  objectId: "6614a2b3e1f0a1234567890b"
+                  slabId: null
+                  name: "Gold"
+                  description: "Mid-tier loyalty level for regular customers"
+                  colorCode: "#FFD700"
+                  serialNumber: 2
+                  status: "DRAFT"
+                  eligibility:
+                    currentValueType: "CUMULATIVE_PURCHASES"
+                    thresholdValue: 5000.00
+                    trackerId: null
+                    trackerConditionId: null
+                  validity:
+                    periodType: "MONTHS"
+                    periodValue: 12
+                  renewal:
+                    conditions:
+                      - conditionType: "PURCHASES"
+                        thresholdValue: 3000.00
+                        timeUnit: "MONTHS"
+                    conditionOperator: "ANY"
+                    customExpression: null
+                    extensionType: "BY_VALIDITY_PERIOD"
+                  downgrade:
+                    targetType: "SINGLE_BELOW"
+                    targetSlabId: null
+                    gracePeriodDays: 30
+                    isDowngradeOnReturnEnabled: false
+                    isDowngradeOnPartnerProgramDeLinkingEnabled: false
+                    confirmationConfig: null
+                    reminders: null
+                  upgradeBonus:
+                    points: 500
+                  metadata: null
+                  memberCount: null
+                  programId: 1001
+                  orgId: 50001
+                  parentId: null
+                  createdOn: "2026-04-06T10:30:00Z"
+                  lastModifiedOn: "2026-04-06T10:30:00Z"
+                  createdBy: 123
+                  lastModifiedBy: 123
+                  version: 1
+                errors: null
+                warnings: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v3/tiers/{tierId}:
+
+    get:
+      tags: [Tiers]
+      operationId: getTier
+      summary: Get a single tier
+      description: |
+        Retrieves full configuration for one tier by its immutable tierId (UUID).
+
+        STOPPED tiers are returned with status=STOPPED (not 404).
+        404 only occurs if the tierId does not exist for this org.
+      parameters:
+        - $ref: '#/components/parameters/tierId'
+      responses:
+        '200':
+          description: Tier found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TierSingleResponse'
+              example:
+                data:
+                  tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  objectId: "6614a2b3e1f0a1234567890b"
+                  slabId: 42
+                  name: "Gold"
+                  description: "Mid-tier loyalty level for regular customers"
+                  colorCode: "#FFD700"
+                  serialNumber: 2
+                  status: "ACTIVE"
+                  eligibility:
+                    currentValueType: "CUMULATIVE_PURCHASES"
+                    thresholdValue: 5000.00
+                    trackerId: null
+                    trackerConditionId: null
+                  validity:
+                    periodType: "MONTHS"
+                    periodValue: 12
+                  renewal:
+                    conditions:
+                      - conditionType: "PURCHASES"
+                        thresholdValue: 3000.00
+                        timeUnit: "MONTHS"
+                    conditionOperator: "ANY"
+                    customExpression: null
+                    extensionType: "BY_VALIDITY_PERIOD"
+                  downgrade:
+                    targetType: "SINGLE_BELOW"
+                    targetSlabId: null
+                    gracePeriodDays: 30
+                    isDowngradeOnReturnEnabled: false
+                    isDowngradeOnPartnerProgramDeLinkingEnabled: false
+                    confirmationConfig: null
+                    reminders: null
+                  upgradeBonus:
+                    points: 500
+                  metadata: null
+                  memberCount: 376
+                  programId: 1001
+                  orgId: 50001
+                  parentId: null
+                  createdOn: "2025-01-15T09:00:00Z"
+                  lastModifiedOn: "2025-03-20T14:22:00Z"
+                  createdBy: 100
+                  lastModifiedBy: 110
+                  version: 3
+                errors: null
+                warnings: null
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags: [Tiers]
+      operationId: updateTier
+      summary: Update a tier (full replace)
+      description: |
+        Updates a tier's configuration. This is a full-replace PUT — send all fields.
+
+        Behaviour by current status:
+        - DRAFT: updates in place
+        - ACTIVE: creates a new DRAFT (copy-on-write). The ACTIVE version remains live.
+          If a DRAFT already exists for this ACTIVE tier, that DRAFT is updated instead.
+        - PENDING_APPROVAL: returns 400 — approve or reject first.
+        - STOPPED: returns 404.
+
+        The `tierId` in the path is the immutable UUID. For ACTIVE tiers, the returned
+        DRAFT will have the same `tierId` but a different `objectId` and `parentId` set.
+      parameters:
+        - $ref: '#/components/parameters/tierId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TierRequest'
+            example:
+              programId: 1001
+              name: "Gold Premium"
+              description: "Updated tier — raised threshold to 6000"
+              colorCode: "#FFD700"
+              serialNumber: 2
+              eligibility:
+                currentValueType: "CUMULATIVE_PURCHASES"
+                thresholdValue: 6000.00
+              validity:
+                periodType: "MONTHS"
+                periodValue: 12
+              downgrade:
+                targetType: "SINGLE_BELOW"
+                gracePeriodDays: 60
+                isDowngradeOnReturnEnabled: false
+                isDowngradeOnPartnerProgramDeLinkingEnabled: false
+              upgradeBonus:
+                points: 750
+      responses:
+        '200':
+          description: Tier updated (or new DRAFT created for ACTIVE tier)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TierSingleResponse'
+              example:
+                data:
+                  tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  objectId: "6614a2b3e1f0a1234567890c"
+                  slabId: null
+                  name: "Gold Premium"
+                  status: "DRAFT"
+                  parentId: "6614a2b3e1f0a1234567890b"
+                  version: 1
+                  programId: 1001
+                  orgId: 50001
+                  createdOn: "2026-04-06T11:00:00Z"
+                  lastModifiedOn: "2026-04-06T11:00:00Z"
+                  createdBy: 123
+                  lastModifiedBy: 123
+                errors: null
+                warnings: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Tiers]
+      operationId: deleteTier
+      summary: Soft-delete a tier
+      description: |
+        Deactivates a tier. The tier record is preserved but excluded from the live
+        loyalty engine. This is a soft delete — data is not physically removed.
+
+        Pre-conditions (all must pass):
+        - Tier must not be the base tier (lowest serialNumber in the program)
+        - Tier must have zero enrolled members
+        - Tier must not be the configured downgrade target of any other active tier
+
+        Note: Partner program sync validation (PartnerProgramTierSyncConfiguration check)
+        is planned but not yet active in the current implementation.
+      parameters:
+        - $ref: '#/components/parameters/tierId'
+      responses:
+        '200':
+          description: Tier soft-deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+              example:
+                data: null
+                errors: null
+                warnings: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v3/tiers/{tierId}/status:
+
+    post:
+      tags: [Tiers]
+      operationId: changeTierStatus
+      summary: Change tier status (submit / approve / reject / stop)
+      description: |
+        Drives the tier through its approval lifecycle.
+
+        Valid transitions:
+        - DRAFT + SUBMIT_FOR_APPROVAL → PENDING_APPROVAL
+        - PENDING_APPROVAL + APPROVE → ACTIVE (triggers Thrift sync to MySQL loyalty engine)
+        - PENDING_APPROVAL + REJECT → DRAFT (comment required)
+        - ACTIVE + STOP → STOPPED (deactivates in loyalty engine)
+
+        The `action` field is case-insensitive.
+
+        On APPROVE: a synchronous Thrift call is made to the loyalty engine. This may
+        take 1–3 seconds. If it fails, the tier reverts to PENDING_APPROVAL and a 500 is
+        returned — the frontend should offer a retry.
+      parameters:
+        - $ref: '#/components/parameters/tierId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TierStatusRequest'
+            examples:
+              submit:
+                summary: Submit for approval
+                value:
+                  action: "SUBMIT_FOR_APPROVAL"
+              approve:
+                summary: Approve
+                value:
+                  action: "APPROVE"
+              reject:
+                summary: Reject (comment required)
+                value:
+                  action: "REJECT"
+                  comment: "Threshold value conflicts with Silver tier. Please revise."
+              stop:
+                summary: Stop (retire)
+                value:
+                  action: "STOP"
+                  comment: "Retiring as part of Q2 program restructure."
+      responses:
+        '200':
+          description: Status changed successfully. Returns updated tier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TierSingleResponse'
+              examples:
+                afterSubmit:
+                  summary: After SUBMIT_FOR_APPROVAL
+                  value:
+                    data:
+                      tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                      status: "PENDING_APPROVAL"
+                      slabId: null
+                      memberCount: null
+                      programId: 1001
+                      orgId: 50001
+                      version: 2
+                    errors: null
+                    warnings: null
+                afterApprove:
+                  summary: After APPROVE
+                  value:
+                    data:
+                      tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                      status: "ACTIVE"
+                      slabId: 42
+                      memberCount: 0
+                      programId: 1001
+                      orgId: 50001
+                      version: 3
+                    errors: null
+                    warnings: null
+                afterReject:
+                  summary: After REJECT
+                  value:
+                    data:
+                      tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                      status: "DRAFT"
+                      slabId: null
+                      memberCount: null
+                      programId: 1001
+                      orgId: 50001
+                      version: 2
+                    errors: null
+                    warnings: null
+                afterStop:
+                  summary: After STOP
+                  value:
+                    data:
+                      tierId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                      status: "STOPPED"
+                      slabId: 42
+                      memberCount: 376
+                      programId: 1001
+                      orgId: 50001
+                      version: 4
+                    errors: null
+                    warnings: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Pass the auth token. OrgId is derived server-side — do not include it in requests.
+
+  parameters:
+    tierId:
+      name: tierId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+      description: The immutable tier UUID from a previous create/list response.
+
+  schemas:
+
+    # ─── Enums ────────────────────────────────────────────────────────────────
+
+    TierStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, ACTIVE, STOPPED, SNAPSHOT]
+      example: "ACTIVE"
+      description: |
+        Lifecycle status of a tier.
+        - DRAFT: created, not yet submitted
+        - PENDING_APPROVAL: submitted, awaiting approval
+        - ACTIVE: live in loyalty engine
+        - STOPPED: deactivated (soft-deleted)
+        - SNAPSHOT: system-managed historical version (read-only, never send in requests)
+
+    TierAction:
+      type: string
+      enum: [SUBMIT_FOR_APPROVAL, APPROVE, REJECT, STOP]
+      example: "APPROVE"
+      description: Action to apply to a tier. Case-insensitive.
+
+    # ─── Nested Config Objects ────────────────────────────────────────────────
+
+    EligibilityConfig:
+      type: object
+      required:
+        - currentValueType
+        - thresholdValue
+      properties:
+        currentValueType:
+          type: string
+          enum: [CURRENT_POINTS, CUMULATIVE_POINTS, CUMULATIVE_PURCHASES, TRACKER_VALUE_BASED]
+          example: "CUMULATIVE_PURCHASES"
+          description: The KPI used to evaluate tier membership. Immutable per program after first tier is created.
+        thresholdValue:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          example: 5000.00
+          description: Minimum value to enter/stay in this tier. Must be strictly ordered across the tier hierarchy.
+        trackerId:
+          type: integer
+          nullable: true
+          example: null
+          description: Required when currentValueType is TRACKER_VALUE_BASED.
+        trackerConditionId:
+          type: integer
+          nullable: true
+          example: null
+          description: Optional condition on the tracker.
+
+    ValidityConfig:
+      type: object
+      required:
+        - periodType
+        - periodValue
+      properties:
+        periodType:
+          type: string
+          enum: [MONTHS, YEARS, DAYS]
+          example: "MONTHS"
+          description: Unit of the validity period.
+        periodValue:
+          type: integer
+          minimum: 1
+          example: 12
+          description: Duration in the specified unit. Must be >= 1.
+
+    RenewalCondition:
+      type: object
+      properties:
+        conditionType:
+          type: string
+          example: "PURCHASES"
+          description: Type of renewal condition. Known values include PURCHASES, VISITS, POINTS, TRACKER. Full list is TBD.
+        thresholdValue:
+          type: number
+          format: double
+          example: 3000.00
+          description: The threshold the member must achieve.
+        timeUnit:
+          type: string
+          example: "MONTHS"
+          description: Unit for the time window (e.g. MONTHS, DAYS).
+
+    RenewalConfig:
+      type: object
+      nullable: true
+      properties:
+        conditions:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/RenewalCondition'
+          example:
+            - conditionType: "PURCHASES"
+              thresholdValue: 3000.00
+              timeUnit: "MONTHS"
+        conditionOperator:
+          type: string
+          enum: [ANY, ALL, CUSTOM]
+          nullable: true
+          example: "ANY"
+          description: How to combine multiple conditions.
+        customExpression:
+          type: string
+          nullable: true
+          example: null
+          description: Required when conditionOperator is CUSTOM.
+        extensionType:
+          type: string
+          enum: [BY_MONTH, BY_VALIDITY_PERIOD, FROM_FIXED_DATE]
+          nullable: true
+          example: "BY_VALIDITY_PERIOD"
+          description: How validity is extended on renewal.
+
+    DowngradeConfig:
+      type: object
+      nullable: true
+      properties:
+        targetType:
+          type: string
+          enum: [SINGLE_BELOW, THRESHOLD_BASED, LOWEST]
+          nullable: true
+          example: "SINGLE_BELOW"
+          description: Rule for choosing which tier to downgrade to.
+        targetSlabId:
+          type: integer
+          nullable: true
+          example: null
+          description: Specific target slab ID. Used for pinpointing exact downgrade target.
+        gracePeriodDays:
+          type: integer
+          nullable: true
+          example: 30
+          description: Days before downgrade is applied after threshold is missed.
+        isDowngradeOnReturnEnabled:
+          type: boolean
+          default: false
+          example: false
+          description: Whether return transactions can trigger a downgrade.
+        isDowngradeOnPartnerProgramDeLinkingEnabled:
+          type: boolean
+          default: false
+          example: false
+          description: Whether de-linking from a partner program triggers downgrade.
+        confirmationConfig:
+          nullable: true
+          example: null
+          description: "[TBD] Opaque JSON object. Schema not yet finalized."
+        reminders:
+          nullable: true
+          example: null
+          description: "[TBD] Opaque JSON object. Schema not yet finalized."
+
+    UpgradeBonusConfig:
+      type: object
+      nullable: true
+      properties:
+        points:
+          type: integer
+          nullable: true
+          example: 500
+          description: Bonus points awarded when a member upgrades into this tier. null or 0 means no bonus.
+
+    # ─── Request DTOs ─────────────────────────────────────────────────────────
+
+    TierRequest:
+      type: object
+      required:
+        - programId
+        - name
+        - serialNumber
+        - eligibility
+      properties:
+        programId:
+          type: integer
+          example: 1001
+          description: The loyalty program this tier belongs to.
+        name:
+          type: string
+          maxLength: 100
+          example: "Gold"
+          description: Display name. Required, non-blank, max 100 chars.
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "Mid-tier loyalty level for regular customers"
+        colorCode:
+          type: string
+          nullable: true
+          pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
+          example: "#FFD700"
+          description: Hex color code. e.g. "#FFD700" or "#FFF".
+        serialNumber:
+          type: integer
+          minimum: 1
+          example: 2
+          description: Position in tier hierarchy. 1 = base tier. Must be unique per program.
+        eligibility:
+          $ref: '#/components/schemas/EligibilityConfig'
+        validity:
+          $ref: '#/components/schemas/ValidityConfig'
+        renewal:
+          $ref: '#/components/schemas/RenewalConfig'
+        downgrade:
+          $ref: '#/components/schemas/DowngradeConfig'
+        upgradeBonus:
+          $ref: '#/components/schemas/UpgradeBonusConfig'
+        metadata:
+          type: string
+          maxLength: 30
+          nullable: true
+          example: null
+          description: Internal metadata field (max 30 chars). Rarely needed by API consumers.
+
+    TierStatusRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [SUBMIT_FOR_APPROVAL, APPROVE, REJECT, STOP]
+          example: "APPROVE"
+          description: The action to apply. Case-insensitive. REJECT requires comment.
+        comment:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: null
+          description: Required when action is REJECT. Optional for other actions. Max 500 chars.
+
+    # ─── Response DTOs ────────────────────────────────────────────────────────
+
+    TierResponse:
+      type: object
+      properties:
+        tierId:
+          type: string
+          format: uuid
+          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+          description: Immutable UUID. Use for all subsequent calls.
+        objectId:
+          type: string
+          example: "6614a2b3e1f0a1234567890b"
+          description: MongoDB internal document ID.
+        slabId:
+          type: integer
+          nullable: true
+          example: 42
+          description: MySQL loyalty-engine ID. null for DRAFT and PENDING_APPROVAL.
+        name:
+          type: string
+          example: "Gold"
+        description:
+          type: string
+          nullable: true
+          example: "Mid-tier loyalty level for regular customers"
+        colorCode:
+          type: string
+          nullable: true
+          example: "#FFD700"
+        serialNumber:
+          type: integer
+          example: 2
+        status:
+          $ref: '#/components/schemas/TierStatus'
+        eligibility:
+          $ref: '#/components/schemas/EligibilityConfig'
+        validity:
+          $ref: '#/components/schemas/ValidityConfig'
+        renewal:
+          $ref: '#/components/schemas/RenewalConfig'
+        downgrade:
+          $ref: '#/components/schemas/DowngradeConfig'
+        upgradeBonus:
+          $ref: '#/components/schemas/UpgradeBonusConfig'
+        metadata:
+          type: string
+          nullable: true
+          example: null
+        memberCount:
+          type: integer
+          format: int64
+          nullable: true
+          example: 376
+          description: Number of enrolled members. null for DRAFT/PENDING_APPROVAL. Populated for ACTIVE/STOPPED.
+        programId:
+          type: integer
+          example: 1001
+        orgId:
+          type: integer
+          format: int64
+          example: 50001
+          description: Tenant ID. Always present.
+        parentId:
+          type: string
+          nullable: true
+          example: null
+          description: If this is a DRAFT revision of an ACTIVE tier, this is the objectId of that ACTIVE version.
+        createdOn:
+          type: string
+          format: date-time
+          example: "2026-04-06T10:30:00Z"
+          description: ISO-8601 UTC timestamp.
+        lastModifiedOn:
+          type: string
+          format: date-time
+          example: "2026-04-06T10:30:00Z"
+        createdBy:
+          type: integer
+          example: 123
+          description: User ID of creator.
+        lastModifiedBy:
+          type: integer
+          example: 123
+          description: User ID of last modifier.
+        version:
+          type: integer
+          example: 1
+          description: Document version. Starts at 1, incremented on each update.
+
+    # ─── Envelope Wrappers ────────────────────────────────────────────────────
+
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int64
+          example: 400
+          description: Numeric error code. Mirrors HTTP status in current implementation.
+        message:
+          type: string
+          example: "name is required"
+
+    ApiWarning:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Deprecation notice: this field will be removed in v4."
+
+    TierSingleResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TierResponse'
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiError'
+          example: null
+        warnings:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          example: null
+
+    TierListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TierResponse'
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiError'
+          example: null
+        warnings:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          example: null
+
+    EmptyResponse:
+      type: object
+      properties:
+        data:
+          nullable: true
+          example: null
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiError'
+          example: null
+        warnings:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          example: null
+
+    ErrorResponse:
+      type: object
+      properties:
+        data:
+          nullable: true
+          example: null
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            - code: 400
+              message: "name is required"
+        warnings:
+          nullable: true
+          example: null
+
+  # ─── Reusable Responses ──────────────────────────────────────────────────────
+
+  responses:
+    BadRequest:
+      description: Bad request — validation failure or invalid state transition
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            fieldValidation:
+              summary: Field validation failure
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "name is required"
+                warnings: null
+            kpiMismatch:
+              summary: KPI type mismatch
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "KPI type mismatch: program uses 'CUMULATIVE_PURCHASES' but request specifies 'CURRENT_POINTS'. KPI type is immutable per program."
+                warnings: null
+            invalidTransition:
+              summary: Invalid status transition
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "Invalid status transition: cannot apply APPROVE to tier in DRAFT status"
+                warnings: null
+            rejectNoComment:
+              summary: REJECT without comment
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "Comment is required when rejecting a tier"
+                warnings: null
+            baseTierDelete:
+              summary: Cannot delete base tier
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "Cannot delete base tier (serialNumber=1)"
+                warnings: null
+            membersExist:
+              summary: Cannot delete tier with members
+              value:
+                data: null
+                errors:
+                  - code: 400
+                    message: "Cannot delete tier with 376 enrolled members. Migrate members first."
+                warnings: null
+
+    NotFound:
+      description: Tier not found for this org
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: 404
+                message: "Tier not found: f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            warnings: null
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: 500
+                message: "Something went wrong. Please try again."
+            warnings: null
