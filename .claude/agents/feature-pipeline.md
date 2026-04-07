@@ -57,7 +57,7 @@ Enter your choice (1-4):
 I need a few inputs to get started:
 
 1. Feature name: _______________
-2. Ticket ID (for git branch raidlc/<ticket>): _______________
+2. Ticket ID (for git branch aidlc/<ticket>): _______________
 3. Artifacts path: _______________
 
 4. BRD source (required — provide one):
@@ -159,7 +159,7 @@ For each repo in `code_repos`, verify git branch state:
 ```
 cd <repo-path>
 current=$(git branch --show-current)
-expected=raidlc/<ticket>  # from pipeline-state.json git_branches
+expected=aidlc/<ticket>  # from pipeline-state.json git_branches
 ```
 - If `current == expected`: OK.
 - If `current != expected` but branch exists: `git checkout <expected>`.
@@ -172,7 +172,7 @@ Show:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Feature: <name>
-Ticket: raidlc/<ticket>
+Ticket: aidlc/<ticket>
 Artifacts: <path>
 
 Completed phases:
@@ -219,8 +219,8 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
     "2": {"status": "pending"},
     ...
   },
-  "git_branch": "raidlc/CAP-12345",
-  "git_tags": ["raidlc/CAP-12345/phase-00", "raidlc/CAP-12345/phase-01"]
+  "git_branch": "aidlc/CAP-12345",
+  "git_tags": ["aidlc/CAP-12345/phase-00", "aidlc/CAP-12345/phase-01"]
 }
 ```
 
@@ -256,13 +256,13 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    # d. Fetch + pull latest
    git fetch origin && git pull origin <default-branch>
    # e. Create feature branch
-   git checkout -b raidlc/<ticket>
+   git checkout -b aidlc/<ticket>
    ```
    Record per-repo branch state in `pipeline-state.json`:
    ```json
    "git_branches": {
-     "pointsengine-emf/": {"default_branch": "master", "feature_branch": "raidlc/CAP-12345"},
-     "/Users/.../intouch-api-v3": {"default_branch": "main", "feature_branch": "raidlc/CAP-12345"}
+     "pointsengine-emf/": {"default_branch": "master", "feature_branch": "aidlc/CAP-12345"},
+     "/Users/.../intouch-api-v3": {"default_branch": "main", "feature_branch": "aidlc/CAP-12345"}
    }
    ```
 6. Initialize `session-memory.md` with the template from `/workflow` skill
@@ -323,7 +323,7 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    ```
    Creates the run folder page. Store returned `run_page_id` in `pipeline-state.json` under `confluence`.
 10. Write `pipeline-state.json` (include `dashboard_enabled: true/false`, `confluence` block)
-11. Create git tag: `git tag -f raidlc/<ticket>/phase-00`
+11. Create git tag: `git tag -f aidlc/<ticket>/phase-00`
 12. Show confirmation and proceed to Phase 1
 
 ---
@@ -379,7 +379,7 @@ ProductEx runs in background. BA does NOT wait for it — they work simultaneous
 9. Update `process-log.md` with Phase 1 summary
 10. Update `approach-log.md` with questions asked and answers received
 11. Write `pipeline-state.json`
-12. Git: `git add <artifacts>/*.md && git commit -m "raidlc: BA + PRD phase complete" && git tag -f raidlc/<ticket>/phase-01`
+12. Git: `git add <artifacts>/*.md && git commit -m "aidlc: BA + PRD phase complete" && git tag -f aidlc/<ticket>/phase-01`
 
 **Pause prompt**:
 ```
@@ -387,7 +387,7 @@ ProductEx runs in background. BA does NOT wait for it — they work simultaneous
 ✅ Phase 1: BA Deep-Dive + PRD Generation complete
 📄 Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
 📝 Session memory updated
-🏷️  Snapshot: raidlc/<ticket>/phase-01
+🏷️  Snapshot: aidlc/<ticket>/phase-01
 
 Next: Phase 2 — Critic + Gap Analysis
 Commands: continue | status | revert | exit
@@ -811,7 +811,7 @@ This phase runs TWO subagents in parallel:
    
    Reality (what was BUILT):
    - All code files changed/created by Developer in Phase 10
-   - Run: git diff raidlc/<ticket>/phase-09..HEAD --name-only to find changed files
+   - Run: git diff aidlc/<ticket>/phase-09..HEAD --name-only to find changed files
    
    For each architectural decision in 01-architect.md:
    1. Is it reflected in the code? (module boundary respected? pattern followed?)
@@ -942,7 +942,7 @@ This phase runs TWO subagents in parallel:
     [N] No  — skip, proceed to completion
     ```
     If user chooses [Y]:
-    - Invoke `/code-review` with args: `<repo-name> <default-branch> raidlc/<ticket>`
+    - Invoke `/code-review` with args: `<repo-name> <default-branch> aidlc/<ticket>`
     - Append findings to `07-reviewer.md` under a new `## Code Quality Review (Spring Best Practices)` section
     - Apply the same gap routing (R/M/A) for any Critical or Major findings
 11. **Invoke superpower** to guide completion:
@@ -967,8 +967,8 @@ This phase runs TWO subagents in parallel:
 5. Final git commit:
    ```
    git add -A
-   git commit -m "raidlc/<ticket>: feature pipeline complete — <feature name>"
-   git tag -f raidlc/<ticket>/complete
+   git commit -m "aidlc/<ticket>: feature pipeline complete — <feature name>"
+   git tag -f aidlc/<ticket>/complete
    ```
 6. Show final summary:
    ```
@@ -976,7 +976,7 @@ This phase runs TWO subagents in parallel:
    🎉 FEATURE PIPELINE COMPLETE
    
    Feature: <name>
-   Ticket: raidlc/<ticket>
+   Ticket: aidlc/<ticket>
    
    📊 Stats:
      Phases completed: 14/14
@@ -990,12 +990,12 @@ This phase runs TWO subagents in parallel:
      
    📁 Artifacts: <artifacts-path>/
    🌐 Blueprint: <feature-name>-blueprint.html
-   🏷️  Git tag: raidlc/<ticket>/complete
+   🏷️  Git tag: aidlc/<ticket>/complete
    
    Next steps:
      • Open blueprint HTML in browser for stakeholder review
-     • Create PR: gh pr create --base main --head raidlc/<ticket>
-     • Or: git merge raidlc/<ticket> into main
+     • Create PR: gh pr create --base main --head aidlc/<ticket>
+     • Or: git merge aidlc/<ticket> into main
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ```
 
@@ -1218,7 +1218,7 @@ After each phase, show:
 ✅ Phase N: <Phase Name> complete
 📄 Artifacts: <list of files produced>
 📝 Session memory updated: <what was added>
-🏷️  Snapshot: raidlc/<ticket>/phase-<NN>
+🏷️  Snapshot: aidlc/<ticket>/phase-<NN>
 
 ⚠️  Blockers: <list or "None">
 
@@ -1292,7 +1292,7 @@ Enter choice (A/B/C/D):
 ### Step 3: Execute
 
 **Option A — Full revert:**
-- `git reset --hard raidlc/<ticket>/phase-<N>`
+- `git reset --hard aidlc/<ticket>/phase-<N>`
 - Delete artifact files after target phase
 - Surgical session memory cleanup: remove only entries tagged with later phases (by `_(Phase)_` suffix)
 - Update `pipeline-state.json` to mark subsequent phases as pending
@@ -1316,7 +1316,7 @@ Enter choice (A/B/C/D):
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ Reverted to Phase N (<Phase Name>)
-   Git restored to: raidlc/<ticket>/phase-<N>
+   Git restored to: aidlc/<ticket>/phase-<N>
    Artifacts cleaned: <list>
    Session memory: <phases> entries removed
 
@@ -1333,7 +1333,7 @@ What next?
 3. **Git tags are force-updated** — after revert, re-running a phase updates its tag
 4. **Session memory cleanup is surgical** — only remove entries from reverted phases, identified by the `_(Phase)_` suffix
 5. **Rework log is preserved** — reverts are logged in process-log.md: `- Revert to Phase N — requested by user — [timestamp] — reason: [user's reason]`
-6. **Never revert past the branch creation point** — the raidlc branch start is the hard floor
+6. **Never revert past the branch creation point** — the aidlc branch start is the hard floor
 
 ---
 
@@ -1346,7 +1346,7 @@ When user types `status`:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Feature: <name>
-Ticket: raidlc/<ticket>
+Ticket: aidlc/<ticket>
 Started: <date>
 
 Phase Status:
@@ -1370,7 +1370,7 @@ Phase Status:
   ⬜  12. Blueprint                           — pending
 
 Artifacts: <count> files in <path>
-Git branch: raidlc/<ticket>
+Git branch: aidlc/<ticket>
 Git tags: <count> snapshots
 ```
 

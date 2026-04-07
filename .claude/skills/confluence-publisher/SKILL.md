@@ -44,7 +44,7 @@ mcp__atlassian__createConfluencePage(
   spaceId      = <space_id>,
   parentId     = <parent_folder_id>,
   title        = "<ticket> — <feature-name> (<YYYY-MM-DD HH:mm>)",
-  body         = "# <feature-name>\n\n| Field | Value |\n|---|---|\n| Ticket | <ticket> |\n| Branch | raidlc/<ticket> |\n| Repos | <code_repos comma-separated> |\n| Started | <timestamp> |\n| Pipeline | feature-pipeline v1.0 |",
+  body         = "# <feature-name>\n\n| Field | Value |\n|---|---|\n| Ticket | <ticket> |\n| Branch | aidlc/<ticket> |\n| Repos | <code_repos comma-separated> |\n| Started | <timestamp> |\n| Pipeline | feature-pipeline v1.0 |",
   contentFormat = "markdown"
 )
 ```

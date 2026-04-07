@@ -48,7 +48,7 @@ claude --agent feature-pipeline
 - **Live dashboard** (`live-dashboard.html`) is an HTML file that updates after every phase. Dark theme, sidebar nav, Mermaid diagrams, Q&A history, API contracts.
 - **Cross-repo claims** of "0 modifications needed" require C6+ evidence from reading actual code. The `/cross-repo-tracer` skill enforces this.
 - **Mermaid diagrams** in `.md` files use fenced code blocks (` ```mermaid `). HTML `<div class="mermaid">` is only for the live dashboard and blueprint.
-- **Git snapshots** after every phase: `raidlc/<ticket>/phase-NN` tags.
+- **Git snapshots** after every phase: `aidlc/<ticket>/phase-NN` tags.
 - **No file copying** — read BRD, code repos, UI screenshots from original locations. Only extract text to `brd-raw.md` for binary formats (PDF/DOCX).
 
 ### Superpowers Plugin (required)

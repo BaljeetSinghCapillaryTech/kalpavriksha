@@ -168,7 +168,7 @@ Final recommendation: **APPROVE** / **REQUEST CHANGES** / **COMMENT**
 ## AIDLC Pipeline Integration (Optional)
 
 When invoked from the AIDLC pipeline after the `/reviewer` phase:
-- Arguments are auto-populated: repo = current repo, base = default branch, review = `raidlc/<ticket>` or `aidlc/<ticket>`
+- Arguments are auto-populated: repo = current repo, base = default branch, review = `aidlc/<ticket>` or `aidlc/<ticket>`
 - The diff covers all code changes made during the Developer phase
 - Findings feed back into `07-reviewer.md` as a separate "Code Quality Review" appendix
 - This is complementary to `/reviewer` — that checks requirements alignment; this checks Java/Spring best practices

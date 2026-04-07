@@ -91,7 +91,7 @@ mermaid.initialize({
   <a href="#documents">Documents Generated</a>
 
   <div class="section-label">Architecture</div>
-  <a href="#skills">MECE Skills (16)</a>
+  <a href="#skills">MECE Skills (18)</a>
   <a href="#model-assignment">Model Assignment</a>
   <a href="#agents">Agents &amp; Teams</a>
   <a href="#superpowers">Superpowers (9)</a>
@@ -125,7 +125,7 @@ mermaid.initialize({
 <div class="stats">
   <div class="stat"><div class="number">13</div><div class="label">Phases</div></div>
   <div class="stat"><div class="number">20+</div><div class="label">Documents</div></div>
-  <div class="stat"><div class="number">16</div><div class="label">Skills</div></div>
+  <div class="stat"><div class="number">18</div><div class="label">Skills</div></div>
   <div class="stat"><div class="number">9</div><div class="label">Superpowers</div></div>
   <div class="stat"><div class="number">2</div><div class="label">Agent Teams</div></div>
   <div class="stat"><div class="number">4</div><div class="label">Modes</div></div>
@@ -197,7 +197,7 @@ flowchart TD
 > Live Dashboard: yes
 
 Pipeline runs all 13 phases with pause prompts between each.
-Phase 0 initializes jdtls, creates git branch raidlc/CAP-18900.
+Phase 0 initializes jdtls, creates git branch aidlc/CAP-18900.
 Phase 5 cross-repo tracer maps which repos need changes.
 Phase 9b backend readiness gates production quality.</code></pre>
 </div>
@@ -257,7 +257,7 @@ Continue from Phase 7 (LLD)? yes</code></pre>
 <p>Phase 2 (PRD) merged into Phase 1 (BA+PRD). Phases numbered: 0, 1, 2, 3, 4, 5, 6, 6a, 6b, 7, 8, 9, 9b, 9c, 9d, 10, 11, 12.</p>
 <div class="mermaid">
 flowchart TD
-    P0["Phase 0\n<b>Input Collection</b>\njdtls init, git branch\nInteractive | opus"]
+    P0["Phase 0\n<b>Input Collection + Git Setup</b>\njdtls init, multi-repo git branch\nConfluence run folder\nInteractive | opus"]
     P1["Phase 1\n<b>BA + PRD + ProductEx</b>\n/ba + /productex\nInteractive + BG | opus+sonnet"]
     P2["Phase 2\n<b>Critic + Compliance</b>\nprinciples.md + /analyst\n2 Parallel Subagents | opus"]
     P3["Phase 3\n<b>UI Extraction</b>\nImage analysis\nInteractive | sonnet"]
@@ -307,7 +307,7 @@ flowchart TD
 <h3>Phase Summary Table</h3>
 <table>
 <tr><th>Phase</th><th>Name</th><th>Skill(s)</th><th>Mode</th><th>Model</th><th>Artifacts</th></tr>
-<tr><td><strong>0</strong></td><td>Input Collection</td><td>(inline)</td><td>Interactive</td><td>opus</td><td>pipeline-state.json, session-memory.md, process-log.md</td></tr>
+<tr><td><strong>0</strong></td><td>Input Collection + Git Setup</td><td>/confluence-publisher</td><td>Interactive</td><td>opus</td><td>pipeline-state.json, session-memory.md, process-log.md</td></tr>
 <tr><td><strong>1</strong></td><td>BA + PRD + ProductEx</td><td>/ba + /productex</td><td>Interactive + BG subagent</td><td>opus + sonnet</td><td>00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md, brdQnA.md</td></tr>
 <tr><td><strong>2</strong></td><td>Critic + Compliance</td><td>principles.md + /analyst --compliance</td><td>2 parallel subagents</td><td>opus</td><td>contradictions.md, gap-analysis-brd.md</td></tr>
 <tr><td><strong>3</strong></td><td>UI Extraction</td><td>(inline)</td><td>Interactive</td><td>sonnet</td><td>ui-requirements.md</td></tr>
@@ -323,7 +323,7 @@ flowchart TD
 <tr><td><strong>9c</strong></td><td>Compliance Check</td><td>/analyst --compliance</td><td>Subagent</td><td>opus</td><td>05b-gap-analysis.md</td></tr>
 <tr><td><strong>9d</strong></td><td>Migration Validation</td><td>/migrator</td><td>Subagent (conditional)</td><td>sonnet</td><td>05c-migration-validation.md</td></tr>
 <tr><td><strong>10</strong></td><td>SDET</td><td>/sdet</td><td>Subagent</td><td>sonnet</td><td>06-sdet.md</td></tr>
-<tr><td><strong>11</strong></td><td>Reviewer</td><td>/reviewer</td><td>Hybrid (subagent + interactive)</td><td>sonnet</td><td>07-reviewer.md</td></tr>
+<tr><td><strong>11</strong></td><td>Reviewer</td><td>/reviewer + /code-review (optional)</td><td>Hybrid (subagent + interactive)</td><td>sonnet</td><td>07-reviewer.md</td></tr>
 <tr><td><strong>12</strong></td><td>Blueprint</td><td>(inline)</td><td>Subagent</td><td>haiku</td><td>process-log.md, approach-log.md, blueprint.html</td></tr>
 </table>
 </section>
@@ -361,12 +361,48 @@ flowchart TD
 
 <h3>No File Copying</h3>
 <p>The pipeline reads BRD, code repos, and UI screenshots from their <strong>original locations</strong>. It never copies external repos into emf-parent. Only binary formats (PDF/DOCX) get text extracted to <code>brd-raw.md</code>. Paths are stored in <code>pipeline-state.json</code>.</p>
+
+<h3>Git Setup Protocol (Phase 0 &mdash; All Repos)</h3>
+<p>Before any work begins, the pipeline sets up git branches in <strong>every code repo</strong> (not just the current directory). This prevents accidental commits to main/master.</p>
+<div class="mermaid">
+flowchart TD
+    START["For each repo in code_repos"] --> DIRTY{"Uncommitted\nchanges?"}
+    DIRTY -->|"yes"| WARN["Warn user\nAsk: stash / commit / abort"]
+    DIRTY -->|"no"| DETECT{"Detect default\nbranch"}
+    WARN --> DETECT
+    DETECT -->|"main only"| MAIN["git checkout main"]
+    DETECT -->|"master only"| MASTER["git checkout master"]
+    DETECT -->|"both exist"| ASK["Ask user which to use"]
+    ASK --> CHECKOUT["git checkout &lt;chosen&gt;"]
+    MAIN --> FETCH
+    MASTER --> FETCH
+    CHECKOUT --> FETCH
+    FETCH["git fetch origin\ngit pull origin &lt;default&gt;"] --> BRANCH["git checkout -b\naidlc/&lt;ticket&gt;"]
+    BRANCH --> RECORD["Record in\npipeline-state.json\ngit_branches per repo"]
+
+    style START fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style WARN fill:#3a2028,stroke:#8a5a6a,color:#e0c8d0
+    style ASK fill:#3d2a5c,stroke:#6a5a8a,color:#d5cce8
+    style FETCH fill:#2a4a6a,stroke:#4a7aaa,color:#dce6f0
+    style BRANCH fill:#1a3828,stroke:#4a8a5a,color:#b8e0c8
+    style RECORD fill:#1a3040,stroke:#4a8098,color:#b8d8e8
+</div>
+<p>On <strong>resume</strong>, the pipeline verifies each repo is on the correct <code>aidlc/&lt;ticket&gt;</code> branch. If not, it checks out or re-creates the branch.</p>
+
+<h3>Confluence Publishing (Every Phase)</h3>
+<p>The <code>/confluence-publisher</code> skill publishes artifacts to Confluence after every phase. Configurable per product.</p>
+<table>
+<tr><th>Step</th><th>When</th><th>What</th></tr>
+<tr><td><strong>1</strong></td><td>Phase 0</td><td>Create a run folder page: <code>&lt;ticket&gt; &mdash; &lt;feature&gt; (&lt;date time&gt;)</code></td></tr>
+<tr><td><strong>2</strong></td><td>After every phase</td><td>Publish/update each .md, .html, .yml, .yaml artifact as a child page</td></tr>
+</table>
+<p>Page IDs are tracked in <code>pipeline-state.json</code> under <code>confluence.artifact_pages</code> &mdash; re-publishing updates existing pages instead of creating duplicates. Confluence failures never block the pipeline; local artifacts are the source of truth.</p>
 </section>
 
 <!-- POST-PHASE ENRICHMENT -->
 <section id="enrichment">
 <h2>Post-Phase Enrichment</h2>
-<p>After each phase, the pipeline generates <strong>Mermaid diagrams</strong> (appended to .md artifacts) and updates the <strong>live HTML dashboard</strong>. Skills are NOT modified &mdash; enrichment is additive.</p>
+<p>After each phase, the pipeline: <strong>(A)</strong> generates Mermaid diagrams (appended to .md artifacts), <strong>(B)</strong> updates the live HTML dashboard, and <strong>(C)</strong> publishes artifacts to Confluence via <code>/confluence-publisher</code>. Skills are NOT modified &mdash; enrichment is additive.</p>
 <table>
 <tr><th>Phase</th><th>Diagrams Added</th></tr>
 <tr><td><strong>1: BA+PRD</strong></td><td>User journey flowchart, entity ER diagram, epic dependency map, scope diagram</td></tr>
@@ -443,7 +479,7 @@ flowchart TD
 
 <!-- MECE SKILLS -->
 <section id="skills">
-<h2>MECE Skills (16 Active + 2 Deprecated)</h2>
+<h2>MECE Skills (18 Active + 2 Deprecated)</h2>
 <p>Skills are <strong>mutually exclusive and collectively exhaustive</strong> &mdash; no overlap between skills, no gap in coverage. Each skill owns a distinct responsibility.</p>
 <div class="mermaid">
 flowchart TD
@@ -471,6 +507,10 @@ flowchart TD
         DEBUG["/debug\nRoot Cause Analysis"]
         TUTOR["/tutor\nCodebase Teaching"]
         API["/api-handoff\nAPI Contract Doc"]
+        CODE_REV["/code-review\nJava Spring Best Practices"]
+    end
+    subgraph INFRA_S["Infrastructure Skills"]
+        CONFLUENCE["/confluence-publisher\nPublish Artifacts to Confluence"]
     end
     subgraph DEPRECATED_S["Deprecated"]
         PRD_DEP["/prd-generator\nmerged into /ba"]
@@ -482,6 +522,7 @@ flowchart TD
     style BUILD_S fill:#151a28,stroke:#6a5a3a
     style REVIEW_S fill:#151a28,stroke:#6a3a4a
     style UTILITY_S fill:#151a28,stroke:#4a5a6a
+    style INFRA_S fill:#151a28,stroke:#3a6a5a
     style DEPRECATED_S fill:#151a28,stroke:#5a3a3a
     style PRD_DEP fill:#3a2028,stroke:#5a3a3a,color:#8a6a6a
     style GAP_DEP fill:#3a2028,stroke:#5a3a3a,color:#8a6a6a
@@ -504,6 +545,8 @@ flowchart TD
 <tr><td><code>/debug</code></td><td>on-demand</td><td>Root cause analysis, log correlation, hypothesis-driven</td><td>Active</td></tr>
 <tr><td><code>/tutor</code></td><td>on-demand</td><td>Codebase teaching, read-only, Feynman+Socratic method</td><td>Active</td></tr>
 <tr><td><code>/api-handoff</code></td><td>after 7 or 9</td><td>API contract doc for UI team (endpoints, shapes, errors, auth)</td><td>Active</td></tr>
+<tr><td><code>/code-review</code></td><td>11 (optional)</td><td>Java Spring Boot best-practices checklist (architecture, JPA, security, REST, testing)</td><td>Active</td></tr>
+<tr><td><code>/confluence-publisher</code></td><td>After every phase</td><td>Publishes .md, .html, .yml, .yaml artifacts to Confluence. Creates run folder per pipeline run.</td><td>Active</td></tr>
 <tr><td><code>GUARDRAILS.md</code></td><td>6, 6a, 6b, 7, 9, 9b, 9c, 9d, 11</td><td>12 guardrail categories enforced at design + code phases</td><td>Active</td></tr>
 <tr><td class="deprecated"><code>/prd-generator</code></td><td>-</td><td class="deprecated">Merged into /ba (Step 6 of BA skill)</td><td><span class="badge badge-dep">Deprecated</span></td></tr>
 <tr><td class="deprecated"><code>/gap-analyser</code></td><td>-</td><td class="deprecated">Merged into /analyst --compliance</td><td><span class="badge badge-dep">Deprecated</span></td></tr>
@@ -853,7 +896,7 @@ flowchart TD
   <li><strong>Git tags are force-updated</strong> &mdash; re-running a phase updates its tag</li>
   <li><strong>Session memory cleanup is surgical</strong> &mdash; only entries from reverted phases removed (by <code>_(Phase)_</code> suffix)</li>
   <li><strong>Rework log is preserved</strong> &mdash; reverts logged in process-log.md</li>
-  <li><strong>Never revert past branch creation</strong> &mdash; the raidlc branch start is the hard floor</li>
+  <li><strong>Never revert past branch creation</strong> &mdash; the aidlc branch start is the hard floor</li>
 </ol>
 </section>
 
@@ -930,6 +973,8 @@ flowchart TD
         TUT["/tutor"]
         APIH["/api-handoff"]
         GUARD["GUARDRAILS"]
+        CODE_R["/code-review"]
+        CONFL["/confluence-publisher"]
     end
     subgraph AGENTS["Agents"]
         CRITIC["Critic"]
@@ -958,6 +1003,8 @@ flowchart TD
     ORCH --> BA & PEX & ARCH & ANAL & MIG & DESIGN & QA_SK & DEV_SK & BACK & TRACE & SDET_SK & REV_SK
     ORCH --> CRITIC & RESEARCH & DEVTEAM
     GUARD -.-> ARCH & ANAL & MIG & DESIGN & DEV_SK & BACK & REV_SK
+    CODE_R -.-> REV_SK
+    CONFL -.-> ORCH
     TDD -.-> DEV_SK & DEVTEAM
     PLAN -.-> ARCH
     BRAIN -.-> ARCH
@@ -1022,6 +1069,12 @@ flowchart TD
 <div class="benefit"><strong>Migrator plans AND validates.</strong> Phase 6b plans migrations with expand-then-contract enforcement. Phase 9d validates that the Developer followed the plan. Both check GUARDRAILS G-05.4.</div>
 
 <div class="benefit"><strong>20+ documents generated automatically.</strong> BA, PRD, contradictions, gap analysis, UI requirements, grooming questions, blocker decisions, code analysis per repo, cross-repo trace, architect, analyst, migrator, designer, QA, developer, backend readiness, compliance, migration validation, SDET, reviewer, process log, approach log, session memory, blueprint HTML, live dashboard.</div>
+
+<div class="benefit"><strong>Multi-repo git setup prevents accidental commits to main.</strong> Phase 0 checks out the default branch, fetches latest from origin, and creates the <code>aidlc/&lt;ticket&gt;</code> feature branch in every code repo &mdash; not just the current directory. Handles uncommitted changes, main vs master ambiguity, and branch validation on resume.</div>
+
+<div class="benefit"><strong>Confluence publishing keeps the team in sync.</strong> The <code>/confluence-publisher</code> skill creates a run folder per pipeline run and publishes every artifact as a child page after each phase. Configurable per product &mdash; just update the Confluence target in the skill. Updates existing pages instead of duplicating. Never blocks the pipeline on API failures.</div>
+
+<div class="benefit"><strong>Optional Java/Spring code quality review.</strong> After the requirements-focused <code>/reviewer</code> phase, users can optionally run <code>/code-review</code> for a 10-category Spring Boot best-practices pass (architecture, REST API, JPA, security, transactions, testing, performance). Findings append to 07-reviewer.md.</div>
 
 <div class="benefit"><strong>Resumable from any phase.</strong> Pipeline state saved to JSON + git tags. Smart restart warns if codebase changed. Path validation handles different machines. Mode 3 (Jump) auto-detects which phases need running.</div>
 
