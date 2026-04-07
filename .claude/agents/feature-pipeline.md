@@ -462,8 +462,13 @@ This phase runs TWO subagents in parallel:
 
 **Skills**: Per-repo exploration + `/cross-repo-tracer` (`.claude/skills/cross-repo-tracer/SKILL.md`)
 **Mode**: Agent team — one teammate per code repo + one cross-repo tracer agent
+**Superpowers**: `dispatching-parallel-agents`
 
-1. Use the `dispatching-parallel-agents` superpower to spawn one research agent per code repo:
+1. **Invoke superpower** to spawn parallel research agents:
+   ```
+   Skill tool → skill: "dispatching-parallel-agents"
+   ```
+   Then spawn one research agent per code repo:
    ```
    For each repo in inputs.code_repos:
      Spawn agent:
@@ -509,15 +514,21 @@ This phase runs TWO subagents in parallel:
 **Skill**: `/architect` (`.claude/skills/architect/SKILL.md`)
 **Mode**: Main context (interactive — user approves pattern choices). Uses `brainstorming` and `writing-plans` superpowers.
 
-1. Use `brainstorming` superpower before designing:
-   - Explore approaches for the feature
-   - Consider 3+ patterns
+1. **Invoke superpower** before designing:
+   ```
+   Skill tool → skill: "brainstorming"
+   ```
+   This triggers structured exploration of approaches — 3+ patterns with tradeoffs.
 2. Invoke `/architect` skill:
-   - Step 1: Research current state (already done in Phase 6 — read code-analysis files)
+   - Step 1: Research current state (already done in Phase 5 — read code-analysis files)
    - Step 2: Research real-world patterns (web search)
    - Step 3: Evaluate pattern fit — present table to user, **wait for approval**
    - Step 4: Design solution
-3. Use `writing-plans` superpower to create implementation plan
+3. **Invoke superpower** to create implementation plan:
+   ```
+   Skill tool → skill: "writing-plans"
+   ```
+   This produces a structured, step-by-step plan with dependencies and checkpoints.
 4. Produce: `01-architect.md` with Mermaid diagrams, ADRs, endpoints, data model
 5. Update session-memory with architectural decisions
 
@@ -644,19 +655,67 @@ This phase runs TWO subagents in parallel:
 
 **Skill**: `/developer` (`.claude/skills/developer/SKILL.md`)
 **Mode**: Main context with superpowers. For independent modules, spawns agent team.
-**Superpowers**: `test-driven-development`, `executing-plans`, `verification-before-completion`, `subagent-driven-development`
+**Superpowers**: `test-driven-development`, `executing-plans`, `verification-before-completion`, `subagent-driven-development`, `systematic-debugging`, `receiving-code-review`
 
-1. Use `executing-plans` superpower to load the implementation plan from Phase 7
-2. Assess: are there independent modules that can be built in parallel?
-   - If YES: use `subagent-driven-development` — spawn one developer agent per independent module
+1. **Invoke superpower** to load the implementation plan:
+   ```
+   Skill tool → skill: "executing-plans"
+   ```
+   This loads the plan from Phase 6 (01-architect.md) and sets up execution checkpoints.
+2. **Read `04-qa.md` FIRST** — map QA test scenarios to test classes:
+   - For each user story in QA: identify which test class covers it
+   - For each test scenario: write the test method signature (failing test stub)
+   - Track coverage: `| QA Scenario | Test Class | Test Method | Status |`
+3. Assess: are there independent modules that can be built in parallel?
+   - If YES: **invoke superpower**:
+     ```
+     Skill tool → skill: "subagent-driven-development"
+     ```
+     Spawn one developer agent per independent module.
    - If NO: implement sequentially in main context
-3. For each module/task:
-   - Use `test-driven-development` superpower: write failing test → implement → pass test → refactor
-   - Follow `/developer` skill: TDD Chicago/Detroit school
-4. At each commit point: prompt user with commit message, wait for approval
-5. Use `verification-before-completion` superpower: run build + all tests before claiming done
-6. Produce: `05-developer.md` summarizing what was implemented
-7. Git: commit code with descriptive messages, tag phase
+4. For each module/task, **invoke superpower**:
+   ```
+   Skill tool → skill: "test-driven-development"
+   ```
+   Then follow the TDD cycle:
+   a. **Write failing unit tests FIRST** — derived from QA scenarios in `04-qa.md`, not invented ad-hoc
+   b. Implement production code to make tests pass
+   c. Refactor
+   d. **Write integration tests** for cross-boundary flows:
+      - HTTP/Thrift boundary → integration test with WireMock/MockServer
+      - DB writes → integration test with Testcontainers or in-memory DB
+      - Cross-repo flows from `cross-repo-trace.md` → integration test covering full path
+   e. Run `Build Verify` (haiku subagent) after each module
+   f. **On test failure or build error** — **invoke superpower**:
+      ```
+      Skill tool → skill: "systematic-debugging"
+      ```
+      Then diagnose:
+      - Root cause from error output — don't blindly change code
+      - Form hypothesis: "The test fails because X"
+      - Verify hypothesis with targeted read/grep
+      - Fix the root cause, not the symptom
+      - If 3 attempts fail on the same error → surface to user with diagnosis
+5. At each commit point: prompt user with commit message, wait for approval
+6. **Invoke superpower** before claiming done:
+   ```
+   Skill tool → skill: "verification-before-completion"
+   ```
+   Run build + ALL tests (unit + integration). Evidence before assertions.
+7. **On rework from Reviewer (Phase 11)** — **invoke superpower**:
+   ```
+   Skill tool → skill: "receiving-code-review"
+   ```
+   Then:
+   - Read the Reviewer's findings carefully — do NOT blindly implement suggestions
+   - For each finding: verify it's technically correct before changing code
+   - If a finding seems wrong or unclear → push back with evidence, don't just agree
+   - Track: `| Finding | Agreed? | Action Taken | Evidence |`
+8. Produce: `05-developer.md` with:
+   - **Test coverage matrix**: QA scenario → test method → PASS/FAIL
+   - **Unit test count** and **integration test count** separately
+   - Any QA scenarios NOT covered (with reason)
+9. Git: commit code with descriptive messages, tag phase
 
 ---
 
@@ -774,8 +833,19 @@ This phase runs TWO subagents in parallel:
 **Mode**: Subagent
 
 1. Spawn subagent following `/sdet` skill
-2. Cross-references QA scenarios with what Developer actually built
-3. Produces: `06-sdet.md` with automation plan, manual test steps
+2. **Read `04-qa.md` and `05-developer.md`** — cross-reference:
+   - Which QA scenarios have unit tests? (from Developer's test coverage matrix)
+   - Which QA scenarios have integration tests?
+   - Which QA scenarios have NO test coverage at all?
+3. For uncovered scenarios, the SDET subagent MUST:
+   a. **Write missing integration tests** — not just plan them. Actual test code using the project's test framework (JUnit 4 + Mockito, WireMock, Testcontainers as identified in Phase 9)
+   b. **Write missing edge case tests** — boundary conditions, null inputs, concurrent access
+   c. **Write ArchUnit tests** — if Phase 9c (compliance) suggested ArchUnit rules, implement them
+4. Produces:
+   - `06-sdet.md` — test automation plan, manual test steps for scenarios that can't be automated
+   - **Actual test Java files** — integration tests, edge case tests, ArchUnit tests
+   - **Updated test coverage matrix** — full picture: QA scenario → UT (Dev) + IT (SDET) → PASS/FAIL
+5. Run `Build Verify` to ensure all new tests compile and pass
 
 ---
 
@@ -783,11 +853,18 @@ This phase runs TWO subagents in parallel:
 
 **Skill**: `/reviewer` (`.claude/skills/reviewer/SKILL.md`)
 **Mode**: Subagent does review, then surfaces findings to main context
-**Superpowers**: `requesting-code-review`, `verification-before-completion`
+**Superpowers**: `requesting-code-review`, `verification-before-completion`, `finishing-a-development-branch`
 
-1. Use `verification-before-completion`: run full build + test suite first
+1. **Invoke superpower** to verify build before review:
+   ```
+   Skill tool → skill: "verification-before-completion"
+   ```
+   Run full build + test suite first.
 2. If build fails: route to Developer (Phase 10) for fix — max 3 rounds
-3. If build passes: spawn reviewer subagent
+3. If build passes: **invoke superpower** then spawn reviewer subagent:
+   ```
+   Skill tool → skill: "requesting-code-review"
+   ```
 4. Reviewer checks 5 things (from skill):
    - Requirements alignment (against `00-ba.md`)
    - Session memory alignment (Key Decisions, Constraints)
@@ -812,7 +889,11 @@ This phase runs TWO subagents in parallel:
 7. If [M] chosen: log as "manual fix pending" in process-log, continue pipeline
 8. If [A] chosen: log as "accepted risk" in approach-log with user's reasoning
 9. Produce: `07-reviewer.md`
-10. Use `finishing-a-development-branch` superpower: guide merge/PR/cleanup
+10. **Invoke superpower** to guide completion:
+    ```
+    Skill tool → skill: "finishing-a-development-branch"
+    ```
+    This presents structured options: merge to main, create PR, or cleanup.
 
 ---
 
@@ -1395,7 +1476,7 @@ Each phase is run by reading its corresponding skill file in `.claude/skills/`. 
 | Architect (Phase 6) | `.claude/skills/architect/SKILL.md` | Interactive (main context) | opus | Trade-off evaluation, long-term consequence reasoning |
 | Analyst --impact (Phase 6a) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | High-stakes blast radius, security, risk assessment |
 | Migrator (Phase 6b) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Structured DDL scripts, mechanical correctness |
-| Designer (Phase 7) | `.claude/skills/designer/SKILL.md` | Subagent | sonnet | Code generation strength, compile-safe output |
+| Designer (Phase 7) | `.claude/skills/designer/SKILL.md` | Subagent | opus | Code generation strength, compile-safe output |
 | QA (Phase 8) | `.claude/skills/qa/SKILL.md` | Subagent | sonnet | Combinatorial but structured scenario generation |
 | Developer (Phase 9) | `.claude/skills/developer/SKILL.md` | Interactive (main context) | sonnet | Sonnet benchmarks highest on SWE-bench coding tasks |
 | Backend Readiness (Phase 9b) | `.claude/skills/backend-readiness/SKILL.md` | Subagent | sonnet | Pattern-matching against known anti-patterns |
