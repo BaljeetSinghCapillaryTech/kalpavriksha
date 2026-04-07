@@ -317,11 +317,32 @@ Create lightweight git tags after each phase to enable safe revert. This is crit
 
 ### At Workflow Start
 
-Create a dedicated branch from current HEAD:
+Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` → `TICKET-123`).
+
+**Run git setup for every code repo** (including current working directory). For each repo:
 ```bash
+cd <repo-path>
+# 1. Check for uncommitted changes
+git status --porcelain
+# → If dirty: warn user. Ask: stash / commit / abort.
+
+# 2. Detect default branch
+git branch -l main master
+# → Both exist: ask user which to use. One: use it. Neither: ask user.
+
+# 3. Checkout default branch and pull latest
+git checkout <default-branch>
+git fetch origin && git pull origin <default-branch>
+
+# 4. Create feature branch (or checkout if resuming)
 git checkout -b aidlc/<ticket-id>
+# → If branch already exists: git checkout aidlc/<ticket-id>
 ```
-Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` → `TICKET-123`). If the branch already exists (resuming), check it out without creating.
+
+Record per-repo branch info in session memory under **Constraints**:
+```
+- Git branches: <repo-name> → aidlc/<ticket-id> (from <default-branch>) _(workflow)_
+```
 
 ### After Each Phase Completes
 
@@ -342,6 +363,9 @@ Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` 
    git tag -f aidlc/<ticket-id>/phase-<NN>
    ```
    Where NN = 00 (BA), 01 (Architect), 02 (Analyst), 03 (Designer), 04 (QA), 05 (Developer), 06 (SDET), 07 (Reviewer).
+
+4. **Publish to Confluence:**
+   Invoke `/confluence-publisher` (Step 2) with all `.md`, `.html`, `.yml`, and `.yaml` artifacts from this phase. Skip if `confluence` is not configured in pipeline-state.json.
 
 ---
 

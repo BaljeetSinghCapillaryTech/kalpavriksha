@@ -38,6 +38,8 @@ claude --agent feature-pipeline
 | `/debug` | Root cause analysis (standalone) | on-demand |
 | `/tutor` | Codebase teaching (standalone, read-only) | on-demand |
 | `/api-handoff` | API contract doc for UI team | after 7 or 9 |
+| `/code-review` | Java Spring Boot best-practices review (standalone or pipeline add-on) | after Phase 11 (optional) |
+| `/confluence-publisher` | Publish artifacts to Confluence (configurable per product) | after every phase |
 
 **Deprecated** (kept for reference): `/prd-generator` (merged into `/ba`), `/gap-analyser` (merged into `/analyst --compliance`)
 

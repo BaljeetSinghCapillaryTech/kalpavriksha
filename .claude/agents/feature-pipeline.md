@@ -154,6 +154,17 @@ Please provide updated paths:
 
 After the user provides corrected paths, update `pipeline-state.json` with the new paths and continue. This ensures the pipeline works when resuming on a different machine or by a different teammate.
 
+**Branch Validation on Resume**:
+For each repo in `code_repos`, verify git branch state:
+```
+cd <repo-path>
+current=$(git branch --show-current)
+expected=raidlc/<ticket>  # from pipeline-state.json git_branches
+```
+- If `current == expected`: OK.
+- If `current != expected` but branch exists: `git checkout <expected>`.
+- If branch doesn't exist: re-run git setup (checkout default branch → fetch → pull → create feature branch).
+
 Show:
 
 ```
@@ -230,8 +241,31 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    - If NOT available: ask the user: "jdtls doesn't appear to be running. Can you start it so I can use LSP for code traversal? If not, I'll fall back to grep/file reads." Only proceed with grep after user confirms.
    Note this in pipeline-state.json: `"lsp_enabled": true/false`
 4. Create artifacts directory: `mkdir -p <artifacts-path>`
-5. Create git branch: `git checkout -b raidlc/<ticket>`
-5. Initialize `session-memory.md` with the template from `/workflow` skill
+5. **Git Setup — all code repos** (including current repo):
+   For each repo in `code_repos` (and the current working directory if not already listed):
+   ```
+   cd <repo-path>
+   # a. Uncommitted changes check
+   git status --porcelain
+   → If dirty: warn user "Repo <repo> has uncommitted changes." Ask: stash / commit / abort.
+   # b. Detect default branch
+   git branch -l main master
+   → If both exist: ask user which to use. If one: use it. If neither: ask user.
+   # c. Checkout default branch
+   git checkout <default-branch>
+   # d. Fetch + pull latest
+   git fetch origin && git pull origin <default-branch>
+   # e. Create feature branch
+   git checkout -b raidlc/<ticket>
+   ```
+   Record per-repo branch state in `pipeline-state.json`:
+   ```json
+   "git_branches": {
+     "pointsengine-emf/": {"default_branch": "master", "feature_branch": "raidlc/CAP-12345"},
+     "/Users/.../intouch-api-v3": {"default_branch": "main", "feature_branch": "raidlc/CAP-12345"}
+   }
+   ```
+6. Initialize `session-memory.md` with the template from `/workflow` skill
 6. Initialize `process-log.md`:
    ```markdown
    # Process Log — <Feature Name>
@@ -280,9 +314,17 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
 
    If user chose "no": skip dashboard creation. Set `dashboard_enabled: false` in pipeline-state.json.
 
-9. Write `pipeline-state.json` (include `dashboard_enabled: true/false`)
-10. Create git tag: `git tag -f raidlc/<ticket>/phase-00`
-11. Show confirmation and proceed to Phase 1
+9. **Confluence Publish** — invoke `/confluence-publisher` (Step 1):
+   Pass the product's Confluence config. Default for Tiers & Benefits:
+   ```
+   cloud_id         = 69031ea7-8347-4ec3-a63d-9c7289f8dc4f
+   space_id         = 1264386327
+   parent_folder_id = 5434343427
+   ```
+   Creates the run folder page. Store returned `run_page_id` in `pipeline-state.json` under `confluence`.
+10. Write `pipeline-state.json` (include `dashboard_enabled: true/false`, `confluence` block)
+11. Create git tag: `git tag -f raidlc/<ticket>/phase-00`
+12. Show confirmation and proceed to Phase 1
 
 ---
 
@@ -889,7 +931,21 @@ This phase runs TWO subagents in parallel:
 7. If [M] chosen: log as "manual fix pending" in process-log, continue pipeline
 8. If [A] chosen: log as "accepted risk" in approach-log with user's reasoning
 9. Produce: `07-reviewer.md`
-10. **Invoke superpower** to guide completion:
+10. **Optional: Java/Spring code quality review** — after `/reviewer` completes, ask:
+    ```
+    /reviewer is done (requirements + guardrails + session memory alignment).
+
+    Would you also like to run /code-review for a Java Spring Boot
+    best-practices pass? (architecture, JPA, security, REST patterns, testing)
+
+    [Y] Yes — run it now
+    [N] No  — skip, proceed to completion
+    ```
+    If user chooses [Y]:
+    - Invoke `/code-review` with args: `<repo-name> <default-branch> raidlc/<ticket>`
+    - Append findings to `07-reviewer.md` under a new `## Code Quality Review (Spring Best Practices)` section
+    - Apply the same gap routing (R/M/A) for any Critical or Major findings
+11. **Invoke superpower** to guide completion:
     ```
     Skill tool → skill: "finishing-a-development-branch"
     ```
@@ -1373,12 +1429,17 @@ Read the phase output and generate relevant Mermaid diagrams. Append them to the
 1. Subagent completes → returns output
 2. Orchestrator reads output
 3. Orchestrator runs Step A (generate Mermaid diagrams for .md artifacts)
-4. Orchestrator runs Step B (update live-dashboard.html) ← YOU ARE HERE
-5. Orchestrator updates session-memory.md (incremental)
-6. Orchestrator updates process-log.md
-7. Orchestrator updates pipeline-state.json
-8. Orchestrator shows pause prompt with questions (if any)
+4. Orchestrator runs Step B (update live-dashboard.html)
+5. Orchestrator runs Step C (publish to Confluence)
+6. Orchestrator updates session-memory.md (incremental)
+7. Orchestrator updates process-log.md
+8. Orchestrator updates pipeline-state.json
+9. Orchestrator shows pause prompt with questions (if any)
 ```
+
+### Step C: Publish to Confluence
+
+Invoke `/confluence-publisher` (Step 2) with all `.md`, `.html`, `.yml`, and `.yaml` artifacts produced or updated in this phase. The skill reads `confluence.run_page_id` from `pipeline-state.json` and creates/updates child pages. If `confluence` is not configured in pipeline-state.json, skip silently.
 
 **Dashboard update checklist (do ALL of these every time):**
 
