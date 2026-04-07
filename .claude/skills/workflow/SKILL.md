@@ -3,6 +3,15 @@ name: workflow
 description: Orchestrates the full multi-phase development workflow. Runs BA → Architect → Analyst (optional) → Designer → QA → Developer → SDET (optional) → Reviewer in sequence, pausing between phases for approval. Use when user says /workflow.
 ---
 
+## Reasoning Principles
+
+Read `.claude/principles.md` at phase start. Apply throughout:
+- **Every claim carries a confidence level (C1-C7)** — no unqualified assertions
+- **Reversibility determines action threshold** — reversible + C4 = act; irreversible + below C4 = STOP and escalate
+- **Pre-mortem before non-trivial actions** — "This failed. Why?"
+- **Doubt is structured** — use the 5-Question Doubt Resolver when uncertain
+- **Never conflate confidence with importance** — a C7 claim can be trivial; a C2 claim can be critical
+
 # Workflow Orchestrator
 
 Orchestrate the full multi-phase development workflow. Each phase adopts its own persona, reads session memory, writes its artifact and updates session memory, then pauses for approval before the next phase begins.
@@ -354,6 +363,8 @@ Commands:
   continue    — proceed to next phase
   skip        — skip next phase (if optional)
   api-handoff — generate API contract doc for UI team (available after Designer or Developer)
+  gap         — run architecture-code gap analysis (available after Developer)
+  migrate     — run migration analysis (available after Architect or Developer)
   revert      — roll back to a previous phase
   status      — show full workflow progress
   exit        — save state and exit (resume later)
@@ -379,6 +390,74 @@ When the user types `api-handoff` at any pause prompt (typically after Designer 
        Return the structured summary.
    ```
 2. Display the result and return to the same pause prompt (do not advance to the next phase).
+
+### Gap Analysis Command
+
+When the user types `gap` at any pause prompt (typically after Developer or SDET):
+
+1. Validate timing: Gap analysis requires Developer phase to be complete (code must exist to analyse). If Developer hasn't run yet, inform the user:
+   ```
+   Gap analysis requires code to exist. It is available after the Developer phase completes.
+   ```
+
+2. Spawn the Gap Analyser skill as a subagent:
+   ```
+   Agent tool:
+     subagent_type: general-purpose
+     prompt: |
+       You are running the Gap Analyser skill in AIDLC pipeline mode.
+       Artifacts path: <artifacts-path>
+       Session memory: <artifacts-path>/session-memory.md
+       Follow the gap-analyser skill exactly as defined in .claude/skills/gap-analyser/SKILL.md.
+       Read the skill file first, then execute all steps.
+       Read all AIDLC artifacts (01-architect.md, 02-analyst.md, 03-designer.md, 05-developer.md) as intent sources.
+       Write output to <artifacts-path>/05b-gap-analyser.md
+       Generate ArchUnit test classes if the dependency exists.
+       Update session-memory.md with findings.
+       Return the structured summary in the PHASE/STATUS/ARTIFACT format.
+   ```
+
+3. Display the scorecard summary and return to the same pause prompt.
+
+4. If the gap analyser returns CRITICAL blockers, present them as blockers in the pause prompt. The user can choose to address them before proceeding or accept as known risks.
+
+### Migration Analysis Command
+
+When the user types `migrate` at any pause prompt (typically after Architect or Developer):
+
+1. Ask the user which mode:
+   ```
+   Migration analysis modes:
+     [1] schema    — Database schema migration analysis (drift, compatibility, expand-then-contract)
+     [2] framework — Framework/library version upgrade analysis
+     [3] pattern   — Architectural pattern transition analysis
+
+   Enter mode (1/2/3):
+   ```
+
+2. For framework/pattern modes, ask for the `--from` and `--to` parameters.
+
+3. Spawn the Migrator skill as a subagent:
+   ```
+   Agent tool:
+     subagent_type: general-purpose
+     prompt: |
+       You are running the Migrator skill in [mode] mode.
+       Artifacts path: <artifacts-path>
+       Session memory: <artifacts-path>/session-memory.md
+       [For schema mode: Module: <module if known from Developer phase>]
+       [For framework mode: From: <current>, To: <target>]
+       [For pattern mode: From: <current-pattern>, To: <target-pattern>]
+       Follow the migrator skill exactly as defined in .claude/skills/migrator/SKILL.md.
+       Read the skill file first, then execute all steps.
+       Write output to <artifacts-path>/[01b-migrator.md or 05c-migrator.md based on current phase]
+       Update session-memory.md with findings.
+       Return the structured summary in the PHASE/STATUS/ARTIFACT format.
+   ```
+
+4. Display the migration analysis summary and return to the same pause prompt.
+
+5. If the migrator returns CRITICAL blockers (e.g., destructive migration without expand-then-contract), present them as blockers. The user must address before proceeding.
 
 ## Architect-Analyst-ProductEx Verification Cycle
 
@@ -808,6 +887,11 @@ Wait for user choice, then proceed accordingly.
 - **Analyst** (`02-analyst.md`): Skipped if `skip:analyst` provided. If skipped, Designer proceeds using only Architect output.
 - **SDET** (`06-sdet.md`): Skipped if `skip:sdet` provided. If skipped, Reviewer proceeds using Developer output directly.
 
+## On-Demand Phases (invoked via commands at pause prompts)
+
+- **Gap Analyser** (`05b-gap-analyser.md`): Invoked via `gap` command. Available after Developer. Compares architectural intent against code, generates ArchUnit tests, produces scorecard.
+- **Migrator** (`01b-migrator.md` or `05c-migrator.md`): Invoked via `migrate` command. Available after Architect (for migration planning) or after Developer (for migration validation). Analyses schema drift, backward compatibility, expand-then-contract compliance.
+
 ## Artifact Files
 
 | Phase | Artifact | Session Memory Sections Written |
@@ -822,6 +906,8 @@ Wait for user choice, then proceed accordingly.
 | Developer | `05-developer.md` | Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns |
 | SDET | `06-sdet.md` | Constraints, Open Questions |
 | Reviewer | `07-reviewer.md` | Risks & Concerns, Open Questions, Key Decisions |
+| Gap Analyser (on-demand) | `05b-gap-analyser.md` | Risks & Concerns, Codebase Behaviour, Open Questions |
+| Migrator (on-demand) | `01b-migrator.md` or `05c-migrator.md` | Key Decisions, Risks & Concerns, Constraints, Open Questions |
 
 ## Constraints
 

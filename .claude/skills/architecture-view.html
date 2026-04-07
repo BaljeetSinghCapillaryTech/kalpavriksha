@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIDLC Pipeline — Complete Architecture</title>
+  <title>Feature Pipeline — Complete Architecture</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -78,6 +78,10 @@
     .badge-critical { background: #e74c3c; color: #fff; }
     .badge-high { background: #f39c12; color: #000; }
     .badge-new { background: #2ecc71; color: #000; }
+    .badge-opus { background: #9b59b6; color: #fff; }
+    .badge-sonnet { background: #3498db; color: #fff; }
+    .badge-haiku { background: #1abc9c; color: #000; }
+    .badge-deprecated { background: #6c757d; color: #fff; text-decoration: line-through; }
     .nav {
       position: fixed;
       top: 0;
@@ -102,7 +106,6 @@
       white-space: nowrap;
     }
     .nav a:hover { background: #21262d; }
-    .nav a.new { border-color: #2ecc71; color: #2ecc71; }
     .spacer { height: 3.5rem; }
     .section-divider {
       text-align: center;
@@ -111,388 +114,286 @@
       margin: 2rem 0 1rem;
       letter-spacing: 2px;
     }
+    .deprecated { text-decoration: line-through; color: #6c757d; }
   </style>
 </head>
 <body>
   <nav class="nav">
     <a href="#chart1">Workflow</a>
     <a href="#chart2">BRD Input</a>
-    <a href="#chart3">BA Consultations</a>
-    <a href="#chart4">Verification Cycle</a>
-    <a href="#chart5">ProductEx Modes</a>
-    <a href="#chart6">Artifacts</a>
-    <a href="#chart7">Rework Loop</a>
-    <a href="#chart8">Communication Map</a>
-    <a href="#chart9">Guardrails</a>
-    <a href="#chart10" class="new">BA Validation</a>
-    <a href="#chart11" class="new">QA Coverage</a>
-    <a href="#chart12" class="new">SDET Test Strategy</a>
-    <a href="#chart13" class="new">Reviewer Traceability</a>
-    <a href="#chart14" class="new">API Handoff</a>
+    <a href="#chart3">Skills Map</a>
+    <a href="#chart4">Cross-Repo</a>
+    <a href="#chart5">Session Memory</a>
+    <a href="#chart6">Questions</a>
+    <a href="#chart7">Revert</a>
+    <a href="#chart8">Rework</a>
+    <a href="#chart9">Models</a>
+    <a href="#chart10">Dashboard</a>
+    <a href="#chart11">Confidence</a>
+    <a href="#chart12">Phase Rules</a>
+    <a href="#chart13">Guardrails</a>
+    <a href="#chart14">Prerequisites</a>
     <a href="#tables">Tables</a>
   </nav>
   <div class="spacer"></div>
 
-  <h1>AIDLC Pipeline — Complete Architecture</h1>
-  <p class="subtitle">Kalpavriksha AI Development Lifecycle — skills, flows, guardrails, and interaction patterns</p>
+  <h1>Feature Pipeline — Complete Architecture</h1>
+  <p class="subtitle">Kalpavriksha AI Development Pipeline — 13 phases, MECE skills, incremental memory, cross-repo tracing</p>
 
-  <!-- 1. Complete Workflow -->
+  <!-- 1. Complete Workflow — End-to-End -->
   <div class="chart-section" id="chart1">
-    <h2>1. Complete Workflow — End-to-End</h2>
-    <p>From BRD input through to merge-ready code. Includes LSP init, BRD extraction, knowledge bank, parallel Phase 00, verification cycle, Reviewer traceability, and API handoff.</p>
+    <h2>1. Complete Workflow — End-to-End (13 Phases)</h2>
+    <p>From BRD input through blueprint. Shows execution mode: interactive (main context), subagent, or parallel agents. Phases 0-12 with sub-phases 6a, 6b, 9b, 9c, 9d.</p>
     <pre class="mermaid">
 flowchart TB
-    BRD_IN["BRD Input\nPDF / DOCX / Text"] --> EXTRACT["Extract & Save\nbrd-raw.md"]
+    INPUT["Phase 0: Input Collection\n&lpar;Main Context — Interactive&rpar;\nCollect BRD, repos, UI screenshots"]
 
-    subgraph INIT["Initialisation"]
-        EXTRACT --> KB["Read knowledge-bank.md\n&lpar;pre-exists in repo&rpar;"]
-        KB --> LSP["Step -1: LSP Init\njdtls daemon"]
-        LSP --> SM["Step 0: Init\nsession-memory.md"]
-    end
-
-    subgraph PHASE00["Phase 00 — Parallel Execution"]
+    subgraph P1["Phase 1 — BA + PRD + ProductEx"]
         direction LR
-        subgraph BA_TRACK["BA Track &lpar;interactive&rpar;"]
-            BA_R["1. Read brd-raw.md\n+ Registry + Docs"]
-            BA_V["1b. BRD Validation Gate\nExtract behaviours"]
-            BA_A["2. Analyse & Classify\n+ Check Knowledge Bank"]
-            BA_C["3. Consult\nProductEx + Architect"]
-            BA_Q["4. User Q&A\n&lpar;remaining only&rpar;"]
-            BA_O["5. Output 00-ba.md\n+ Acceptance Criteria"]
-            BA_R --> BA_V --> BA_A --> BA_C --> BA_Q --> BA_O
-        end
-        subgraph PEX_TRACK["ProductEx Track &lpar;background&rpar;"]
-            PEX_BRD["BRD Review\nbrdQnA.md"]
-        end
+        BA["BA Deep-Dive + PRD\n&lpar;Main Context — Interactive&rpar;\n/ba skill — Opus"]
+        PEX_BG["ProductEx BRD Review\n&lpar;Background Subagent&rpar;\n/productex — Sonnet"]
     end
 
-    REVIEW_GATE{"Review Gate\nbrdQnA.md gaps?"}
-
-    subgraph GUARDRAILS_CHECK["Guardrails Enforced Throughout"]
+    subgraph P2["Phase 2 — Critic + Gap Analysis"]
         direction LR
-        G01["G-01\nTimezone"]
-        G03["G-03\nSecurity"]
-        G07["G-07\nMulti-Tenancy"]
-        G12["G-12\nAI-Specific"]
+        CRITIC["Critic\n&lpar;Subagent&rpar;\nprinciples.md — Opus"]
+        GAP_BRD["Analyst --compliance\n&lpar;Subagent&rpar;\n/analyst — Opus"]
     end
 
-    subgraph VERIFY_CYCLE["Architect-Analyst-ProductEx Verification &lpar;max 3&rpar;"]
-        ARCH["Phase 01: Architect\n01-architect.md"]
-        ANALYST["Phase 02: Analyst\nImpact + Verify"]
-        PEX_V["ProductEx Verify"]
-        ANALYST --> PEX_V
-        PEX_V -->|changes needed| ARCH
-        PEX_V -->|approved| PASS["Verified"]
+    UI["Phase 3: UI Extraction\n&lpar;Main Context — if screenshots&rpar;\nSonnet"]
+
+    BLOCKERS["Phase 4: Grooming + Blockers\n&lpar;Main Context — Interactive&rpar;\nOpus"]
+
+    subgraph P5["Phase 5 — Codebase Research"]
+        direction LR
+        REPO_AGENTS["Per-Repo Exploration\n&lpar;Parallel Agents&rpar;\nSonnet"]
+        CROSS["Cross-Repo Tracer\n&lpar;Subagent — after repos&rpar;\n/cross-repo-tracer — Sonnet"]
     end
 
-    DESIGNER["Phase 03: Designer"]
-    QA_PHASE["Phase 04: QA\n+ AC Coverage Matrix"]
-    DEV["Phase 05: Developer &lpar;interactive&rpar;"]
-    SDET["Phase 06: SDET\nUT + IT Planning"]
-    REVIEWER["Phase 07: Reviewer\nBuild + Traceability + Code"]
+    HLD["Phase 6: HLD Architect\n&lpar;Main Context — Interactive&rpar;\n/architect — Opus"]
+    IMPACT["Phase 6a: Impact Analysis\n&lpar;Subagent&rpar;\n/analyst --impact — Opus"]
+    MIGRATE_PLAN["Phase 6b: Migration Planning\n&lpar;Subagent — conditional&rpar;\n/migrator — Sonnet"]
 
-    subgraph REVIEWER_GATE["Reviewer Requirements Gate"]
-        REV_TRACE["Requirements\nTraceability Check"]
-        REV_ROUTE{"Gaps\nfound?"}
-        REV_TRACE --> REV_ROUTE
-        REV_ROUTE -->|"A: Rerun"| RERUN["Rerun from\nearliest phase"]
-        REV_ROUTE -->|"B: Manual"| MANUAL["Human fixes\nthen re-verify"]
-        REV_ROUTE -->|"C: Accept risk"| ACCEPT["Log in session\nmemory"]
-        REV_ROUTE -->|no gaps| CODE_REV["Proceed to\nCode Review"]
+    LLD["Phase 7: LLD Designer\n&lpar;Subagent&rpar;\n/designer — Sonnet"]
+    QA["Phase 8: QA\n&lpar;Subagent&rpar;\n/qa — Sonnet"]
+
+    subgraph P9["Phase 9 — Developer + Validation"]
+        DEV["Developer\n&lpar;Main Context + Agent Team&rpar;\n/developer — Sonnet"]
+        BACKEND["9b: Backend Readiness\n&lpar;Subagent&rpar;\n/backend-readiness — Sonnet"]
+        COMPLIANCE["9c: Gap Analysis\n&lpar;Subagent&rpar;\n/analyst --compliance — Opus"]
+        MIG_VAL["9d: Migration Validation\n&lpar;Subagent — conditional&rpar;\n/migrator — Sonnet"]
     end
 
-    MERGE(["Merge Ready"])
+    SDET["Phase 10: SDET\n&lpar;Subagent&rpar;\n/sdet — Sonnet"]
+    REVIEWER["Phase 11: Reviewer\n&lpar;Subagent + Main Context&rpar;\n/reviewer — Sonnet"]
+    BLUEPRINT["Phase 12: Blueprint\n&lpar;Subagent&rpar;\nHaiku"]
 
-    API_HANDOFF["API Handoff\n&lpar;optional — on demand&rpar;\napi-handoff.md\n+ OpenAPI YAML"]
+    INPUT --> P1
+    P1 --> P2
+    P2 --> UI
+    UI --> BLOCKERS
+    BLOCKERS --> P5
+    P5 --> HLD
+    HLD --> IMPACT
+    IMPACT --> MIGRATE_PLAN
+    MIGRATE_PLAN --> LLD
+    LLD --> QA
+    QA --> P9
+    DEV --> BACKEND
+    BACKEND --> COMPLIANCE
+    COMPLIANCE --> MIG_VAL
+    MIG_VAL --> SDET
+    SDET --> REVIEWER
+    REVIEWER --> BLUEPRINT
 
-    SM --> PHASE00
-    BA_O --> REVIEW_GATE
-    PEX_BRD --> REVIEW_GATE
-    REVIEW_GATE -->|clear| ARCH
-    REVIEW_GATE -->|blocking gaps| HUMAN_R["Human resolves"]
-    HUMAN_R --> ARCH
-    ARCH --> ANALYST
-    PASS --> DESIGNER
-    DESIGNER --> QA_PHASE --> DEV --> SDET --> REVIEWER
-    REVIEWER --> REVIEWER_GATE
-    CODE_REV --> MERGE
-    ACCEPT --> CODE_REV
+    REVIEWER -->|"blockers found"| DEV
 
-    DESIGNER -.->|"api-handoff cmd"| API_HANDOFF
-    DEV -.->|"api-handoff cmd"| API_HANDOFF
-
-    GUARDRAILS_CHECK -.->|read at start| ARCH & ANALYST & DESIGNER & QA_PHASE & DEV & SDET & REVIEWER
-
-    style PHASE00 fill:#1a1a2e,stroke:#e94560,color:#fff
-    style VERIFY_CYCLE fill:#16213e,stroke:#0f3460,color:#fff
-    style INIT fill:#0f3460,stroke:#533483,color:#fff
-    style REVIEW_GATE fill:#e94560,stroke:#fff,color:#fff
-    style MERGE fill:#2ecc71,stroke:#fff,color:#fff
-    style GUARDRAILS_CHECK fill:#2c3e50,stroke:#e74c3c,color:#fff
-    style BRD_IN fill:#3498db,stroke:#fff,color:#fff
-    style REVIEWER_GATE fill:#16213e,stroke:#e94560,color:#fff
-    style API_HANDOFF fill:#9b59b6,stroke:#fff,color:#fff
-    style KB fill:#f39c12,stroke:#fff,color:#000
+    style INPUT fill:#0f3460,stroke:#533483,color:#fff
+    style P1 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style P2 fill:#16213e,stroke:#0f3460,color:#fff
+    style BLOCKERS fill:#e94560,stroke:#fff,color:#fff
+    style P5 fill:#1a1a2e,stroke:#533483,color:#fff
+    style HLD fill:#9b59b6,stroke:#fff,color:#fff
+    style P9 fill:#16213e,stroke:#e94560,color:#fff
+    style BLUEPRINT fill:#2ecc71,stroke:#fff,color:#000
     </pre>
   </div>
 
   <!-- 2. BRD Input Resolution -->
   <div class="chart-section" id="chart2">
-    <h2>2. BRD Input Resolution + Knowledge Bank</h2>
-    <p>How the workflow accepts BRDs in PDF, DOCX, Markdown, or conversation text. Knowledge bank is a permanent repo file — human populates before each pipeline run.</p>
+    <h2>2. BRD Input Resolution</h2>
+    <p>How BRD is accepted: PDF, DOCX, MD, URL, or paste. No file copying — read from original location. Extract text to brd-raw.md only for binary formats (PDF/DOCX). External repos are never cloned — paths stored in pipeline-state.json.</p>
     <pre class="mermaid">
 flowchart TB
-    START["User invokes /workflow"] --> CHK{"brd: param\nprovided?"}
+    START["Phase 0: Input Collection"] --> BRD_SRC{"BRD source\nprovided?"}
 
-    CHK -->|"brd:file.pdf"| PDF["Read PDF\nExtract text"]
-    CHK -->|"brd:file.docx"| DOCX["Read DOCX\nExtract text"]
-    CHK -->|"brd:file.md"| MD["Read file\ndirectly"]
-    CHK -->|"no brd: param"| CONV{"BRD text in\nconversation?"}
+    BRD_SRC -->|"file.pdf"| PDF["Read PDF\nExtract text to brd-raw.md"]
+    BRD_SRC -->|"file.docx"| DOCX["Read DOCX\nExtract text to brd-raw.md"]
+    BRD_SRC -->|"file.md / .txt"| MD["Store path in\npipeline-state.json\nRead from original location"]
+    BRD_SRC -->|"URL"| URL["WebFetch URL\nStore URL in state"]
+    BRD_SRC -->|"paste"| PASTE["Prompt user to\npaste inline"]
 
-    CONV -->|yes| USE["Use conversation text"]
-    CONV -->|no| PROMPT["Prompt user:\n1. Paste text\n2. Provide PDF path\n3. Provide DOCX path"]
-    PROMPT --> CHK
+    PDF --> VALIDATE
+    DOCX --> VALIDATE
+    MD --> VALIDATE
+    URL --> VALIDATE
+    PASTE --> VALIDATE
 
-    PDF --> SAVE
-    DOCX --> SAVE
-    MD --> SAVE
-    USE --> SAVE
+    VALIDATE["Validate all inputs:\n1. BRD readable\n2. Code repo paths exist\n3. UI screenshots exist\n4. LSP check &lpar;jdtls&rpar;"]
 
-    SAVE["Save to brd-raw.md\nwith source metadata"]
+    VALIDATE --> STATE["Write pipeline-state.json\nwith all paths + settings"]
 
-    SAVE --> KB_READ["Read .claude/skills/\nknowledge-bank.md"]
-    KB_READ --> KB_CHK{"Has content\nbeyond template?"}
-    KB_CHK -->|yes| READY_KB["BA will use KB\nto resolve concerns"]
-    KB_CHK -->|"empty"| READY_NO["BA will ask all\nquestions directly"]
-    READY_KB --> READY
-    READY_NO --> READY
-
-    READY["BRD + Knowledge Bank Ready\nProceed to LSP Init"]
-
-    subgraph KNOWLEDGE_BANK["Knowledge Bank &lpar;human-populated&rpar;"]
-        direction TB
-        KB_SCOPE["Scope decisions"]
-        KB_RULES["Business rules"]
-        KB_TERMS["Domain terminology"]
-        KB_EDGE["Known edge cases"]
-        KB_QA["Pre-answered Q&A"]
-        KB_CTX["Context not in BRD"]
-    end
-
-    subgraph OPTIONAL["Optional Pre-Check"]
-        BRDCHK["/productex brd-check file.pdf\nValidate against standards\nScore: X/14"]
-    end
-
-    BRDCHK -.->|"improve BRD\nbefore workflow"| START
-    KNOWLEDGE_BANK -.->|"reduces BA\nquestions"| READY
-
-    style SAVE fill:#2ecc71,stroke:#fff,color:#000
-    style PROMPT fill:#e74c3c,stroke:#fff,color:#fff
-    style OPTIONAL fill:#2c3e50,stroke:#3498db,color:#fff
-    style BRDCHK fill:#3498db,stroke:#fff,color:#fff
-    style KNOWLEDGE_BANK fill:#f39c12,stroke:#fff,color:#000
-    style KB_READ fill:#f39c12,stroke:#fff,color:#000
-    </pre>
-  </div>
-
-  <!-- 3. BA Consultations -->
-  <div class="chart-section" id="chart3">
-    <h2>3. BA Internal Consultation Protocol (Phase 00 — Steps 2-4)</h2>
-    <p>Knowledge bank checked first. Then 3-tier routing: product concerns to ProductEx, code/backend to Architect, business intent to human. No concern silently dropped.</p>
-    <pre class="mermaid">
-flowchart TB
-    START["BA Step 2: Analyse\nthrough 3 lenses"] --> CONCERNS["Collect all concerns\n&lpar;Architect + Analyst + QA lens&rpar;"]
-
-    CONCERNS --> KB{"Check\nKnowledge Bank"}
-
-    KB -->|"answer found"| VERIFY["Cross-verify\nagainst BRD"]
-    VERIFY -->|consistent| RESOLVED_KB["Resolved\n&lpar;by knowledge bank&rpar;"]
-    VERIFY -->|conflict| FLAG["Flag conflict\nroute to human"]
-
-    KB -->|"no answer"| CLASSIFY{"Classify\nconcern type"}
-
-    CLASSIFY -->|"Product concern"| PEX["Spawn ProductEx\nconsult mode"]
-    CLASSIFY -->|"Code/backend"| ARCH["Spawn Architect\nresearch-only\n&lpar;jdtls preferred&rpar;"]
-    CLASSIFY -->|"Business intent"| HUMAN["Route to\nUser Q&A"]
-
-    PEX --> PEX_R{"ProductEx\nresponse?"}
-    PEX_R -->|resolved| RESOLVED_PEX["Resolved\n&lpar;by ProductEx&rpar;"]
-    PEX_R -->|unresolved| BRD["Added to brdQnA.md\nwith owner tag"]
-
-    ARCH --> ARCH_R{"Architect\nresponse?"}
-    ARCH_R -->|resolved| RESOLVED_ARCH["Resolved\n&lpar;by Architect&rpar;"]
-    ARCH_R -->|unresolved| PAUSE["WORKFLOW PAUSES\nEscalate to Human"]
-
-    PAUSE --> H_INPUT{"Human\nresponds?"}
-    H_INPUT -->|answer| RESUME["Resolved\n&lpar;by human&rpar;"]
-    H_INPUT -->|skip| OPEN["Open Question\n&lpar;tracked&rpar;"]
-
-    RESOLVED_KB & RESOLVED_PEX & RESOLVED_ARCH & RESUME & OPEN & BRD & FLAG --> NEXT["Next concern"]
-
-    NEXT --> DONE{"All concerns\naccounted for?"}
-    DONE -->|no| KB
-    DONE -->|yes| STEP4["Step 4: User Q&A\nremaining human Qs only"]
-
-    subgraph GUARANTEE["Concern Resolution Guarantee"]
+    subgraph RULES["No-Copy Rules"]
         direction LR
-        G1["Every concern must end as:\n1. Resolved by KB\n2. Resolved by consultation\n3. Asked to human"]
-        G2["Never silently dropped"]
+        R1["Never copy BRD\ninto artifacts path\n&lpar;except brd-raw.md for binary&rpar;"]
+        R2["Never clone\nexternal repos"]
+        R3["Store absolute paths\nin pipeline-state.json"]
+        R4["Read from original\nlocation every time"]
     end
 
-    style PAUSE fill:#e74c3c,stroke:#fff,color:#fff
-    style BRD fill:#f39c12,stroke:#fff,color:#fff
-    style PEX fill:#3498db,stroke:#fff,color:#fff
-    style ARCH fill:#9b59b6,stroke:#fff,color:#fff
-    style HUMAN fill:#2ecc71,stroke:#fff,color:#fff
-    style KB fill:#f39c12,stroke:#fff,color:#000
-    style GUARANTEE fill:#2c3e50,stroke:#2ecc71,color:#fff
-    style RESOLVED_KB fill:#2ecc71,stroke:#fff,color:#000
+    subgraph RESUME["Resume on Different Machine"]
+        direction TB
+        RCHK["Validate ALL paths\non startup"]
+        RFAIL["If path invalid:\nprompt for updated path"]
+        RUPD["Update pipeline-state.json\nwith corrected paths"]
+        RCHK --> RFAIL --> RUPD
+    end
+
+    style VALIDATE fill:#2ecc71,stroke:#fff,color:#000
+    style RULES fill:#2c3e50,stroke:#3498db,color:#fff
+    style RESUME fill:#16213e,stroke:#0f3460,color:#fff
     </pre>
   </div>
 
-  <!-- 4. Verification Cycle -->
+  <!-- 3. MECE Skills Map -->
+  <div class="chart-section" id="chart3">
+    <h2>3. MECE Skills Map — 16 Active + 2 Deprecated</h2>
+    <p>All skills organized by category. Model assignment shown per skill: <span class="badge badge-opus">Opus</span> for judgment, <span class="badge badge-sonnet">Sonnet</span> for coding/generation, <span class="badge badge-haiku">Haiku</span> for mechanical tasks. Deprecated skills shown with strikethrough.</p>
+    <pre class="mermaid">
+graph TB
+    subgraph ANALYSIS["Analysis Skills"]
+        BA["/ba\nBA + PRD Generation\nPhase 1\nOpus"]
+        ANALYST["/analyst\n--impact or --compliance\nPhases 2, 6a, 9c\nOpus"]
+        PRODUCTEX["/productex\n8 modes incl. BRD review\nPhase 1 parallel\nSonnet"]
+        CROSS_REPO["/cross-repo-tracer\nMulti-repo path tracing\nPhase 5\nSonnet"]
+        MIGRATOR["/migrator\nSchema migration analysis\nPhases 6b, 9d\nSonnet"]
+    end
+
+    subgraph DESIGN["Design Skills"]
+        ARCHITECT["/architect\nHLD, ADRs, patterns\nPhase 6\nOpus"]
+        DESIGNER["/designer\nLLD, interface contracts\nPhase 7\nSonnet"]
+    end
+
+    subgraph IMPLEMENTATION["Implementation Skills"]
+        DEVELOPER["/developer\nTDD red-green-refactor\nPhase 9\nSonnet"]
+        BACKEND["/backend-readiness\nProduction readiness gate\nPhase 9b\nSonnet"]
+    end
+
+    subgraph VERIFICATION["Verification Skills"]
+        QA_S["/qa\nTest scenarios, edge cases\nPhase 8\nSonnet"]
+        SDET_S["/sdet\nTest automation planning\nPhase 10\nSonnet"]
+        REVIEWER_S["/reviewer\nCode review + traceability\nPhase 11\nSonnet"]
+    end
+
+    subgraph STANDALONE["Standalone Skills"]
+        DEBUG["/debug\nRoot cause analysis\nOn-demand\nOpus"]
+        TUTOR["/tutor\nCodebase teaching\nOn-demand\nSonnet"]
+        API_HANDOFF["/api-handoff\nUI team API contract\nAfter Phase 7 or 9\nSonnet"]
+    end
+
+    subgraph DEPRECATED["Deprecated — Kept for Reference"]
+        PRD_GEN["/prd-generator\nMerged into /ba"]
+        GAP_AN["/gap-analyser\nMerged into /analyst --compliance"]
+    end
+
+    style ANALYSIS fill:#1a1a2e,stroke:#e94560,color:#fff
+    style DESIGN fill:#16213e,stroke:#0f3460,color:#fff
+    style IMPLEMENTATION fill:#0f3460,stroke:#533483,color:#fff
+    style VERIFICATION fill:#2c3e50,stroke:#2ecc71,color:#fff
+    style STANDALONE fill:#2c3e50,stroke:#3498db,color:#fff
+    style DEPRECATED fill:#21262d,stroke:#6c757d,color:#6c757d
+    style PRD_GEN fill:#21262d,stroke:#6c757d,color:#6c757d
+    style GAP_AN fill:#21262d,stroke:#6c757d,color:#6c757d
+    </pre>
+
+    <table>
+      <tr><th>Skill</th><th>Category</th><th>Phase(s)</th><th>Model</th><th>Mode</th></tr>
+      <tr><td><code>/ba</code></td><td>Analysis</td><td>1</td><td><span class="badge badge-opus">Opus</span></td><td>Interactive (main context)</td></tr>
+      <tr><td><code>/analyst</code></td><td>Analysis</td><td>2, 6a, 9c</td><td><span class="badge badge-opus">Opus</span></td><td>Subagent</td></tr>
+      <tr><td><code>/productex</code></td><td>Analysis</td><td>1 (parallel)</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Background subagent</td></tr>
+      <tr><td><code>/cross-repo-tracer</code></td><td>Analysis</td><td>5</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent</td></tr>
+      <tr><td><code>/migrator</code></td><td>Analysis</td><td>6b, 9d</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent (conditional)</td></tr>
+      <tr><td><code>/architect</code></td><td>Design</td><td>6</td><td><span class="badge badge-opus">Opus</span></td><td>Interactive (main context)</td></tr>
+      <tr><td><code>/designer</code></td><td>Design</td><td>7</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent</td></tr>
+      <tr><td><code>/developer</code></td><td>Implementation</td><td>9</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Main context + agent team</td></tr>
+      <tr><td><code>/backend-readiness</code></td><td>Implementation</td><td>9b</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent</td></tr>
+      <tr><td><code>/qa</code></td><td>Verification</td><td>8</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent</td></tr>
+      <tr><td><code>/sdet</code></td><td>Verification</td><td>10</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent</td></tr>
+      <tr><td><code>/reviewer</code></td><td>Verification</td><td>11</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent + main context</td></tr>
+      <tr><td><code>/debug</code></td><td>Standalone</td><td>On-demand</td><td><span class="badge badge-opus">Opus</span></td><td>Main context</td></tr>
+      <tr><td><code>/tutor</code></td><td>Standalone</td><td>On-demand</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Main context (read-only)</td></tr>
+      <tr><td><code>/api-handoff</code></td><td>Standalone</td><td>After 7 or 9</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Subagent (on demand)</td></tr>
+      <tr><td class="deprecated"><code>/prd-generator</code></td><td><span class="badge badge-deprecated">DEPRECATED</span></td><td>-</td><td>-</td><td>Merged into /ba</td></tr>
+      <tr><td class="deprecated"><code>/gap-analyser</code></td><td><span class="badge badge-deprecated">DEPRECATED</span></td><td>-</td><td>-</td><td>Merged into /analyst --compliance</td></tr>
+    </table>
+  </div>
+
+  <!-- 4. Cross-Repo Architecture -->
   <div class="chart-section" id="chart4">
-    <h2>4. Architect-Analyst-ProductEx Verification Cycle</h2>
-    <p>3-cycle max loop. Analyst pushes back on security flaws, perf issues, breaking changes, AND unfulfilled product requirements (via ProductEx).</p>
+    <h2>4. Cross-Repo Architecture</h2>
+    <p>5 repos with connections: HTTP, Thrift, direct DB. Shows write flow for tier config changes. Cross-repo tracer enforces C6+ evidence for "0 modifications" claims.</p>
     <pre class="mermaid">
-flowchart TB
-    ARCH["Architect produces\n01-architect.md"] --> U1{"User\napproves?"}
-    U1 -->|continue| STAGE1
-
-    subgraph ANALYST_WORK["Analyst Phase 02"]
-        STAGE1["Stage 1: Own Impact Analysis\nblast radius, security, perf, breaking changes"]
-        STAGE1 --> GRD["Check GUARDRAILS.md\nG-01, G-03, G-07"]
-        GRD --> STAGE2["Stage 2: Spawn\nProductEx verify"]
+graph TB
+    subgraph REPOS["5 Repositories"]
+        EMF["emf-parent\nPoints engine, tier/slab entities\nstrategies, Thrift services"]
+        INTOUCH["intouch-api-v3\nREST API gateway\nmaker-checker workflows\nSpring MVC"]
+        PEB["peb\nPoints Engine Backend\ntier downgrade calculators"]
+        THRIFT["Thrift\nIDL definitions\ncross-service RPC"]
+        API["api/prototype\nCustomer-facing REST APIs\nJAX-RS &lpar;Jersey&rpar;"]
     end
 
-    STAGE2 --> VERDICT{"ProductEx\nverdict?"}
+    INTOUCH -->|"HTTP REST\n&lpar;maker-checker&rpar;"| EMF
+    EMF -->|"Thrift RPC"| PEB
+    EMF -->|"implements"| THRIFT
+    PEB -->|"implements"| THRIFT
+    INTOUCH -->|"HTTP REST"| API
+    API -->|"Direct DB\n&lpar;shared schema&rpar;"| EMF
 
-    VERDICT -->|approved| OK["Analyst returns\ncomplete + verification table"]
-    VERDICT -->|changes needed| BLOCK["Analyst raises BLOCKER\nCategories:\n1. Impact Analysis Issues\n2. Product Requirements Issues\nwith evidence + direction"]
+    subgraph WRITE_FLOW["Tier Config Write Flow"]
+        direction LR
+        W1["UI submits\ntier config"] --> W2["intouch-api-v3\nmaker-checker\ncreate draft"]
+        W2 --> W3["intouch-api-v3\napprove/publish"]
+        W3 --> W4["emf-parent\nTierStrategy\npersist to DB"]
+        W4 --> W5["peb\ndowngrade calculator\npicks up changes"]
+    end
 
-    OK --> SHOW_OK["Show user:\nfindings + approval"] --> NEXT["Proceed to Designer"]
+    subgraph TRACER_RULES["Cross-Repo Tracer Enforcement"]
+        direction TB
+        TR1["Trace every write/read\npath across repos"]
+        TR2["Identify generic routing\n&lpar;EntityType enums, dispatchers&rpar;"]
+        TR3["Claim '0 modifications'\nrequires C6+ with evidence"]
+        TR4["Map: new files vs\nmodified files per repo"]
+    end
 
-    BLOCK --> SHOW["Show user: Cycle N/3\nAll issues with evidence\nSuggested directions"]
-
-    SHOW --> CK{"Cycle\ncount?"}
-
-    CK -->|"< 3"| APPROVE{"User approves\nrework?"}
-    APPROVE -->|continue| RERUN["Architect re-runs\nwith blocker evidence"]
-    APPROVE -->|resolve| MANUAL["Human takes\nmanual control"]
-    RERUN --> ARCH
-
-    CK -->|"= 3"| ESC["HUMAN ESCALATION\n3 cycles exhausted"]
-    ESC --> OPT["Options:\nA. Manual adjust architect\nB. Accept with risks\nC. Revisit BA requirements\nD. Consult product team"]
-    OPT --> DECIDE["Human decides"] --> CONT["Continue workflow"]
-
-    style ANALYST_WORK fill:#1a1a2e,stroke:#e94560,color:#fff
-    style ESC fill:#e74c3c,stroke:#fff,color:#fff
-    style OK fill:#2ecc71,stroke:#fff,color:#000
-    style BLOCK fill:#e67e22,stroke:#fff,color:#fff
-    style STAGE2 fill:#3498db,stroke:#fff,color:#fff
-    style GRD fill:#e74c3c,stroke:#fff,color:#fff
+    style REPOS fill:#1a1a2e,stroke:#e94560,color:#fff
+    style EMF fill:#3498db,stroke:#fff,color:#fff
+    style INTOUCH fill:#9b59b6,stroke:#fff,color:#fff
+    style PEB fill:#e67e22,stroke:#fff,color:#fff
+    style THRIFT fill:#2ecc71,stroke:#fff,color:#000
+    style API fill:#f39c12,stroke:#fff,color:#000
+    style WRITE_FLOW fill:#16213e,stroke:#0f3460,color:#fff
+    style TRACER_RULES fill:#2c3e50,stroke:#e74c3c,color:#fff
     </pre>
   </div>
 
-  <!-- 5. ProductEx Modes -->
+  <!-- 5. Session Memory & Incremental Updates -->
   <div class="chart-section" id="chart5">
-    <h2>5. ProductEx — All 8 Modes and Touchpoints</h2>
-    <p>5 user-invokable modes (discover, query, map, brief, brd-check) + 3 workflow-internal modes (brd-review, consult, verify)</p>
+    <h2>5. Session Memory &amp; Incremental Updates</h2>
+    <p>session-memory.md flows between ALL phases. Updated incrementally after every decision — never batch at phase end. Sections tagged with phase origin for surgical cleanup on revert. Survives context compaction.</p>
     <pre class="mermaid">
 flowchart TB
-    subgraph UMODES["User-Invokable Modes"]
-        D["/productex discover\nBuild/update registry"]
-        Q["/productex query\nAnswer questions"]
-        M["/productex map\nDeep-dive module"]
-        B["/productex brief\nFeature brief"]
-        BC["/productex brd-check\nValidate BRD standards\nScore X/14"]
-    end
-
-    subgraph WMODES["Workflow-Internal Modes"]
-        BR["brd-review\nParallel BRD analysis\n&rarr; brdQnA.md"]
-        CO["consult\nAnswer BA query\nor add to brdQnA.md"]
-        VE["verify\nCheck solution vs\nproduct requirements\n&lpar;evidence-backed&rpar;"]
-    end
-
-    subgraph KNOWLEDGE["Knowledge Sources"]
-        REG["docs/product/\nregistry.md"]
-        DOCS["docs.capillarytech.com"]
-        CODE["Codebase\n&lpar;jdtls + grep&rpar;"]
-        PDOCS["docs/product/\nfeature files"]
-        STD["docs/product/\nbrd-standards.md"]
-    end
-
-    subgraph TRIGGERS["Triggered By"]
-        USER(("Human"))
-        ORCH["Orchestrator"]
-        BA["BA Phase 00"]
-        ANA["Analyst Phase 02"]
-    end
-
-    USER --> D & Q & M & B & BC
-    ORCH -->|Phase 00 parallel| BR
-    BA -->|product concern| CO
-    ANA -->|verify solution| VE
-
-    D & Q & M & B & BR & CO & VE --> REG
-    D --> DOCS & CODE
-    Q -.->|fallback| DOCS
-    M --> DOCS & CODE
-    BR --> DOCS & PDOCS
-    CO --> DOCS & PDOCS
-    VE --> DOCS
-    BC --> STD & REG
-
-    BR -->|writes| BRDQ["brdQnA.md"]
-    CO -->|if unresolved| BRDQ
-
-    style WMODES fill:#16213e,stroke:#0f3460,color:#fff
-    style UMODES fill:#1a1a2e,stroke:#533483,color:#fff
-    style KNOWLEDGE fill:#0f3460,stroke:#e94560,color:#fff
-    style BC fill:#f39c12,stroke:#fff,color:#000
-    </pre>
-  </div>
-
-  <!-- 6. Artifacts Flow -->
-  <div class="chart-section" id="chart6">
-    <h2>6. Artifact & Session Memory Flow</h2>
-    <p>Which phase writes which artifacts and session memory sections. Includes knowledge bank and api-handoff.</p>
-    <pre class="mermaid">
-flowchart LR
-    subgraph PHASES["Phases"]
-        direction TB
-        ORCH["Orchestrator"]
-        PBR["ProductEx\nBRD Review"]
-        BA["BA"]
-        AR["Architect"]
-        AN["Analyst"]
-        DE["Designer"]
-        QA["QA"]
-        DV["Developer"]
-        SD["SDET"]
-        RV["Reviewer"]
-        AH["API Handoff"]
-    end
-
-    subgraph ARTIFACTS["Artifacts"]
-        direction TB
-        RAW["brd-raw.md"]
-        KBF["knowledge-bank.md"]
-        BQ["brdQnA.md"]
-        A0["00-ba.md"]
-        PD["docs/product/\nfeature.md"]
-        A1["01-architect.md"]
-        A2["02-analyst.md"]
-        A3["03-designer.md"]
-        A4["04-qa.md"]
-        A5["05-developer.md"]
-        A6["06-sdet.md"]
-        A7["07-reviewer.md"]
-        AHF["api-handoff.md\n+ .openapi.yaml"]
-    end
-
-    subgraph SESSION["Session Memory Sections"]
-        direction TB
+    subgraph SM_SECTIONS["session-memory.md Sections"]
+        direction LR
         DT["Domain\nTerminology"]
         CB["Codebase\nBehaviour"]
         KD["Key\nDecisions"]
@@ -500,209 +401,354 @@ flowchart LR
         RC["Risks &\nConcerns"]
         OQ["Open\nQuestions"]
         RL["Rework\nLog"]
-        VCL["Verification\nCycle Log"]
     end
 
-    subgraph SHARED_READ["Shared Reads"]
+    subgraph WRITERS["Who Writes What"]
         direction TB
-        GR["GUARDRAILS.md"]
-        REG["registry.md"]
+        BA_W["BA &lpar;Phase 1&rpar;"] -->|writes| DT & CB & KD & CO & OQ
+        PEX_W["ProductEx"] -->|writes| DT & CB
+        ARCH_W["Architect &lpar;Phase 6&rpar;"] -->|writes| CB & KD & CO & OQ
+        ANAL_W["Analyst &lpar;Phases 2,6a,9c&rpar;"] -->|writes| CB & RC & CO & OQ
+        DSGN_W["Designer &lpar;Phase 7&rpar;"] -->|writes| KD & CO & OQ
+        QA_W["QA &lpar;Phase 8&rpar;"] -->|writes| RC & OQ
+        DEV_W["Developer &lpar;Phase 9&rpar;"] -->|writes| CB & KD & CO & RC
+        SDET_W["SDET &lpar;Phase 10&rpar;"] -->|writes| CO & OQ
+        REV_W["Reviewer &lpar;Phase 11&rpar;"] -->|writes| RC & OQ & KD
+        ORCH_W["Orchestrator"] -->|writes| RL
     end
 
-    ORCH --> RAW
-    ORCH -.->|reads| KBF
-    PBR --> BQ
-    PBR --> DT & CB
+    subgraph INCREMENTAL["Incremental Update Rules"]
+        direction TB
+        I1["Update AFTER EVERY decision\nnot just at phase end"]
+        I2["Each entry tagged:\n'_&lpar;Phase N&rpar;_' suffix"]
+        I3["On revert: surgical cleanup\nremove only tagged entries"]
+        I4["Survives context compaction\nbecause it is a file on disk"]
+    end
 
-    BA --> A0 & PD
-    BA --> DT & CB & CO & KD & OQ
+    subgraph READERS["Who Reads"]
+        direction TB
+        ALL["Every phase reads\nsession-memory.md\nbefore starting work"]
+    end
 
-    AR --> A1
-    AR --> CB & KD & CO & OQ
-
-    AN --> A2
-    AN --> CB & RC & CO & OQ
-
-    DE --> A3
-    DE --> KD & CO & OQ
-
-    QA --> A4
-    QA --> RC & OQ
-
-    DV --> A5
-    DV --> CB & KD & CO & RC
-
-    SD --> A6
-    SD --> CO & OQ
-
-    RV --> A7
-    RV --> RC & OQ & KD
-
-    AH --> AHF
-
-    ORCH --> RL & VCL
-
-    AR & AN & DE & QA & DV & SD & RV -.->|read| GR
-    BA & AN & PBR -.->|read| REG
-    BA -.->|read| KBF
-    AH -.->|reads| A1 & A3 & A5
-
-    style PHASES fill:#0f3460,stroke:#533483,color:#fff
-    style ARTIFACTS fill:#1a1a2e,stroke:#e94560,color:#fff
-    style SESSION fill:#16213e,stroke:#0f3460,color:#fff
-    style SHARED_READ fill:#2c3e50,stroke:#e74c3c,color:#fff
-    style AH fill:#9b59b6,stroke:#fff,color:#fff
-    style AHF fill:#9b59b6,stroke:#fff,color:#fff
-    style KBF fill:#f39c12,stroke:#fff,color:#000
+    style SM_SECTIONS fill:#e67e22,stroke:#fff,color:#fff
+    style WRITERS fill:#1a1a2e,stroke:#e94560,color:#fff
+    style INCREMENTAL fill:#16213e,stroke:#0f3460,color:#fff
+    style READERS fill:#0f3460,stroke:#533483,color:#fff
     </pre>
   </div>
 
-  <!-- 7. Rework Loop -->
-  <div class="chart-section" id="chart7">
-    <h2>7. Blocker & Rework Loop</h2>
-    <p>How blockers are classified, cascade rules, and circuit breaker logic. General rework: 2-cycle max. Verification cycle: 3-cycle max.</p>
+  <!-- 6. Clarifying Question Protocol -->
+  <div class="chart-section" id="chart6">
+    <h2>6. Clarifying Question Protocol</h2>
+    <p>3 mechanisms ensure no silent assumptions: subagent question collection, 6 mandatory checkpoints, confidence-based escalation (below C4). Questions flow from subagent to orchestrator to user.</p>
     <pre class="mermaid">
 flowchart TB
-    BL["Phase X raises BLOCKER\nTARGET = Phase N"] --> CHK{"Rework Log:\nPhase N re-run\ncount?"}
-
-    CHK -->|">= 2"| CB["CIRCUIT BREAKER\nEscalate to Human\n4 options"]
-    CHK -->|"< 2"| SEV{"Orchestrator\nclassifies severity"}
-
-    SEV -->|trivial| TRV["Auto re-run Phase N\nwith blocker appended"]
-    SEV -->|critical| CRT["Pause for\nuser approval"]
-
-    CRT --> UA["User approves"] --> RR["Re-run Phase N"]
-    TRV --> CAS["Cascade through\nintermediate phases"]
-    RR --> PC["Pause: cascade?"] --> CAS
-
-    CAS --> UL["Update Rework Log\nin session-memory.md"] --> RET["Return to Phase X"]
-
-    CB --> OPT["Options:\nA. Revisit earlier phase\nB. Accept deviation\nC. Mark as risk\nD. Other"]
-
-    subgraph CRITICAL_CRITERIA["Critical Blocker Criteria"]
-        direction TB
-        C1["Invalidates user-approved decision"]
-        C2["Violates codebase architectural patterns"]
-        C3["Violates workflow design approaches"]
-        C4["Deviates from BA requirements"]
-        C5["Security flaw"]
-        C6["Tech debt with no mitigation"]
-        C7["GUARDRAIL violation &lpar;CRITICAL tier&rpar;"]
+    subgraph M1["Mechanism 1: Subagent Question Collection"]
+        SA["Subagent encounters\nuncertainty &lpar;below C5&rpar;"]
+        SA --> COLLECT["Collects question in output:\nQUESTIONS FOR USER\n+ ASSUMPTIONS MADE"]
+        COLLECT --> ORCH_READ["Orchestrator reads\nsubagent output"]
+        ORCH_READ --> PRESENT["Present questions\nto user BEFORE\nnext phase"]
+        PRESENT --> USER_ANS["User answers"]
+        USER_ANS --> UPDATE["Update session-memory\nwith answers"]
     end
 
-    subgraph CASCADE["Cascade Rules"]
+    subgraph M2["Mechanism 2: 6 Mandatory Checkpoints"]
         direction TB
-        R0["BA &rarr; Arch &rarr; Analyst &rarr; Designer &rarr; QA"]
-        R1["Architect &rarr; Analyst &rarr; Designer &rarr; QA"]
-        R2["Analyst &rarr; Designer &rarr; QA"]
-        R3["Designer &rarr; QA"]
-        R4["QA &rarr; Developer directly"]
-        R5["Developer &rarr; SDET"]
+        CP1["After Phase 1 &lpar;BA+PRD&rpar;\nAnything to add or change?"]
+        CP2["After Phase 2 &lpar;Critic&rpar;\nReview contradictions and gaps"]
+        CP3["After Phase 5 &lpar;Research&rpar;\nAnything surprising about codebase?"]
+        CP4["After Phase 6 &lpar;Architect&rpar;\nArchitecture direction correct?"]
+        CP5["After Phase 8 &lpar;QA&rpar;\nAny scenarios missing?"]
+        CP6["After Phase 9 &lpar;Developer&rpar;\nAnything to check before review?"]
+    end
+
+    subgraph M3["Mechanism 3: Confidence-Based Escalation"]
+        CLAIM["Any claim below C4\nin phase output"] --> SURFACE["Surface to user\nwith context"]
+        SURFACE --> CHOICE{"User decides:"}
+        CHOICE -->|verify| INVESTIGATE["Investigate further"]
+        CHOICE -->|accept risk| LOG["Log as accepted risk\nin approach-log"]
+    end
+
+    subgraph FLOW["Question Flow"]
+        direction LR
+        SUBAGENT(("Subagent")) -->|"questions\n+ assumptions"| ORCHESTRATOR(("Orchestrator\n&lpar;main context&rpar;"))
+        ORCHESTRATOR -->|"formatted\nquestions"| HUMAN(("User"))
+        HUMAN -->|answers| ORCHESTRATOR
+        ORCHESTRATOR -->|"update"| SM[("session-memory.md")]
+    end
+
+    style M1 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style M2 fill:#16213e,stroke:#0f3460,color:#fff
+    style M3 fill:#2c3e50,stroke:#e74c3c,color:#fff
+    style FLOW fill:#0f3460,stroke:#533483,color:#fff
+    </pre>
+  </div>
+
+  <!-- 7. Revert Protocol -->
+  <div class="chart-section" id="chart7">
+    <h2>7. Revert Protocol — 3 Options</h2>
+    <p>User types "revert N". Pipeline scans state, shows impact, offers 3 options. Git tags preserved. Session memory cleanup is surgical (phase-tagged entries). Never revert past branch creation point.</p>
+    <pre class="mermaid">
+flowchart TB
+    TRIGGER["User types:\nrevert N"] --> SCAN["Step 1: Scan State\nRead pipeline-state.json\ngit tags, artifacts"]
+
+    SCAN --> SHOW["Show impact:\n- Artifacts to delete\n- Code changes to revert\n- Session memory entries"]
+
+    SHOW --> OPTIONS{"Step 2: Choose Option"}
+
+    OPTIONS -->|"Option A\nFull Revert"| FULL["git reset --hard\nraidlc/ticket/phase-N\nDelete artifacts after N\nSurgical session-memory cleanup\nUpdate pipeline-state.json"]
+
+    OPTIONS -->|"Option B\nArtifacts Only"| ARTIFACTS["Delete artifact files after N\nSurgical session-memory cleanup\nKeep code changes intact\nUpdate pipeline-state.json"]
+
+    OPTIONS -->|"Option C\nRe-run From Here"| RERUN["Keep everything\nRe-run from Phase N onward\nOverwrite artifacts\nDo NOT revert code"]
+
+    OPTIONS -->|"Option D"| CANCEL["Cancel\nGo back"]
+
+    FULL --> AFTER
+    ARTIFACTS --> AFTER
+    RERUN --> AFTER
+
+    AFTER["Step 4: After Revert\n1. Continue from N+1\n2. Re-run Phase N\n3. Exit and resume later"]
+
+    subgraph SAFETY["Revert Safety Rules"]
+        direction TB
+        S1["Always confirm before executing"]
+        S2["Always show file-level impact"]
+        S3["Git tags force-updated after revert"]
+        S4["Session memory cleanup is surgical\n&lpar;by phase tag suffix&rpar;"]
+        S5["Rework log preserved"]
+        S6["Never revert past branch creation"]
+    end
+
+    style FULL fill:#e74c3c,stroke:#fff,color:#fff
+    style ARTIFACTS fill:#f39c12,stroke:#fff,color:#000
+    style RERUN fill:#3498db,stroke:#fff,color:#fff
+    style CANCEL fill:#6c757d,stroke:#fff,color:#fff
+    style SAFETY fill:#2c3e50,stroke:#e74c3c,color:#fff
+    </pre>
+  </div>
+
+  <!-- 8. Rework History & Circuit Breaker -->
+  <div class="chart-section" id="chart8">
+    <h2>8. Rework History &amp; Circuit Breaker</h2>
+    <p>Phases can route back on blockers: Reviewer to Developer, Compliance to Developer, Backend to Developer. Max 3 cycles for same phase pair, then circuit breaker escalation to human.</p>
+    <pre class="mermaid">
+flowchart TB
+    BLOCKER["Phase X raises BLOCKER\nTARGET = Phase N"] --> CHK{"Rework Log:\nPhase N re-run\ncount?"}
+
+    CHK -->|"&gt;= 3"| CB["CIRCUIT BREAKER\nEscalate to human"]
+    CHK -->|"&lt; 3"| SEV{"Severity?"}
+
+    SEV -->|trivial| AUTO["Auto re-run Phase N\nwith blocker appended"]
+    SEV -->|critical| PAUSE["Pause for\nuser approval"]
+
+    PAUSE --> APPROVE["User approves"] --> RERUN["Re-run Phase N"]
+    AUTO --> RERUN
+
+    RERUN --> LOG["Update Rework Log\nin session-memory.md\n+ pipeline-state.json"]
+    LOG --> RETURN["Return to Phase X"]
+
+    CB --> OPTS["Options:\nA. Try one more cycle\nB. Accept current state\nC. Revert to earlier phase"]
+
+    subgraph ROUTES["Common Rework Routes"]
+        direction TB
+        R1["Reviewer &lpar;11&rpar; --> Developer &lpar;9&rpar;\nMissing tests, code quality"]
+        R2["Backend Readiness &lpar;9b&rpar; --> Developer &lpar;9&rpar;\nN+1 queries, missing indexes"]
+        R3["Compliance &lpar;9c&rpar; --> Developer &lpar;9&rpar;\nInterface mismatch"]
+        R4["SDET &lpar;10&rpar; --> Developer &lpar;9&rpar;\nCritical scenarios not implemented"]
+        R5["QA &lpar;8&rpar; --> Designer &lpar;7&rpar;\nUntestable interfaces"]
+        R6["QA &lpar;8&rpar; --> BA &lpar;1&rpar;\nVague acceptance criteria"]
+        R7["Designer &lpar;7&rpar; --> Architect &lpar;6&rpar;\nCyclic dependencies"]
+    end
+
+    subgraph LOG_FORMAT["Rework Log Entry"]
+        direction TB
+        LF["Cycle | From Phase | To Phase\nReason | Severity | Resolved"]
     end
 
     style CB fill:#e74c3c,stroke:#fff,color:#fff
-    style TRV fill:#f39c12,stroke:#fff,color:#fff
-    style CRT fill:#e67e22,stroke:#fff,color:#fff
-    style CASCADE fill:#0f3460,stroke:#533483,color:#fff
-    style CRITICAL_CRITERIA fill:#2c3e50,stroke:#e74c3c,color:#fff
+    style ROUTES fill:#16213e,stroke:#0f3460,color:#fff
+    style LOG_FORMAT fill:#0f3460,stroke:#533483,color:#fff
     </pre>
   </div>
 
-  <!-- 8. Communication Map -->
-  <div class="chart-section" id="chart8">
-    <h2>8. Complete Skill Communication Map</h2>
-    <p>Every skill-to-skill connection: subagent spawns, blockers, shared state, guardrail reads. Includes API Handoff utility.</p>
-    <pre class="mermaid">
-graph TB
-    HUMAN(("Human"))
-    ORCH["Workflow\nOrchestrator"]
-
-    subgraph STANDALONE["Standalone Skills"]
-        DEBUG["Debug"]
-        TUTOR["Tutor"]
-        PEXS["ProductEx\nstandalone"]
-        APIHO["API Handoff"]
-    end
-
-    subgraph P00["Phase 00 — Parallel"]
-        BA["BA"]
-        PEXB["ProductEx\nBRD Review"]
-        PEXC["ProductEx\nConsult"]
-        ARCL["Architect\nResearch-Only\n&lpar;jdtls&rpar;"]
-    end
-
-    subgraph VERIFY["Phases 01-02 — Verification Cycle"]
-        ARCH["Architect"]
-        ANAL["Analyst"]
-        PEXV["ProductEx\nVerify"]
-    end
-
-    subgraph BUILD["Phases 03-07"]
-        DSGN["Designer"]
-        QA["QA"]
-        DEV["Developer"]
-        SDET["SDET"]
-        REV["Reviewer"]
-    end
-
-    SM[("session-memory.md")]
-    REG[("registry.md")]
-    BRDQ[("brdQnA.md")]
-    GR[("GUARDRAILS.md")]
-    KBK[("knowledge-bank.md")]
-
-    HUMAN <-->|"requirement\n+ BRD"| ORCH
-    HUMAN <-->|Q&A| BA
-    HUMAN <-->|escalated code Qs| ARCL
-    HUMAN <-->|commits| DEV
-    HUMAN <-->|anytime| DEBUG & TUTOR & PEXS & APIHO
-    HUMAN -->|pre-populate| KBK
-
-    ORCH -->|spawns parallel| BA & PEXB
-    ORCH -->|spawns| ARCH & ANAL & DSGN & QA & SDET & REV
-    ORCH -->|resumes| DEV
-    ORCH -->|on demand| APIHO
-
-    BA -->|product Q| PEXC
-    BA -->|code Q| ARCL
-    BA -.->|reads| KBK
-    PEXC -.->|unresolved| BRDQ
-    PEXB -->|writes| BRDQ
-
-    ANAL -->|verify| PEXV
-    PEXV -->|changes needed| ANAL
-    ANAL -->|BLOCKER| ARCH
-
-    DSGN -->|BLOCKER| ARCH
-    QA -->|BLOCKER| DSGN
-    QA -->|BLOCKER| BA
-    SDET -->|BLOCKER| DEV
-    REV -->|"Req gaps\nrouted to\nearliest phase"| ARCH & DSGN & QA
-
-    APIHO -.->|reads| DSGN & ARCH & DEV
-
-    BA & ARCH & ANAL & DSGN & QA & DEV & SDET & REV --> SM
-    BA & ANAL & PEXB & PEXC & PEXV --> REG
-
-    ARCH & ANAL & DSGN & QA & DEV & SDET & REV -.->|read| GR
-
-    style P00 fill:#1a1a2e,stroke:#e94560,color:#fff
-    style VERIFY fill:#16213e,stroke:#0f3460,color:#fff
-    style BUILD fill:#0f3460,stroke:#533483,color:#fff
-    style STANDALONE fill:#2c3e50,stroke:#3498db,color:#fff
-    style SM fill:#e67e22,stroke:#fff,color:#fff
-    style REG fill:#3498db,stroke:#fff,color:#fff
-    style BRDQ fill:#f39c12,stroke:#fff,color:#fff
-    style GR fill:#e74c3c,stroke:#fff,color:#fff
-    style KBK fill:#f39c12,stroke:#fff,color:#000
-    style APIHO fill:#9b59b6,stroke:#fff,color:#fff
-    </pre>
-  </div>
-
-  <!-- 9. Guardrails Enforcement -->
+  <!-- 9. Model Assignment Strategy -->
   <div class="chart-section" id="chart9">
-    <h2>9. Guardrails Enforcement Map</h2>
-    <p>12 guardrail categories, how they flow through skills, and what happens on violation</p>
+    <h2>9. Model Assignment Strategy</h2>
+    <p>Opus for judgment-heavy phases (6 phases). Sonnet for coding and structured generation (13 phases). Haiku for mechanical/template tasks (2 phases). Model always passed explicitly to subagents.</p>
+    <pre class="mermaid">
+graph LR
+    subgraph OPUS["Opus — 6 Phases\nJudgment + Reasoning"]
+        O1["BA + PRD &lpar;Phase 1&rpar;\nDeep BRD reasoning"]
+        O2["Critic &lpar;Phase 2&rpar;\nAdversarial depth"]
+        O3["Analyst --compliance &lpar;Phase 2&rpar;\nCross-reference accuracy"]
+        O4["Blocker Resolution &lpar;Phase 4&rpar;\nCompile and prioritize"]
+        O5["Architect &lpar;Phase 6&rpar;\nTrade-off evaluation"]
+        O6["Analyst --impact &lpar;Phase 6a&rpar;\nBlast radius, security"]
+    end
+
+    subgraph SONNET["Sonnet — 13 Phases\nCoding + Generation"]
+        S1["ProductEx BRD Review"]
+        S2["UI Extraction &lpar;Phase 3&rpar;"]
+        S3["Per-Repo Research &lpar;Phase 5&rpar;"]
+        S4["Cross-Repo Tracer &lpar;Phase 5&rpar;"]
+        S5["Migrator &lpar;Phases 6b, 9d&rpar;"]
+        S6["Designer &lpar;Phase 7&rpar;"]
+        S7["QA &lpar;Phase 8&rpar;"]
+        S8["Developer &lpar;Phase 9&rpar;"]
+        S9["Backend Readiness &lpar;Phase 9b&rpar;"]
+        S10["Analyst --compliance &lpar;Phase 9c&rpar;"]
+        S11["SDET &lpar;Phase 10&rpar;"]
+        S12["Reviewer &lpar;Phase 11&rpar;"]
+    end
+
+    subgraph HAIKU["Haiku — 2 Phases\nMechanical Tasks"]
+        H1["Blueprint &lpar;Phase 12&rpar;\nTemplate-driven HTML"]
+        H2["Build Verify &lpar;utility&rpar;\nRun command, parse output"]
+    end
+
+    style OPUS fill:#9b59b6,stroke:#fff,color:#fff
+    style SONNET fill:#3498db,stroke:#fff,color:#fff
+    style HAIKU fill:#1abc9c,stroke:#fff,color:#000
+    </pre>
+
+    <table>
+      <tr><th>Model</th><th>Phase Count</th><th>Rationale</th></tr>
+      <tr><td><span class="badge badge-opus">Opus</span></td><td>6</td><td>Judgment-heavy, high-stakes reasoning. BA, Critic, Compliance, Blockers, Architect, Impact. These phases make irreversible decisions that shape the entire feature.</td></tr>
+      <tr><td><span class="badge badge-sonnet">Sonnet</span></td><td>13</td><td>Coding, structured generation, exploration. Developer, Designer, QA, Research, Reviewer, SDET. Sonnet outperforms Opus on SWE-bench coding benchmarks and is faster + cheaper.</td></tr>
+      <tr><td><span class="badge badge-haiku">Haiku</span></td><td>2</td><td>Mechanical/template tasks. Build Verify and Blueprint HTML. Run command and parse output, or generate HTML from existing content.</td></tr>
+    </table>
+  </div>
+
+  <!-- 10. Live Dashboard Auto-Update -->
+  <div class="chart-section" id="chart10">
+    <h2>10. Live Dashboard Auto-Update</h2>
+    <p>After EVERY phase, the orchestrator (NOT the subagent) updates live-dashboard.html. This is the execution order for every phase completion — mandatory and non-skippable.</p>
+    <pre class="mermaid">
+flowchart TB
+    COMPLETE["1. Subagent completes\nreturns output"] --> READ["2. Orchestrator reads output"]
+    READ --> STEP_A["3. Step A: Generate Mermaid\ndiagrams for .md artifacts\n&lpar;fenced code blocks&rpar;"]
+    STEP_A --> STEP_B["4. Step B: Update\nlive-dashboard.html"]
+
+    subgraph DASHBOARD_UPDATE["Step B — Dashboard Update Checklist"]
+        direction TB
+        B1["B1: Update Progress Bar\ncompleted/total percentage\ngreen = done, yellow = active"]
+        B2["B2: Update Phase Section\nReplace pending badge with complete\nAdd summary, metrics, diagrams"]
+        B3["B3: Add Phase-Specific Charts\nMermaid diagrams in HTML\n&lpar;div class=mermaid&rpar;"]
+        B4["B4: Update Stats Bar\nphases, artifacts, decisions, files"]
+        B5["B5: Update Sidebar Quick Links\nMark completed sections green"]
+        B1 --> B2 --> B3 --> B4 --> B5
+    end
+
+    STEP_B --> B1
+
+    B5 --> SM_UPD["5. Update session-memory.md\n&lpar;incremental&rpar;"]
+    SM_UPD --> PLOG["6. Update process-log.md"]
+    PLOG --> PSTATE["7. Update pipeline-state.json"]
+    PSTATE --> PAUSE["8. Show pause prompt\nwith questions if any"]
+
+    subgraph DASH_STYLING["Dashboard Styling"]
+        direction LR
+        DS1["Dark theme\n#1a1a2e bg"]
+        DS2["Sidebar navigation"]
+        DS3["Mermaid.js via CDN"]
+        DS4["Accumulates content\nnever overwrites"]
+    end
+
+    style DASHBOARD_UPDATE fill:#1a1a2e,stroke:#e94560,color:#fff
+    style DASH_STYLING fill:#16213e,stroke:#0f3460,color:#fff
+    style STEP_B fill:#e94560,stroke:#fff,color:#fff
+    </pre>
+  </div>
+
+  <!-- 11. Confidence Scale (C1-C7) — CROSS-CUTTING -->
+  <div class="chart-section" id="chart11">
+    <h2>11. Calibrated Confidence Scale (C1-C7) — <span style="color:#e74c3c;">CROSS-CUTTING</span></h2>
+    <p><code>principles.md</code> is enforced in <strong>every phase, every skill, every subagent</strong> — not just the Critic. It is applied at 3 levels:</p>
+    <table>
+      <tr><th>Level</th><th>Where</th><th>How</th></tr>
+      <tr><td><strong>CLAUDE.md Rule 6</strong></td><td>Global</td><td>Tells Claude about the C1-C7 framework and anti-patterns</td></tr>
+      <tr><td><strong>Every SKILL.md</strong></td><td>16 skills</td><td>"Reasoning Principles" section at top of every skill — read <code>principles.md</code> at phase start</td></tr>
+      <tr><td><strong>Every subagent prompt</strong></td><td>Pipeline orchestrator</td><td>Principles Injection Block included in every Agent call — compact C1-C7 + doubt resolver + anti-patterns</td></tr>
+    </table>
+    <p>Every claim carries a confidence level. Confidence must be backed by evidence, not feeling. Reversibility determines action threshold. Below C4 on irreversible decisions = STOP and escalate.</p>
+    <pre class="mermaid">
+graph LR
+    subgraph SCALE["C1-C7 Confidence Scale"]
+        direction TB
+        C1["C1: &lt; 20%\nSpeculative\nFlag, do NOT act alone"]
+        C2["C2: 20-40%\nPlausible\nPresent alternatives\ninvestigate first"]
+        C3["C3: 40-60%\nTentative\nAct only if reversible\nadd checkpoint"]
+        C4["C4: 60-75%\nProbable\nSafe for reversible\nescalate if irreversible"]
+        C5["C5: 75-90%\nConfident\nAct, flag residual risk"]
+        C6["C6: 90-97%\nHigh Confidence\nAct decisively"]
+        C7["C7: &gt; 97%\nNear Certain\nVerified fact\nfrom primary source"]
+    end
+
+    subgraph ACTIONS["Action Thresholds"]
+        direction TB
+        REV_LOW["Reversible + C4\n= ACT"]
+        IRREV_LOW["Irreversible + below C4\n= STOP + ESCALATE"]
+        ANY_C5["Any + C5+\n= ACT with risk flag"]
+        ANY_C6["Any + C6+\n= ACT decisively"]
+    end
+
+    subgraph ANTI["Anti-Patterns to Avoid"]
+        direction TB
+        AP1["Confident Vacuum\n&lpar;claims without evidence&rpar;"]
+        AP2["Anchoring Bias\n&lpar;first approach wins&rpar;"]
+        AP3["Confidence Inflation\n&lpar;everything rated C5+&rpar;"]
+        AP4["Escalation Avoidance\n&lpar;proceeding on C2&rpar;"]
+    end
+
+    style C1 fill:#e74c3c,stroke:#fff,color:#fff
+    style C2 fill:#e67e22,stroke:#fff,color:#fff
+    style C3 fill:#f39c12,stroke:#fff,color:#000
+    style C4 fill:#f1c40f,stroke:#fff,color:#000
+    style C5 fill:#2ecc71,stroke:#fff,color:#000
+    style C6 fill:#27ae60,stroke:#fff,color:#fff
+    style C7 fill:#1abc9c,stroke:#fff,color:#000
+    style ANTI fill:#2c3e50,stroke:#e74c3c,color:#fff
+    style ACTIONS fill:#16213e,stroke:#0f3460,color:#fff
+    </pre>
+  </div>
+
+  <!-- 12. Phase Execution Rules Table -->
+  <div class="chart-section" id="chart12">
+    <h2>12. Phase Execution Rules</h2>
+    <p>Full table: every phase with its skill, execution mode, model, and rationale. Model always passed explicitly to subagents — never rely on inheritance.</p>
+    <table>
+      <tr><th>Phase</th><th>Skill</th><th>Mode</th><th>Model</th><th>Why This Model</th></tr>
+      <tr><td>0: Input Collection</td><td>(inline)</td><td>Main context — Interactive</td><td><span class="badge badge-opus">Opus</span></td><td>Orchestrator judgment</td></tr>
+      <tr><td>1: BA + PRD</td><td><code>/ba</code></td><td>Main context — Interactive</td><td><span class="badge badge-opus">Opus</span></td><td>Deep BRD reasoning, nuanced Q&A</td></tr>
+      <tr><td>1 (parallel): ProductEx</td><td><code>/productex</code></td><td>Background subagent</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Synthesis from docs</td></tr>
+      <tr><td>2: Critic</td><td><code>principles.md</code> (deep read)</td><td>Subagent</td><td><span class="badge badge-opus">Opus</span></td><td>Adversarial depth, subtle flaws</td></tr>
+      <tr><td colspan="5" style="color:#e74c3c;font-size:11px;text-align:center;"><em>Note: principles.md is injected into ALL subagent prompts (compact form). Critic reads the full file for deep adversarial reasoning.</em></td></tr>
+      <tr><td>2: Analyst --compliance</td><td><code>/analyst</code></td><td>Subagent</td><td><span class="badge badge-opus">Opus</span></td><td>Cross-referencing evidence</td></tr>
+      <tr><td>3: UI Extraction</td><td>(inline)</td><td>Main context — Interactive</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Vision capability sufficient</td></tr>
+      <tr><td>4: Blocker Resolution</td><td>(inline)</td><td>Main context — Interactive</td><td><span class="badge badge-opus">Opus</span></td><td>Compiling, prioritizing cross-phase</td></tr>
+      <tr><td>5: Codebase Research</td><td>(inline)</td><td>Parallel subagents</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Mechanical navigation + patterns</td></tr>
+      <tr><td>5: Cross-Repo Tracer</td><td><code>/cross-repo-tracer</code></td><td>Subagent (after repos)</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Systematic traversal</td></tr>
+      <tr><td>6: HLD Architect</td><td><code>/architect</code></td><td>Main context — Interactive</td><td><span class="badge badge-opus">Opus</span></td><td>Trade-off evaluation, consequences</td></tr>
+      <tr><td>6a: Impact Analysis</td><td><code>/analyst --impact</code></td><td>Subagent</td><td><span class="badge badge-opus">Opus</span></td><td>Blast radius, security, risks</td></tr>
+      <tr><td>6b: Migration Planning</td><td><code>/migrator</code></td><td>Subagent (conditional)</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Structured DDL, mechanical</td></tr>
+      <tr><td>7: LLD Designer</td><td><code>/designer</code></td><td>Subagent</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Code generation, compile-safe</td></tr>
+      <tr><td>8: QA</td><td><code>/qa</code></td><td>Subagent</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Structured scenario generation</td></tr>
+      <tr><td>9: Developer</td><td><code>/developer</code></td><td>Main context + agent team</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Highest SWE-bench coding scores</td></tr>
+      <tr><td>9b: Backend Readiness</td><td><code>/backend-readiness</code></td><td>Subagent</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Pattern-matching anti-patterns</td></tr>
+      <tr><td>9c: Gap Analysis</td><td><code>/analyst --compliance</code></td><td>Subagent</td><td><span class="badge badge-opus">Opus</span></td><td>Architecture vs code accuracy</td></tr>
+      <tr><td>9d: Migration Validation</td><td><code>/migrator</code></td><td>Subagent (conditional)</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Plan vs reality comparison</td></tr>
+      <tr><td>10: SDET</td><td><code>/sdet</code></td><td>Subagent</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Structured test planning</td></tr>
+      <tr><td>11: Reviewer</td><td><code>/reviewer</code></td><td>Subagent + main context</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Strong code review model</td></tr>
+      <tr><td>12: Blueprint</td><td>(inline)</td><td>Subagent</td><td><span class="badge badge-haiku">Haiku</span></td><td>Template-driven HTML output</td></tr>
+      <tr><td>Build Verify (utility)</td><td>(inline)</td><td>Subagent</td><td><span class="badge badge-haiku">Haiku</span></td><td>Run command, parse output</td></tr>
+    </table>
+  </div>
+
+  <!-- 13. Guardrails -->
+  <div class="chart-section" id="chart13">
+    <h2>13. Guardrails Enforcement Map</h2>
+    <p>4 CRITICAL guardrails (auto-blocker) and 8 HIGH guardrails (flagged in review). Which phases enforce which.</p>
     <pre class="mermaid">
 flowchart TB
     subgraph GUARDRAILS["GUARDRAILS.md — 12 Categories"]
@@ -726,22 +772,25 @@ flowchart TB
     end
 
     subgraph ENFORCEMENT["Who Enforces What"]
-        ARCH["Architect\nDesigns compliant solutions\nCites guardrail IDs in ADRs"]
-        ANAL["Analyst\nChecks solution vs CRITICAL\nRaises BLOCKER on violation"]
-        DSGN["Designer\nStructural enforcement\nInstant not Date in signatures\nTenant in params"]
-        QA_E["QA\nTest scenarios per guardrail\nTimezone, NPE, tenant isolation"]
-        DEV_E["Developer\nCompliant code\n// GUARDRAIL: G-XX comments"]
-        SDET_E["SDET\nAutomated guardrail tests\nMulti-TZ, concurrency, isolation"]
-        REV_E["Reviewer\nFinal verification\nBlocks merge on CRITICAL"]
+        ARCH_E["Architect &lpar;Phase 6&rpar;\nDesigns compliant solutions\nCites guardrail IDs in ADRs"]
+        ANAL_E["Analyst &lpar;Phases 2,6a,9c&rpar;\nChecks solution vs CRITICAL\nRaises BLOCKER on violation"]
+        DSGN_E["Designer &lpar;Phase 7&rpar;\nStructural enforcement\nInstant not Date\nTenant in params"]
+        QA_E["QA &lpar;Phase 8&rpar;\nTest scenarios per guardrail\nTimezone, NPE, tenant"]
+        DEV_E["Developer &lpar;Phase 9&rpar;\nCompliant code\nGUARDRAIL comments"]
+        BACKEND_E["Backend Readiness &lpar;9b&rpar;\nQuery performance\nMigration safety"]
+        SDET_E["SDET &lpar;Phase 10&rpar;\nAutomated guardrail tests\nMulti-TZ, concurrency"]
+        REV_E["Reviewer &lpar;Phase 11&rpar;\nFinal verification\nBlocks merge on CRITICAL"]
     end
 
-    G01 & G03 & G07 & G12 --> ARCH & ANAL & DEV_E & REV_E
-    G02 & G04 & G05 & G06 --> ARCH & DEV_E & REV_E
+    G01 & G03 & G07 & G12 --> ARCH_E & ANAL_E & DEV_E & REV_E
+    G02 & G04 & G05 & G06 --> ARCH_E & DEV_E & REV_E
+    G04 --> BACKEND_E
+    G05 --> BACKEND_E
     G08 --> DEV_E & REV_E
-    G09 --> ARCH & ANAL
+    G09 --> ARCH_E & ANAL_E
     G10 & G11 --> QA_E & DEV_E & SDET_E
 
-    ANAL -->|violation| BLOCKER["BLOCKER\nTARGET: Architect\nGuardrail ID cited"]
+    ANAL_E -->|violation| BLOCKER["BLOCKER\nTARGET: Architect\nGuardrail ID cited"]
     REV_E -->|violation| BLOCK_M["BLOCKS MERGE"]
 
     style CRIT fill:#e74c3c,stroke:#fff,color:#fff
@@ -750,401 +799,195 @@ flowchart TB
     style BLOCKER fill:#e74c3c,stroke:#fff,color:#fff
     style BLOCK_M fill:#e74c3c,stroke:#fff,color:#fff
     </pre>
-  </div>
 
-  <!-- 10. BA BRD Validation Gate (NEW) -->
-  <div class="chart-section" id="chart10">
-    <h2>10. BA — BRD Validation Gate &amp; Knowledge Bank <span class="badge badge-new">NEW</span></h2>
-    <p>Format-agnostic validation: extracts concrete behaviours from any BRD format. Knowledge bank pre-answers anticipated questions. No concern silently dropped.</p>
-    <pre class="mermaid">
-flowchart TB
-    BRD["Read brd-raw.md\n&lpar;any format&rpar;"] --> Q{"Can you extract\nat least ONE concrete\nexpected behaviour?"}
-
-    Q -->|"NO — zero behaviours"| HARD_BLOCK["HARD BLOCKER\nEscalate to human:\nDescribe what should happen"]
-    HARD_BLOCK --> HUMAN_INPUT["Human provides\nbehaviours"] --> BRD
-
-    Q -->|"YES — behaviours found"| COUNT["Report count\n+ note gaps"]
-
-    COUNT --> GAPS{"Other context\nthin?"}
-    GAPS -->|"no why, no scope, etc."| NOTE["Note gaps as concerns\nfor Q&A — do NOT block"]
-    GAPS -->|sufficient| PROCEED["Proceed to Step 2"]
-    NOTE --> PROCEED
-
-    PROCEED --> EXTRACT_OQ["Extract BRD's own\nopen questions / TBDs"]
-    EXTRACT_OQ --> STEP2["Step 2: Internal Analysis\n3-lens concern collection"]
-
-    STEP2 --> KB_READ["Read knowledge-bank.md"]
-    KB_READ --> EACH_CONCERN{"For each concern"}
-
-    EACH_CONCERN --> KB_HAS{"Knowledge Bank\nhas answer?"}
-    KB_HAS -->|yes| CROSS_VERIFY["Cross-verify\nagainst BRD"]
-    CROSS_VERIFY -->|consistent| MARK_RESOLVED["Mark resolved\n&lpar;by KB&rpar;"]
-    CROSS_VERIFY -->|conflict| ROUTE_HUMAN["Route to human\n&lpar;flag conflict&rpar;"]
-
-    KB_HAS -->|no| CLASSIFY["Classify and route\nnormally"]
-
-    MARK_RESOLVED --> NEXT_C["Next concern"]
-    ROUTE_HUMAN --> NEXT_C
-    CLASSIFY --> NEXT_C
-    NEXT_C --> EACH_CONCERN
-
-    subgraph BEHAVIOUR_DEF["What counts as a behaviour"]
-        direction LR
-        B1["What should happen"]
-        B2["What should change"]
-        B3["How something should work"]
-        B4["Any style: user stories,\nbullets, API specs,\nnarrative prose"]
-    end
-
-    style HARD_BLOCK fill:#e74c3c,stroke:#fff,color:#fff
-    style KB_READ fill:#f39c12,stroke:#fff,color:#000
-    style MARK_RESOLVED fill:#2ecc71,stroke:#fff,color:#000
-    style BEHAVIOUR_DEF fill:#16213e,stroke:#0f3460,color:#fff
-    </pre>
-  </div>
-
-  <!-- 11. QA Acceptance Criteria Coverage (NEW) -->
-  <div class="chart-section" id="chart11">
-    <h2>11. QA — Acceptance Criteria Coverage Matrix <span class="badge badge-new">NEW</span></h2>
-    <p>Every acceptance criterion from BA must map to at least one test scenario. No silent skipping. Gaps block upstream.</p>
-    <pre class="mermaid">
-flowchart TB
-    START["QA reads 00-ba.md"] --> EXTRACT["Extract ALL\nacceptance criteria"]
-    EXTRACT --> EACH{"For each AC"}
-
-    EACH --> MAP{"Can map to\ntest scenario?"}
-
-    MAP -->|yes| COVERED["Map AC to TS-XX\nStatus: Covered"]
-    MAP -->|"too vague"| BLOCK_BA["BLOCKER to BA\nCriterion too vague\nneeds clarification"]
-    MAP -->|"no testable interface"| BLOCK_DSGN["BLOCKER to Designer\nNo way to verify\nthis criterion"]
-
-    COVERED --> NEXT["Next AC"]
-    BLOCK_BA --> NEXT
-    BLOCK_DSGN --> NEXT
-    NEXT --> EACH
-
-    EACH --> DONE["All ACs processed"]
-    DONE --> MATRIX["Produce Coverage Matrix"]
-
-    subgraph MATRIX_FORMAT["Coverage Matrix Output"]
-        direction TB
-        M_TABLE["AC # | Criterion | Test Scenarios | Status\nAC-1 | ... | TS-01, TS-03 | Covered\nAC-2 | ... | TS-05 | Covered\nAC-3 | ... | — | No scenario &lpar;reason&rpar;"]
-    end
-
-    MATRIX --> SCENARIOS["Produce test scenarios\nwith edge cases"]
-    SCENARIOS --> OUTPUT["Write 04-qa.md"]
-
-    style BLOCK_BA fill:#e74c3c,stroke:#fff,color:#fff
-    style BLOCK_DSGN fill:#e74c3c,stroke:#fff,color:#fff
-    style COVERED fill:#2ecc71,stroke:#fff,color:#000
-    style MATRIX_FORMAT fill:#16213e,stroke:#0f3460,color:#fff
-    </pre>
-  </div>
-
-  <!-- 12. SDET Test Strategy (NEW) -->
-  <div class="chart-section" id="chart12">
-    <h2>12. SDET — Test Layer Strategy &amp; IT Discovery <span class="badge badge-new">NEW</span></h2>
-    <p>UT vs IT classification, convention-inference IT discovery (learn from existing suite), test efficiency protocol (min tests, max coverage).</p>
-    <pre class="mermaid">
-flowchart TB
-    START["SDET reads 04-qa.md\nscenarios"] --> LAYER{"Classify each\nscenario into\ntest layer"}
-
-    LAYER -->|"Pure logic,\nvalidation,\ncalculation"| UT["Unit Test"]
-    LAYER -->|"API, DB, service\ninteraction"| IT["Integration Test"]
-
-    UT --> EFFICIENCY["Test Efficiency Protocol\nCombine related conditions\ninto single test using\ncollections / parameterization"]
-
-    IT --> DISCOVERY["IT Infrastructure\nDiscovery Protocol"]
-
-    subgraph IT_DISCOVERY["5-Step IT Discovery"]
-        direction TB
-        S1["Step 1: Run existing suite\nRecord baseline\nmvn verify -pl module"]
-        S2["Step 2: Learn from suite\nBuild file deps\nBase classes\n2-3 exemplar ITs"]
-        S3["Step 3: Convention Snapshot\nBase class, annotations,\nassertions, data setup,\ncleanup, containers,\nnaming, profiles,\ncontext reuse, test slicing"]
-        S4["Step 4: Module Boundary\nAssessment\nModules touched,\ncross-module feasibility"]
-        S5["Step 5: Plan each IT\nwith reference exemplar"]
-        S1 --> S2 --> S3 --> S4 --> S5
-    end
-
-    DISCOVERY --> S1
-
-    subgraph EFFICIENCY_RULES["Test Efficiency Rules"]
-        direction TB
-        E1["1-2 tests per field\nfor validation"]
-        E2["1 test per CRUD op\nwith multiple assertions"]
-        E3["Group error scenarios\ninto parameterized tests"]
-        E4["Max 15 methods per class\nor consolidate"]
-    end
-
-    EFFICIENCY --> PLAN["Test Plan Output"]
-    S5 --> PLAN
-
-    subgraph IT_GUARDRAILS["IT Performance Guardrails"]
-        direction TB
-        IG1["Reuse existing Spring context"]
-        IG2["Use shared containers"]
-        IG3["Narrowest test slice possible"]
-        IG4["Flag new context creation"]
-    end
-
-    PLAN --> OUTPUT["Write 06-sdet.md\nUT count + IT count\n+ efficiency ratio"]
-
-    style IT_DISCOVERY fill:#16213e,stroke:#0f3460,color:#fff
-    style EFFICIENCY_RULES fill:#0f3460,stroke:#533483,color:#fff
-    style IT_GUARDRAILS fill:#2c3e50,stroke:#e74c3c,color:#fff
-    style UT fill:#3498db,stroke:#fff,color:#fff
-    style IT fill:#9b59b6,stroke:#fff,color:#fff
-    </pre>
-  </div>
-
-  <!-- 13. Reviewer Requirements Traceability (NEW) -->
-  <div class="chart-section" id="chart13">
-    <h2>13. Reviewer — Requirements Traceability &amp; Gap Routing <span class="badge badge-new">NEW</span></h2>
-    <p>Cross-verifies ALL phase artifacts against BA requirements. Routes gaps to earliest concerned phase. Human chooses: rerun, manual fix, or accept risk.</p>
-    <pre class="mermaid">
-flowchart TB
-    START["Reviewer Phase 07"] --> BUILD["Step 1: Build Verification\nmvn verify"]
-    BUILD --> LOAD["Step 1a: Load requirements\nfrom 00-ba.md + brdQnA.md"]
-    LOAD --> CROSS["Step 1b: Cross-verify\neach artifact\n01-arch through 06-sdet"]
-
-    CROSS --> MATRIX["Step 1c: Build\nTraceability Matrix\nREQ-ID per phase\nPASS / FAIL / PARTIAL"]
-
-    MATRIX --> BRD_Q["Step 1d: Check\nunresolved BRD questions\nfrom brdQnA.md"]
-
-    BRD_Q --> GAPS{"Requirements\ngaps found?"}
-
-    GAPS -->|no| CODE["Proceed to\nCode Review"]
-    GAPS -->|yes| ROUTE["Step 1e: Route gaps\nto EARLIEST\nconcerned phase"]
-
-    ROUTE --> HUMAN_CHOICE{"Human chooses\nper gap:"}
-
-    HUMAN_CHOICE -->|"A: Rerun"| RERUN["Rerun from earliest\naffected phase\nCascade through pipeline"]
-    HUMAN_CHOICE -->|"B: Manual fix"| MANUAL["Human fixes\nSays continue\nReviewer re-verifies"]
-    HUMAN_CHOICE -->|"C: Accept risk"| ACCEPT["Log in session memory\nas accepted risk"]
-
-    RERUN --> RE_REVIEW["Reviewer re-runs\nfull flow"]
-    MANUAL --> RE_REVIEW
-    ACCEPT --> CODE
-
-    CODE --> MERGE_CHECK{"Code review\npasses?"}
-    MERGE_CHECK -->|yes| DONE["Merge Ready"]
-    MERGE_CHECK -->|no| BLOCK["BLOCKS MERGE"]
-
-    subgraph TRACE_TABLE["Traceability Matrix"]
-        direction LR
-        TT["REQ-ID | Phase | Status\nREQ-1 | Architect | PASS\nREQ-2 | Designer | PARTIAL\nREQ-3 | QA | FAIL"]
-    end
-
-    style ROUTE fill:#e94560,stroke:#fff,color:#fff
-    style RERUN fill:#e67e22,stroke:#fff,color:#fff
-    style MANUAL fill:#f39c12,stroke:#fff,color:#000
-    style ACCEPT fill:#3498db,stroke:#fff,color:#fff
-    style DONE fill:#2ecc71,stroke:#fff,color:#000
-    style BLOCK fill:#e74c3c,stroke:#fff,color:#fff
-    style TRACE_TABLE fill:#16213e,stroke:#0f3460,color:#fff
-    </pre>
-  </div>
-
-  <!-- 14. API Handoff (NEW) -->
-  <div class="chart-section" id="chart14">
-    <h2>14. API Handoff — UI Team Contract Document <span class="badge badge-new">NEW</span></h2>
-    <p>Standalone utility. Extracts API contracts from architect + designer + developer artifacts. Produces resource-oriented markdown + optional OpenAPI 3.1 YAML for mock servers.</p>
-    <pre class="mermaid">
-flowchart TB
-    INVOKE["/api-handoff artifacts-path\nor api-handoff at pause prompt"]
-
-    subgraph STEP1["Step 1: Discover API Surface"]
-        direction TB
-        READ_ARCH["Read 01-architect.md\nAPI approach, endpoints"]
-        READ_DSGN["Read 03-designer.md\nInterface signatures, DTOs"]
-        READ_DEV["Read 05-developer.md\n&lpar;if exists — deviations&rpar;"]
-        READ_BA["Read 00-ba.md\nUser stories for mapping"]
-        READ_SM["Read session-memory.md\nAuth, pagination, constraints"]
-    end
-
-    subgraph STEP2["Step 2: Scan Codebase &lpar;optional&rpar;"]
-        direction TB
-        CTRL["Find controller classes\nExtract URL mappings"]
-        DTO["Read request/response DTOs\nExact field names + types"]
-        WRAP["Check response wrappers\nError handlers"]
-    end
-
-    subgraph STEP2B["Step 2b: Discover API Patterns"]
-        direction TB
-        RESP["Response wrapper pattern"]
-        ERR["Error format &lpar;envelope&rpar;"]
-        PAG["Pagination pattern"]
-        NAMING["Field naming convention"]
-        AUTH["Auth pattern"]
-    end
-
-    subgraph OUTPUT["Step 3: API Contract Document"]
-        direction TB
-        OUT_MD["api-handoff.md\nResource-oriented\nRealistic JSON examples\nError cases table\nEnums & constants\nFeature-to-endpoint map"]
-    end
-
-    subgraph OPENAPI["Step 4: OpenAPI Spec &lpar;optional&rpar;"]
-        direction TB
-        OUT_YAML["api-handoff.openapi.yaml\nOpenAPI 3.1\nFor Postman / Prism\nmock server / codegen"]
-    end
-
-    INVOKE --> STEP1
-    STEP1 --> STEP2B
-    STEP2B --> STEP2
-    STEP2 --> OUTPUT
-    OUTPUT --> OPENAPI
-
-    subgraph AUDIENCE["Written for Frontend Dev"]
-        direction LR
-        AUD1["UI-centric language"]
-        AUD2["Example values, not just types"]
-        AUD3["All error cases documented"]
-        AUD4["TBD for unknowns, never guess"]
-        AUD5["Self-contained — no backend docs needed"]
-    end
-
-    style STEP1 fill:#0f3460,stroke:#533483,color:#fff
-    style STEP2 fill:#16213e,stroke:#0f3460,color:#fff
-    style STEP2B fill:#1a1a2e,stroke:#e94560,color:#fff
-    style OUTPUT fill:#2ecc71,stroke:#fff,color:#000
-    style OPENAPI fill:#9b59b6,stroke:#fff,color:#fff
-    style AUDIENCE fill:#2c3e50,stroke:#3498db,color:#fff
-    </pre>
-  </div>
-
-  <div class="section-divider">- - - REFERENCE TABLES - - -</div>
-
-  <!-- Tables -->
-  <div class="chart-section" id="tables">
-    <h2>15. Execution Mode Summary</h2>
-    <table>
-      <tr><th>Phase</th><th>Execution Mode</th><th>Interactive?</th><th>Spawns Subagents?</th><th>Reads Guardrails?</th></tr>
-      <tr><td>Orchestrator (pre-phase)</td><td>Main context</td><td>Yes (BRD input)</td><td>LSP init</td><td>No</td></tr>
-      <tr><td>ProductEx BRD Review</td><td>Background subagent</td><td>No</td><td>No</td><td>No</td></tr>
-      <tr><td>BA (00)</td><td>Main context</td><td>Yes (Q&A)</td><td>ProductEx consult, Architect research (jdtls)</td><td>No</td></tr>
-      <tr><td>Architect (01)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>Analyst (02)</td><td>Subagent</td><td>No</td><td>ProductEx verify</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>Designer (03)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>QA (04)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>Developer (05)</td><td>Main context</td><td>Yes (commits)</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>SDET (06)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>Reviewer (07)</td><td>Subagent</td><td>No</td><td>No</td><td><span class="badge badge-critical">Yes</span></td></tr>
-      <tr><td>API Handoff <span class="badge badge-new">NEW</span></td><td>Subagent (on demand)</td><td>No</td><td>No</td><td>No</td></tr>
-      <tr><td>Debug</td><td>Main context</td><td>Yes</td><td>No</td><td>No</td></tr>
-      <tr><td>Tutor</td><td>Main context</td><td>Yes</td><td>No</td><td>No</td></tr>
-      <tr><td>ProductEx (standalone)</td><td>Main context</td><td>Yes (discover)</td><td>No</td><td>No</td></tr>
-    </table>
-
-    <h2 style="margin-top:2rem;">16. Blocker Target Map</h2>
-    <table>
-      <tr><th>Raising Phase</th><th>Can Target</th><th>Reason</th></tr>
-      <tr><td>Architect (01)</td><td>BA</td><td>Requirements ambiguous / contradictory / infeasible</td></tr>
-      <tr><td>Analyst (02)</td><td>Architect</td><td>Security flaw, perf issue, breaking change, unfulfilled product requirements, GUARDRAIL violation</td></tr>
-      <tr><td>Designer (03)</td><td>Architect</td><td>Cyclic dependencies, SOLID violations</td></tr>
-      <tr><td>Designer (03)</td><td>Analyst</td><td>Security risk needs interface mitigation</td></tr>
-      <tr><td>QA (04)</td><td>Designer</td><td>Untestable interfaces</td></tr>
-      <tr><td>QA (04)</td><td>BA</td><td>Vague acceptance criteria</td></tr>
-      <tr><td>SDET (06)</td><td>Developer</td><td>Critical test scenarios missing from implementation</td></tr>
-      <tr><td>Reviewer (07) <span class="badge badge-new">NEW</span></td><td>Earliest affected phase</td><td>Requirements traceability gaps — routed per REQ-ID to Architect, Designer, QA, or Developer</td></tr>
-    </table>
-
-    <h2 style="margin-top:2rem;">17. Guardrails Quick Reference</h2>
     <table>
       <tr><th>ID</th><th>Category</th><th>Priority</th><th>Key Rules</th><th>Enforced By</th></tr>
-      <tr><td>G-01</td><td>Timezone & Date/Time</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Store UTC, display local, java.time only, ISO-8601, test with IST/NPT offsets</td><td>All code-touching skills</td></tr>
+      <tr><td>G-01</td><td>Timezone &amp; Date/Time</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Store UTC, display local, java.time only, ISO-8601, test with IST/NPT offsets</td><td>Architect, Analyst, Designer, Developer, Reviewer</td></tr>
       <tr><td>G-02</td><td>Null Safety</td><td><span class="badge badge-high">HIGH</span></td><td>No null collections, Optional returns, fail-fast, no swallowed exceptions</td><td>Developer, Reviewer</td></tr>
       <tr><td>G-03</td><td>Security</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Parameterized SQL, auth on every endpoint, no secrets in code, rate limiting</td><td>Architect, Analyst, Reviewer</td></tr>
-      <tr><td>G-04</td><td>Performance</td><td><span class="badge badge-high">HIGH</span></td><td>No N+1, paginate, timeouts on external calls, indexes for query patterns</td><td>Architect, Analyst, Reviewer</td></tr>
-      <tr><td>G-05</td><td>Data Integrity</td><td><span class="badge badge-high">HIGH</span></td><td>Transactions, optimistic locking, DB constraints, backward-compatible migrations</td><td>Architect, Developer</td></tr>
+      <tr><td>G-04</td><td>Performance</td><td><span class="badge badge-high">HIGH</span></td><td>No N+1, paginate, timeouts on external calls, indexes</td><td>Architect, Analyst, Backend Readiness, Reviewer</td></tr>
+      <tr><td>G-05</td><td>Data Integrity</td><td><span class="badge badge-high">HIGH</span></td><td>Transactions, optimistic locking, DB constraints, backward-compatible migrations</td><td>Architect, Developer, Backend Readiness</td></tr>
       <tr><td>G-06</td><td>API Design</td><td><span class="badge badge-high">HIGH</span></td><td>Idempotent writes, version APIs, never remove fields, structured errors</td><td>Architect, Designer</td></tr>
       <tr><td>G-07</td><td>Multi-Tenancy</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Tenant filter on every query (framework-enforced), tenant in async jobs</td><td>All code-touching skills</td></tr>
-      <tr><td>G-08</td><td>Observability</td><td><span class="badge badge-high">HIGH</span></td><td>Structured logs, trace IDs, RED metrics, log the "why" not "what"</td><td>Developer, Reviewer</td></tr>
-      <tr><td>G-09</td><td>Backward Compat</td><td><span class="badge badge-high">HIGH</span></td><td>Deprecate before remove, expand-then-contract, feature flags, sensible defaults</td><td>Architect, Analyst</td></tr>
-      <tr><td>G-10</td><td>Concurrency</td><td><span class="badge badge-high">HIGH</span></td><td>Immutable shared state, consistent lock ordering, bounded queues, no I/O in locks</td><td>Developer, QA, SDET</td></tr>
-      <tr><td>G-11</td><td>Testing</td><td><span class="badge badge-high">HIGH</span></td><td>Regression test per bug fix, edge cases, real DB, concurrent + multi-TZ tests</td><td>QA, Developer, SDET</td></tr>
-      <tr><td>G-12</td><td>AI-Specific (AIDLC)</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Read before write, follow project patterns, verify APIs exist, simplest solution</td><td>All skills</td></tr>
+      <tr><td>G-08</td><td>Observability</td><td><span class="badge badge-high">HIGH</span></td><td>Structured logs, trace IDs, RED metrics</td><td>Developer, Reviewer</td></tr>
+      <tr><td>G-09</td><td>Backward Compat</td><td><span class="badge badge-high">HIGH</span></td><td>Deprecate before remove, expand-then-contract, feature flags</td><td>Architect, Analyst</td></tr>
+      <tr><td>G-10</td><td>Concurrency</td><td><span class="badge badge-high">HIGH</span></td><td>Immutable shared state, consistent lock ordering, bounded queues</td><td>Developer, QA, SDET</td></tr>
+      <tr><td>G-11</td><td>Testing</td><td><span class="badge badge-high">HIGH</span></td><td>Regression test per bug fix, edge cases, real DB, multi-TZ tests</td><td>QA, Developer, SDET</td></tr>
+      <tr><td>G-12</td><td>AI-Specific</td><td><span class="badge badge-critical">CRITICAL</span></td><td>Read before write, follow project patterns, verify APIs exist, simplest solution</td><td>All skills</td></tr>
     </table>
+  </div>
 
-    <h2 style="margin-top:2rem;">18. Artifact Files</h2>
+  <!-- 14. Prerequisite Map -->
+  <div class="chart-section" id="chart14">
+    <h2>14. Prerequisite Map — Dependency Graph</h2>
+    <p>Which phase requires which artifacts. Missing prerequisites trigger a warning — user can continue at their own risk (logged in process-log).</p>
+    <pre class="mermaid">
+graph TB
+    BRD["BRD input\n&lpar;brd-raw.md or path&rpar;"]
+    BA_OUT["00-ba.md\n00-ba-machine.md\n00-prd.md"]
+    CONTRA["contradictions.md\ngap-analysis-brd.md"]
+    UI_OUT["ui-requirements.md"]
+    BLOCKER_OUT["blocker-decisions.md"]
+    CODE_ANALYSIS["code-analysis-*.md\ncross-repo-trace.md"]
+    HLD_OUT["01-architect.md"]
+    IMPACT_OUT["02-analyst.md"]
+    MIG_PLAN["01b-migrator.md"]
+    LLD_OUT["03-designer.md"]
+    QA_OUT["04-qa.md"]
+    DEV_OUT["05-developer.md\n+ code files"]
+    BACKEND_OUT["backend-readiness.md"]
+    COMPLIANCE_OUT["05b-gap-analysis.md"]
+    MIG_VAL_OUT["05c-migration-validation.md"]
+    SDET_OUT["06-sdet.md"]
+    REV_OUT["07-reviewer.md"]
+    SM[("session-memory.md\n&lpar;read by ALL phases&rpar;")]
+
+    BRD -->|Phase 1| BA_OUT
+    BA_OUT -->|Phase 2| CONTRA
+    BA_OUT -->|Phase 4| BLOCKER_OUT
+    CONTRA -->|Phase 4| BLOCKER_OUT
+    BA_OUT -->|Phase 5| CODE_ANALYSIS
+    CODE_ANALYSIS -->|Phase 6| HLD_OUT
+    HLD_OUT -->|Phase 6a| IMPACT_OUT
+    HLD_OUT -->|"Phase 6b\n&lpar;if schema changes&rpar;"| MIG_PLAN
+    HLD_OUT -->|Phase 7| LLD_OUT
+    LLD_OUT -->|Phase 8| QA_OUT
+    QA_OUT -->|Phase 9| DEV_OUT
+    LLD_OUT -->|Phase 9| DEV_OUT
+    DEV_OUT -->|Phase 9b| BACKEND_OUT
+    DEV_OUT -->|Phase 9c| COMPLIANCE_OUT
+    HLD_OUT -->|Phase 9c| COMPLIANCE_OUT
+    MIG_PLAN -->|"Phase 9d\n&lpar;if exists&rpar;"| MIG_VAL_OUT
+    QA_OUT -->|Phase 10| SDET_OUT
+    DEV_OUT -->|Phase 10| SDET_OUT
+    DEV_OUT -->|Phase 11| REV_OUT
+
+    SM -.->|read by all| BA_OUT & CODE_ANALYSIS & HLD_OUT & LLD_OUT & QA_OUT & DEV_OUT & REV_OUT
+
+    style BRD fill:#3498db,stroke:#fff,color:#fff
+    style BA_OUT fill:#9b59b6,stroke:#fff,color:#fff
+    style HLD_OUT fill:#e67e22,stroke:#fff,color:#fff
+    style DEV_OUT fill:#2ecc71,stroke:#fff,color:#000
+    style SM fill:#f39c12,stroke:#fff,color:#000
+    </pre>
+
     <table>
-      <tr><th>Phase</th><th>Artifact</th><th>Session Memory Sections Written</th></tr>
-      <tr><td>Orchestrator (pre-phase)</td><td><code>brd-raw.md</code> (writes), <code>knowledge-bank.md</code> (reads) <span class="badge badge-new">NEW</span></td><td><em>(none — input files only)</em></td></tr>
-      <tr><td>ProductEx BRD Review</td><td><code>brdQnA.md</code></td><td>Domain Terminology, Codebase Behaviour</td></tr>
-      <tr><td>BA (00)</td><td><code>00-ba.md</code> + <code>docs/product/feature.md</code></td><td>Domain Terminology, Codebase Behaviour, Constraints, Key Decisions, Open Questions</td></tr>
-      <tr><td>Architect (01)</td><td><code>01-architect.md</code></td><td>Codebase Behaviour, Key Decisions, Constraints, Open Questions</td></tr>
-      <tr><td>Analyst (02)</td><td><code>02-analyst.md</code></td><td>Codebase Behaviour, Risks & Concerns, Constraints, Open Questions</td></tr>
-      <tr><td>Designer (03)</td><td><code>03-designer.md</code></td><td>Key Decisions, Constraints, Open Questions</td></tr>
-      <tr><td>QA (04)</td><td><code>04-qa.md</code> + <em>AC Coverage Matrix</em> <span class="badge badge-new">NEW</span></td><td>Risks & Concerns, Open Questions</td></tr>
-      <tr><td>Developer (05)</td><td><code>05-developer.md</code></td><td>Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns</td></tr>
-      <tr><td>SDET (06)</td><td><code>06-sdet.md</code> + <em>UT/IT split, Convention Snapshot</em> <span class="badge badge-new">NEW</span></td><td>Constraints, Open Questions</td></tr>
-      <tr><td>Reviewer (07)</td><td><code>07-reviewer.md</code> + <em>Traceability Matrix</em> <span class="badge badge-new">NEW</span></td><td>Risks & Concerns, Open Questions, Key Decisions</td></tr>
-      <tr><td>API Handoff <span class="badge badge-new">NEW</span></td><td><code>api-handoff.md</code> + <code>api-handoff.openapi.yaml</code></td><td><em>(none — reads only)</em></td></tr>
+      <tr><th>Phase</th><th>Requires</th></tr>
+      <tr><td>Phase 1 (BA+PRD)</td><td>BRD input (brd-raw.md or original file path)</td></tr>
+      <tr><td>Phase 2 (Critic + Gap)</td><td>00-ba.md, 00-prd.md</td></tr>
+      <tr><td>Phase 3 (UI)</td><td>UI screenshots (if provided in inputs)</td></tr>
+      <tr><td>Phase 4 (Blockers)</td><td>00-ba.md, 00-prd.md, contradictions.md</td></tr>
+      <tr><td>Phase 5 (Research)</td><td>00-ba-machine.md, session-memory.md</td></tr>
+      <tr><td>Phase 6 (HLD)</td><td>code-analysis-*.md, session-memory.md</td></tr>
+      <tr><td>Phase 6a (Impact)</td><td>01-architect.md</td></tr>
+      <tr><td>Phase 6b (Migration)</td><td>01-architect.md (if schema changes)</td></tr>
+      <tr><td>Phase 7 (LLD)</td><td>01-architect.md, session-memory.md</td></tr>
+      <tr><td>Phase 8 (QA)</td><td>03-designer.md</td></tr>
+      <tr><td>Phase 9 (Developer)</td><td>04-qa.md, 03-designer.md</td></tr>
+      <tr><td>Phase 9b (Backend)</td><td>Code files from Phase 9</td></tr>
+      <tr><td>Phase 9c (Compliance)</td><td>01-architect.md, code files from Phase 9</td></tr>
+      <tr><td>Phase 9d (Migration Val)</td><td>01b-migrator.md</td></tr>
+      <tr><td>Phase 10 (SDET)</td><td>04-qa.md, 05-developer.md</td></tr>
+      <tr><td>Phase 11 (Reviewer)</td><td>All prior artifacts + build passing</td></tr>
+      <tr><td>Phase 12 (Blueprint)</td><td>All prior artifacts</td></tr>
     </table>
+  </div>
 
-    <h2 style="margin-top:2rem;">19. ProductEx Mode Reference</h2>
+  <div class="section-divider">- - - SUMMARY TABLES - - -</div>
+
+  <!-- Summary Tables -->
+  <div class="chart-section" id="tables">
+    <h2>15. Skills Inventory (16 Active + 2 Deprecated)</h2>
     <table>
-      <tr><th>Mode</th><th>Type</th><th>Triggered By</th><th>Output</th></tr>
-      <tr><td><code>discover</code></td><td>User-invokable</td><td>Human</td><td><code>docs/product/registry.md</code></td></tr>
-      <tr><td><code>query</code></td><td>User-invokable</td><td>Human</td><td>Inline answer</td></tr>
-      <tr><td><code>map</code></td><td>User-invokable</td><td>Human</td><td>Enriched <code>registry.md</code></td></tr>
-      <tr><td><code>brief</code></td><td>User-invokable</td><td>Human</td><td>Product brief (inline or artifact)</td></tr>
-      <tr><td><code>brd-check</code></td><td>User-invokable</td><td>Human</td><td>BRD quality report (score X/14)</td></tr>
-      <tr><td><code>brd-review</code></td><td>Workflow-internal</td><td>Orchestrator (Phase 00)</td><td><code>brdQnA.md</code></td></tr>
-      <tr><td><code>consult</code></td><td>Workflow-internal</td><td>BA (Phase 00)</td><td>Answer or UNRESOLVED + <code>brdQnA.md</code></td></tr>
-      <tr><td><code>verify</code></td><td>Workflow-internal</td><td>Analyst (Phase 02)</td><td>Approved or changes_needed with evidence</td></tr>
+      <tr><th>Skill</th><th>File</th><th>Category</th><th>Phase(s)</th><th>Model</th><th>Status</th></tr>
+      <tr><td><code>/ba</code></td><td><code>.claude/skills/ba/SKILL.md</code></td><td>Analysis</td><td>1</td><td><span class="badge badge-opus">Opus</span></td><td>Active</td></tr>
+      <tr><td><code>/analyst</code></td><td><code>.claude/skills/analyst/SKILL.md</code></td><td>Analysis</td><td>2, 6a, 9c</td><td><span class="badge badge-opus">Opus</span></td><td>Active</td></tr>
+      <tr><td><code>/productex</code></td><td><code>.claude/skills/productex/SKILL.md</code></td><td>Analysis</td><td>1 (parallel)</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/cross-repo-tracer</code></td><td><code>.claude/skills/cross-repo-tracer/SKILL.md</code></td><td>Analysis</td><td>5</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/migrator</code></td><td><code>.claude/skills/migrator/SKILL.md</code></td><td>Analysis</td><td>6b, 9d</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/architect</code></td><td><code>.claude/skills/architect/SKILL.md</code></td><td>Design</td><td>6</td><td><span class="badge badge-opus">Opus</span></td><td>Active</td></tr>
+      <tr><td><code>/designer</code></td><td><code>.claude/skills/designer/SKILL.md</code></td><td>Design</td><td>7</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/developer</code></td><td><code>.claude/skills/developer/SKILL.md</code></td><td>Implementation</td><td>9</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/backend-readiness</code></td><td><code>.claude/skills/backend-readiness/SKILL.md</code></td><td>Implementation</td><td>9b</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/qa</code></td><td><code>.claude/skills/qa/SKILL.md</code></td><td>Verification</td><td>8</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/sdet</code></td><td><code>.claude/skills/sdet/SKILL.md</code></td><td>Verification</td><td>10</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/reviewer</code></td><td><code>.claude/skills/reviewer/SKILL.md</code></td><td>Verification</td><td>11</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/debug</code></td><td><code>.claude/skills/debug/SKILL.md</code></td><td>Standalone</td><td>On-demand</td><td><span class="badge badge-opus">Opus</span></td><td>Active</td></tr>
+      <tr><td><code>/tutor</code></td><td><code>.claude/skills/tutor/SKILL.md</code></td><td>Standalone</td><td>On-demand</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td><code>/api-handoff</code></td><td><code>.claude/skills/api-handoff/SKILL.md</code></td><td>Standalone</td><td>After 7 or 9</td><td><span class="badge badge-sonnet">Sonnet</span></td><td>Active</td></tr>
+      <tr><td class="deprecated"><code>/prd-generator</code></td><td><code>.claude/skills/prd-generator/SKILL.md</code></td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-deprecated">DEPRECATED</span> Merged into /ba</td></tr>
+      <tr><td class="deprecated"><code>/gap-analyser</code></td><td><code>.claude/skills/gap-analyser/SKILL.md</code></td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-deprecated">DEPRECATED</span> Merged into /analyst --compliance</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">20. BRD Standards Checklist (for Product Managers)</h2>
+    <h2 style="margin-top:2rem;">16. Artifacts Produced Per Phase</h2>
     <table>
-      <tr><th>#</th><th>Check</th><th>Category</th></tr>
-      <tr><td>1</td><td>Metadata header (title, owner, version, status, module, Jira)</td><td>Structure</td></tr>
-      <tr><td>2</td><td>Executive summary &le; 1 paragraph</td><td>Structure</td></tr>
-      <tr><td>3</td><td>Problem statement with persona impact and urgency</td><td>Structure</td></tr>
-      <tr><td>4</td><td>Every epic has granular priority (P0, P0.1, P1, P1.2...)</td><td>Epics & Stories</td></tr>
-      <tr><td>5</td><td>Every story has priority within its epic</td><td>Epics & Stories</td></tr>
-      <tr><td>6</td><td>Every story has ownership tag: [UI], [Backend], [UI+Backend], [AI/ML], [Infra]</td><td>Epics & Stories</td></tr>
-      <tr><td>7</td><td>Complex stories have concrete examples (input &rarr; output)</td><td>Epics & Stories</td></tr>
-      <tr><td>8</td><td>Every story has testable acceptance criteria (Given/When/Then)</td><td>Epics & Stories</td></tr>
-      <tr><td>9</td><td>Backend stories have API contract sketches</td><td>Technical</td></tr>
-      <tr><td>10</td><td>Dependencies between epics/stories mapped</td><td>Technical</td></tr>
-      <tr><td>11</td><td>Scope boundaries explicit (in/out/depends)</td><td>Technical</td></tr>
-      <tr><td>12</td><td>Glossary defines all product-specific terms</td><td>Product</td></tr>
-      <tr><td>13</td><td>Open questions listed with owners and priority</td><td>Product</td></tr>
-      <tr><td>14</td><td>Success metrics with baselines, targets, owners</td><td>Product</td></tr>
+      <tr><th>Phase</th><th>Artifacts</th><th>Session Memory Sections Written</th></tr>
+      <tr><td>Phase 0: Input Collection</td><td><code>pipeline-state.json</code>, <code>session-memory.md</code>, <code>process-log.md</code>, <code>approach-log.md</code>, <code>live-dashboard.html</code></td><td>(initialization only)</td></tr>
+      <tr><td>Phase 1: BA + PRD</td><td><code>00-ba.md</code>, <code>00-ba-machine.md</code>, <code>00-prd.md</code>, <code>00-prd-machine.md</code>, <code>brdQnA.md</code></td><td>Domain Terminology, Codebase Behaviour, Key Decisions, Constraints, Open Questions</td></tr>
+      <tr><td>Phase 2: Critic + Gap</td><td><code>contradictions.md</code>, <code>gap-analysis-brd.md</code></td><td>Risks &amp; Concerns, Codebase Behaviour</td></tr>
+      <tr><td>Phase 3: UI Extraction</td><td><code>ui-requirements.md</code></td><td>Codebase Behaviour</td></tr>
+      <tr><td>Phase 4: Blockers</td><td><code>grooming-questions.md</code>, <code>blocker-decisions.md</code></td><td>Key Decisions</td></tr>
+      <tr><td>Phase 5: Research</td><td><code>code-analysis-*.md</code> (per repo), <code>cross-repo-trace.md</code></td><td>Codebase Behaviour</td></tr>
+      <tr><td>Phase 6: HLD</td><td><code>01-architect.md</code></td><td>Codebase Behaviour, Key Decisions, Constraints, Open Questions</td></tr>
+      <tr><td>Phase 6a: Impact</td><td><code>02-analyst.md</code></td><td>Codebase Behaviour, Risks &amp; Concerns, Constraints</td></tr>
+      <tr><td>Phase 6b: Migration</td><td><code>01b-migrator.md</code></td><td>Key Decisions</td></tr>
+      <tr><td>Phase 7: LLD</td><td><code>03-designer.md</code></td><td>Key Decisions, Constraints, Open Questions</td></tr>
+      <tr><td>Phase 8: QA</td><td><code>04-qa.md</code> (+ AC Coverage Matrix)</td><td>Risks &amp; Concerns, Open Questions</td></tr>
+      <tr><td>Phase 9: Developer</td><td><code>05-developer.md</code> + code files</td><td>Codebase Behaviour, Key Decisions, Constraints, Risks &amp; Concerns</td></tr>
+      <tr><td>Phase 9b: Backend</td><td><code>backend-readiness.md</code></td><td>Risks &amp; Concerns</td></tr>
+      <tr><td>Phase 9c: Compliance</td><td><code>05b-gap-analysis.md</code></td><td>Risks &amp; Concerns</td></tr>
+      <tr><td>Phase 9d: Migration Val</td><td><code>05c-migration-validation.md</code></td><td>Constraints</td></tr>
+      <tr><td>Phase 10: SDET</td><td><code>06-sdet.md</code></td><td>Constraints, Open Questions</td></tr>
+      <tr><td>Phase 11: Reviewer</td><td><code>07-reviewer.md</code> (+ Traceability Matrix)</td><td>Risks &amp; Concerns, Open Questions, Key Decisions</td></tr>
+      <tr><td>Phase 12: Blueprint</td><td><code>process-log.md</code> (final), <code>approach-log.md</code> (final), <code>&lt;feature&gt;-blueprint.html</code></td><td>(finalization only)</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">21. Circuit Breaker Limits</h2>
+    <h2 style="margin-top:2rem;">17. Pipeline Stats — Tier Enhancement Run</h2>
     <table>
-      <tr><th>Loop Type</th><th>Max Cycles</th><th>After Exhaustion</th></tr>
-      <tr><td>General rework (any blocker)</td><td>2</td><td>Human escalation with 4 options (revisit, accept, mark risk, other)</td></tr>
-      <tr><td>Architect-Analyst-ProductEx verification</td><td>3</td><td>Human escalation with 4 options (manual adjust, accept, revisit BA, consult product team)</td></tr>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Total phases completed</td><td>14/14</td></tr>
+      <tr><td>Key decisions documented</td><td>28</td></tr>
+      <tr><td>Test scenarios generated</td><td>62</td></tr>
+      <tr><td>Code files changed/created</td><td>30</td></tr>
+      <tr><td>Agent teams used</td><td>2 (research, development)</td></tr>
+      <tr><td>Documents generated</td><td>19</td></tr>
+      <tr><td>Contradictions found (Critic)</td><td>Varies per run</td></tr>
+      <tr><td>Blockers resolved</td><td>Varies per run</td></tr>
+      <tr><td>Rework cycles</td><td>Varies per run</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">22. Pause Prompt Commands</h2>
+    <h2 style="margin-top:2rem;">18. Pause Prompt Commands</h2>
     <table>
       <tr><th>Command</th><th>Action</th><th>Available When</th></tr>
       <tr><td><code>continue</code></td><td>Proceed to next phase</td><td>Any pause</td></tr>
-      <tr><td><code>skip</code></td><td>Skip next phase (if optional: Analyst, SDET)</td><td>Any pause</td></tr>
-      <tr><td><code>api-handoff</code> <span class="badge badge-new">NEW</span></td><td>Generate API contract doc for UI team</td><td>After Designer or Developer</td></tr>
-      <tr><td><code>revert</code></td><td>Open revert menu — pick a phase to roll back to</td><td>Any pause</td></tr>
-      <tr><td><code>revert to N</code></td><td>Quick revert to phase N</td><td>Any pause</td></tr>
-      <tr><td><code>status</code></td><td>Show full workflow progress dashboard</td><td>Any pause</td></tr>
+      <tr><td><code>skip</code></td><td>Skip next phase (if optional)</td><td>Any pause</td></tr>
+      <tr><td><code>revert N</code></td><td>Roll back to phase N (3 options: full/artifacts/re-run)</td><td>Any pause</td></tr>
+      <tr><td><code>status</code></td><td>Show full pipeline progress</td><td>Any pause</td></tr>
+      <tr><td><code>resolve</code></td><td>Take manual control of a blocker</td><td>During rework</td></tr>
+      <tr><td><code>api-handoff</code></td><td>Generate API contract for UI team</td><td>After Phase 7 or 9</td></tr>
       <tr><td><code>exit</code></td><td>Save state and exit (resume later)</td><td>Any pause</td></tr>
-      <tr><td><code>resolve</code></td><td>Take manual control of a blocker</td><td>During rework cycles</td></tr>
     </table>
 
-    <h2 style="margin-top:2rem;">23. New Enhancements Summary</h2>
+    <h2 style="margin-top:2rem;">19. Circuit Breaker Limits</h2>
     <table>
-      <tr><th>Enhancement</th><th>Skill</th><th>What it does</th></tr>
-      <tr><td>BRD Validation Gate</td><td>BA (Step 1b)</td><td>Format-agnostic check — blocks only when zero concrete behaviours extractable. Reads for meaning, not patterns.</td></tr>
-      <tr><td>Knowledge Bank</td><td>BA (Step 2) + Workflow</td><td>Human pre-populates context before pipeline. BA checks it before asking questions. Reduces back-and-forth.</td></tr>
-      <tr><td>AC Coverage Matrix</td><td>QA</td><td>Every acceptance criterion from BA must map to at least one test scenario. No silent skipping.</td></tr>
-      <tr><td>Test Efficiency Protocol</td><td>SDET</td><td>Combine conditions using collections/parameterization. Max 15 methods per class. Min tests, max coverage.</td></tr>
-      <tr><td>Test Layer Strategy</td><td>SDET</td><td>UT vs IT classification with decision table. No IT for pure logic, no UT for API/DB behaviour.</td></tr>
-      <tr><td>IT Infrastructure Discovery</td><td>SDET</td><td>5-step convention-inference protocol. Learns from existing test suite, not hardcoded patterns.</td></tr>
-      <tr><td>Requirements Traceability</td><td>Reviewer</td><td>Cross-verifies all artifacts against BA requirements. Routes gaps to earliest concerned phase.</td></tr>
-      <tr><td>Gap Routing</td><td>Reviewer + Workflow</td><td>Human chooses per gap: rerun from phase, manual fix, or accept as known risk.</td></tr>
-      <tr><td>API Handoff</td><td>New standalone skill</td><td>Extracts API contracts for UI team. Resource-oriented markdown + optional OpenAPI 3.1 YAML.</td></tr>
+      <tr><th>Loop Type</th><th>Max Cycles</th><th>After Exhaustion</th></tr>
+      <tr><td>Same phase-pair rework (e.g., Reviewer to Developer)</td><td>3</td><td>Human escalation: try once more, accept current state, or revert to earlier phase</td></tr>
+      <tr><td>Backend Readiness to Developer</td><td>2</td><td>Human escalation with options</td></tr>
+      <tr><td>Compliance to Developer</td><td>2</td><td>Human escalation with options</td></tr>
+    </table>
+
+    <h2 style="margin-top:2rem;">20. Superpowers Used</h2>
+    <table>
+      <tr><th>Superpower</th><th>Used In</th><th>Purpose</th></tr>
+      <tr><td><code>brainstorming</code></td><td>Phase 6 (Architect)</td><td>Explore approaches before designing</td></tr>
+      <tr><td><code>writing-plans</code></td><td>Phase 6 (Architect)</td><td>Create implementation plan</td></tr>
+      <tr><td><code>executing-plans</code></td><td>Phase 9 (Developer)</td><td>Load and execute implementation plan</td></tr>
+      <tr><td><code>test-driven-development</code></td><td>Phase 9 (Developer)</td><td>Red-green-refactor cycle</td></tr>
+      <tr><td><code>verification-before-completion</code></td><td>Phases 9, 11</td><td>Run build + tests before claiming done</td></tr>
+      <tr><td><code>dispatching-parallel-agents</code></td><td>Phase 5 (Research)</td><td>One agent per code repo</td></tr>
+      <tr><td><code>subagent-driven-development</code></td><td>Phase 9 (Developer)</td><td>Independent modules in parallel</td></tr>
+      <tr><td><code>finishing-a-development-branch</code></td><td>Phase 11 (Reviewer)</td><td>Guide merge/PR/cleanup</td></tr>
+      <tr><td><code>requesting-code-review</code></td><td>Phase 11 (Reviewer)</td><td>Structured review process</td></tr>
     </table>
   </div>
 
