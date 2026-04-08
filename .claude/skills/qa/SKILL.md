@@ -36,10 +36,18 @@ SDET (which runs after Developer) handles *how* to automate and structure those 
 
 ### Read at start — actively use these sections:
 - **Domain Terminology**: use exact terms in all scenario and test names
+- **Key Decisions**: read ADR summaries from Architect phase — each ADR decision is a testable constraint
 - **Constraints**: every constraint is a potential test scenario — check each one
 - **Risks & Concerns**: each risk is a priority test area; do not re-surface risks already listed, instead create test scenarios for them
 - **Codebase Behaviour**: use existing behaviour as the baseline for "what should not change" regression scenarios
 - **Open Questions**: flag if any unresolved questions block defining a test scenario
+
+### ADR-Driven Test Scenarios (from `01-architect.md`)
+
+Read the ADRs section of `01-architect.md`. Each ADR that mandates or prohibits a pattern should have at least one test scenario:
+- **Mandated patterns**: test that the chosen approach works correctly (e.g., ADR says "maker-checker for all writes" → scenario: "write without approval should be rejected")
+- **Prohibited alternatives**: test that the prohibited path is not possible or fails safely (e.g., ADR says "no direct DB writes" → scenario: "verify all mutations go through service layer")
+- Tag ADR-driven scenarios in your output: `[ADR-N]` prefix so Developer and Reviewer can trace them back
 
 ### Write after producing output
 Append to the following sections in `session-memory.md`:

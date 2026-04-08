@@ -36,10 +36,19 @@ Runs after **QA** (`04-qa.md`). Output feeds into **SDET** (`06-sdet.md`) and **
 
 ### Read at start — actively use these sections:
 - **Domain Terminology**: use exact terms in all code, method names, and variable names — terminology consistency matters
+- **Key Decisions**: read ADR summaries from Architect phase — implementation must follow these decisions, not contradict them
 - **Constraints**: every constraint must be respected in implementation; check before writing any code
 - **Risks & Concerns**: high-severity risks are implementation priority; address them first or explicitly
 - **Codebase Behaviour**: understand how the system currently behaves before writing code that changes it
 - **Open Questions**: if any unresolved question blocks implementation, surface it to the user before proceeding
+
+### ADR Compliance (from `01-architect.md`)
+
+Read the ADRs section of `01-architect.md` before writing any code. ADRs are architectural contracts — violating them is a blocker at review.
+- Follow chosen patterns and approaches from each ADR
+- Do not use prohibited alternatives (e.g., if ADR says "no direct JDBC", do not write raw SQL)
+- Comment `// ADR-N: <reason>` when a code pattern exists specifically because of an ADR decision
+- If implementation reveals an ADR is impractical, do not silently deviate — flag it as a blocker for the user
 
 ### Write after producing output
 Append to the following sections in `session-memory.md`:

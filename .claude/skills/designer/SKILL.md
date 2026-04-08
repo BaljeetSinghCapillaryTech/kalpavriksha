@@ -36,9 +36,18 @@ Runs after **Analyst** (`02-analyst.md`). Output feeds into **QA** (`04-qa.md`).
 ### Read at start — actively use these sections:
 - **Domain Terminology**: use exact terms in all interface and type names; consistency is critical here
 - **Codebase Behaviour**: understand existing patterns before proposing abstractions; prefer extending over replacing
+- **Key Decisions**: read ADR summaries from Architect phase — every interface must respect these decisions (e.g., if ADR says "repository pattern only", do not design direct JDBC interfaces)
 - **Constraints**: interfaces must not violate existing constraints; check before defining new boundaries
 - **Risks & Concerns**: let flagged risks shape interface design (e.g. a security risk may require an explicit audit interface)
 - **Open Questions**: check if any architectural or impact questions affect interface design
+
+### ADR Compliance (from `01-architect.md`)
+
+Read the ADRs section of `01-architect.md` before designing any interface. For each ADR:
+- Extract the decision and any prohibited alternatives
+- Ensure no interface you design contradicts an ADR
+- If an ADR constrains a pattern (e.g., "all persistence via Spring Data repositories"), reflect that in your interface contracts
+- Cite the relevant ADR when a design choice is directly driven by it: `// Driven by ADR-N: <decision summary>`
 
 ### Write after producing output
 Append to the following sections in `session-memory.md`:

@@ -11,6 +11,21 @@ This is a **Java backend loyalty platform** (Capillary). The codebase spans mult
 
 Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito.
 
+## Architectural Decisions (Standing — Project-Level)
+
+Standing architectural decisions are long-lived choices that apply across all features, epics, and pipeline runs. They predate any single BRD — they are the "Why" of the project.
+
+Per-feature ADRs are produced during pipeline Phase 6 (`/architect`) and live in `01-architect.md`. Standing decisions live here and are checked before any per-feature ADR is created.
+
+| # | Decision | Rationale |
+|---|---|---|
+| A-01 | *Example: Inter-service protocol choice* | *Why this protocol over alternatives* |
+| A-02 | *Example: Data mutation workflow* | *Why this approval flow exists* |
+
+> **How to maintain**: Add a row when a project-level architectural choice is made. These are not feature-specific — they apply to every pipeline run. When `/architect` proposes something that contradicts a standing decision, it must get explicit user approval and document a new ADR explaining the deviation.
+>
+> **Pipeline integration**: The `/architect` skill reads this section before proposing any architecture. The `/analyst --compliance` skill checks implementation against both standing decisions and per-feature ADRs.
+
 ## Feature Pipeline
 
 This repo includes a **feature-pipeline agent** (`.claude/agents/feature-pipeline.md`) that automates BRD-to-production in 13 phases. To use it:

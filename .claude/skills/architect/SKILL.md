@@ -53,6 +53,8 @@ Append to the following sections in `session-memory.md`:
 
 **Read `.claude/skills/GUARDRAILS.md` before designing.** Every proposed solution must comply with all CRITICAL guardrails (G-01 Timezone, G-03 Security, G-07 Multi-Tenancy, G-12 AI-Specific). Flag in ADRs when a design decision is driven by a specific guardrail (cite the ID, e.g., "Per G-05.4, schema migration uses expand-then-contract").
 
+**Read `CLAUDE.md § Architectural Decisions (Standing)` before proposing any architecture.** Standing decisions are project-level choices that predate this feature. If your proposed architecture contradicts a standing decision, flag it explicitly and get user approval before proceeding — do not silently deviate. Document the deviation as a new ADR with rationale.
+
 ---
 
 ## Step 1: Research Current State (Before Designing Anything)
