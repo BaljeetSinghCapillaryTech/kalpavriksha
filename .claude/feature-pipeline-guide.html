@@ -199,7 +199,7 @@ flowchart TD
 Pipeline runs all 13 phases with pause prompts between each.
 Phase 0 initializes jdtls, creates git branch aidlc/CAP-18900.
 Phase 5 cross-repo tracer maps which repos need changes.
-Phase 9b backend readiness gates production quality.</code></pre>
+Phase 10b backend readiness gates production quality.</code></pre>
 </div>
 <div class="example">
 <div class="label">Example 2: Jump to LLD with existing HLD</div>
@@ -231,7 +231,7 @@ Paths updated. Resume from Phase 8 (QA)? yes</code></pre>
 
 Revert target: Phase 6 (HLD Architect)
 This will discard everything AFTER Phase 6:
-  ARTIFACTS to delete: 03-designer.md, 04-qa.md, 05-developer.md ...
+  ARTIFACTS to delete: 03-designer.md, 04-qa.md, 04b-business-tests.md, 05-sdet.md, 06-developer.md ...
   CODE CHANGES: kept intact (Option B)
   SESSION MEMORY: Phase 7-12 entries removed
 
@@ -254,7 +254,7 @@ Continue from Phase 7 (LLD)? yes</code></pre>
 <!-- 13 PHASES -->
 <section id="phases">
 <h2>The 13-Phase Pipeline</h2>
-<p>Phase 2 (PRD) merged into Phase 1 (BA+PRD). Phases numbered: 0, 1, 2, 3, 4, 5, 6, 6a, 6b, 7, 8, 9, 9b, 9c, 9d, 10, 11, 12.</p>
+<p>Phase 2 (PRD) merged into Phase 1 (BA+PRD). Phases numbered: 0, 1, 2, 3, 4, 5, 6, 6a, 6b, 7, 8, 8b, 9, 10, 10b, 10c, 10d, 11, 12.</p>
 <div class="mermaid">
 flowchart TD
     P0["Phase 0\n<b>Input Collection + Git Setup</b>\njdtls init, multi-repo git branch\nConfluence run folder\nInteractive | opus"]
@@ -268,20 +268,22 @@ flowchart TD
     P6b["Phase 6b\n<b>Migration Planning</b>\n/migrator\nConditional | sonnet"]
     P7["Phase 7\n<b>LLD — Designer</b>\n/designer\nSubagent | sonnet"]
     P8["Phase 8\n<b>QA</b>\n/qa\nSubagent | sonnet"]
-    P9["Phase 9\n<b>Developer</b>\n/developer + TDD\nAgent Team | sonnet"]
-    P9b["Phase 9b\n<b>Backend Readiness</b>\n/backend-readiness\nSubagent | sonnet"]
-    P9c["Phase 9c\n<b>Compliance Check</b>\n/analyst --compliance\nSubagent | opus"]
-    P9d["Phase 9d\n<b>Migration Validation</b>\n/migrator\nConditional | sonnet"]
-    P10["Phase 10\n<b>SDET</b>\n/sdet\nSubagent | sonnet"]
+    P8b["Phase 8b\n<b>Business Test Gen</b>\n/business-test-gen\nSubagent | sonnet"]
+    P9["Phase 9\n<b>SDET — RED</b>\n/sdet\nSubagent | sonnet"]
+    P10["Phase 10\n<b>Developer — GREEN</b>\n/developer + TDD\nAgent Team | opus"]
+    P10b["Phase 10b\n<b>Backend Readiness</b>\n/backend-readiness\nSubagent | sonnet"]
+    P10c["Phase 10c\n<b>Compliance Check</b>\n/analyst --compliance\nSubagent | opus"]
+    P10d["Phase 10d\n<b>Migration Validation</b>\n/migrator\nConditional | sonnet"]
     P11["Phase 11\n<b>Reviewer</b>\n/reviewer\nHybrid | sonnet"]
     P12["Phase 12\n<b>Blueprint</b>\nDocs + HTML\nSubagent | haiku"]
 
     P0 --> P1 --> P2 --> P3
     P3 --> P4 --> P5 --> P6
     P6 --> P6a --> P6b --> P7
-    P7 --> P8 --> P9
-    P9 --> P9b --> P9c --> P9d
-    P9d --> P10 --> P11 --> P12
+    P7 --> P8 --> P8b --> P9
+    P9 --> P10
+    P10 --> P10b --> P10c --> P10d
+    P10d --> P11 --> P12
 
     style P0 fill:#222a38,stroke:#4a5568,color:#c0c8d5
     style P1 fill:#3d2a5c,stroke:#6a5a8a,color:#d5cce8
@@ -318,11 +320,12 @@ flowchart TD
 <tr><td><strong>6b</strong></td><td>Migration Planning</td><td>/migrator</td><td>Subagent (conditional)</td><td>sonnet</td><td>01b-migrator.md</td></tr>
 <tr><td><strong>7</strong></td><td>LLD (Designer)</td><td>/designer</td><td>Subagent</td><td>sonnet</td><td>03-designer.md</td></tr>
 <tr><td><strong>8</strong></td><td>QA</td><td>/qa</td><td>Subagent</td><td>sonnet</td><td>04-qa.md</td></tr>
-<tr><td><strong>9</strong></td><td>Developer</td><td>/developer</td><td>Agent team + superpowers</td><td>sonnet</td><td>05-developer.md + code</td></tr>
-<tr><td><strong>9b</strong></td><td>Backend Readiness</td><td>/backend-readiness</td><td>Subagent</td><td>sonnet</td><td>backend-readiness.md</td></tr>
-<tr><td><strong>9c</strong></td><td>Compliance Check</td><td>/analyst --compliance</td><td>Subagent</td><td>opus</td><td>05b-gap-analysis.md</td></tr>
-<tr><td><strong>9d</strong></td><td>Migration Validation</td><td>/migrator</td><td>Subagent (conditional)</td><td>sonnet</td><td>05c-migration-validation.md</td></tr>
-<tr><td><strong>10</strong></td><td>SDET</td><td>/sdet</td><td>Subagent</td><td>sonnet</td><td>06-sdet.md</td></tr>
+<tr><td><strong>8b</strong></td><td>Business Test Gen</td><td>/business-test-gen</td><td>Subagent</td><td>sonnet</td><td>04b-business-tests.md</td></tr>
+<tr><td><strong>9</strong></td><td>SDET — RED</td><td>/sdet</td><td>Subagent</td><td>sonnet</td><td>05-sdet.md + test code + skeleton classes</td></tr>
+<tr><td><strong>10</strong></td><td>Developer — GREEN</td><td>/developer</td><td>Agent team + superpowers</td><td>opus</td><td>06-developer.md + production code</td></tr>
+<tr><td><strong>10b</strong></td><td>Backend Readiness</td><td>/backend-readiness</td><td>Subagent</td><td>sonnet</td><td>backend-readiness.md</td></tr>
+<tr><td><strong>10c</strong></td><td>Compliance Check</td><td>/analyst --compliance</td><td>Subagent</td><td>opus</td><td>06b-gap-analysis.md</td></tr>
+<tr><td><strong>10d</strong></td><td>Migration Validation</td><td>/migrator</td><td>Subagent (conditional)</td><td>sonnet</td><td>06c-migration-validation.md</td></tr>
 <tr><td><strong>11</strong></td><td>Reviewer</td><td>/reviewer + /code-review (optional)</td><td>Hybrid (subagent + interactive)</td><td>sonnet</td><td>07-reviewer.md</td></tr>
 <tr><td><strong>12</strong></td><td>Blueprint</td><td>(inline)</td><td>Subagent</td><td>haiku</td><td>process-log.md, approach-log.md, blueprint.html</td></tr>
 </table>
@@ -345,10 +348,11 @@ flowchart TD
 <tr><td>6a (Impact)</td><td>01-architect.md</td></tr>
 <tr><td>7 (LLD)</td><td>01-architect.md, session-memory.md</td></tr>
 <tr><td>8 (QA)</td><td>03-designer.md</td></tr>
-<tr><td>9 (Developer)</td><td>04-qa.md, 03-designer.md</td></tr>
-<tr><td>9b (Backend)</td><td>Code files from Phase 9</td></tr>
-<tr><td>9c (Compliance)</td><td>01-architect.md, code files from Phase 9</td></tr>
-<tr><td>10 (SDET)</td><td>04-qa.md, 05-developer.md</td></tr>
+<tr><td>8b (Business Test Gen)</td><td>00-ba.md, 04-qa.md, 03-designer.md</td></tr>
+<tr><td>9 (SDET — RED)</td><td>04b-business-tests.md, 03-designer.md, 04-qa.md</td></tr>
+<tr><td>10 (Developer — GREEN)</td><td>05-sdet.md, 03-designer.md, 04b-business-tests.md</td></tr>
+<tr><td>10b (Backend)</td><td>Code files from Phase 10</td></tr>
+<tr><td>10c (Compliance)</td><td>01-architect.md, code files from Phase 10</td></tr>
 <tr><td>11 (Reviewer)</td><td>All prior artifacts + build passing</td></tr>
 <tr><td>12 (Blueprint)</td><td>All prior artifacts</td></tr>
 </table>
@@ -413,10 +417,12 @@ flowchart TD
 <tr><td><strong>6a: Impact</strong></td><td>Blast radius mindmap, risk severity chart</td></tr>
 <tr><td><strong>6b: Migrator</strong></td><td>Migration execution order flowchart</td></tr>
 <tr><td><strong>7: LLD</strong></td><td>Already has diagrams from /designer</td></tr>
-<tr><td><strong>9: Developer</strong></td><td>Implementation progress flowchart</td></tr>
-<tr><td><strong>9b: Backend</strong></td><td>Readiness checklist chart (PASS/FAIL/WARN)</td></tr>
-<tr><td><strong>9c: Compliance</strong></td><td>Compliance scorecard per ADR and GUARDRAIL</td></tr>
-<tr><td><strong>9d: Migrator</strong></td><td>Plan vs reality comparison chart</td></tr>
+<tr><td><strong>8b: Business Test Gen</strong></td><td>Test case traceability matrix</td></tr>
+<tr><td><strong>9: SDET (RED)</strong></td><td>RED confirmation: compile pass, tests fail</td></tr>
+<tr><td><strong>10: Developer (GREEN)</strong></td><td>Implementation progress flowchart, GREEN confirmation</td></tr>
+<tr><td><strong>10b: Backend</strong></td><td>Readiness checklist chart (PASS/FAIL/WARN)</td></tr>
+<tr><td><strong>10c: Compliance</strong></td><td>Compliance scorecard per ADR and GUARDRAIL</td></tr>
+<tr><td><strong>10d: Migrator</strong></td><td>Plan vs reality comparison chart</td></tr>
 <tr><td><strong>11: Reviewer</strong></td><td>Review findings severity chart</td></tr>
 </table>
 </section>
@@ -450,11 +456,12 @@ flowchart TD
     end
     subgraph BUILD["Build (Phases 8-11)"]
         D8["04-qa.md"]
-        D9["05-developer.md + code"]
-        D9b["backend-readiness.md"]
-        D9c["05b-gap-analysis.md"]
-        D9d["05c-migration-validation.md"]
-        D10["06-sdet.md"]
+        D8b["04b-business-tests.md"]
+        D9["05-sdet.md + test code"]
+        D10["06-developer.md + production code"]
+        D10b["backend-readiness.md"]
+        D10c["06b-gap-analysis.md"]
+        D10d["06c-migration-validation.md"]
         D11["07-reviewer.md"]
     end
     subgraph DOCS["Documentation (Phase 12)"]
@@ -494,9 +501,10 @@ flowchart TD
         MIGRATOR["/migrator\nSchema Migrations"]
     end
     subgraph BUILD_S["Build Skills"]
-        DEV["/developer\nTDD Implementation"]
         QA_S["/qa\nTest Scenarios"]
-        SDET_S["/sdet\nTest Automation"]
+        BTG["/business-test-gen\nBusiness Test Listings"]
+        SDET_S["/sdet\nRED Phase — Test Code"]
+        DEV["/developer\nGREEN Phase — Production Code"]
         BACKEND["/backend-readiness\nProduction Gate"]
     end
     subgraph REVIEW_S["Review Skills"]
@@ -532,22 +540,23 @@ flowchart TD
 <tr><th>Skill</th><th>Phase(s)</th><th>What It Does</th><th>Status</th></tr>
 <tr><td><code>/ba</code></td><td>1</td><td>Reads BRD + codebase, Q&amp;A with user, produces BA + PRD (merged)</td><td>Active</td></tr>
 <tr><td><code>/productex</code></td><td>1 (parallel)</td><td>Product knowledge base, BRD review, answers product questions</td><td>Active</td></tr>
-<tr><td><code>/analyst</code></td><td>2, 6a, 9c</td><td>Impact analysis (<code>--impact</code>) + compliance checking (<code>--compliance</code>)</td><td>Active</td></tr>
+<tr><td><code>/analyst</code></td><td>2, 6a, 10c</td><td>Impact analysis (<code>--impact</code>) + compliance checking (<code>--compliance</code>)</td><td>Active</td></tr>
 <tr><td><code>/architect</code></td><td>6</td><td>4-step HLD: research, patterns, evaluate (user approves), design + ADRs</td><td>Active</td></tr>
 <tr><td><code>/designer</code></td><td>7</td><td>Pattern discovery, compile-safe interfaces, dependency direction</td><td>Active</td></tr>
-<tr><td><code>/migrator</code></td><td>6b, 9d</td><td>Migration planning (after HLD) + validation (after Developer)</td><td>Active</td></tr>
+<tr><td><code>/migrator</code></td><td>6b, 10d</td><td>Migration planning (after HLD) + validation (after Developer)</td><td>Active</td></tr>
 <tr><td><code>/qa</code></td><td>8</td><td>Test scenarios: happy path, boundary, empty, invalid, failure</td><td>Active</td></tr>
-<tr><td><code>/developer</code></td><td>9</td><td>TDD Chicago/Detroit: failing test, implement, pass, refactor</td><td>Active</td></tr>
-<tr><td><code>/backend-readiness</code></td><td>9b</td><td>Production gate: N+1 queries, Thrift compat, cache, timeouts, errors</td><td>Active</td></tr>
+<tr><td><code>/business-test-gen</code></td><td>8b</td><td>Business test case listings with traceability (BA → Designer → QA)</td><td>Active</td></tr>
+<tr><td><code>/sdet</code></td><td>9</td><td>RED phase: writes all UTs + ITs, creates skeleton classes, confirms RED</td><td>Active</td></tr>
+<tr><td><code>/developer</code></td><td>10</td><td>GREEN phase: production code to pass tests, refactor, can fix tests</td><td>Active</td></tr>
+<tr><td><code>/backend-readiness</code></td><td>10b</td><td>Production gate: N+1 queries, Thrift compat, cache, timeouts, errors</td><td>Active</td></tr>
 <tr><td><code>/cross-repo-tracer</code></td><td>5</td><td>Traces write/read paths across repos, prevents "0 modifications" claims</td><td>Active</td></tr>
-<tr><td><code>/sdet</code></td><td>10</td><td>Test automation plan, manual test steps, CI commands</td><td>Active</td></tr>
 <tr><td><code>/reviewer</code></td><td>11</td><td>5-check review: requirements, session memory, security, docs, quality</td><td>Active</td></tr>
 <tr><td><code>/debug</code></td><td>on-demand</td><td>Root cause analysis, log correlation, hypothesis-driven</td><td>Active</td></tr>
 <tr><td><code>/tutor</code></td><td>on-demand</td><td>Codebase teaching, read-only, Feynman+Socratic method</td><td>Active</td></tr>
-<tr><td><code>/api-handoff</code></td><td>after 7 or 9</td><td>API contract doc for UI team (endpoints, shapes, errors, auth)</td><td>Active</td></tr>
+<tr><td><code>/api-handoff</code></td><td>after 7 or 10</td><td>API contract doc for UI team (endpoints, shapes, errors, auth)</td><td>Active</td></tr>
 <tr><td><code>/code-review</code></td><td>11 (optional)</td><td>Java Spring Boot best-practices checklist (architecture, JPA, security, REST, testing)</td><td>Active</td></tr>
 <tr><td><code>/confluence-publisher</code></td><td>After every phase</td><td>Publishes .md, .html, .yml, .yaml artifacts to Confluence. Creates run folder per pipeline run.</td><td>Active</td></tr>
-<tr><td><code>GUARDRAILS.md</code></td><td>6, 6a, 6b, 7, 9, 9b, 9c, 9d, 11</td><td>12 guardrail categories enforced at design + code phases</td><td>Active</td></tr>
+<tr><td><code>GUARDRAILS.md</code></td><td>6, 6a, 6b, 7, 9, 10, 10b, 10c, 10d, 11</td><td>12 guardrail categories enforced at design + code phases</td><td>Active</td></tr>
 <tr><td class="deprecated"><code>/prd-generator</code></td><td>-</td><td class="deprecated">Merged into /ba (Step 6 of BA skill)</td><td><span class="badge badge-dep">Deprecated</span></td></tr>
 <tr><td class="deprecated"><code>/gap-analyser</code></td><td>-</td><td class="deprecated">Merged into /analyst --compliance</td><td><span class="badge badge-dep">Deprecated</span></td></tr>
 </table>
@@ -581,11 +590,12 @@ flowchart TD
 <tr><td>6b</td><td>Migration Planning</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
 <tr><td>7</td><td>LLD Designer</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
 <tr><td>8</td><td>QA Scenarios</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
-<tr><td>9</td><td>Developer (TDD)</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
-<tr><td>9b</td><td>Backend Readiness</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
-<tr><td>9c</td><td>Compliance Check</td><td><span class="badge badge-opus">Opus</span></td></tr>
-<tr><td>9d</td><td>Migration Validation</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
-<tr><td>10</td><td>SDET</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
+<tr><td>8b</td><td>Business Test Gen</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
+<tr><td>9</td><td>SDET — RED</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
+<tr><td>10</td><td>Developer — GREEN</td><td><span class="badge badge-opus">Opus</span></td></tr>
+<tr><td>10b</td><td>Backend Readiness</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
+<tr><td>10c</td><td>Compliance Check</td><td><span class="badge badge-opus">Opus</span></td></tr>
+<tr><td>10d</td><td>Migration Validation</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
 <tr><td>11</td><td>Reviewer</td><td><span class="badge badge-sonnet">Sonnet</span></td></tr>
 <tr><td>12</td><td>Blueprint</td><td><span class="badge badge-haiku">Haiku</span></td></tr>
 <tr><td>(utility)</td><td>Build Verify</td><td><span class="badge badge-haiku">Haiku</span></td></tr>
@@ -656,12 +666,12 @@ flowchart TD
     style OUTPUT fill:#1a3828,stroke:#4a8a5a,color:#b8e0c8
 </div>
 
-<h3>Phase 9: Developer Agent Team</h3>
+<h3>Phase 10: Developer Agent Team (GREEN Phase)</h3>
 <div class="mermaid">
 flowchart TD
-    LEAD["Pipeline Orchestrator\nsonnet"] --> D1["Dev Agent 1\nEntity layer\nTDD: red-green-refactor"]
-    LEAD --> D2["Dev Agent 2\nService + Validator\nTDD: red-green-refactor"]
-    LEAD --> D3["Dev Agent 3\nController + DTO\nTDD: red-green-refactor"]
+    LEAD["Pipeline Orchestrator\nopus"] --> D1["Dev Agent 1\nEntity layer\nGREEN: make tests pass"]
+    LEAD --> D2["Dev Agent 2\nService + Validator\nGREEN: make tests pass"]
+    LEAD --> D3["Dev Agent 3\nController + DTO\nGREEN: make tests pass"]
     D1 <-.->|"Entity interfaces"| D2
     D2 <-.->|"Service contracts"| D3
     D1 & D2 & D3 --> VERIFY["Build Verify\nhaiku\nmvn compile + test"]
@@ -753,8 +763,10 @@ flowchart LR
     P6["Phase 6\nHLD"] -->|"ADRs\nArch decisions"| SM
     P6a["Phase 6a\nImpact"] -->|"Risks\nBlast radius"| SM
     P7["Phase 7\nLLD"] -->|"Interface contracts\nPackage structure"| SM
-    P9["Phase 9\nDeveloper"] -->|"Implementation notes\nTest results"| SM
-    P9b["Phase 9b\nBackend"] -->|"Readiness verdict"| SM
+    P8b["Phase 8b\nBiz Test Gen"] -->|"Test case listings\nBT-xx IDs"| SM
+    P9["Phase 9\nSDET (RED)"] -->|"Test code written\nRED confirmation"| SM
+    P10["Phase 10\nDeveloper (GREEN)"] -->|"Implementation notes\nGREEN confirmation"| SM
+    P10b["Phase 10b\nBackend"] -->|"Readiness verdict"| SM
     P11["Phase 11\nReviewer"] -->|"Findings\nAccepted risks"| SM
 
     SM -->|"Read by\nevery subsequent\nphase"| NEXT["Next Phase"]
@@ -861,7 +873,7 @@ flowchart TD
 <section id="guardrails">
 <h2>Guardrails</h2>
 <p><code>GUARDRAILS.md</code> defines 12 categories enforced at all design and code phases. CRITICAL violations are automatic blockers.</p>
-<p>Guardrails are checked at phases: 6, 6a, 6b, 7, 9, 9b, 9c, 9d, 11. Key categories include timezone safety (G-01), security (G-03), multi-tenancy (G-07), expand-then-contract migrations (G-05.4), and backward compatibility (G-12).</p>
+<p>Guardrails are checked at phases: 6, 6a, 6b, 7, 9, 10, 10b, 10c, 10d, 11. Key categories include timezone safety (G-01), security (G-03), multi-tenancy (G-07), expand-then-contract migrations (G-05.4), and backward compatibility (G-12).</p>
 </section>
 
 <!-- REVERT PROTOCOL -->
@@ -917,14 +929,14 @@ flowchart TD
 <h3>Circuit Breaker</h3>
 <p>If the same phase pair has cycled <strong>3 times</strong>, the pipeline stops and escalates:</p>
 <div class="card">
-<p><strong>CIRCUIT BREAKER</strong> &mdash; Phase 11 (Reviewer) has routed back to Phase 9 (Developer) 3 times. This suggests a systemic issue, not a simple fix.</p>
+<p><strong>CIRCUIT BREAKER</strong> &mdash; Phase 11 (Reviewer) has routed back to Phase 10 (Developer) 3 times. This suggests a systemic issue, not a simple fix.</p>
 <p>Options: <strong>[A]</strong> Try one more cycle. <strong>[B]</strong> Accept current state with known issues. <strong>[C]</strong> Revert to an earlier phase.</p>
 </div>
 </section>
 
 <!-- BACKEND READINESS -->
 <section id="backend-readiness">
-<h2>Backend Readiness Gate (Phase 9b)</h2>
+<h2>Backend Readiness Gate (Phase 10b)</h2>
 <p>The <code>/backend-readiness</code> skill validates 6 production-readiness areas before code review:</p>
 <table>
 <tr><th>Area</th><th>Checks</th></tr>
@@ -1048,7 +1060,7 @@ flowchart TD
 
 <div class="benefit"><strong>Cross-repo tracer prevents blind spots.</strong> Phase 5 maps write/read paths across all 5 repos before any design begins. Any claim of "0 modifications needed" requires C6+ evidence from reading actual code. No more discovering missing Thrift changes in code review.</div>
 
-<div class="benefit"><strong>Backend readiness gate catches production issues before review.</strong> Phase 9b checks N+1 queries, Thrift backward compatibility, cache invalidation, resource management, error handling, and migration safety. Issues found here are cheaper to fix than in production.</div>
+<div class="benefit"><strong>Backend readiness gate catches production issues before review.</strong> Phase 10b checks N+1 queries, Thrift backward compatibility, cache invalidation, resource management, error handling, and migration safety. Issues found here are cheaper to fix than in production.</div>
 
 <div class="benefit"><strong>Model optimization &mdash; opus for thinking, sonnet for coding, haiku for mechanical.</strong> Opus handles irreversible judgment calls (BA, Architect, Critic). Sonnet handles coding tasks where it benchmarks highest (Developer, Designer). Haiku handles template output (Blueprint, Build Verify). This optimizes cost, speed, and quality.</div>
 
@@ -1066,7 +1078,7 @@ flowchart TD
 
 <div class="benefit"><strong>Critic + Compliance catch what authors miss.</strong> Phase 2 runs two parallel agents &mdash; Critic challenges logic using adversarial questioning, Analyst (compliance mode) verifies claims against actual code.</div>
 
-<div class="benefit"><strong>Migrator plans AND validates.</strong> Phase 6b plans migrations with expand-then-contract enforcement. Phase 9d validates that the Developer followed the plan. Both check GUARDRAILS G-05.4.</div>
+<div class="benefit"><strong>Migrator plans AND validates.</strong> Phase 6b plans migrations with expand-then-contract enforcement. Phase 10d validates that the Developer followed the plan. Both check GUARDRAILS G-05.4.</div>
 
 <div class="benefit"><strong>20+ documents generated automatically.</strong> BA, PRD, contradictions, gap analysis, UI requirements, grooming questions, blocker decisions, code analysis per repo, cross-repo trace, architect, analyst, migrator, designer, QA, developer, backend readiness, compliance, migration validation, SDET, reviewer, process log, approach log, session memory, blueprint HTML, live dashboard.</div>
 

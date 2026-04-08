@@ -40,19 +40,20 @@ claude --agent feature-pipeline
 |-------|---------|-------|
 | `/ba` | Business analysis + PRD generation (merged) | 1 |
 | `/architect` | HLD, ADRs, pattern evaluation | 6 |
-| `/analyst` | Impact analysis (`--impact`) + compliance checking (`--compliance`) | 6a, 9c |
+| `/analyst` | Impact analysis (`--impact`) + compliance checking (`--compliance`) | 6a, 10c |
 | `/designer` | LLD, interface contracts, compile-safe signatures | 7 |
 | `/qa` | Test scenarios, edge cases, acceptance criteria | 8 |
-| `/developer` | TDD implementation (Chicago/Detroit school) | 9 |
-| `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 9b |
+| `/business-test-gen` | Business test case listings with full traceability (BA → Designer → QA) | 8b |
+| `/sdet` | Test code implementation — RED phase (writes all UTs + ITs, confirms RED) | 9 |
+| `/developer` | Production code implementation — GREEN phase (makes tests pass, refactors) | 10 |
+| `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 10b |
 | `/cross-repo-tracer` | Multi-repo write/read path tracing | 5 |
-| `/sdet` | Test automation planning | 10 |
 | `/reviewer` | Code review against requirements | 11 |
 | `/productex` | Product knowledge base, BRD review | 1 (parallel) |
-| `/migrator` | Schema migration analysis | 6b, 9d |
+| `/migrator` | Schema migration analysis | 6b, 10d |
 | `/debug` | Root cause analysis (standalone) | on-demand |
 | `/tutor` | Codebase teaching (standalone, read-only) | on-demand |
-| `/api-handoff` | API contract doc for UI team | after 7 or 9 |
+| `/api-handoff` | API contract doc for UI team | after 7 or 10 |
 | `/code-review` | Java Spring Boot best-practices review (standalone or pipeline add-on) | after Phase 11 (optional) |
 | `/confluence-publisher` | Publish artifacts to Confluence (configurable per product) | after every phase |
 

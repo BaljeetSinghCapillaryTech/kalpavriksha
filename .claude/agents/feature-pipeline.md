@@ -712,58 +712,110 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 9: Developer (Agent Team + Superpowers)
+## Phase 8b: Business Test Gen (Subagent)
+
+**Skill**: `/business-test-gen` (`.claude/skills/business-test-gen/SKILL.md`)
+**Mode**: Subagent — maps requirements to testable contracts
+
+1. Spawn subagent:
+   ```
+   You are running the /business-test-gen skill.
+   Read: .claude/skills/business-test-gen/SKILL.md
+   Read: session-memory.md, 00-ba.md, brdQnA.md
+   Read: 03-designer.md, 04-qa.md, 01-architect.md
+   Read: GUARDRAILS.md
+
+   Follow the Derivation Protocol exactly:
+   1. Map BA requirements to Designer interfaces
+   2. Generate functional test cases (happy path, negative, boundary)
+   3. Generate integration test cases (cross-boundary)
+   4. Generate compliance test cases (ADR, guardrail, risk mitigation)
+   5. Classify each as UT or IT
+   6. Verify coverage completeness
+
+   Produce: 04b-business-tests.md with full traceability (BT-xx IDs).
+   ```
+2. Display summary: "N business test cases generated. M unit, K integration, J compliance."
+3. If coverage gaps found: display to user and route to concerned phase
+4. Update process-log, session-memory
+
+---
+
+## Phase 9: SDET — RED Phase (Subagent)
+
+**Skill**: `/sdet` (`.claude/skills/sdet/SKILL.md`)
+**Mode**: Subagent — writes ALL test code, confirms RED state
+
+1. Spawn subagent following `/sdet` skill
+2. **Read `04b-business-tests.md` as primary input** — cross-reference with:
+   - `03-designer.md` — interface contracts, patterns, base classes for test infrastructure
+   - `04-qa.md` — test scenarios, edge cases
+   - `01-architect.md` — ADRs for compliance tests
+3. The SDET subagent MUST:
+   a. **Run IT Infrastructure Discovery** — find existing test conventions, base classes, exemplars
+   b. **Write ALL unit tests** — for business logic, validations, transformations per business test cases (BT-xx)
+   c. **Write ALL integration tests** — API endpoint tests, DB interaction tests per business test cases
+   d. **Write guardrail-specific tests** — multi-timezone (G-01.7), tenant isolation (G-07.4), concurrent access (G-10)
+   e. **Write compliance tests** — ADR compliance, ArchUnit rules
+   f. **Create skeleton production classes** — empty stubs matching Designer's interfaces (for compilation only, NO business logic)
+   g. **Confirm RED** — run `mvn compile` (PASS) then `mvn test` (FAIL expected)
+4. Produces:
+   - `05-sdet.md` — test plan, RED confirmation, skeleton class inventory
+   - **Actual test Java files** — all UTs + ITs in `src/test`
+   - **Skeleton production classes** — empty stubs in `src/main` (Developer replaces these)
+5. Run `Build Verify`: compilation must PASS, tests must FAIL (RED state)
+
+---
+
+## Phase 10: Developer — GREEN Phase (Agent Team + Superpowers)
 
 **Skill**: `/developer` (`.claude/skills/developer/SKILL.md`)
 **Mode**: Main context with superpowers. For independent modules, spawns agent team.
-**Superpowers**: `test-driven-development`, `executing-plans`, `verification-before-completion`, `subagent-driven-development`, `systematic-debugging`, `receiving-code-review`
+**Superpowers**: `executing-plans`, `verification-before-completion`, `subagent-driven-development`, `systematic-debugging`, `receiving-code-review`
 
-1. **Invoke superpower** to load the implementation plan:
+1. **Verify RED state** — run `mvn test` to confirm SDET's tests are failing:
+   ```
+   mvn test -pl <module> -am 2>&1
+   ```
+   If tests already pass → something is wrong. Investigate before proceeding.
+2. **Invoke superpower** to load the implementation plan:
    ```
    Skill tool → skill: "executing-plans"
    ```
    This loads the plan from Phase 6 (01-architect.md) and sets up execution checkpoints.
-2. **Read `04-qa.md` FIRST** — map QA test scenarios to test classes:
-   - For each user story in QA: identify which test class covers it
-   - For each test scenario: write the test method signature (failing test stub)
-   - Track coverage: `| QA Scenario | Test Class | Test Method | Status |`
-3. Assess: are there independent modules that can be built in parallel?
+3. **Read `05-sdet.md`** — understand what skeleton classes exist and what tests expect:
+   - List of skeleton classes in `src/main` that need real implementations
+   - List of test files and what each test verifies (business test case BT-xx)
+   - RED confirmation showing which tests fail and why
+4. Assess: are there independent modules that can be built in parallel?
    - If YES: **invoke superpower**:
      ```
      Skill tool → skill: "subagent-driven-development"
      ```
      Spawn one developer agent per independent module.
    - If NO: implement sequentially in main context
-4. For each module/task, **invoke superpower**:
-   ```
-   Skill tool → skill: "test-driven-development"
-   ```
-   Then follow the TDD cycle:
-   a. **Write failing unit tests FIRST** — derived from QA scenarios in `04-qa.md`, not invented ad-hoc
-   b. Implement production code to make tests pass
-   c. Refactor
-   d. **Write integration tests** for cross-boundary flows:
-      - HTTP/Thrift boundary → integration test with WireMock/MockServer
-      - DB writes → integration test with Testcontainers or in-memory DB
-      - Cross-repo flows from `cross-repo-trace.md` → integration test covering full path
-   e. Run `Build Verify` (haiku subagent) after each module
-   f. **On test failure or build error** — **invoke superpower**:
+5. For each skeleton class, replace with real production code:
+   a. Read the corresponding test(s) to understand expected behavior
+   b. Implement the business logic following Designer's patterns from `03-designer.md`
+   c. Run `mvn test -pl <module> -Dtest=<TestClass> -am` after each implementation
+   d. Track progress: `| Skeleton Class | Tests Targeting It | Status (RED→GREEN) |`
+   e. **On test failure after implementing** — **invoke superpower**:
       ```
       Skill tool → skill: "systematic-debugging"
       ```
       Then diagnose:
-      - Root cause from error output — don't blindly change code
-      - Form hypothesis: "The test fails because X"
-      - Verify hypothesis with targeted read/grep
-      - Fix the root cause, not the symptom
+      - Is the test expectation correct? (check against `04b-business-tests.md`)
+      - Is the production code incorrect? (check against `03-designer.md`)
+      - If test is wrong → fix the test and document the change
+      - If code is wrong → fix the code
       - If 3 attempts fail on the same error → surface to user with diagnosis
-5. At each commit point: prompt user with commit message, wait for approval
-6. **Invoke superpower** before claiming done:
+6. At each commit point: prompt user with commit message, wait for approval
+7. **Invoke superpower** before claiming done:
    ```
    Skill tool → skill: "verification-before-completion"
    ```
-   Run build + ALL tests (unit + integration). Evidence before assertions.
-7. **On rework from Reviewer (Phase 11)** — **invoke superpower**:
+   Run build + ALL tests (unit + integration). ALL must PASS (GREEN).
+8. **On rework from Reviewer (Phase 11)** — **invoke superpower**:
    ```
    Skill tool → skill: "receiving-code-review"
    ```
@@ -772,15 +824,16 @@ This phase runs TWO subagents in parallel:
    - For each finding: verify it's technically correct before changing code
    - If a finding seems wrong or unclear → push back with evidence, don't just agree
    - Track: `| Finding | Agreed? | Action Taken | Evidence |`
-8. Produce: `05-developer.md` with:
-   - **Test coverage matrix**: QA scenario → test method → PASS/FAIL
-   - **Unit test count** and **integration test count** separately
-   - Any QA scenarios NOT covered (with reason)
-9. Git: commit code with descriptive messages, tag phase
+9. Produce: `06-developer.md` with:
+   - **GREEN confirmation**: all tests pass (count, evidence)
+   - **Test modifications**: any tests changed by Developer (with justification per business test case)
+   - **Skeleton replacement summary**: which classes were replaced, what logic was added
+   - **Test coverage matrix**: business test case → test method → PASS
+10. Git: commit code with descriptive messages, tag phase
 
 ---
 
-## Phase 9b: Backend Readiness (Subagent)
+## Phase 10b: Backend Readiness (Subagent)
 
 **Skill**: `/backend-readiness` (`.claude/skills/backend-readiness/SKILL.md`)
 **Mode**: Subagent — validates backend production readiness before review
@@ -790,8 +843,8 @@ This phase runs TWO subagents in parallel:
    You are running the /backend-readiness skill.
    Read: .claude/skills/backend-readiness/SKILL.md
    Read: session-memory.md, 01-architect.md, cross-repo-trace.md
-   Read: All code files changed/created by Developer in Phase 9
-   
+   Read: All code files changed/created by Developer in Phase 10
+
    Check ALL areas:
    a. Query Performance: N+1, missing indexes, missing tenant filter
    b. Thrift Backward Compatibility: optional fields, no removed fields
@@ -799,7 +852,7 @@ This phase runs TWO subagents in parallel:
    d. Connection/Resource Management: timeouts, pool reuse, leaks
    e. Error Handling at Boundaries: HTTP timeout, Thrift exception, DB deadlock
    f. Flyway Migration Safety: expand-then-contract, idempotent, rollback
-   
+
    Produce: backend-readiness.md with:
    - PASS/FAIL/WARN per area
    - Specific findings with file:line
@@ -811,7 +864,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 9c: Gap Analysis — Architecture vs Code (Subagent)
+## Phase 10c: Gap Analysis — Architecture vs Code (Subagent)
 
 **Skill**: `/analyst --compliance` (`.claude/skills/analyst/SKILL.md`)
 **Mode**: Subagent — compares what was designed against what was built
@@ -822,27 +875,27 @@ This phase runs TWO subagents in parallel:
    Read: .claude/skills/analyst/SKILL.md
    Read: .claude/skills/GUARDRAILS.md
    Artifacts path: <artifacts-path>
-   
+
    Intent sources (what was DESIGNED):
    1. 01-architect.md — modules, boundaries, dependencies, ADRs, API design
    2. 03-designer.md — interface contracts, pattern prescriptions, dependency direction
    3. session-memory.md — Key Decisions, Constraints
-   
+
    Reality (what was BUILT):
    - All code files changed/created by Developer in Phase 10
    - Run: git diff aidlc/<ticket>/phase-09..HEAD --name-only to find changed files
-   
+
    For each architectural decision in 01-architect.md:
    1. Is it reflected in the code? (module boundary respected? pattern followed?)
    2. For each interface in 03-designer.md: does the implementation match the signature?
    3. For each GUARDRAIL: is it enforced in code?
-   
-   Produce: 05b-gap-analysis.md with:
+
+   Produce: 06b-gap-analysis.md with:
    - Compliance scorecard (severity-ranked findings)
    - Per-ADR compliance check
    - Per-GUARDRAIL compliance check
    - Suggested ArchUnit rules for CI enforcement
-   
+
    Severity levels:
    - CRITICAL: Architectural boundary violated, security guardrail broken
    - HIGH: Interface contract mismatch, missing validation
@@ -855,7 +908,7 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 9d: Migration Validation (Subagent — if migrations exist)
+## Phase 10d: Migration Validation (Subagent — if migrations exist)
 
 **Skill**: `/migrator` (`.claude/skills/migrator/SKILL.md`)
 **Mode**: Subagent — validates migration scripts written during development
@@ -868,7 +921,7 @@ This phase runs TWO subagents in parallel:
    Read: .claude/skills/migrator/SKILL.md
    Read: .claude/skills/GUARDRAILS.md (G-05.4: expand-then-contract)
    Read: 01b-migrator.md (the migration plan from Phase 7b)
-   
+
    Validate:
    1. Do the actual migration scripts match the plan?
    2. Is expand-then-contract followed? (no destructive changes in first migration)
@@ -876,8 +929,8 @@ This phase runs TWO subagents in parallel:
    4. Are migrations idempotent?
    5. Do new tables include tenant column (G-07)?
    6. Are constraints at database level (G-05.3)?
-   
-   Produce: 05c-migration-validation.md with:
+
+   Produce: 06c-migration-validation.md with:
    - Plan vs reality comparison (each planned migration → was it implemented?)
    - Compliance check per migration
    - Issues found (if any)
@@ -885,28 +938,6 @@ This phase runs TWO subagents in parallel:
 3. Display summary: "N migrations validated. M issues found."
 4. If issues found: route back to Developer for fix
 5. Update process-log, session-memory
-
----
-
-## Phase 10: SDET (Subagent)
-
-**Skill**: `/sdet` (`.claude/skills/sdet/SKILL.md`)
-**Mode**: Subagent
-
-1. Spawn subagent following `/sdet` skill
-2. **Read `04-qa.md` and `05-developer.md`** — cross-reference:
-   - Which QA scenarios have unit tests? (from Developer's test coverage matrix)
-   - Which QA scenarios have integration tests?
-   - Which QA scenarios have NO test coverage at all?
-3. For uncovered scenarios, the SDET subagent MUST:
-   a. **Write missing integration tests** — not just plan them. Actual test code using the project's test framework (JUnit 4 + Mockito, WireMock, Testcontainers as identified in Phase 9)
-   b. **Write missing edge case tests** — boundary conditions, null inputs, concurrent access
-   c. **Write ArchUnit tests** — if Phase 9c (compliance) suggested ArchUnit rules, implement them
-4. Produces:
-   - `06-sdet.md` — test automation plan, manual test steps for scenarios that can't be automated
-   - **Actual test Java files** — integration tests, edge case tests, ArchUnit tests
-   - **Updated test coverage matrix** — full picture: QA scenario → UT (Dev) + IT (SDET) → PASS/FAIL
-5. Run `Build Verify` to ensure all new tests compile and pass
 
 ---
 
@@ -940,7 +971,7 @@ This phase runs TWO subagents in parallel:
    Category: Requirements | Security | Code Quality | Documentation
    
    Options:
-     [R] Re-run  — route back to Developer (Phase 9) to fix
+     [R] Re-run  — route back to Developer (Phase 10) to fix
      [M] Manual   — user will fix this manually outside the pipeline
      [A] Accept   — accept the risk and proceed (logged in approach-log)
    ```
@@ -1042,11 +1073,13 @@ Prerequisite map:
 | Phase 6a (Impact) | 01-architect.md |
 | Phase 7 (LLD) | 01-architect.md, session-memory.md |
 | Phase 8 (QA) | 03-designer.md |
-| Phase 9 (Developer) | 04-qa.md, 03-designer.md |
-| Phase 9b (Backend) | Code files from Phase 9 |
-| Phase 9c (Compliance) | 01-architect.md, code files from Phase 9 |
-| Phase 10 (SDET) | 04-qa.md, 05-developer.md |
-| Phase 11 (Reviewer) | All prior artifacts + build passing |
+| Phase 8b (Business Test Gen) | 00-ba.md, 03-designer.md, 04-qa.md, 01-architect.md |
+| Phase 9 (SDET — RED) | 04b-business-tests.md, 03-designer.md, 04-qa.md |
+| Phase 10 (Developer — GREEN) | 05-sdet.md, 03-designer.md, 04b-business-tests.md |
+| Phase 10b (Backend) | Code files from Phase 10 |
+| Phase 10c (Compliance) | 01-architect.md, code files from Phase 10 |
+| Phase 10d (Migration) | 01b-migrator.md, migration scripts from Phase 10 |
+| Phase 11 (Reviewer) | All prior artifacts + build passing (GREEN confirmed) |
 | Phase 12 (Blueprint) | All prior artifacts |
 
 If a prerequisite is missing and the user chooses to continue anyway, log it in process-log.md: `⚠️ Phase N started without prerequisite: <missing file>`
@@ -1109,8 +1142,9 @@ At these specific points, the pipeline MUST pause and ask the user — even if n
 | **After Phase 2 (Critic)** | Before UI/Blockers | "Critic found N contradictions. Gap Analyser found M discrepancies. Review these findings — any you disagree with?" |
 | **After Phase 5 (Research)** | Before Architect | "Codebase research found N patterns across M repos. Cross-repo tracer identified K repos needing changes. Anything surprising or wrong here?" |
 | **After Phase 6 (Architect)** | Before LLD | "Architecture uses [pattern]. N ADRs documented. APIs: [list]. Does this direction look right before we go to detailed design?" |
-| **After Phase 8 (QA)** | Before Developer | "QA identified N test scenarios. Before coding begins — any scenarios missing? Any edge cases you know about?" |
-| **After Phase 9 (Developer)** | Before Review | "Developer wrote N files with M test methods. Before review — anything you want to check or are concerned about?" |
+| **After Phase 8 (QA)** | Before Business Test Gen | "QA identified N test scenarios. Before we map these to business test cases — any scenarios missing? Any edge cases you know about?" |
+| **After Phase 9 (SDET — RED)** | Before Developer | "SDET wrote N test files with M test methods. All tests compile but FAIL (RED confirmed). Before Developer starts writing production code — anything you want to check?" |
+| **After Phase 10 (Developer — GREEN)** | Before Review | "Developer replaced N skeleton classes with real implementations. All M tests now PASS (GREEN). Before review — anything you want to check or are concerned about?" |
 
 ### Mechanism 3: Confidence-Based Escalation
 
@@ -1179,8 +1213,8 @@ When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back
 ## Rework History
 | Cycle | From Phase | To Phase | Reason | Severity | Resolved |
 |-------|-----------|----------|--------|----------|----------|
-| 1 | Phase 11 (Reviewer) | Phase 9 (Developer) | Missing tenant filter in TierChangeLogDao | BLOCKER | yes |
-| 2 | Phase 9c (Compliance) | Phase 9 (Developer) | Interface mismatch on TierFacade.publishDraft | HIGH | yes |
+| 1 | Phase 11 (Reviewer) | Phase 10 (Developer) | Missing tenant filter in TierChangeLogDao | BLOCKER | yes |
+| 2 | Phase 10c (Compliance) | Phase 10 (Developer) | Interface mismatch on TierFacade.publishDraft | HIGH | yes |
 ```
 
 In `pipeline-state.json`, track rework:
@@ -1192,7 +1226,7 @@ In `pipeline-state.json`, track rework:
 
 Circuit breaker: if the same phase pair has cycled **3 times**, stop and escalate to user:
 ```
-🔴 CIRCUIT BREAKER — Phase 11 (Reviewer) has routed back to Phase 9 (Developer) 3 times.
+🔴 CIRCUIT BREAKER — Phase 11 (Reviewer) has routed back to Phase 10 (Developer) 3 times.
 This suggests a systemic issue, not a simple fix. Please review the findings and decide:
   [A] Try one more cycle
   [B] Accept current state with known issues
@@ -1219,9 +1253,11 @@ Examples:
 - Phase 5: `🔧 Skills: /cross-repo-tracer + parallel repo exploration`
 - Phase 6: `🔧 Skills: /architect + brainstorming superpower + writing-plans superpower`
 - Phase 7: `🔧 Skills: /designer`
-- Phase 9: `🔧 Skills: /developer + TDD superpower + executing-plans superpower`
-- Phase 9b: `🔧 Skills: /backend-readiness`
-- Phase 9c: `🔧 Skills: /analyst --compliance`
+- Phase 8b: `🔧 Skills: /business-test-gen`
+- Phase 9: `🔧 Skills: /sdet (RED phase — writes all tests)`
+- Phase 10: `🔧 Skills: /developer (GREEN phase — writes production code) + executing-plans superpower`
+- Phase 10b: `🔧 Skills: /backend-readiness`
+- Phase 10c: `🔧 Skills: /analyst --compliance`
 - Phase 11: `🔧 Skills: /reviewer + verification-before-completion superpower`
 
 This helps the user understand what is running at each step and makes the pipeline transparent.
@@ -1273,10 +1309,12 @@ This will discard everything AFTER Phase N:
 
   ARTIFACTS to delete:
     • <path>/04-qa.md
-    • <path>/05-developer.md
+    • <path>/04b-business-tests.md
+    • <path>/05-sdet.md
+    • <path>/06-developer.md
     • ... (list all)
 
-  CODE CHANGES to revert (from Developer phase):
+  CODE CHANGES to revert (from SDET + Developer phases):
     • src/.../TierResource.java        (new file)
     • src/.../TierFacade.java           (new file)
     • ... +N more files
@@ -1380,11 +1418,12 @@ Phase Status:
   ⬜  6b. Migration Planning                  — pending (conditional)
   ⬜   7. LLD (Designer)                      — pending
   ⬜   8. QA                                  — pending
-  ⬜   9. Developer (agent team)              — pending
-  ⬜  9b. Backend Readiness                   — pending
-  ⬜  9c. Gap Analysis (Analyst --compliance) — pending
-  ⬜  9d. Migration Validation                — pending (conditional)
-  ⬜  10. SDET                                — pending
+  ⬜  8b. Business Test Gen                   — pending
+  ⬜   9. SDET — RED (test code)             — pending
+  ⬜  10. Developer — GREEN (agent team)     — pending
+  ⬜ 10b. Backend Readiness                   — pending
+  ⬜ 10c. Gap Analysis (Analyst --compliance) — pending
+  ⬜ 10d. Migration Validation                — pending (conditional)
   ⬜  11. Reviewer                            — pending
   ⬜  12. Blueprint                           — pending
 
@@ -1431,10 +1470,12 @@ Read the phase output and generate relevant Mermaid diagrams. Append them to the
 | Phase 6a (Impact) | Impact blast radius mindmap, risk severity chart |
 | Phase 6b (Migrator) | Migration execution order flowchart |
 | Phase 7 (LLD) | Already has diagrams from /designer — no enrichment needed |
-| Phase 9 (Dev) | Implementation progress flowchart (modules done/pending) |
-| Phase 9b (Backend) | Readiness checklist chart |
-| Phase 9c (Compliance) | Compliance scorecard (per ADR and GUARDRAIL) |
-| Phase 9d (Migrator) | Plan vs reality comparison chart |
+| Phase 8b (Business Test Gen) | Business test case coverage matrix (BA req → tests) |
+| Phase 9 (SDET — RED) | RED confirmation dashboard, test layer breakdown (UT vs IT) |
+| Phase 10 (Dev — GREEN) | GREEN progress chart (skeleton → implemented), test pass rate |
+| Phase 10b (Backend) | Readiness checklist chart |
+| Phase 10c (Compliance) | Compliance scorecard (per ADR and GUARDRAIL) |
+| Phase 10d (Migrator) | Plan vs reality comparison chart |
 | Phase 11 (Reviewer) | Review findings severity chart (blockers vs non-blocking by category) |
 
 ### Step B: Update Live HTML Dashboard (MANDATORY — DO NOT SKIP)
@@ -1512,10 +1553,12 @@ Every phase MUST include at least one visual. Use Mermaid `<div class="mermaid">
 | Phase 6b (Migration) | Migration execution order flowchart, rollback strategy table |
 | Phase 7 (Designer) | Class/package diagram, dependency direction graph, type inventory table |
 | Phase 8 (QA) | Test scenario distribution chart (per user story), coverage matrix (AC vs test scenarios) |
-| Phase 9 (Developer) | Implementation progress chart (modules done/pending), file inventory table (new/modified per repo), test results summary |
-| Phase 9b (Backend) | Readiness checklist (PASS/FAIL/WARN per area — color-coded), findings severity chart |
-| Phase 9c (Compliance) | ADR compliance scorecard (green/yellow/red per ADR), GUARDRAILS compliance table |
-| Phase 10 (SDET) | Automation vs manual split pie chart, test layer breakdown |
+| Phase 8b (Business Test Gen) | Business test case traceability matrix (BA req → Designer interface → QA scenario → BT-xx) |
+| Phase 9 (SDET — RED) | RED confirmation panel, test layer breakdown (UT vs IT), skeleton class inventory, test file summary |
+| Phase 10 (Developer — GREEN) | GREEN confirmation panel, skeleton replacement progress, test pass rate chart, test modifications table |
+| Phase 10b (Backend) | Readiness checklist (PASS/FAIL/WARN per area — color-coded), findings severity chart |
+| Phase 10c (Compliance) | ADR compliance scorecard (green/yellow/red per ADR), GUARDRAILS compliance table |
+| Phase 10d (Migration) | Plan vs reality comparison, compliance check per migration |
 | Phase 11 (Reviewer) | Findings severity chart (blockers vs warnings by category), requirements traceability matrix |
 | Phase 12 (Blueprint) | Final pipeline stats dashboard, total timeline, decisions count |
 
@@ -1558,11 +1601,12 @@ Each phase is run by reading its corresponding skill file in `.claude/skills/`. 
 | Migrator (Phase 6b) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Structured DDL scripts, mechanical correctness |
 | Designer (Phase 7) | `.claude/skills/designer/SKILL.md` | Subagent | opus | Code generation strength, compile-safe output |
 | QA (Phase 8) | `.claude/skills/qa/SKILL.md` | Subagent | sonnet | Combinatorial but structured scenario generation |
-| Developer (Phase 9) | `.claude/skills/developer/SKILL.md` | Interactive (main context) | sonnet | Sonnet benchmarks highest on SWE-bench coding tasks |
-| Backend Readiness (Phase 9b) | `.claude/skills/backend-readiness/SKILL.md` | Subagent | sonnet | Pattern-matching against known anti-patterns |
-| Analyst --compliance (Phase 9c) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | Cross-referencing architecture vs code, high accuracy |
-| Migrator Validation (Phase 9d) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Mechanical comparison of plan vs reality |
-| SDET (Phase 10) | `.claude/skills/sdet/SKILL.md` | Subagent | sonnet | Structured planning, moderate complexity |
+| Business Test Gen (Phase 8b) | `.claude/skills/business-test-gen/SKILL.md` | Subagent | sonnet | Structured mapping, traceability matrix |
+| SDET — RED (Phase 9) | `.claude/skills/sdet/SKILL.md` | Subagent | sonnet | Test code generation, RED confirmation |
+| Developer — GREEN (Phase 10) | `.claude/skills/developer/SKILL.md` | Interactive (main context) | opus | Production code implementation requires deep reasoning and architectural awareness |
+| Backend Readiness (Phase 10b) | `.claude/skills/backend-readiness/SKILL.md` | Subagent | sonnet | Pattern-matching against known anti-patterns |
+| Analyst --compliance (Phase 10c) | `.claude/skills/analyst/SKILL.md` | Subagent | opus | Cross-referencing architecture vs code, high accuracy |
+| Migrator Validation (Phase 10d) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Mechanical comparison of plan vs reality |
 | Reviewer (Phase 11) | `.claude/skills/reviewer/SKILL.md` | Subagent | sonnet | Strong coding model for code review |
 | Blueprint (Phase 12) | (inline) | Subagent | haiku | Template-driven HTML output, low reasoning |
 | Build Verify (utility) | (inline) | Subagent | haiku | Mechanical: run command, parse output, pass/fail |
@@ -1576,7 +1620,7 @@ Each phase is run by reading its corresponding skill file in `.claude/skills/`. 
 
 ### Build Verify (utility — spawned by Developer/SDET)
 
-During Developer (Phase 9) and SDET (Phase 10) phases, after each code change cycle, spawn a Build Verify subagent (haiku):
+During SDET (Phase 9 — RED) and Developer (Phase 10 — GREEN) phases, after each code change cycle, spawn a Build Verify subagent (haiku):
 
 ```bash
 # Compile

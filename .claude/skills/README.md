@@ -256,22 +256,27 @@ If anything blocks implementation — a QA scenario that's impossible to impleme
 
 Prompts you at logical commit points with a suggested commit message. Rebases from main and runs tests before committing. Also updates relevant docs (README, API docs, changelog) as part of each implementation step.
 
-**Produces:** `05-developer.md` — what was implemented, which tests drive each behaviour, terminal output summary
+**Produces:** `06-developer.md` — GREEN confirmation, skeleton replacements, test modifications, coverage matrix
 
 ---
 
-### `/sdet` — SDET (Phase 06, optional)
+### `/business-test-gen` — Business Test Gen (Phase 05a)
 
-Operationalises what QA defined into a working test suite and CI plan. SDET's first task is to cross-reference QA's scenarios against what Developer actually built — if critical scenarios are absent from the implementation, it raises a blocker rather than planning automation around the gap.
+Maps BA requirements + QA scenarios + Designer interfaces into structured, traceable business test case listings. Every test case traces to a BA requirement, a Designer interface method, and a QA scenario.
 
-- Automation vs manual split
-- Which runner/framework, where tests live
-- Manual test steps (numbered, with expected results)
-- CI and local run commands
+**Produces:** `04b-business-tests.md` — business test case tables (BT-xx IDs) with full traceability
 
-**Skip when:** the Developer phase already covers test automation sufficiently for the change.
+---
 
-**Produces:** `06-sdet.md` — test plan, automation details, manual steps, CI/local run instructions
+### `/sdet` — SDET / RED Phase (Phase 05b)
+
+Translates business test cases into actual compilable test code. Writes ALL unit tests and integration tests, creates minimal skeleton production classes (empty stubs for compilation), and confirms RED state — tests compile but FAIL.
+
+- Writes UTs + ITs based on `04b-business-tests.md`
+- Creates skeleton classes in `src/main` (no business logic)
+- Confirms RED: `mvn compile` PASS, `mvn test` FAIL
+
+**Produces:** `05-sdet.md` — test plan, RED confirmation, skeleton inventory. Plus actual test Java files and skeleton classes.
 
 ---
 
@@ -435,10 +440,11 @@ docs/workflow/TICKET-123/
 ├── 02-analyst.md           ← impact map, risks  (optional)
 ├── 03-designer.md          ← interfaces, contracts
 ├── 04-qa.md                ← test scenarios, edge cases
-├── 05-developer.md         ← implementation summary
-├── 05b-gap-analyser.md     ← architecture-code scorecard + ArchUnit rules  (on-demand)
-├── 05c-migrator.md         ← migration analysis report  (on-demand, or 01b after Architect)
-├── 06-sdet.md              ← test plan, CI instructions  (optional)
+├── 04b-business-tests.md   ← business test case listings with traceability
+├── 05-sdet.md              ← test plan, RED confirmation, skeleton inventory
+├── 06-developer.md         ← GREEN confirmation, implementation summary
+├── 06b-gap-analysis.md     ← architecture-code scorecard + ArchUnit rules  (Phase 10c)
+├── 06c-migration-validation.md ← migration validation report  (Phase 10d, if migrations exist)
 └── 07-reviewer.md          ← review findings, blockers
 
 docs/product/

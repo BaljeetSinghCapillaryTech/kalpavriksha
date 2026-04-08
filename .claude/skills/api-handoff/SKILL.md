@@ -42,7 +42,7 @@ Read the following artifacts in order (later artifacts override earlier ones whe
 
 1. **`01-architect.md`** — API design approach, endpoint granularity, sync/async decisions, module boundaries
 2. **`03-designer.md`** — Interface signatures, controller definitions, request/response types, error types, package ownership
-3. **`05-developer.md`** (if exists) — Actual implementation notes, any deviations from design
+3. **`06-developer.md`** (if exists) — Actual implementation notes, any deviations from design
 4. **`00-ba.md`** — User stories and acceptance criteria (to map endpoints back to features the UI cares about)
 5. **`session-memory.md`** — Constraints and key decisions that affect API behaviour (auth, tenancy, pagination, rate limits)
 
@@ -54,7 +54,7 @@ For each artifact, extract:
 - Any pagination, filtering, or sorting patterns
 - Rate limits, timeouts, or retry guidance if mentioned
 
-If `05-developer.md` exists and shows deviations from `03-designer.md`, use the Developer version as the source of truth and note the deviation.
+If `06-developer.md` exists and shows deviations from `03-designer.md`, use the Developer version as the source of truth and note the deviation.
 
 ---
 

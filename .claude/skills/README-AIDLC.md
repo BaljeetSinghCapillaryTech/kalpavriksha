@@ -279,8 +279,10 @@ Completed phases:
   ✅ [2] Analyst         → 02-analyst.md               (artifacts only)
   ✅ [3] Designer        → 03-designer.md              (artifacts only)
   ✅ [4] QA              → 04-qa.md                    (artifacts only)
-  ✅ [5] Developer       → 05-developer.md + CODE      (12 files changed)
-  ⬜ [6] SDET            → (pending)
+  ✅ [5] Business Test Gen → 04b-business-tests.md       (artifacts only)
+  ✅ [6] SDET (RED)      → 05-sdet.md + TEST CODE       (N test files)
+  ✅ [7] Developer (GREEN) → 06-developer.md + PROD CODE (12 files changed)
+  ⬜ [8] Reviewer        → (pending)
 
 Revert to which phase? (0-5):
 ```
@@ -437,7 +439,7 @@ The BRD is extracted, normalised, and saved to `<artifacts-path>/brd-raw.md`. Th
 - Prompts you at logical commit points
 - Updates docs as part of implementation
 
-**Produces:** `05-developer.md` (implementation summary, tests, terminal output), actual code changes
+**Produces:** `06-developer.md` (GREEN confirmation, implementation summary, test modifications), actual code changes
 
 ### SDET (Phase 06, optional)
 
@@ -450,7 +452,7 @@ The BRD is extracted, normalised, and saved to `<artifacts-path>/brd-raw.md`. Th
 
 **Skip when:** Developer phase already covers test automation sufficiently.
 
-**Produces:** `06-sdet.md` (test plan, automation details, manual steps, CI/local run instructions)
+**Produces:** `05-sdet.md` (test plan, RED confirmation, skeleton inventory, actual test files)
 
 ### Reviewer (Phase 07)
 
@@ -546,8 +548,9 @@ docs/workflow/TICKET-123/
 ├── 02-analyst.md           ← impact map, risks  (optional)
 ├── 03-designer.md          ← interfaces, contracts, pattern prescriptions
 ├── 04-qa.md                ← test scenarios, edge cases
-├── 05-developer.md         ← implementation summary
-├── 06-sdet.md              ← test plan, CI instructions  (optional)
+├── 04b-business-tests.md   ← business test case listings with traceability
+├── 05-sdet.md              ← test plan, RED confirmation, skeleton inventory
+├── 06-developer.md         ← GREEN confirmation, implementation summary
 └── 07-reviewer.md          ← review findings, blockers
 ```
 
@@ -726,8 +729,9 @@ docs/
         ├── 02-analyst.md
         ├── 03-designer.md
         ├── 04-qa.md
-        ├── 05-developer.md
-        ├── 06-sdet.md
+        ├── 04b-business-tests.md
+        ├── 05-sdet.md
+        ├── 06-developer.md
         └── 07-reviewer.md
 ```
 

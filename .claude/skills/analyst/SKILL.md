@@ -27,7 +27,7 @@ When invoked without a flag, default to `--impact` mode.
 
 ## Lifecycle Position
 - **Impact mode**: Runs after **Architect** (`01-architect.md`). Output feeds into **Designer** (`03-designer.md`).
-- **Compliance mode**: Runs after **Developer** (`05-developer.md`). Output feeds into **Reviewer** (`07-reviewer.md`).
+- **Compliance mode**: Runs after **Developer** (`06-developer.md`). Output feeds into **Reviewer** (`07-reviewer.md`).
 
 ## Mindset
 - Assume every change has side effects. List callers, callees, and data flow explicitly.

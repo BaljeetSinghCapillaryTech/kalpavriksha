@@ -443,8 +443,8 @@ When the user types `gap` at any pause prompt (typically after Developer or SDET
        Session memory: <artifacts-path>/session-memory.md
        Follow the gap-analyser skill exactly as defined in .claude/skills/gap-analyser/SKILL.md.
        Read the skill file first, then execute all steps.
-       Read all AIDLC artifacts (01-architect.md, 02-analyst.md, 03-designer.md, 05-developer.md) as intent sources.
-       Write output to <artifacts-path>/05b-gap-analyser.md
+       Read all AIDLC artifacts (01-architect.md, 02-analyst.md, 03-designer.md, 06-developer.md) as intent sources.
+       Write output to <artifacts-path>/06b-gap-analysis.md
        Generate ArchUnit test classes if the dependency exists.
        Update session-memory.md with findings.
        Return the structured summary in the PHASE/STATUS/ARTIFACT format.
@@ -817,9 +817,10 @@ Completed phases:
 ✅ [2] Analyst         → 02-analyst.md                 (artifacts only)
 ✅ [3] Designer        → 03-designer.md                (artifacts only)
 ✅ [4] QA              → 04-qa.md                      (artifacts only)
-✅ [5] Developer       → 05-developer.md + CODE CHANGES (N files)
-⬜ [6] SDET            → (pending)
-⬜ [7] Reviewer        → (pending)
+✅ [5] Business Test Gen → 04b-business-tests.md          (artifacts only)
+✅ [6] SDET (RED)      → 05-sdet.md + TEST CODE           (N test files)
+✅ [7] Developer (GREEN) → 06-developer.md + PROD CODE    (N files)
+⬜ [8] Reviewer        → (pending)
 
 Revert to which phase? (enter 0-5, or 'cancel'):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -843,9 +844,11 @@ This will discard everything AFTER Designer:
 
   ARTIFACTS to delete:
     • [path]/04-qa.md
-    • [path]/05-developer.md
+    • [path]/04b-business-tests.md
+    • [path]/05-sdet.md
+    • [path]/06-developer.md
 
-  CODE CHANGES to revert (from Developer phase):
+  CODE CHANGES to revert (from SDET + Developer phases):
     • src/.../TierServiceImpl.java           (modified)
     • src/.../TierController.java            (modified)
     • src/.../TierBenefit.java               (new file)
@@ -881,7 +884,7 @@ Then programmatically clean session-memory.md: remove all entries tagged with ph
 
 **Option B — Artifacts only:**
 ```bash
-rm <artifacts-path>/04-qa.md <artifacts-path>/05-developer.md ...
+rm <artifacts-path>/04-qa.md <artifacts-path>/04b-business-tests.md <artifacts-path>/05-sdet.md <artifacts-path>/06-developer.md ...
 ```
 Clean session-memory.md the same way. Code files are left untouched. Add to Rework Log: `- Revert to [Phase N] — artifacts only — requested by user — [timestamp]`
 
@@ -918,7 +921,7 @@ Wait for user choice, then proceed accordingly.
 ## Optional Phases
 
 - **Analyst** (`02-analyst.md`): Skipped if `skip:analyst` provided. If skipped, Designer proceeds using only Architect output.
-- **SDET** (`06-sdet.md`): Skipped if `skip:sdet` provided. If skipped, Reviewer proceeds using Developer output directly.
+- **SDET** (`05-sdet.md`): Skipped if `skip:sdet` provided. If skipped, Developer writes tests and production code together (no RED/GREEN separation).
 
 ## On-Demand Phases (invoked via commands at pause prompts)
 
@@ -936,8 +939,9 @@ Wait for user choice, then proceed accordingly.
 | Analyst | `02-analyst.md` | Codebase Behaviour, Risks & Concerns, Constraints, Open Questions |
 | Designer | `03-designer.md` | Key Decisions, Constraints, Open Questions |
 | QA | `04-qa.md` | Risks & Concerns, Open Questions |
-| Developer | `05-developer.md` | Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns |
-| SDET | `06-sdet.md` | Constraints, Open Questions |
+| Business Test Gen | `04b-business-tests.md` | Key Decisions, Constraints, Open Questions |
+| SDET (RED) | `05-sdet.md` | Constraints, Open Questions |
+| Developer (GREEN) | `06-developer.md` | Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns |
 | Reviewer | `07-reviewer.md` | Risks & Concerns, Open Questions, Key Decisions |
 | Gap Analyser (on-demand) | `05b-gap-analyser.md` | Risks & Concerns, Codebase Behaviour, Open Questions |
 | Migrator (on-demand) | `01b-migrator.md` or `05c-migrator.md` | Key Decisions, Risks & Concerns, Constraints, Open Questions |
