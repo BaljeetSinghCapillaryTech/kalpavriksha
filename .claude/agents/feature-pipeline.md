@@ -236,9 +236,26 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    - Code repo paths exist (`ls <path>/src` succeeds)
    - UI screenshots exist (if provided)
 3. **LSP Initialization** (per CLAUDE.md Rule 5):
-   Check if jdtls is available: `python ~/.jdtls-daemon/jdtls.py`
-   - If available: initialize all code repos with the LSP service. All subsequent code traversal (find references, go to definition, find implementations, symbol search) MUST use jdtls — not grep/file reads as a substitute.
-   - If NOT available: ask the user: "jdtls doesn't appear to be running. Can you start it so I can use LSP for code traversal? If not, I'll fall back to grep/file reads." Only proceed with grep after user confirms.
+   For each repo in `code_repos`, ensure jdtls is running:
+   ```bash
+   # Step A: Check status
+   status=$(python3 ~/.jdtls-daemon/jdtls.py status 2>&1)
+
+   # Step B: Handle stale/dead daemons
+   # If status shows "(unresponsive)" for a project:
+   #   → Clean stale files and restart
+   rm -f ~/.jdtls-daemon/<project-name>/jdtls.pid ~/.jdtls-daemon/<project-name>/jdtls.sock
+   python3 ~/.jdtls-daemon/jdtls.py start <repo-path>
+
+   # Step C: If no daemon exists for this repo, start fresh
+   python3 ~/.jdtls-daemon/jdtls.py start <repo-path>
+
+   # Step D: Verify — wait up to 60s for indexing, then check status
+   python3 ~/.jdtls-daemon/jdtls.py status
+   # If status shows project name without "(unresponsive)" → ready
+   ```
+   - If ready: all code traversal MUST use jdtls — not grep/file reads as a substitute.
+   - If start fails (jdtls binary not found, Java missing): tell user "jdtls could not start: <error>. Install via `brew install jdtls`. Falling back to grep/file reads." Proceed without blocking.
    Note this in pipeline-state.json: `"lsp_enabled": true/false`
 4. Create artifacts directory: `mkdir -p <artifacts-path>`
 5. **Git Setup — all code repos** (including current repo):

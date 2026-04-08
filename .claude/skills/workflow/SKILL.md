@@ -87,20 +87,29 @@ BA (00) → Architect (01) → Analyst (02, optional) → Designer (03) → QA (
 
 ## Step -1: Initialise LSP (jdtls)
 
-Before anything else, spawn the `lsp-init` subagent to ensure the jdtls daemon is running for the project root.
+Before anything else, ensure the jdtls daemon is running for the project root.
 
 **Derive the project root**: use the artifacts path to infer the repo root (e.g. if artifacts path is `docs/workflow/TICKET-123/`, the project root is likely the repo root where that path lives — confirm with the user if ambiguous).
 
-Spawn the `lsp-init` subagent:
-```
-subagent: lsp-init
-input: project_root = <derived project root>
+```bash
+# 1. Check current daemon status
+python3 ~/.jdtls-daemon/jdtls.py status
+
+# 2. If project shows "(unresponsive)" — daemon died but stale files remain.
+#    Clean up and restart:
+rm -f ~/.jdtls-daemon/<project-name>/jdtls.pid ~/.jdtls-daemon/<project-name>/jdtls.sock
+python3 ~/.jdtls-daemon/jdtls.py start <project_root>
+
+# 3. If no daemon exists for this project — start fresh:
+python3 ~/.jdtls-daemon/jdtls.py start <project_root>
+
+# 4. Wait up to 60s, then verify:
+python3 ~/.jdtls-daemon/jdtls.py status
+# Project name without "(unresponsive)" = ready
 ```
 
-Wait for the subagent to return `LSP_STATUS: ready | unavailable`.
-
-- If `ready`: all subsequent analytical subagents (Architect, Analyst, Designer, QA, SDET, Reviewer) can use `python ~/.jdtls-daemon/jdtls.py` commands for code traversal.
-- If `unavailable`: all phases fall back to grep/file reads for code traversal. Note this in session memory under Constraints: `- LSP unavailable: using grep/file reads for code traversal _(workflow)_`
+- If `ready`: all subsequent analytical subagents (Architect, Analyst, Designer, QA, SDET, Reviewer) can use `python3 ~/.jdtls-daemon/jdtls.py` commands for code traversal.
+- If start fails (jdtls binary not found, Java missing): tell user "jdtls could not start: <error>. Install via `brew install jdtls`. Falling back to grep/file reads." Note in session memory: `- LSP unavailable: using grep/file reads for code traversal _(workflow)_`
 
 Do not proceed to Step 0 until LSP status is known.
 
