@@ -107,7 +107,7 @@ claude mcp add claude-historian-mcp -- npx claude-historian-mcp
 
 **ProductEx BRD Review** runs in parallel with BA as a background subagent — it independently analyses the BRD against the product registry and official docs, producing `brdQnA.md` with questions for the product team. Both outputs are reviewed at the "Review Gate" before proceeding to Architect.
 
-`/debug`, `/tutor`, `/gap-analyser`, and `/migrator` are standalone — invoke them at any time, independent of the workflow. Within the workflow, `gap` and `migrate` are available as on-demand commands at pause prompts.
+`/debug`, `/tutor`, `/gap-analyser`, `/migrator`, and `/coordinate` are standalone — invoke them at any time, independent of the workflow. Within the workflow, `gap` and `migrate` are available as on-demand commands at pause prompts. `/coordinate` is auto-invoked by `feature-pipeline` at 4 checkpoints when multi-epic mode is enabled.
 
 ---
 
@@ -379,6 +379,30 @@ Analyses migration needs — primarily database schema, secondarily framework/pa
 **Key guardrails enforced:** G-05.4 (expand-then-contract mandatory), G-07.1 (new tables must include tenant column), G-09.1 (backward-compatible schema changes).
 
 **Produces:** `01b-migrator.md` or `05c-migrator.md` (pipeline) or `migration-analysis-report.md` (standalone)
+
+---
+
+### `/coordinate` — Epic Coordinator (Pipeline-Integrated + Standalone)
+
+Manages cross-epic coordination when multiple developers work on different epics from the same BRD. Auto-invoked by `feature-pipeline` at 4 checkpoints when multi-epic mode is enabled. Also used by `epic-decomposer` for registry publishing.
+
+**Four checkpoints:**
+1. **`registry-scan`** (post-Phase 1) — scan registry for shared modules, check intents, prompt claims, inject constraints
+2. **`interface-check`** (post-Phase 6) — cross-reference HLD against registry, block duplicates, publish interfaces
+3. **`final-sync`** (pre-Phase 9) — sync dependency statuses, swap mocks for real code, detect collisions
+4. **`duplication-check`** (post-Phase 11) — scan for accidental overlap, update module status
+
+**Key features:**
+- Shared modules registry (GitHub repo) as source of truth
+- Module claims via atomic `git push` / PR
+- Thrift IDL compatibility checking
+- Staleness detection (7d warn / 14d issue / 30d auto-release)
+- Handoff briefings on module re-claim
+- Graduated severity: BLOCK / WARN / INFO / AUTO-FIX
+
+**Related agents:**
+- `epic-decomposer` — architect runs once to identify shared modules and publish epic packages
+- `epic-coordinator` — agent wrapper that invokes this skill at each checkpoint
 
 ---
 

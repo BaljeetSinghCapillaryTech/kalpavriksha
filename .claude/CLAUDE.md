@@ -38,8 +38,22 @@ claude --agent feature-pipeline
 | `/debug` | Root cause analysis (standalone) | on-demand |
 | `/tutor` | Codebase teaching (standalone, read-only) | on-demand |
 | `/api-handoff` | API contract doc for UI team | after 7 or 9 |
+| `/coordinate` | Multi-epic coordination — registry scan, claims, health validation, handoff briefings | post-1, post-6, pre-9, post-11 |
 
 **Deprecated** (kept for reference): `/prd-generator` (merged into `/ba`), `/gap-analyser` (merged into `/analyst --compliance`)
+
+### Multi-Epic Coordination Agents
+
+For BRDs with multiple epics assigned to different developers, two additional agents coordinate shared modules:
+
+| Agent | Purpose | How to use |
+|-------|---------|------------|
+| `epic-decomposer` | Architect-led BRD decomposition. Identifies shared modules, designs interfaces, assigns ownership, generates per-epic packages. | `feature-pipeline` Mode [5] (recommended) or `claude --agent epic-decomposer` |
+| `epic-coordinator` | Registry scan, claim management, conflict detection, health validation, mid-phase watch, rework cascade. | Auto-invoked by `feature-pipeline` at 6 checkpoints (not run standalone) |
+
+**Everything runs through `feature-pipeline`** — Mode [5] for decomposition, Modes [1-4] for development. The coordinator runs automatically at 6 points: post-Phase 1, post-Phase 6, pre-Phase 9, during Phase 9 (background watch), post-Phase 11, and on Phase 6 rework.
+
+These agents use a **shared-modules-registry** (a dedicated GitHub repo) as the coordination layer. See the [design spec](docs/superpowers/specs/2026-04-08-multi-developer-epic-coordination-design.md) for full details.
 
 ### Pipeline Rules
 - **Session memory** (`session-memory.md`) is the shared context across all phases. Updated incrementally after every decision — never batch at phase end.
@@ -64,6 +78,10 @@ Key superpowers used: `brainstorming`, `writing-plans`, `executing-plans`, `test
 2. Install Superpowers: `claude install-plugin superpowers`
 3. (Optional) Start jdtls for LSP-based code traversal
 4. Run: `claude --agent feature-pipeline`
+5. (Multi-epic) If working on a BRD with other developers:
+   - Architect runs `claude --agent feature-pipeline` → Mode [5] Decompose (once)
+   - Each developer runs `claude --agent feature-pipeline` → Mode [1] and selects `[Yes]` for multi-epic coordination
+   - The pipeline auto-coordinates via the shared-modules-registry (background watch during Phase 9, rework cascade on Phase 6 re-runs)
 
 ## Engineering Rules
 

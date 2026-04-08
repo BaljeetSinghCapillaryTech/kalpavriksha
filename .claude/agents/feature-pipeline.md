@@ -48,7 +48,13 @@ Select a mode:
 [4] Status
     Show current pipeline progress.
 
-Enter your choice (1-4):
+[5] Decompose BRD (Architect Mode)
+    Multi-epic BRD decomposition. Identifies shared modules,
+    designs interface contracts, assigns ownership, generates
+    per-epic packages, and publishes to shared-modules-registry.
+    Run ONCE before developers start their pipelines.
+
+Enter your choice (1-5):
 ```
 
 ### Mode 1: Full Pipeline — Input Collection
@@ -80,8 +86,226 @@ I need a few inputs to get started:
       HLD/LLD flowcharts — viewable in browser at any time)
    • "no" — skip dashboard, markdown artifacts only
 
+8. Multi-epic coordination (optional):
+   Are you working as part of a multi-epic team?
+   • "yes" — provide registry repo URL + epic name
+     Registry repo: _______________  (e.g., capillary/shared-modules-registry)
+     Epic name: _______________      (e.g., tier-management)
+   • "no" — standalone, skip coordination
+
 Enter your inputs (or type "help" for examples):
 ```
+
+### Mode 5: Decompose BRD (Architect Mode)
+
+This mode runs the **epic decomposition** pipeline — reusing existing skills (`/ba` for BRD analysis, `/cross-repo-tracer` for codebase scanning, `/architect` + `/designer` for interface design, `/coordinate` for registry publishing) across **all epics at once** to identify shared modules, design interface contracts, assign ownership, and publish to the registry. Previously required `claude --agent epic-decomposer`. Now accessible directly from feature-pipeline.
+
+```
+Decompose BRD — Multi-Epic Coordination Setup
+
+I'll analyse your full BRD to identify shared modules across epics,
+design interface contracts, assign ownership, and generate per-epic
+packages so developers can start with minimal coordination overhead.
+
+Inputs needed:
+
+1. BRD source (required):
+   - File path / URL / "paste"
+
+2. Epic names (required):
+   - List all epics (e.g., tier-management, benefits, campaigns)
+
+3. Code repositories (required):
+   - Primary + additional repos
+
+4. Registry repo (required):
+   - GitHub repo URL (e.g., capillary/shared-modules-registry)
+   - "create" — scaffold a new registry repo
+
+5. Team members (required):
+   - Who is available? (e.g., Ritwik, Baljeet, Anuj)
+   - Any context: strengths, availability, seniority
+   - Note: You don't assign epics now. I'll analyse first,
+     then suggest the best assignment. You review and adjust.
+```
+
+**Decomposition Phases** (runs D1-D7 from the epic-decomposer agent):
+
+```
+D1: Input Collection — validate BRD, repos, registry access
+D2: BA Scan — parse BRD for cross-epic shared module candidates
+    + Pattern checklist (approval workflows, audit, notifications, etc.)
+D3: Codebase Scan — /cross-repo-tracer: does it already exist in code?
+D4: Interface Design — /architect + /designer: Thrift IDL per shared module
+D5: Ownership Assignment — suggest assignment, architect reviews/adjusts, assign layers
+D6: Epic Package Generation — scope, warnings, build order per epic
+D7: Registry Publish — /coordinate checkpoint:publish
+```
+
+After decomposition completes:
+```
+Decomposition complete!
+  Shared modules: {count} identified and published
+  Epic packages: {count} generated
+  Registry: {registry_repo} populated
+
+Developers can now run this pipeline with Mode [1] and select
+multi-epic coordination with their epic name.
+
+What would you like to do?
+  [A] Switch to Mode 1 — start an epic pipeline now
+  [B] Exit — other developers will start their own pipelines
+```
+
+If `[A]`: transition to Mode 1 input collection with registry_repo pre-filled.
+
+---
+
+### Multi-Epic Pre-Flight (if coordination enabled)
+
+If the developer selected multi-epic coordination, run pre-flight checks, find the epic division, identify the developer, and set up branching.
+
+```
+Step 1: Validate registry access
+  ✓ gh auth status                              — GitHub CLI authenticated?
+  ✓ gh api repos/{registry_repo} --silent       — Registry repo accessible?
+  ✓ git ls-remote {registry_repo} HEAD          — Git access works?
+  
+  Any fail → WARN: "Registry unreachable. Proceeding in standalone mode.
+                     Coordination skipped. Fix access and re-run to enable."
+```
+
+```
+Step 2: Find Epic Division Branch
+  Search for raidlc/*/epic-division branches in kalpavriksha:
+  
+  git branch -r | grep 'epic-division'
+  
+  IF found (one or more):
+    List them:
+      Available epic divisions:
+        [1] raidlc/CAP-123/epic-division (created 2026-04-08 by @ritwik)
+        [2] raidlc/CAP-456/epic-division (created 2026-04-10 by @baljeet)
+      
+      Select: ___
+    
+    Checkout selected branch.
+    Read epic-assignment.json.
+  
+  IF none found:
+    "No epic division found. Options:
+      [A] Run Mode 5 (Decompose) first — recommended
+      [B] Continue without division — coordinator will self-discover at Phase 1"
+```
+
+```
+Step 3: Identify Developer
+  Read team list from epic-assignment.json:
+  
+  Who are you?
+    [1] Ritwik (@ritwik)
+    [2] Baljeet (@baljeet)
+    [3] Anuj (@anuj)
+  
+  Select: ___
+  
+  Auto-verify: compare selection against git config user.name / user.email.
+  If mismatch: "Git config says you're @{git_user} but you selected @{selection}.
+                Is this correct? [Y/n]"
+  
+  Load assignment for selected developer:
+    Your assignment:
+      Epics: tier-management
+      Builds: maker-checker
+      Consumes: audit-trail
+      Layer: 1 (start immediately)
+```
+
+```
+Step 4: Branch Setup (in code repos)
+  For each code repo this epic touches:
+    
+    Check: does raidlc/<ticket> branch exist on remote?
+    
+    IF exists:
+      "Branch raidlc/<ticket> already exists in {repo}.
+       Last commit: {date} by @{author}
+       Checking out and pulling latest..."
+      
+      git fetch origin
+      git checkout raidlc/<ticket>
+      git pull --rebase origin raidlc/<ticket>
+    
+    IF not exists:
+      "No shared branch found in {repo}. Creating..."
+      
+      # Find base branch
+      main_branch=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+      git checkout "$main_branch"
+      git pull origin "$main_branch"
+      git checkout -b raidlc/<ticket>
+      git push origin raidlc/<ticket>
+```
+
+```
+Step 5: Load Epic Package + Inject Constraints
+  Read epic-packages/{epic_name}/ from the division branch:
+    scope.md → session memory (what this epic covers)
+    warnings.md → session memory (what NOT to build/touch)
+    build-order → session memory (what to build first)
+  
+  Also sparse-checkout registry for module YAMLs and interface IDLs.
+  
+  Inject into session memory:
+    "SHARED MODULE CONSTRAINTS (from epic division):
+     BUILDS: maker-checker — you own this
+     CONSUMES: audit-trail — owned by @baljeet, use IDL mocks
+     DO NOT TOUCH: emf-parent/pom.xml (collision hotspot, owned by tier-management)"
+```
+
+```
+Step 6: Auto-declare intent
+  Push intents/{epic_name}.yml to registry.
+  
+  Update epic-assignment.json status:
+    {"developer": "ritwik", "status": "not-started" → "in-progress"}
+  Commit and push to epic-division branch.
+```
+
+Store `registry_repo`, `epic_name`, `developer`, `ticket`, and `code_branch` in `pipeline-state.json`.
+
+### Git Protocol: Single Shared Branch
+
+All developers commit to the **same branch** per code repo: `raidlc/<ticket>`.
+
+**Before every push (at any phase):**
+```
+git fetch origin raidlc/<ticket>
+git rebase origin/raidlc/<ticket>
+
+IF rebase succeeds:
+  git push origin raidlc/<ticket>
+
+IF rebase has conflicts:
+  Pipeline shows:
+    "Conflict detected during rebase.
+     Files: {list}
+     Another developer pushed changes that overlap with yours.
+     
+     [1] Resolve now — show diffs, fix conflicts interactively
+     [2] Stash your changes — pull their changes, re-apply yours manually
+     [3] Ask for help — pause and coordinate with the other developer"
+  
+  After resolution:
+    git rebase --continue
+    git push origin raidlc/<ticket>
+```
+
+**Phase tags still work on the shared branch:**
+```
+git tag -f raidlc/<ticket>/{epic_name}/phase-01
+```
+Tags are per-epic so multiple developers' phases don't overwrite each other.
 
 ### Mode 3: Jump to Phase — Provide Existing Artifacts
 
@@ -230,7 +454,9 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    - If NOT available: ask the user: "jdtls doesn't appear to be running. Can you start it so I can use LSP for code traversal? If not, I'll fall back to grep/file reads." Only proceed with grep after user confirms.
    Note this in pipeline-state.json: `"lsp_enabled": true/false`
 4. Create artifacts directory: `mkdir -p <artifacts-path>`
-5. Create git branch: `git checkout -b raidlc/<ticket>`
+5. Create git branch:
+   - **Multi-epic mode**: branch already created in pre-flight Step 4 (checkout `raidlc/<ticket>`)
+   - **Standalone mode**: `git checkout -b raidlc/<ticket>`
 5. Initialize `session-memory.md` with the template from `/workflow` skill
 6. Initialize `process-log.md`:
    ```markdown
@@ -350,6 +576,33 @@ ProductEx runs in background. BA does NOT wait for it — they work simultaneous
 Next: Phase 2 — Critic + Gap Analysis
 Commands: continue | status | revert | exit
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Post-Phase 1: Epic Coordination Check (if multi-epic enabled)
+
+If `registry_repo` is set in `pipeline-state.json`, spawn the `epic-coordinator` as a subagent:
+
+```
+Invoke: epic-coordinator
+Args:
+  checkpoint: registry-scan
+  epic_name: {from pipeline-state.json}
+  registry_repo: {from pipeline-state.json}
+  session_memory_path: {artifacts_path}/session-memory.md
+  artifacts_path: {artifacts_path}
+
+Skill: /coordinate — checkpoint 1 (registry-scan)
+
+The coordinator will:
+  1. Scan registry for shared modules matching this epic's PRD needs
+  2. Check intents from other developers
+  3. Prompt claims for unclaimed modules
+  4. Inject shared module constraints into session memory
+
+After coordinator returns:
+  - If STATUS: blocked → show blocks to developer, wait for resolution
+  - If STATUS: complete → show summary, proceed to Phase 2
+  - If STATUS: skipped → registry unreachable, proceed without coordination
 ```
 
 ---
@@ -532,6 +785,33 @@ This phase runs TWO subagents in parallel:
 4. Produce: `01-architect.md` with Mermaid diagrams, ADRs, endpoints, data model
 5. Update session-memory with architectural decisions
 
+### Post-Phase 6: Epic Coordination — Interface Check (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator`:
+
+```
+Invoke: epic-coordinator
+Args:
+  checkpoint: interface-check
+  epic_name: {from pipeline-state.json}
+  registry_repo: {from pipeline-state.json}
+  session_memory_path: {artifacts_path}/session-memory.md
+  artifacts_path: {artifacts_path}
+
+Skill: /coordinate — checkpoint 2 (interface-check)
+
+The coordinator will:
+  1. Cross-reference HLD modules against registry — BLOCK if designing something that already exists
+  2. For new shared modules this epic builds: publish Thrift IDL to registry
+  3. Run Thrift compatibility check for any IDL changes
+  4. Update session memory with interface contracts
+
+After coordinator returns:
+  - If STATUS: blocked → CONFLICT: HLD designs something the registry already has.
+    Developer must revise HLD to consume, not build. Re-run Phase 6.
+  - If STATUS: complete → interfaces published, proceed to Phase 6a
+```
+
 ---
 
 ## Phase 6a: Impact Analysis (Subagent)
@@ -649,6 +929,33 @@ This phase runs TWO subagents in parallel:
 2. Reads: `03-designer.md`, `session-memory.md`
 3. Produces: `04-qa.md` with test scenarios, edge cases, test plan
 
+### Pre-Phase 9: Epic Coordination — Final Sync (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator` BEFORE starting Developer phase:
+
+```
+Invoke: epic-coordinator
+Args:
+  checkpoint: final-sync
+  epic_name: {from pipeline-state.json}
+  registry_repo: {from pipeline-state.json}
+  session_memory_path: {artifacts_path}/session-memory.md
+  artifacts_path: {artifacts_path}
+
+Skill: /coordinate — checkpoint 3 (final-sync)
+
+The coordinator will:
+  1. Sync dependency statuses — if a consumed module has been merged since Phase 6,
+     switch from IDL-driven mocks to real implementation
+  2. If a consumed module was reverted — BLOCK with rollback options
+  3. Run dynamic collision detection (branch diff against other epics)
+  4. Update session memory with latest dependency statuses
+
+After coordinator returns:
+  - If STATUS: blocked → show blocks (likely a reverted dependency), wait for resolution
+  - If STATUS: complete → proceed to Phase 9 with updated constraints
+```
+
 ---
 
 ## Phase 9: Developer (Agent Team + Superpowers)
@@ -656,6 +963,31 @@ This phase runs TWO subagents in parallel:
 **Skill**: `/developer` (`.claude/skills/developer/SKILL.md`)
 **Mode**: Main context with superpowers. For independent modules, spawns agent team.
 **Superpowers**: `test-driven-development`, `executing-plans`, `verification-before-completion`, `subagent-driven-development`, `systematic-debugging`, `receiving-code-review`
+
+### Phase 9 Background: Coordinator Watch (if multi-epic enabled)
+
+If `registry_repo` is set, spawn a **background** coordinator watch at Phase 9 start:
+
+```
+Spawn background subagent:
+  Invoke: epic-coordinator
+  Args:
+    checkpoint: watch
+    epic_name: {from pipeline-state.json}
+    registry_repo: {from pipeline-state.json}
+    session_memory_path: {artifacts_path}/session-memory.md
+    artifacts_path: {artifacts_path}
+
+Skill: /coordinate — checkpoint 3b (watch)
+
+The watch runs every 30 minutes in the background during Phase 9:
+  - Checks if consumed module IDL has changed → INFO alert
+  - Checks if consumed module was REVERTED → URGENT alert (interrupts developer)
+  - Checks for new file collisions with other epic branches → WARN alert
+  
+  Alerts appear in the developer's terminal but do NOT block Phase 9.
+  URGENT alerts (reversion) present options: pause, continue, or stop.
+```
 
 1. **Invoke superpower** to load the implementation plan:
    ```
@@ -895,6 +1227,31 @@ This phase runs TWO subagents in parallel:
     ```
     This presents structured options: merge to main, create PR, or cleanup.
 
+### Post-Phase 11: Epic Coordination — Duplication Check (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator`:
+
+```
+Invoke: epic-coordinator
+Args:
+  checkpoint: duplication-check
+  epic_name: {from pipeline-state.json}
+  registry_repo: {from pipeline-state.json}
+  session_memory_path: {artifacts_path}/session-memory.md
+  artifacts_path: {artifacts_path}
+
+Skill: /coordinate — checkpoint 4 (duplication-check)
+
+The coordinator will:
+  1. Scan implementation for overlap with registry modules (class names, Thrift services, DB tables)
+  2. Update module status for modules this epic built (in-progress -> ready-for-review or merged)
+  3. Write final progress to progress/{epic_name}.json
+
+After coordinator returns:
+  - If duplications found → WARN to developer (non-blocking, but logged in reviewer findings)
+  - Module statuses updated in registry → other epics' coordinators will see the changes
+```
+
 ---
 
 ## Phase 12: Documentation & Blueprint (Subagent)
@@ -1096,9 +1453,40 @@ This block replaces reading the full principles.md (which is long). It captures 
 
 ---
 
-## Rework History (adopted from AIDLC)
+## Rework & Registry Cascade (adopted from AIDLC + multi-epic coordination)
 
-When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back to Developer), log it in both `process-log.md` and `pipeline-state.json`:
+When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back to Developer), log it in both `process-log.md` and `pipeline-state.json`.
+
+### Registry Cascade on Rework (if multi-epic enabled)
+
+When a rework loop re-runs **Phase 6 (Architect)** and the re-run changes a shared module's interface, the coordinator must update the registry:
+
+```
+IF rework target is Phase 6 AND multi-epic enabled:
+  1. Phase 6 re-runs → produces updated 01-architect.md
+  2. Compare old IDL (in registry) against new IDL (from re-run)
+  3. IF IDL changed:
+     Invoke: epic-coordinator
+     Args:
+       checkpoint: rework-sync
+       epic_name: {from pipeline-state.json}
+       registry_repo: {from pipeline-state.json}
+     
+     Skill: /coordinate — checkpoint 3c (rework-sync)
+     
+     The coordinator will:
+       - Run Thrift compatibility check (must be non-breaking)
+       - Publish updated IDL to registry
+       - Add rework decision to module YAML
+       - Create GitHub issue notifying all consumer epics
+  4. IF IDL unchanged: skip coordinator — rework was internal to this epic
+```
+
+This ensures other developers' pipelines see the updated interface at their next checkpoint or watch cycle.
+
+### Rework History
+
+When a phase routes back to a prior phase, log it:
 
 ```markdown
 ## Rework History

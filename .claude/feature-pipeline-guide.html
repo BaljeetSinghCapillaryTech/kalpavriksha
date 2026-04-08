@@ -79,7 +79,7 @@ mermaid.initialize({
 
   <div class="section-label">Getting Started</div>
   <a href="#how-to-run">How to Run</a>
-  <a href="#modes">4 Modes</a>
+  <a href="#modes">5 Modes</a>
   <a href="#new-teammates">For New Teammates</a>
   <a href="#examples">Examples</a>
 
@@ -90,8 +90,14 @@ mermaid.initialize({
   <a href="#live-html">Live Dashboard</a>
   <a href="#documents">Documents Generated</a>
 
+  <div class="section-label">Multi-Epic Coordination</div>
+  <a href="#multi-epic">How It Works</a>
+  <a href="#decompose-mode">Mode 5: Decompose BRD</a>
+  <a href="#coordinator">Coordinator Checkpoints</a>
+  <a href="#registry">Shared Registry &amp; Branching</a>
+
   <div class="section-label">Architecture</div>
-  <a href="#skills">MECE Skills (16)</a>
+  <a href="#skills">MECE Skills (17)</a>
   <a href="#model-assignment">Model Assignment</a>
   <a href="#agents">Agents &amp; Teams</a>
   <a href="#superpowers">Superpowers (9)</a>
@@ -117,7 +123,7 @@ mermaid.initialize({
 <!-- HERO -->
 <div class="hero">
   <h1>Feature Pipeline</h1>
-  <p class="tagline">BRD to Production &mdash; 13 Phases, MECE Skills, Cross-Repo Aware</p>
+  <p class="tagline">BRD to Production &mdash; 13 Phases, MECE Skills, Cross-Repo &amp; Multi-Epic Aware</p>
   <p style="margin-top:14px;"><code>claude --agent feature-pipeline</code></p>
 </div>
 
@@ -125,10 +131,10 @@ mermaid.initialize({
 <div class="stats">
   <div class="stat"><div class="number">13</div><div class="label">Phases</div></div>
   <div class="stat"><div class="number">20+</div><div class="label">Documents</div></div>
-  <div class="stat"><div class="number">16</div><div class="label">Skills</div></div>
+  <div class="stat"><div class="number">17</div><div class="label">Skills</div></div>
   <div class="stat"><div class="number">9</div><div class="label">Superpowers</div></div>
-  <div class="stat"><div class="number">2</div><div class="label">Agent Teams</div></div>
-  <div class="stat"><div class="number">4</div><div class="label">Modes</div></div>
+  <div class="stat"><div class="number">4</div><div class="label">Agents</div></div>
+  <div class="stat"><div class="number">5</div><div class="label">Modes</div></div>
   <div class="stat"><div class="number">3</div><div class="label">Models</div></div>
 </div>
 
@@ -144,17 +150,21 @@ mermaid.initialize({
 
 <!-- 4 MODES -->
 <section id="modes">
-<h2>4 Startup Modes</h2>
+<h2>5 Startup Modes</h2>
 <div class="mermaid">
 flowchart TD
     START["claude --agent feature-pipeline"] --> MENU{Select Mode}
-    MENU -->|"[1] Full Pipeline"| M1["Start from BRD\nRun all 13 phases"]
+    MENU -->|"[1] Full Pipeline"| M1["Start from BRD\nRun all 13 phases\n+ optional multi-epic coordination"]
     MENU -->|"[2] Resume"| M2["Detect pipeline-state.json\nValidate paths for this machine\nResume from last phase"]
     MENU -->|"[3] Jump to Phase"| M3["Provide existing artifacts\nStart from first missing phase"]
     MENU -->|"[4] Status"| M4["Show pipeline progress\nPhase-by-phase status"]
+    MENU -->|"[5] Decompose BRD"| M5["Architect Mode\nIdentify shared modules\nDesign interfaces\nPublish to registry"]
     M1 --> RUN["Run Pipeline"]
     M2 --> RUN
     M3 --> RUN
+    M5 --> PUB["Registry Populated"] --> OPT{"Start an epic?"}
+    OPT -->|Yes| M1
+    OPT -->|No| DONE["Devs start later"]
 
     style START fill:#2a4a6a,stroke:#4a7aaa,color:#dce6f0
     style MENU fill:#3d2a5c,stroke:#6a5a8a,color:#d5cce8
@@ -162,10 +172,16 @@ flowchart TD
     style M2 fill:#3a2a1a,stroke:#8a7a5a,color:#e0d5c0
     style M3 fill:#1a3040,stroke:#4a8098,color:#b8d8e8
     style M4 fill:#2a3040,stroke:#5a6a7a,color:#c0c8d0
+    style M5 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
     style RUN fill:#1a3828,stroke:#4a8a5a,color:#b8e0c8
+    style PUB fill:#2a3a5c,stroke:#4a6fa5,color:#c8d6e5
+    style DONE fill:#2a3040,stroke:#5a6a7a,color:#c0c8d0
+    style OPT fill:#3d2a5c,stroke:#6a5a8a,color:#d5cce8
 </div>
+<p><strong>Mode 1 (Full Pipeline)</strong> now includes an optional multi-epic coordination step. Answer "yes" at input #8 to enable the coordinator, which auto-checks the shared registry at 6 checkpoints.</p>
 <p><strong>Mode 2 (Resume)</strong> validates all paths from <code>pipeline-state.json</code> against the current machine. If a teammate cloned the repo on a different machine, the pipeline asks for updated paths before continuing.</p>
 <p><strong>Mode 3 (Jump)</strong> detects which phases already have artifacts and starts from the first missing one. It auto-generates <code>session-memory.md</code> from provided artifacts if not supplied.</p>
+<p><strong>Mode 5 (Decompose)</strong> is for architects. It reuses existing pipeline skills &mdash; <code>/ba</code> for BRD analysis, <code>/cross-repo-tracer</code> for codebase scanning, <code>/architect</code> + <code>/designer</code> for interface design, and <code>/coordinate</code> for registry publishing. It runs these skills across <strong>all epics at once</strong> to identify shared modules, design contracts, assign ownership, and publish to the registry. Run once before developers start.</p>
 </section>
 
 <!-- FOR NEW TEAMMATES -->
@@ -177,6 +193,13 @@ flowchart TD
   <li><strong>Install Superpowers:</strong> <code>claude install-plugin superpowers</code></li>
   <li><strong>(Optional) Install jdtls:</strong> <code>brew install jdtls</code> &mdash; enables LSP-based code traversal instead of grep fallback</li>
   <li><strong>Run:</strong> <code>claude --agent feature-pipeline</code></li>
+  <li><strong>(Multi-epic)</strong> If working on a BRD with other developers:
+    <ul>
+      <li>Architect runs Mode [5] first &mdash; identifies shared modules, publishes to registry</li>
+      <li>Each developer runs Mode [1] and selects "yes" for multi-epic coordination</li>
+      <li>The pipeline auto-coordinates via the shared-modules-registry</li>
+    </ul>
+  </li>
 </ol>
 <p style="margin-top:12px;">That is it. No environment variables, no config files, no Docker. The pipeline reads everything from <code>.claude/</code>.</p>
 </div>
@@ -226,7 +249,47 @@ Please provide updated path:
 Paths updated. Resume from Phase 8 (QA)? yes</code></pre>
 </div>
 <div class="example">
-<div class="label">Example 4: Revert to Phase 6 with Option B (artifacts only)</div>
+<div class="label">Example 4: Multi-Epic — Architect Decomposes BRD</div>
+<pre><code>$ claude --agent feature-pipeline
+> Mode: 5 (Decompose BRD)
+> BRD: ~/Downloads/loyalty-v3-brd.pdf
+> Epics: tier-management, benefits, campaigns, rewards
+> Repos: emf-parent, intouch-api-v3, peb, thrift
+> Registry: capillary/shared-modules-registry (create)
+> Assignments: ritwik: tier-management, dev-b: benefits
+
+Decomposer identifies 3 shared modules:
+  maker-checker (needed by Tier + Benefits)
+  audit-trail (needed by all 4 epics)
+  notification-engine (needed by Campaigns + Rewards)
+
+Sequencing:
+  Layer 1 (start now): Tier (builds maker-checker), Benefits (builds audit-trail)
+  Layer 2 (after L1): Campaigns, Rewards
+
+Registry published. Developers can start Mode [1].</code></pre>
+</div>
+<div class="example">
+<div class="label">Example 5: Multi-Epic — Developer with Coordination</div>
+<pre><code>$ claude --agent feature-pipeline
+> Mode: 1 | Feature: Benefits Management | Ticket: BEN-001
+> Multi-epic: yes
+> Registry: capillary/shared-modules-registry
+> Epic: benefits-management
+
+Pre-flight: registry accessible, intent declared.
+Epic package loaded: "YOU BUILD audit-trail, CONSUME maker-checker"
+
+Phase 1 (BA) completes.
+Post-Phase 1 Coordinator: "maker-checker claimed by @ritwik (in-progress).
+  Code against IDL mocks. DO NOT REBUILD."
+
+Phase 9 (Developer) starts. Background watch active (30 min checks).
+Watch alert: "maker-checker IDL updated: new method bulkApprove() added"
+Watch alert: "maker-checker merged to main! Switch from mocks to real code."</code></pre>
+</div>
+<div class="example">
+<div class="label">Example 6: Revert to Phase 6 with Option B (artifacts only)</div>
 <pre><code>> revert 6
 
 Revert target: Phase 6 (HLD Architect)
@@ -438,12 +501,209 @@ flowchart TD
 </section>
 
 <!-- ============================================================ -->
+<!-- MULTI-EPIC COORDINATION -->
+<!-- ============================================================ -->
+
+<section id="multi-epic">
+<h2>Multi-Epic Coordination</h2>
+<p>When a BRD has multiple epics assigned to different developers, the pipeline coordinates shared modules to prevent duplicate implementations. The core philosophy: <strong>minimize dependencies while tasking</strong>. AI agents make sequencing practical because the wait is hours, not weeks.</p>
+
+<div class="mermaid">
+flowchart TD
+    BRD["BRD with 4 Epics"] --> MODE{How to start?}
+    MODE -->|"Architect available\n(recommended)"| M5["Mode [5] Decompose\n/ba + /architect + /designer\n+ /cross-repo-tracer"]
+    MODE -->|"No architect\n(small team)"| INDIE["Each dev starts Mode [1]\nCoordinator self-discovers"]
+
+    M5 --> D2["D2: BA Scan\nParse all epics\n+ Pattern checklist"]
+    D2 --> D3["D3: Codebase Scan\n/cross-repo-tracer\nExisting patterns?"]
+    D3 --> D4["D4: Interface Design\n/architect + /designer\nThrift IDL per module"]
+    D4 --> D5["D5: Assign Ownership\nMinimize parallel deps\nLayer 1, 2, 3 sequencing"]
+    D5 --> D6["D6: Epic Packages\nScope, warnings,\nbuild order per epic"]
+    D6 --> D7["D7: Publish\n/coordinate checkpoint:publish\nRegistry populated"]
+
+    D7 --> L1["Layer 1 Devs Start\n(build shared modules)"]
+    D7 --> L2["Layer 2 Devs Start Later\n(consume shared modules)"]
+
+    INDIE --> CP1["Post-Phase 1\nCoordinator: registry-scan\nDetect overlaps, claim modules"]
+
+    style BRD fill:#3d2a5c,stroke:#6a5a8a,color:#d5cce8
+    style MODE fill:#2a3040,stroke:#5a6a7a,color:#c0c8d0
+    style M5 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
+    style INDIE fill:#1a3a3a,stroke:#4a8a7a,color:#b8dcd0
+    style D2 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style D3 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style D4 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style D5 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style D6 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style D7 fill:#1a3828,stroke:#4a8a5a,color:#b8e0c8
+    style L1 fill:#1a3a3a,stroke:#4a8a7a,color:#b8dcd0
+    style L2 fill:#3a2a1a,stroke:#8a7a5a,color:#e0d5c0
+    style CP1 fill:#2a4a6a,stroke:#4a7aaa,color:#dce6f0
+</div>
+</section>
+
+<section id="decompose-mode">
+<h2>Mode 5: Decompose BRD</h2>
+<p>The decomposer <strong>reuses existing pipeline skills</strong> for analysis &mdash; <code>/ba</code> for BRD parsing, <code>/cross-repo-tracer</code> for codebase scanning, <code>/architect</code> + <code>/designer</code> for interface design, and <code>/coordinate</code> for registry publishing.</p>
+
+<h3>Decomposition Phases</h3>
+<table>
+<tr><th>Phase</th><th>What Happens</th><th>Skills Used</th></tr>
+<tr><td><strong>D1</strong></td><td>Input collection &mdash; BRD, repos, epic names, registry URL, team assignments</td><td>(inline)</td></tr>
+<tr><td><strong>D2</strong></td><td>BA scan &mdash; parse all epics, find cross-epic concerns, pattern checklist (approval, audit, notifications, RBAC, etc.)</td><td><code>/ba</code> (analysis mode)</td></tr>
+<tr><td><strong>D3</strong></td><td>Codebase scan &mdash; for each candidate: does it exist? which repos? collision hotspots?</td><td><code>/cross-repo-tracer</code></td></tr>
+<tr><td><strong>D4</strong></td><td>Interface design &mdash; Thrift IDL, REST contracts, DB schema, DDD classification per shared module</td><td><code>/architect</code> + <code>/designer</code></td></tr>
+<tr><td><strong>D5</strong></td><td>Ownership assignment &mdash; decomposer suggests best assignment based on deps + team strengths, architect reviews and adjusts (interactive loop: approve / edit / provide constraints), assign layers</td><td>(inline algorithm + interactive)</td></tr>
+<tr><td><strong>D6</strong></td><td>Epic package generation &mdash; scope, shared deps, build order, warnings per epic</td><td>(inline)</td></tr>
+<tr><td><strong>D7</strong></td><td>Registry publish &mdash; commit modules, interfaces, packages, dependency graph</td><td><code>/coordinate</code> (publish mode)</td></tr>
+</table>
+</section>
+
+<section id="coordinator">
+<h2>Coordinator Checkpoints</h2>
+<p>When multi-epic coordination is enabled (input #8 = "yes"), the <code>/coordinate</code> skill runs automatically at <strong>6 checkpoints</strong> during the pipeline. No manual action needed.</p>
+
+<div class="mermaid">
+flowchart LR
+    P0["Phase 0\nPre-flight\n+ Auto Intent"] --> P1["Phase 1\nBA"]
+    P1 --> CP1["Coordinator\nregistry-scan"]
+    CP1 --> P6["Phase 6\nArchitect"]
+    P6 --> CP2["Coordinator\ninterface-check"]
+    CP2 --> P9["Phase 9\nDeveloper"]
+    CP2 -.->|"Phase 6 rework"| RW["Coordinator\nrework-sync"]
+    RW -.-> P6
+    P9 --> W["Coordinator\nwatch (background)\nevery 30 min"]
+    P9 --> CP3["Coordinator\nfinal-sync"]
+    CP3 --> P11["Phase 11\nReviewer"]
+    P11 --> CP4["Coordinator\nduplication-check"]
+
+    style CP1 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
+    style CP2 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
+    style CP3 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
+    style CP4 fill:#5c2a3d,stroke:#8a5a6a,color:#e8c8d5
+    style W fill:#3a2a1a,stroke:#8a7a5a,color:#e0d5c0
+    style RW fill:#3a2028,stroke:#8a5a6a,color:#e0c8d0
+    style P0 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style P1 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style P6 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style P9 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+    style P11 fill:#222a38,stroke:#4a5568,color:#c0c8d5
+</div>
+
+<table>
+<tr><th>Checkpoint</th><th>When</th><th>What It Does</th><th>Severity</th></tr>
+<tr><td><strong>registry-scan</strong></td><td>After Phase 1</td><td>Match epic needs against registry. Check intents. Prompt claims. Inject constraints.</td><td>BLOCK if conflict</td></tr>
+<tr><td><strong>interface-check</strong></td><td>After Phase 6</td><td>Cross-ref HLD against registry. Block duplicates. Publish IDL for modules you build.</td><td>BLOCK if duplicate</td></tr>
+<tr><td><strong>final-sync</strong></td><td>Before Phase 9</td><td>Sync dependency statuses. Swap mocks for real code. Detect branch collisions.</td><td>BLOCK if reverted</td></tr>
+<tr><td><strong>watch</strong></td><td>During Phase 9</td><td>Background check every 30 min. Detect IDL changes, reversions, new collisions.</td><td>ALERT (non-blocking)</td></tr>
+<tr><td><strong>duplication-check</strong></td><td>After Phase 11</td><td>Scan implementation for overlap with registry modules. Update module status.</td><td>WARN</td></tr>
+<tr><td><strong>rework-sync</strong></td><td>On Phase 6 re-run</td><td>If rework changes shared module IDL: publish update, notify consumers.</td><td>BLOCK if breaking</td></tr>
+</table>
+</section>
+
+<section id="registry">
+<h2>Shared Modules Registry</h2>
+<p>A dedicated GitHub repo where all coordination state lives. Developers write per-epic progress files; a GitHub Action aggregates them into <code>feature.json</code>.</p>
+
+<pre><code>shared-modules-registry/
+|-- feature.json              # Read-only, auto-aggregated by GitHub Actions
+|-- repo-map.yml              # Repo roles and build priorities
+|-- .github/
+|   |-- CODEOWNERS            # Merge-time protection for shared modules
+|   +-- workflows/
+|       |-- staleness-check.yml   # Weekly cron: detect abandoned modules
+|       +-- aggregate-progress.yml # Auto-build feature.json from per-epic files
+|-- modules/                  # One YAML per shared module (THE source of truth)
+|   |-- maker-checker.yml     #   includes: rationale, decisions, interface ref
+|   +-- audit-trail.yml
+|-- interfaces/               # Actual IDL files (machine-parsed by compilers)
+|   |-- maker-checker/MakerCheckerService.thrift
+|   +-- audit-trail/AuditTrailService.thrift
+|-- epics/                    # One YAML per epic
+|-- progress/                 # Per-epic JSON (each dev writes only their own)
+|-- intents/                  # Auto-declared at Phase 0 (race prevention)
++-- epic-packages/            # Scoped instructions per epic (Mode 5 output)</code></pre>
+
+<h3>Module Status Lifecycle</h3>
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> designed : Decomposer creates
+    designed --> claimed : Developer claims
+    claimed --> in_progress : First commit
+    in_progress --> ready_for_review : PR opened, tests pass
+    ready_for_review --> merged : PR merged to main
+    in_progress --> reverted : PR reverted
+    reverted --> in_progress : Re-merge
+    in_progress --> designed : Abandoned (30d auto-release)
+
+    note right of designed : Interface defined, no owner
+    note right of merged : Consumers use real code
+    note right of reverted : Consumers fall back to mocks
+</div>
+
+<h3>Staleness Lifecycle</h3>
+<div class="card">
+<p><strong>Active</strong> (commits within 7 days) &rarr; <strong>Stale</strong> (7-14 days) &rarr; WARN owner &rarr; <strong>Abandoned</strong> (14-30 days) &rarr; GitHub issue to owner &rarr; <strong>Auto-released</strong> (30+ days) &rarr; status reverts to "designed", anyone can re-claim.</p>
+</div>
+
+<h3>Branching Strategy</h3>
+<p><strong>Single shared branch per ticket.</strong> All developers commit to <code>raidlc/&lt;ticket&gt;</code>. No v1/v2/v3 proliferation. Always <code>git pull --rebase</code> before push.</p>
+
+<div class="mermaid">
+gitGraph
+    commit id: "main"
+    branch raidlc/CAP-123
+    checkout raidlc/CAP-123
+    commit id: "Ritwik: tier CRUD"
+    commit id: "Ritwik: maker-checker IDL"
+    commit id: "Baljeet: benefits rules"
+    commit id: "Baljeet: audit-trail IDL"
+    commit id: "Ritwik: maker-checker impl"
+    commit id: "Baljeet: audit-trail impl"
+    commit id: "Anuj: campaigns (consumes both)"
+    commit id: "Anuj: rewards"
+    checkout main
+    merge raidlc/CAP-123 id: "Final PR"
+</div>
+
+<table>
+<tr><th>Branch</th><th>Repo</th><th>Purpose</th></tr>
+<tr><td><code>raidlc/&lt;ticket&gt;/epic-division</code></td><td>kalpavriksha</td><td>Mode 5 output: assignment JSON, module YAMLs, IDLs, epic packages</td></tr>
+<tr><td><code>raidlc/&lt;ticket&gt;</code></td><td>Each code repo</td><td>Shared code branch. All developers commit here. ONE PR to main.</td></tr>
+</table>
+
+<h4>Developer Identification Flow</h4>
+<div class="card">
+<ol>
+<li>Developer runs Mode [1] with multi-epic enabled</li>
+<li>Pipeline finds <code>raidlc/*/epic-division</code> branch in kalpavriksha</li>
+<li>Reads <code>epic-assignment.json</code> &mdash; shows team list</li>
+<li>"Who are you?" &mdash; developer selects from list (verified against git config)</li>
+<li>Loads assignment: epics, shared modules to build/consume, layer</li>
+<li>Checks out <code>raidlc/&lt;ticket&gt;</code> in code repos (creates if not exists, pulls if exists)</li>
+<li>Injects epic package constraints into session memory</li>
+<li>Pipeline starts with full context</li>
+</ol>
+</div>
+
+<h4>Push Protocol</h4>
+<div class="card">
+<p>Before every push at any phase:</p>
+<pre><code>git fetch origin raidlc/&lt;ticket&gt;
+git rebase origin/raidlc/&lt;ticket&gt;
+# If conflict → interactive resolution
+# If clean → push</code></pre>
+<p>Phase tags are per-epic: <code>raidlc/&lt;ticket&gt;/{epic}/phase-01</code> so developers' tags don't overwrite each other.</p>
+</div>
+</section>
+
+<!-- ============================================================ -->
 <!-- ARCHITECTURE -->
 <!-- ============================================================ -->
 
 <!-- MECE SKILLS -->
 <section id="skills">
-<h2>MECE Skills (16 Active + 2 Deprecated)</h2>
+<h2>MECE Skills (17 Active + 2 Deprecated)</h2>
 <p>Skills are <strong>mutually exclusive and collectively exhaustive</strong> &mdash; no overlap between skills, no gap in coverage. Each skill owns a distinct responsibility.</p>
 <div class="mermaid">
 flowchart TD
