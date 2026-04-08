@@ -61,6 +61,7 @@ Append to the following sections in `session-memory.md`:
 ## Context
 - Search the codebase and existing tests. Use grep for test patterns; prefer targeted reads over loading all test files.
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `04-qa.md`.
+- If `ui-requirements.md` exists, read it. Derive test scenarios from UI flows and form validations. Tag UI-derived scenarios with `[UI]` prefix.
 
 ## Acceptance Criteria Coverage (Mandatory)
 

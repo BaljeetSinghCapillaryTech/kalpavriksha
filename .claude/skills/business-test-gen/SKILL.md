@@ -92,6 +92,11 @@ Extract:
 - **ADR decisions** — generate compliance test cases (chosen pattern works correctly)
 - **Prohibited alternatives** — generate rejection test cases (prohibited pattern is not used)
 
+### 6. `ui-requirements.md` — UI Design Baseline (if exists)
+Extract: screen inventory, field inventory (types/validations → boundary test inputs), user flows (→ integration test candidates). Cross-check against Designer interfaces for completeness.
+
+If present, add a `UI Screen` column to each business test case for traceability.
+
 ---
 
 ## Derivation Protocol

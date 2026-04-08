@@ -159,6 +159,7 @@ This ensures the Developer never has to guess patterns, imports, or dependencies
 ## Context
 - Use jdtls (preferred) or grep and symbol search for pattern discovery and consistency checks. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for type hierarchy, find-references, and symbol search — it reveals base classes and inheritance chains faster than grep. Fall back to grep for text-pattern searches (annotations, import styles).
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `03-designer.md`.
+- If `ui-requirements.md` exists, read it. Align DTO field names with UI labels, derive validation annotations from form constraints (required → `@NotNull`, dropdowns → enums), and shape responses to match what the UI displays.
 
 ## Output (Markdown)
 - **Abstractions** — type/interface/class names and one-line purpose

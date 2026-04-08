@@ -127,6 +127,8 @@ With current state understood and a pattern direction confirmed, produce the arc
 
 When artifacts path provided, read `00-ba.md` and `session-memory.md`; output to `01-architect.md`.
 
+If `ui-requirements.md` exists, also read it. Infer API endpoints from UI screens (forms → POST/PUT, lists → GET, detail pages → GET by ID). Cross-reference UI-implied endpoints against BA user stories — flag uncovered UI operations.
+
 ## Output (Markdown)
 
 - **Current state summary** — what exists in the codebase relevant to this problem

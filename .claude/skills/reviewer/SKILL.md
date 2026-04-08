@@ -253,6 +253,13 @@ For each artifact, verify that it addresses the requirements relevant to its pha
 - Was GREEN state achieved (all tests pass)?
 - Were any tests modified by Developer? If so, are modifications justified?
 
+**`ui-requirements.md` (UI Design)** _(if exists)_
+- Every UI screen has a backing API endpoint
+- API response fields cover all UI display fields
+- API request fields match all UI form inputs
+- UI user flows are supported by API operations
+- Flag screens with no backing endpoint as gaps
+
 ### 1c: Build the Traceability Matrix
 
 Produce a **Requirements Traceability Matrix** in `07-reviewer.md`:
@@ -260,11 +267,13 @@ Produce a **Requirements Traceability Matrix** in `07-reviewer.md`:
 ```markdown
 ## Requirements Traceability Matrix
 
-| ID | Requirement (from BA/BRD) | Architect | Analyst | Designer | QA | Biz Tests | SDET (RED) | Developer (GREEN) | Status |
-|----|---------------------------|-----------|---------|----------|----|-----------|------------|-------------------|--------|
-| REQ-01 | [requirement summary] | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
-| REQ-02 | [requirement summary] | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | FAIL → Designer |
-| REQ-03 | [requirement summary] | ✅ | N/A | ✅ | ❌ | ❌ | N/A | ✅ | FAIL → QA |
+| ID | Requirement (from BA/BRD) | Architect | Analyst | Designer | QA | Biz Tests | SDET (RED) | Developer (GREEN) | UI Match | Status |
+|----|---------------------------|-----------|---------|----------|----|-----------|------------|-------------------|----------|--------|
+| REQ-01 | [requirement summary] | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
+| REQ-02 | [requirement summary] | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | FAIL → Designer |
+| REQ-03 | [requirement summary] | ✅ | N/A | ✅ | ❌ | ❌ | N/A | ✅ | N/A | FAIL → QA |
+
+> **UI Match column**: Only populated if `ui-requirements.md` exists. ✅ = UI screen/flow maps to this requirement's implementation. ❌ = UI expects this but API doesn't serve it. N/A = no UI relevance.
 ```
 
 **Status rules:**

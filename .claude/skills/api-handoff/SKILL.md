@@ -45,6 +45,7 @@ Read the following artifacts in order (later artifacts override earlier ones whe
 3. **`06-developer.md`** (if exists) — Actual implementation notes, any deviations from design
 4. **`00-ba.md`** — User stories and acceptance criteria (to map endpoints back to features the UI cares about)
 5. **`session-memory.md`** — Constraints and key decisions that affect API behaviour (auth, tenancy, pagination, rate limits)
+6. **`ui-requirements.md`** (if exists) — Cross-reference: every UI screen → GET endpoint, every form → POST/PUT endpoint, every UI field → request/response field. Flag mismatches as `[UI-API GAP]`.
 
 For each artifact, extract:
 - Every endpoint or API-facing interface (controllers, REST endpoints, GraphQL queries/mutations, gRPC services)
@@ -207,9 +208,9 @@ Each resource section groups all operations the UI can perform on that entity.
 
 ## Feature-to-Endpoint Map
 
-| Feature / User Story | Endpoint(s) | Notes |
-|----------------------|-------------|-------|
-| [from BA]            | [METHOD /path] | [any UI-specific note] |
+| Feature / User Story | UI Screen (if any) | Endpoint(s) | Notes |
+|----------------------|--------------------|-------------|-------|
+| [from BA]            | [from ui-requirements.md or N/A] | [METHOD /path] | [any UI-specific note] |
 ```
 
 ---

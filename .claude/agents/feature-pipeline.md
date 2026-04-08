@@ -236,7 +236,7 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    - **Do NOT copy files to artifacts path.** Read BRD, code repos, and UI screenshots from their ORIGINAL locations. Only extract text to `brd-raw.md` if the source is PDF/DOCX (binary formats Claude can't re-read). For .md/.txt files and URLs, just store the path/URL in pipeline-state.json and read from source each time.
    - **NEVER copy or clone external repos into this repo.** When code repos are provided (e.g., intouch-api-v3, peb, Thrift, api/prototype), read/grep/search them at their original paths. Do NOT copy them into emf-parent or the artifacts directory. Store their absolute paths in pipeline-state.json and use those paths for all subsequent phases.
    - Code repo paths exist (`ls <path>/src` succeeds)
-   - UI screenshots exist (if provided)
+   - UI inputs are valid (if provided): file paths exist (`ls`); URLs reachable (`WebFetch`). If a URL fails, warn the user and ask for an alternative — do NOT silently proceed.
 3. **LSP Initialization** (per CLAUDE.md Rule 5):
    For each repo in `code_repos`, ensure jdtls is running:
    ```bash
@@ -471,20 +471,24 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 3: UI Requirements Extraction (Main Context — if screenshots provided)
+## Phase 3: UI Requirements Extraction (Main Context — if UI input provided)
 
-**Mode**: Main context — reads images, may ask user clarifying questions
+**Mode**: Main context — reads images/fetches URLs, may ask user clarifying questions
 
-1. If no UI screenshots/URLs provided in Phase 0, skip this phase
-2. Read each screenshot (Claude can read images natively)
-3. Extract: components, fields, layouts, actions, navigation, data tables
-4. Produce: `ui-requirements.md` with:
-   - Screen-by-screen breakdown
-   - Component inventory
-   - Data model implications
-   - Inferred user flows
-5. Ask user: "I extracted N screens with M components. Does this look right?"
-6. Update process-log, session-memory
+1. If no UI input provided in Phase 0, skip this phase
+2. **Fetch per input type**:
+   - **v0.dev URLs**: `WebFetch` main URL → parse for all sub-page/route links → `WebFetch` each sub-page → extract components, fields, layouts, actions, navigation, code snippets
+   - **Figma URLs**: If `FIGMA_ACCESS_TOKEN` set, `WebFetch` Figma API to get node tree. If no token, ask user for screenshots instead.
+   - **Other web URLs**: `WebFetch` → extract UI structure, forms, fields, navigation
+   - **Screenshot files**: `Read` image → extract components, fields, layouts, actions
+3. **Produce `ui-requirements.md`**:
+   - Screens inventory (name, purpose, source)
+   - Component hierarchy per screen
+   - Field inventory table (name, type, validations, screen, required/optional)
+   - User flows (navigation paths between screens)
+   - Data model implications (UI fields → implied entities and attributes)
+4. Ask user to confirm: "Extracted N screens, M components, K fields. Correct?"
+5. Update process-log, session-memory
 
 ---
 
@@ -493,6 +497,8 @@ This phase runs TWO subagents in parallel:
 **Mode**: Interactive — compiles questions from ALL prior phases, asks human
 
 1. Read: `00-ba.md` (open questions), `00-prd.md` (open questions), `contradictions.md` (challenges from Critic), `gap-analysis-brd.md` (code verification from Gap Analyser), `ui-requirements.md` (open questions if any)
+1b. **UI-BA Cross-Check** (if `ui-requirements.md` exists):
+    Cross-check UI screens, fields, and flows against `00-ba.md`. Flag gaps where UI implies functionality not covered by BA (missing user stories, uncaptured fields, undefined business rules). Add each gap to the blocker list as `UI-BA GAP #N` with classification (BLOCKER / SCOPE / FEASIBILITY).
 2. Compile into a single list, classified:
    - **BLOCKER**: Must resolve before any design work
    - **SCOPE**: Affects what is in/out of scope
@@ -581,6 +587,7 @@ This phase runs TWO subagents in parallel:
    ```
    This triggers structured exploration of approaches — 3+ patterns with tradeoffs.
 2. Invoke `/architect` skill:
+   - If `ui-requirements.md` exists, read it — infer API endpoints from UI screens and cross-reference against BA user stories
    - Step 1: Research current state (already done in Phase 5 — read code-analysis files)
    - Step 2: Research real-world patterns (web search)
    - Step 3: Evaluate pattern fit — present table to user, **wait for approval**
@@ -691,6 +698,7 @@ This phase runs TWO subagents in parallel:
    You are running the /designer skill.
    Read: session-memory.md, 01-architect.md, 00-ba-machine.md
    Read: GUARDRAILS.md
+   Read: ui-requirements.md (if exists)
    Follow .claude/skills/designer/SKILL.md exactly — especially Step 0 (Codebase Pattern Discovery).
    
    For EVERY new type, verify: base class, annotations, package, imports, Maven dependencies.
@@ -707,7 +715,7 @@ This phase runs TWO subagents in parallel:
 **Mode**: Subagent
 
 1. Spawn subagent following `/qa` skill
-2. Reads: `03-designer.md`, `session-memory.md`
+2. Reads: `03-designer.md`, `session-memory.md`, `ui-requirements.md` (if exists)
 3. Produces: `04-qa.md` with test scenarios, edge cases, test plan
 
 ---
@@ -724,6 +732,7 @@ This phase runs TWO subagents in parallel:
    Read: session-memory.md, 00-ba.md, brdQnA.md
    Read: 03-designer.md, 04-qa.md, 01-architect.md
    Read: GUARDRAILS.md
+   Read: ui-requirements.md (if exists)
 
    Follow the Derivation Protocol exactly:
    1. Map BA requirements to Designer interfaces
@@ -963,6 +972,7 @@ This phase runs TWO subagents in parallel:
    - Security verification (GUARDRAILS.md)
    - Documentation
    - Code quality
+   - UI alignment (if `ui-requirements.md` exists): verify APIs serve all UI screens and fields
 5. Surface findings to user with **gap routing options** (adopted from AIDLC):
    For each finding, classify and present options:
    ```
