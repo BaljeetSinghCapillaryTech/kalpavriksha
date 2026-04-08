@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Orchestrates the full multi-phase development workflow. Runs BA → Architect → Analyst (optional) → Designer → QA → Developer → SDET (optional) → Reviewer in sequence, pausing between phases for approval. Use when user says /workflow.
+description: Phase execution protocols for the AIDLC pipeline — subagent templates, session memory template, pause/approval rules, git snapshots, rework cascades. Referenced by the feature-pipeline agent during phase execution. Use ONLY when user explicitly types /workflow for a standalone run. Do NOT auto-invoke when running as the feature-pipeline agent.
 ---
 
 ## Reasoning Principles
