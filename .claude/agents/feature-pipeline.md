@@ -235,7 +235,7 @@ After each phase, write state to `<artifacts-path>/pipeline-state.json`:
    - **Do NOT copy files to artifacts path.** Read BRD, code repos, and UI screenshots from their ORIGINAL locations. Only extract text to `brd-raw.md` if the source is PDF/DOCX (binary formats Claude can't re-read). For .md/.txt files and URLs, just store the path/URL in pipeline-state.json and read from source each time.
    - **NEVER copy or clone external repos into this repo.** When code repos are provided (e.g., intouch-api-v3, peb, Thrift, api/prototype), read/grep/search them at their original paths. Do NOT copy them into emf-parent or the artifacts directory. Store their absolute paths in pipeline-state.json and use those paths for all subsequent phases.
    - Code repo paths exist (`ls <path>/src` succeeds)
-   - UI inputs are valid (if provided): file paths exist (`ls`); URLs reachable (`WebFetch`). If a URL fails, warn the user and ask for an alternative — do NOT silently proceed.
+   - UI inputs are valid (if provided): file paths exist (`ls`); v0.dev/v0.app URLs — validate using `mcp__Claude_in_Chrome__` (client-side rendered, WebFetch won't work); other URLs — verify with `WebFetch`. If validation fails, warn the user and ask for an alternative.
 3. **LSP Initialization** (per CLAUDE.md Rule 5):
    For each repo in `code_repos`, ensure jdtls is running:
    ```bash
@@ -476,7 +476,10 @@ This phase runs TWO subagents in parallel:
 
 1. If no UI input provided in Phase 0, skip this phase
 2. **Fetch per input type**:
-   - **v0.dev URLs**: `WebFetch` main URL → parse for all sub-page/route links → `WebFetch` each sub-page → extract components, fields, layouts, actions, navigation, code snippets
+   - **v0.dev / v0.app URLs** (client-side rendered — `WebFetch` will NOT work):
+     1. Use `mcp__Claude_in_Chrome__`: `tabs_context_mcp` → `navigate` to URL → `read_page` to extract rendered accessibility tree. This captures component structure, file tables, entity hierarchies, and design context from the Chat tab.
+     2. If the v0 page has a Preview tab, click it and `read_page` again to extract the actual UI components. Take a `screenshot` for visual layout reference.
+     3. If Chrome MCP unavailable: ask user for screenshots of the v0 pages.
    - **Figma URLs**: If `FIGMA_ACCESS_TOKEN` set, `WebFetch` Figma API to get node tree. If no token, ask user for screenshots instead.
    - **Other web URLs**: `WebFetch` → extract UI structure, forms, fields, navigation
    - **Screenshot files**: `Read` image → extract components, fields, layouts, actions
