@@ -107,7 +107,7 @@ claude mcp add claude-historian-mcp -- npx claude-historian-mcp
 
 **ProductEx BRD Review** runs in parallel with BA as a background subagent — it independently analyses the BRD against the product registry and official docs, producing `brdQnA.md` with questions for the product team. Both outputs are reviewed at the "Review Gate" before proceeding to Architect.
 
-`/debug`, `/tutor`, `/gap-analyser`, `/migrator`, and `/coordinate` are standalone — invoke them at any time, independent of the workflow. Within the workflow, `gap` and `migrate` are available as on-demand commands at pause prompts. `/coordinate` is auto-invoked by `feature-pipeline` at 4 checkpoints when multi-epic mode is enabled.
+`/debug`, `/tutor`, `/gap-analyser`, and `/migrator` are standalone — invoke them at any time, independent of the workflow. Within the workflow, `gap` and `migrate` are available as on-demand commands at pause prompts.
 
 ---
 
@@ -256,22 +256,27 @@ If anything blocks implementation — a QA scenario that's impossible to impleme
 
 Prompts you at logical commit points with a suggested commit message. Rebases from main and runs tests before committing. Also updates relevant docs (README, API docs, changelog) as part of each implementation step.
 
-**Produces:** `05-developer.md` — what was implemented, which tests drive each behaviour, terminal output summary
+**Produces:** `06-developer.md` — GREEN confirmation, skeleton replacements, test modifications, coverage matrix
 
 ---
 
-### `/sdet` — SDET (Phase 06, optional)
+### `/business-test-gen` — Business Test Gen (Phase 05a)
 
-Operationalises what QA defined into a working test suite and CI plan. SDET's first task is to cross-reference QA's scenarios against what Developer actually built — if critical scenarios are absent from the implementation, it raises a blocker rather than planning automation around the gap.
+Maps BA requirements + QA scenarios + Designer interfaces into structured, traceable business test case listings. Every test case traces to a BA requirement, a Designer interface method, and a QA scenario.
 
-- Automation vs manual split
-- Which runner/framework, where tests live
-- Manual test steps (numbered, with expected results)
-- CI and local run commands
+**Produces:** `04b-business-tests.md` — business test case tables (BT-xx IDs) with full traceability
 
-**Skip when:** the Developer phase already covers test automation sufficiently for the change.
+---
 
-**Produces:** `06-sdet.md` — test plan, automation details, manual steps, CI/local run instructions
+### `/sdet` — SDET / RED Phase (Phase 05b)
+
+Translates business test cases into actual compilable test code. Writes ALL unit tests and integration tests, creates minimal skeleton production classes (empty stubs for compilation), and confirms RED state — tests compile but FAIL.
+
+- Writes UTs + ITs based on `04b-business-tests.md`
+- Creates skeleton classes in `src/main` (no business logic)
+- Confirms RED: `mvn compile` PASS, `mvn test` FAIL
+
+**Produces:** `05-sdet.md` — test plan, RED confirmation, skeleton inventory. Plus actual test Java files and skeleton classes.
 
 ---
 
@@ -382,30 +387,6 @@ Analyses migration needs — primarily database schema, secondarily framework/pa
 
 ---
 
-### `/coordinate` — Epic Coordinator (Pipeline-Integrated + Standalone)
-
-Manages cross-epic coordination when multiple developers work on different epics from the same BRD. Auto-invoked by `feature-pipeline` at 4 checkpoints when multi-epic mode is enabled. Also used by `epic-decomposer` for registry publishing.
-
-**Four checkpoints:**
-1. **`registry-scan`** (post-Phase 1) — scan registry for shared modules, check intents, prompt claims, inject constraints
-2. **`interface-check`** (post-Phase 6) — cross-reference HLD against registry, block duplicates, publish interfaces
-3. **`final-sync`** (pre-Phase 9) — sync dependency statuses, swap mocks for real code, detect collisions
-4. **`duplication-check`** (post-Phase 11) — scan for accidental overlap, update module status
-
-**Key features:**
-- Shared modules registry (GitHub repo) as source of truth
-- Module claims via atomic `git push` / PR
-- Thrift IDL compatibility checking
-- Staleness detection (7d warn / 14d issue / 30d auto-release)
-- Handoff briefings on module re-claim
-- Graduated severity: BLOCK / WARN / INFO / AUTO-FIX
-
-**Related agents:**
-- `epic-decomposer` — architect runs once to identify shared modules and publish epic packages
-- `epic-coordinator` — agent wrapper that invokes this skill at each checkpoint
-
----
-
 ### `/debug` — Debugger (Standalone)
 
 Invoke any time — not part of the linear flow. Works evidence-first:
@@ -459,10 +440,11 @@ docs/workflow/TICKET-123/
 ├── 02-analyst.md           ← impact map, risks  (optional)
 ├── 03-designer.md          ← interfaces, contracts
 ├── 04-qa.md                ← test scenarios, edge cases
-├── 05-developer.md         ← implementation summary
-├── 05b-gap-analyser.md     ← architecture-code scorecard + ArchUnit rules  (on-demand)
-├── 05c-migrator.md         ← migration analysis report  (on-demand, or 01b after Architect)
-├── 06-sdet.md              ← test plan, CI instructions  (optional)
+├── 04b-business-tests.md   ← business test case listings with traceability
+├── 05-sdet.md              ← test plan, RED confirmation, skeleton inventory
+├── 06-developer.md         ← GREEN confirmation, implementation summary
+├── 06b-gap-analysis.md     ← architecture-code scorecard + ArchUnit rules  (Phase 10c)
+├── 06c-migration-validation.md ← migration validation report  (Phase 10d, if migrations exist)
 └── 07-reviewer.md          ← review findings, blockers
 
 docs/product/

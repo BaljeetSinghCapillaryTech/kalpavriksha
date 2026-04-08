@@ -183,9 +183,10 @@ Completed phases:
 ✅ [2] Analyst         → 02-analyst.md                 (artifacts only)
 ✅ [3] Designer        → 03-designer.md                (artifacts only)
 ✅ [4] QA              → 04-qa.md                      (artifacts only)
-✅ [5] Developer       → 05-developer.md + CODE CHANGES (<N> files)
-🔄 [6] SDET           → (in progress / partial)
-⬜ [7] Reviewer        → (pending)
+✅ [5] Business Test Gen → 04b-business-tests.md          (artifacts only)
+✅ [6] SDET (RED)      → 05-sdet.md + TEST CODE           (<N> test files)
+✅ [7] Developer (GREEN) → 06-developer.md + PROD CODE    (<N> files)
+⬜ [8] Reviewer        → (pending)
 
 Revert to which phase? (enter 0-6, or 'cancel'):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -212,10 +213,11 @@ This will discard everything AFTER Designer:
 
   ARTIFACTS to delete:
     • <path>/04-qa.md
-    • <path>/05-developer.md
-    • <path>/06-sdet.md
+    • <path>/04b-business-tests.md
+    • <path>/05-sdet.md
+    • <path>/06-developer.md
 
-  CODE CHANGES to revert (from Developer/SDET phases):
+  CODE CHANGES to revert (from SDET/Developer phases):
     • src/.../TierServiceImpl.java           (modified)
     • src/.../TierController.java            (modified)
     • src/.../TierBenefit.java               (new file)
@@ -252,16 +254,16 @@ Enter choice (A/B/C/D):
 git reset --hard aidlc/<ticket-id>/phase-<NN>
 
 # Delete artifact files after target phase
-rm <artifacts-path>/04-qa.md <artifacts-path>/05-developer.md ...
+rm <artifacts-path>/04-qa.md <artifacts-path>/04b-business-tests.md <artifacts-path>/05-sdet.md <artifacts-path>/06-developer.md ...
 
 # Clean session memory (programmatic: remove entries tagged with later phases)
-# Edit session-memory.md to remove QA/Developer/SDET/Reviewer entries
+# Edit session-memory.md to remove QA/Business Test Gen/SDET/Developer/Reviewer entries
 ```
 
 **Option B — Artifacts only:**
 ```bash
 # Delete artifact files after target phase
-rm <artifacts-path>/04-qa.md <artifacts-path>/05-developer.md ...
+rm <artifacts-path>/04-qa.md <artifacts-path>/04b-business-tests.md <artifacts-path>/05-sdet.md <artifacts-path>/06-developer.md ...
 
 # Clean session memory entries from later phases
 # Keep all code files untouched
@@ -280,8 +282,8 @@ rm <artifacts-path>/04-qa.md <artifacts-path>/05-developer.md ...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ Reverted to Designer (Phase 3)
    Git restored to: aidlc/<ticket-id>/phase-03
-   Artifacts cleaned: 04-qa.md, 05-developer.md, 06-sdet.md removed
-   Session memory: QA/Developer/SDET entries removed
+   Artifacts cleaned: 04-qa.md, 04b-business-tests.md, 05-sdet.md, 06-developer.md removed
+   Session memory: QA/Business Test Gen/SDET/Developer entries removed
 
 What next?
   [1] Continue workflow from QA (Phase 4)

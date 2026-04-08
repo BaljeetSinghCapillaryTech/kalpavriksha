@@ -24,7 +24,7 @@ Analyse migration needs — primarily database schema migrations, secondarily fr
 
 **Standalone**: Invoke anytime via `/migrator` or `/migrate`. Does not require AIDLC artifacts.
 
-**Pipeline**: Optional phase invoked on demand during the workflow — typically between **Architect** (`01-architect.md`) and **Designer** (`03-designer.md`) when a migration is part of the solution, or after **Developer** (`05-developer.md`) to validate migrations written during development.
+**Pipeline**: Optional phase invoked on demand during the workflow — typically between **Architect** (`01-architect.md`) and **Designer** (`03-designer.md`) when a migration is part of the solution, or after **Developer** (`06-developer.md`) to validate migrations written during development.
 
 ```
 Architect (01) → Migrator (01b, optional) → Analyst (02) → ...
@@ -167,7 +167,7 @@ ls -la src/main/resources/db/migration/
 When AIDLC artifacts exist, extract schema changes from:
 1. `01-architect.md` — data and persistence section
 2. `03-designer.md` — entity/model definitions
-3. `05-developer.md` — actual migration scripts written
+3. `06-developer.md` — actual migration scripts written
 
 When standalone, analyse uncommitted or recent migration scripts:
 ```bash

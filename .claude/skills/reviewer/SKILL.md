@@ -17,7 +17,7 @@ Read `.claude/principles.md` at phase start. Apply throughout:
 When invoked, adopt only this persona. Do not implement fixes or add features.
 
 ## Lifecycle Position
-Runs after **Developer** (`05-developer.md`) and **SDET** (`06-sdet.md`). Final phase before merge.
+Runs after **Developer** (`06-developer.md`). Final phase before merge. Developer has achieved GREEN (all tests pass). Reviewer verifies correctness, traceability, and quality.
 
 ## Guardrails
 
@@ -69,7 +69,7 @@ Run these in order. Stop at the first failure:
 ```bash
 mvn compile -pl <module> -am -q 2>&1
 ```
-- If the module is unclear, check `05-developer.md` for which module was changed, or use `git diff --name-only` to identify changed modules.
+- If the module is unclear, check `06-developer.md` for which module was changed, or use `git diff --name-only` to identify changed modules.
 
 **2. Unit Tests**
 ```bash
@@ -238,13 +238,27 @@ For each artifact, verify that it addresses the requirements relevant to its pha
 - Are edge cases and negative scenarios from BA scope covered?
 - Are non-functional test scenarios present (if BA defined NFRs)?
 
-**`05-developer.md` (Developer)**
-- Does the implementation summary cover all designed interfaces from `03-designer.md`?
-- Are all QA scenarios from `04-qa.md` testable against the implementation?
+**`04b-business-tests.md` (Business Test Gen)**
+- Is there a business test case for every acceptance criterion in `00-ba.md`?
+- Does every business test case trace to a Designer interface method?
+- Are compliance test cases present for ADRs and guardrails?
 
-**`06-sdet.md` (SDET)** _(skip if phase was skipped)_
-- Does the test implementation cover the QA plan from `04-qa.md`?
+**`05-sdet.md` (SDET — RED phase)**
+- Does the test code cover all business test cases from `04b-business-tests.md`?
+- Was RED state confirmed (tests compile but fail)?
 - Are integration/E2E tests present for cross-cutting requirements?
+
+**`06-developer.md` (Developer — GREEN phase)**
+- Does the implementation summary cover all designed interfaces from `03-designer.md`?
+- Was GREEN state achieved (all tests pass)?
+- Were any tests modified by Developer? If so, are modifications justified?
+
+**`ui-requirements.md` (UI Design)** _(if exists)_
+- Every UI screen has a backing API endpoint
+- API response fields cover all UI display fields
+- API request fields match all UI form inputs
+- UI user flows are supported by API operations
+- Flag screens with no backing endpoint as gaps
 
 ### 1c: Build the Traceability Matrix
 
@@ -253,11 +267,13 @@ Produce a **Requirements Traceability Matrix** in `07-reviewer.md`:
 ```markdown
 ## Requirements Traceability Matrix
 
-| ID | Requirement (from BA/BRD) | Architect | Analyst | Designer | QA | Developer | SDET | Status |
-|----|---------------------------|-----------|---------|----------|----|-----------|------|--------|
-| REQ-01 | [requirement summary] | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
-| REQ-02 | [requirement summary] | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | FAIL → Designer |
-| REQ-03 | [requirement summary] | ✅ | N/A | ✅ | ❌ | ✅ | N/A | FAIL → QA |
+| ID | Requirement (from BA/BRD) | Architect | Analyst | Designer | QA | Biz Tests | SDET (RED) | Developer (GREEN) | UI Match | Status |
+|----|---------------------------|-----------|---------|----------|----|-----------|------------|-------------------|----------|--------|
+| REQ-01 | [requirement summary] | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
+| REQ-02 | [requirement summary] | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | FAIL → Designer |
+| REQ-03 | [requirement summary] | ✅ | N/A | ✅ | ❌ | ❌ | N/A | ✅ | N/A | FAIL → QA |
+
+> **UI Match column**: Only populated if `ui-requirements.md` exists. ✅ = UI screen/flow maps to this requirement's implementation. ❌ = UI expects this but API doesn't serve it. N/A = no UI relevance.
 ```
 
 **Status rules:**

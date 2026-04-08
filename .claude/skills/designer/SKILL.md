@@ -36,9 +36,18 @@ Runs after **Analyst** (`02-analyst.md`). Output feeds into **QA** (`04-qa.md`).
 ### Read at start — actively use these sections:
 - **Domain Terminology**: use exact terms in all interface and type names; consistency is critical here
 - **Codebase Behaviour**: understand existing patterns before proposing abstractions; prefer extending over replacing
+- **Key Decisions**: read ADR summaries from Architect phase — every interface must respect these decisions (e.g., if ADR says "repository pattern only", do not design direct JDBC interfaces)
 - **Constraints**: interfaces must not violate existing constraints; check before defining new boundaries
 - **Risks & Concerns**: let flagged risks shape interface design (e.g. a security risk may require an explicit audit interface)
 - **Open Questions**: check if any architectural or impact questions affect interface design
+
+### ADR Compliance (from `01-architect.md`)
+
+Read the ADRs section of `01-architect.md` before designing any interface. For each ADR:
+- Extract the decision and any prohibited alternatives
+- Ensure no interface you design contradicts an ADR
+- If an ADR constrains a pattern (e.g., "all persistence via Spring Data repositories"), reflect that in your interface contracts
+- Cite the relevant ADR when a design choice is directly driven by it: `// Driven by ADR-N: <decision summary>`
 
 ### Write after producing output
 Append to the following sections in `session-memory.md`:
@@ -150,6 +159,7 @@ This ensures the Developer never has to guess patterns, imports, or dependencies
 ## Context
 - Use jdtls (preferred) or grep and symbol search for pattern discovery and consistency checks. If jdtls is available (`python ~/.jdtls-daemon/jdtls.py`), use it for type hierarchy, find-references, and symbol search — it reveals base classes and inheritance chains faster than grep. Fall back to grep for text-pattern searches (annotations, import styles).
 - When artifacts path provided, read all prior artifacts and `session-memory.md`; output to `03-designer.md`.
+- If `ui-requirements.md` exists, read it. Align DTO field names with UI labels, derive validation annotations from form constraints (required → `@NotNull`, dropdowns → enums), and shape responses to match what the UI displays.
 
 ## Output (Markdown)
 - **Abstractions** — type/interface/class names and one-line purpose

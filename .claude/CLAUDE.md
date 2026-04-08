@@ -11,6 +11,21 @@ This is a **Java backend loyalty platform** (Capillary). The codebase spans mult
 
 Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito.
 
+## Architectural Decisions (Standing — Project-Level)
+
+Standing architectural decisions are long-lived choices that apply across all features, epics, and pipeline runs. They predate any single BRD — they are the "Why" of the project.
+
+Per-feature ADRs are produced during pipeline Phase 6 (`/architect`) and live in `01-architect.md`. Standing decisions live here and are checked before any per-feature ADR is created.
+
+| # | Decision | Rationale |
+|---|---|---|
+| A-01 | *Example: Inter-service protocol choice* | *Why this protocol over alternatives* |
+| A-02 | *Example: Data mutation workflow* | *Why this approval flow exists* |
+
+> **How to maintain**: Add a row when a project-level architectural choice is made. These are not feature-specific — they apply to every pipeline run. When `/architect` proposes something that contradicts a standing decision, it must get explicit user approval and document a new ADR explaining the deviation.
+>
+> **Pipeline integration**: The `/architect` skill reads this section before proposing any architecture. The `/analyst --compliance` skill checks implementation against both standing decisions and per-feature ADRs.
+
 ## Feature Pipeline
 
 This repo includes a **feature-pipeline agent** (`.claude/agents/feature-pipeline.md`) that automates BRD-to-production in 13 phases. To use it:
@@ -25,42 +40,31 @@ claude --agent feature-pipeline
 |-------|---------|-------|
 | `/ba` | Business analysis + PRD generation (merged) | 1 |
 | `/architect` | HLD, ADRs, pattern evaluation | 6 |
-| `/analyst` | Impact analysis (`--impact`) + compliance checking (`--compliance`) | 6a, 9c |
+| `/analyst` | Impact analysis (`--impact`) + compliance checking (`--compliance`) | 6a, 10c |
 | `/designer` | LLD, interface contracts, compile-safe signatures | 7 |
 | `/qa` | Test scenarios, edge cases, acceptance criteria | 8 |
-| `/developer` | TDD implementation (Chicago/Detroit school) | 9 |
-| `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 9b |
+| `/business-test-gen` | Business test case listings with full traceability (BA → Designer → QA) | 8b |
+| `/sdet` | Test code implementation — RED phase (writes all UTs + ITs, confirms RED) | 9 |
+| `/developer` | Production code implementation — GREEN phase (makes tests pass, refactors) | 10 |
+| `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 10b |
 | `/cross-repo-tracer` | Multi-repo write/read path tracing | 5 |
-| `/sdet` | Test automation planning | 10 |
 | `/reviewer` | Code review against requirements | 11 |
 | `/productex` | Product knowledge base, BRD review | 1 (parallel) |
-| `/migrator` | Schema migration analysis | 6b, 9d |
+| `/migrator` | Schema migration analysis | 6b, 10d |
 | `/debug` | Root cause analysis (standalone) | on-demand |
 | `/tutor` | Codebase teaching (standalone, read-only) | on-demand |
-| `/api-handoff` | API contract doc for UI team | after 7 or 9 |
-| `/coordinate` | Multi-epic coordination — registry scan, claims, health validation, handoff briefings | post-1, post-6, pre-9, post-11 |
+| `/api-handoff` | API contract doc for UI team | after 7 or 10 |
+| `/code-review` | Java Spring Boot best-practices review (standalone or pipeline add-on) | after Phase 11 (optional) |
+| `/confluence-publisher` | Publish artifacts to Confluence (configurable per product) | after every phase |
 
 **Deprecated** (kept for reference): `/prd-generator` (merged into `/ba`), `/gap-analyser` (merged into `/analyst --compliance`)
-
-### Multi-Epic Coordination Agents
-
-For BRDs with multiple epics assigned to different developers, two additional agents coordinate shared modules:
-
-| Agent | Purpose | How to use |
-|-------|---------|------------|
-| `epic-decomposer` | Architect-led BRD decomposition. Identifies shared modules, designs interfaces, assigns ownership, generates per-epic packages. | `feature-pipeline` Mode [5] (recommended) or `claude --agent epic-decomposer` |
-| `epic-coordinator` | Registry scan, claim management, conflict detection, health validation, mid-phase watch, rework cascade. | Auto-invoked by `feature-pipeline` at 6 checkpoints (not run standalone) |
-
-**Everything runs through `feature-pipeline`** — Mode [5] for decomposition, Modes [1-4] for development. The coordinator runs automatically at 6 points: post-Phase 1, post-Phase 6, pre-Phase 9, during Phase 9 (background watch), post-Phase 11, and on Phase 6 rework.
-
-These agents use a **shared-modules-registry** (a dedicated GitHub repo) as the coordination layer. See the [design spec](docs/superpowers/specs/2026-04-08-multi-developer-epic-coordination-design.md) for full details.
 
 ### Pipeline Rules
 - **Session memory** (`session-memory.md`) is the shared context across all phases. Updated incrementally after every decision — never batch at phase end.
 - **Live dashboard** (`live-dashboard.html`) is an HTML file that updates after every phase. Dark theme, sidebar nav, Mermaid diagrams, Q&A history, API contracts.
 - **Cross-repo claims** of "0 modifications needed" require C6+ evidence from reading actual code. The `/cross-repo-tracer` skill enforces this.
 - **Mermaid diagrams** in `.md` files use fenced code blocks (` ```mermaid `). HTML `<div class="mermaid">` is only for the live dashboard and blueprint.
-- **Git snapshots** after every phase: `raidlc/<ticket>/phase-NN` tags.
+- **Git snapshots** after every phase: `aidlc/<ticket>/phase-NN` tags.
 - **No file copying** — read BRD, code repos, UI screenshots from original locations. Only extract text to `brd-raw.md` for binary formats (PDF/DOCX).
 
 ### Superpowers Plugin (required)
@@ -78,10 +82,6 @@ Key superpowers used: `brainstorming`, `writing-plans`, `executing-plans`, `test
 2. Install Superpowers: `claude install-plugin superpowers`
 3. (Optional) Start jdtls for LSP-based code traversal
 4. Run: `claude --agent feature-pipeline`
-5. (Multi-epic) If working on a BRD with other developers:
-   - Architect runs `claude --agent feature-pipeline` → Mode [5] Decompose (once)
-   - Each developer runs `claude --agent feature-pipeline` → Mode [1] and selects `[Yes]` for multi-epic coordination
-   - The pipeline auto-coordinates via the shared-modules-registry (background watch during Phase 9, rework cascade on Phase 6 re-runs)
 
 ## Engineering Rules
 

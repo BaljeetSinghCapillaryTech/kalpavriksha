@@ -17,7 +17,7 @@ Detect drift between **what was designed** and **what was built**. Produce an ac
 
 **Standalone**: Invoke anytime via `/gap-analyser` or `/gap`. Does not require AIDLC artifacts.
 
-**Pipeline**: Optional phase that runs after **Developer** (`05-developer.md`) and before **SDET** (`06-sdet.md`). When running in the pipeline, the orchestrator inserts it as Phase 05b.
+**Pipeline**: DEPRECATED — merged into `/analyst --compliance` (Phase 10c). Previously ran after Developer (`06-developer.md`) and before Reviewer.
 
 ```
 ... → Developer (05) → Gap Analyser (05b, optional) → SDET (06, optional) → Reviewer (07)

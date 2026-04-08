@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Orchestrates the full multi-phase development workflow. Runs BA → Architect → Analyst (optional) → Designer → QA → Developer → SDET (optional) → Reviewer in sequence, pausing between phases for approval. Use when user says /workflow.
+description: Phase execution protocols for the AIDLC pipeline — subagent templates, session memory template, pause/approval rules, git snapshots, rework cascades. Referenced by the feature-pipeline agent during phase execution. Use ONLY when user explicitly types /workflow for a standalone run. Do NOT auto-invoke when running as the feature-pipeline agent.
 ---
 
 ## Reasoning Principles
@@ -87,20 +87,29 @@ BA (00) → Architect (01) → Analyst (02, optional) → Designer (03) → QA (
 
 ## Step -1: Initialise LSP (jdtls)
 
-Before anything else, spawn the `lsp-init` subagent to ensure the jdtls daemon is running for the project root.
+Before anything else, ensure the jdtls daemon is running for the project root.
 
 **Derive the project root**: use the artifacts path to infer the repo root (e.g. if artifacts path is `docs/workflow/TICKET-123/`, the project root is likely the repo root where that path lives — confirm with the user if ambiguous).
 
-Spawn the `lsp-init` subagent:
-```
-subagent: lsp-init
-input: project_root = <derived project root>
+```bash
+# 1. Check current daemon status
+python3 ~/.jdtls-daemon/jdtls.py status
+
+# 2. If project shows "(unresponsive)" — daemon died but stale files remain.
+#    Clean up and restart:
+rm -f ~/.jdtls-daemon/<project-name>/jdtls.pid ~/.jdtls-daemon/<project-name>/jdtls.sock
+python3 ~/.jdtls-daemon/jdtls.py start <project_root>
+
+# 3. If no daemon exists for this project — start fresh:
+python3 ~/.jdtls-daemon/jdtls.py start <project_root>
+
+# 4. Wait up to 60s, then verify:
+python3 ~/.jdtls-daemon/jdtls.py status
+# Project name without "(unresponsive)" = ready
 ```
 
-Wait for the subagent to return `LSP_STATUS: ready | unavailable`.
-
-- If `ready`: all subsequent analytical subagents (Architect, Analyst, Designer, QA, SDET, Reviewer) can use `python ~/.jdtls-daemon/jdtls.py` commands for code traversal.
-- If `unavailable`: all phases fall back to grep/file reads for code traversal. Note this in session memory under Constraints: `- LSP unavailable: using grep/file reads for code traversal _(workflow)_`
+- If `ready`: all subsequent analytical subagents (Architect, Analyst, Designer, QA, SDET, Reviewer) can use `python3 ~/.jdtls-daemon/jdtls.py` commands for code traversal.
+- If start fails (jdtls binary not found, Java missing): tell user "jdtls could not start: <error>. Install via `brew install jdtls`. Falling back to grep/file reads." Note in session memory: `- LSP unavailable: using grep/file reads for code traversal _(workflow)_`
 
 Do not proceed to Step 0 until LSP status is known.
 
@@ -317,11 +326,32 @@ Create lightweight git tags after each phase to enable safe revert. This is crit
 
 ### At Workflow Start
 
-Create a dedicated branch from current HEAD:
+Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` → `TICKET-123`).
+
+**Run git setup for every code repo** (including current working directory). For each repo:
 ```bash
+cd <repo-path>
+# 1. Check for uncommitted changes
+git status --porcelain
+# → If dirty: warn user. Ask: stash / commit / abort.
+
+# 2. Detect default branch
+git branch -l main master
+# → Both exist: ask user which to use. One: use it. Neither: ask user.
+
+# 3. Checkout default branch and pull latest
+git checkout <default-branch>
+git fetch origin && git pull origin <default-branch>
+
+# 4. Create feature branch (or checkout if resuming)
 git checkout -b aidlc/<ticket-id>
+# → If branch already exists: git checkout aidlc/<ticket-id>
 ```
-Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` → `TICKET-123`). If the branch already exists (resuming), check it out without creating.
+
+Record per-repo branch info in session memory under **Constraints**:
+```
+- Git branches: <repo-name> → aidlc/<ticket-id> (from <default-branch>) _(workflow)_
+```
 
 ### After Each Phase Completes
 
@@ -342,6 +372,9 @@ Derive `<ticket-id>` from the artifacts path (e.g., `docs/workflow/TICKET-123/` 
    git tag -f aidlc/<ticket-id>/phase-<NN>
    ```
    Where NN = 00 (BA), 01 (Architect), 02 (Analyst), 03 (Designer), 04 (QA), 05 (Developer), 06 (SDET), 07 (Reviewer).
+
+4. **Publish to Confluence:**
+   Invoke `/confluence-publisher` (Step 2) with all `.md`, `.html`, `.yml`, and `.yaml` artifacts from this phase. Skip if `confluence` is not configured in pipeline-state.json.
 
 ---
 
@@ -410,8 +443,8 @@ When the user types `gap` at any pause prompt (typically after Developer or SDET
        Session memory: <artifacts-path>/session-memory.md
        Follow the gap-analyser skill exactly as defined in .claude/skills/gap-analyser/SKILL.md.
        Read the skill file first, then execute all steps.
-       Read all AIDLC artifacts (01-architect.md, 02-analyst.md, 03-designer.md, 05-developer.md) as intent sources.
-       Write output to <artifacts-path>/05b-gap-analyser.md
+       Read all AIDLC artifacts (01-architect.md, 02-analyst.md, 03-designer.md, 06-developer.md) as intent sources.
+       Write output to <artifacts-path>/06b-gap-analysis.md
        Generate ArchUnit test classes if the dependency exists.
        Update session-memory.md with findings.
        Return the structured summary in the PHASE/STATUS/ARTIFACT format.
@@ -784,9 +817,10 @@ Completed phases:
 ✅ [2] Analyst         → 02-analyst.md                 (artifacts only)
 ✅ [3] Designer        → 03-designer.md                (artifacts only)
 ✅ [4] QA              → 04-qa.md                      (artifacts only)
-✅ [5] Developer       → 05-developer.md + CODE CHANGES (N files)
-⬜ [6] SDET            → (pending)
-⬜ [7] Reviewer        → (pending)
+✅ [5] Business Test Gen → 04b-business-tests.md          (artifacts only)
+✅ [6] SDET (RED)      → 05-sdet.md + TEST CODE           (N test files)
+✅ [7] Developer (GREEN) → 06-developer.md + PROD CODE    (N files)
+⬜ [8] Reviewer        → (pending)
 
 Revert to which phase? (enter 0-5, or 'cancel'):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -810,9 +844,11 @@ This will discard everything AFTER Designer:
 
   ARTIFACTS to delete:
     • [path]/04-qa.md
-    • [path]/05-developer.md
+    • [path]/04b-business-tests.md
+    • [path]/05-sdet.md
+    • [path]/06-developer.md
 
-  CODE CHANGES to revert (from Developer phase):
+  CODE CHANGES to revert (from SDET + Developer phases):
     • src/.../TierServiceImpl.java           (modified)
     • src/.../TierController.java            (modified)
     • src/.../TierBenefit.java               (new file)
@@ -848,7 +884,7 @@ Then programmatically clean session-memory.md: remove all entries tagged with ph
 
 **Option B — Artifacts only:**
 ```bash
-rm <artifacts-path>/04-qa.md <artifacts-path>/05-developer.md ...
+rm <artifacts-path>/04-qa.md <artifacts-path>/04b-business-tests.md <artifacts-path>/05-sdet.md <artifacts-path>/06-developer.md ...
 ```
 Clean session-memory.md the same way. Code files are left untouched. Add to Rework Log: `- Revert to [Phase N] — artifacts only — requested by user — [timestamp]`
 
@@ -885,7 +921,7 @@ Wait for user choice, then proceed accordingly.
 ## Optional Phases
 
 - **Analyst** (`02-analyst.md`): Skipped if `skip:analyst` provided. If skipped, Designer proceeds using only Architect output.
-- **SDET** (`06-sdet.md`): Skipped if `skip:sdet` provided. If skipped, Reviewer proceeds using Developer output directly.
+- **SDET** (`05-sdet.md`): Skipped if `skip:sdet` provided. If skipped, Developer writes tests and production code together (no RED/GREEN separation).
 
 ## On-Demand Phases (invoked via commands at pause prompts)
 
@@ -903,8 +939,9 @@ Wait for user choice, then proceed accordingly.
 | Analyst | `02-analyst.md` | Codebase Behaviour, Risks & Concerns, Constraints, Open Questions |
 | Designer | `03-designer.md` | Key Decisions, Constraints, Open Questions |
 | QA | `04-qa.md` | Risks & Concerns, Open Questions |
-| Developer | `05-developer.md` | Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns |
-| SDET | `06-sdet.md` | Constraints, Open Questions |
+| Business Test Gen | `04b-business-tests.md` | Key Decisions, Constraints, Open Questions |
+| SDET (RED) | `05-sdet.md` | Constraints, Open Questions |
+| Developer (GREEN) | `06-developer.md` | Codebase Behaviour, Key Decisions, Constraints, Risks & Concerns |
 | Reviewer | `07-reviewer.md` | Risks & Concerns, Open Questions, Key Decisions |
 | Gap Analyser (on-demand) | `05b-gap-analyser.md` | Risks & Concerns, Codebase Behaviour, Open Questions |
 | Migrator (on-demand) | `01b-migrator.md` or `05c-migrator.md` | Key Decisions, Risks & Concerns, Constraints, Open Questions |
