@@ -1,0 +1,42 @@
+name: supplementary-partner-program
+owner: anuj
+layer: 2
+status: not-started
+
+description: >
+  Supplementary Partner Program Tiers -- UI-facing config APIs for
+  supplementary partner program tier management. Extends existing
+  PartnerProgram/PartnerProgramSlab with maker-checker and audit integration.
+  NOTE: No dedicated BRD exists. Anuj (Tech Lead) will define scope during
+  BA phase based on existing codebase patterns and product knowledge.
+
+builds_shared: []
+
+consumes_shared:
+  - maker-checker-framework
+  - audit-trail-framework
+
+brd_source: none
+brd_note: >
+  No dedicated BRD. Scope to be defined by Anuj during BA phase.
+  Pattern: mirror Tier Category CRUD patterns for partner program tiers.
+
+repos_affected:
+  - emf-parent/pointsengine-emf (core: extend PartnerProgram CRUD)
+  - intouch-api-v3 (API: partner program tier controller -- currently no endpoints exist here)
+  - Thrift/thrift-ifaces-emf (IDL: PartnerProgramTierUpdateInfo already exists)
+
+existing_codebase:
+  - PartnerProgramImpl.java -- implements PartnerProgram interface, handles SUPPLEMENTARY type
+  - PartnerProgramSlabImpl.java -- tier within a partner program (id, serialNumber, name)
+  - PartnerProgramType.SUPPLEMENTARY -- enum value exists
+  - Thrift events: partnerProgramLinkingEvent, partnerProgramUpdateEvent, partnerProgramDeLinkingEvent
+  - PartnerProgramTierUpdateInfo struct in emf.thrift
+  - PartnerProgramCycle -- membership cycle for supplementary programs
+  - No REST API endpoints in intouch-api-v3 for partner program tiers (Thrift only)
+
+acceptance_criteria:
+  - CRUD REST APIs for supplementary partner program tier config
+  - Maker-checker integration (config changes go through approval)
+  - Audit trail integration (changes recorded)
+  - Consistent with Tier Category patterns

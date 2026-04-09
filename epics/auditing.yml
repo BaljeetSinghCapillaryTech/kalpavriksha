@@ -1,0 +1,35 @@
+name: auditing
+owner: anuj
+layer: 1
+status: not-started
+
+description: >
+  Build the entity-agnostic Audit Trail Framework as a shared module,
+  plus the change log listing REST API and CSV/PDF export.
+
+builds_shared:
+  - audit-trail-framework
+
+consumes_shared: []
+
+brd_source: brd-tiers-benefits.md
+brd_sections:
+  - "E1-US5: Change Log"
+
+user_stories:
+  - "As Priya, I want to see a complete history of every change made to tier/benefit config"
+  - "Change log shows who made the change, when, and what it replaced"
+  - "Filterable by date range, actor, field, approval status"
+  - "Export: CSV or PDF for audit/reporting"
+
+repos_affected:
+  - emf-parent/pointsengine-emf (core: entity, service, DAO)
+  - intouch-api-v3 (API: change log controller, export endpoints)
+
+acceptance_criteria:
+  - ConfigAuditService.record() captures full old/new state as JSON
+  - getHistory returns audit trail for a specific entity, sorted by date DESC
+  - listChanges returns paginated audit across all entities of a type
+  - Filtering by date range, actor, field, change source all work
+  - exportCsv produces valid CSV with all audit fields
+  - Integration with MakerCheckerService works (audit records auto-created on approve)

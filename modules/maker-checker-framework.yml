@@ -1,0 +1,48 @@
+name: maker-checker-framework
+description: >
+  Generic entity-agnostic approval workflow framework. Provides config state machine
+  (DRAFT -> PENDING_APPROVAL -> ACTIVE -> STOPPED), approval queue, submit/approve/reject/
+  request-changes actions, and entity diff generation for approval views.
+  Extends existing StatusTransitionValidator pattern from intouch-api-v3.
+
+classification: shared-kernel
+status: designed
+
+owner: ritwik
+owner_epic: maker-checker
+
+consumed_by:
+  - tier-category
+  - tier-benefits
+  - supplementary-partner-program
+
+repos:
+  primary: emf-parent/pointsengine-emf
+  api_layer: intouch-api-v3
+  thrift: Thrift/thrift-ifaces-emf
+
+key_interfaces:
+  - MakerCheckerService (com.capillary.shopbook.points.services.makerchecker)
+  - PendingChange (com.capillary.shopbook.points.entity)
+  - ConfigEntityType (com.capillary.shopbook.points.entity)
+  - ConfigStatus (com.capillary.shopbook.points.entity)
+  - ApprovalAction (com.capillary.shopbook.points.entity)
+
+db_tables:
+  - pending_changes
+
+integration_points:
+  - Calls ConfigAuditService.record() on every APPROVE action
+  - Auto-captures previous_payload (old state) at submit time for diff generation
+
+existing_codebase_patterns:
+  - StatusTransitionValidator (intouch-api-v3) -- promotion-specific, to be generalized
+  - PromotionAction / PromotionStatus enums -- pattern reference, not reused
+  - UnifiedPromotionFacade -- orchestration pattern reference
+  - AuditDiffGenerator (intouch-api-v3) -- reused for diff generation
+
+build_order:
+  1: Thrift IDL (ConfigEntityType, ConfigStatus, ApprovalAction, PendingChangeRecord)
+  2: Core entities + state machine (pointsengine-emf)
+  3: MakerCheckerService implementation
+  4: REST API in intouch-api-v3 (approval queue controller)

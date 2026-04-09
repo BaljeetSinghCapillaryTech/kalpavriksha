@@ -1,0 +1,10 @@
+{
+  "epic": "maker-checker",
+  "owner": "ritwik",
+  "status": "not-started",
+  "layer": 1,
+  "builds": ["maker-checker-framework"],
+  "consumes": [],
+  "phases_completed": [],
+  "last_updated": "2026-04-09T00:00:00Z"
+}

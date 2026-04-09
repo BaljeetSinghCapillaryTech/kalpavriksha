@@ -1,0 +1,42 @@
+name: tier-category
+owner: ritwik
+layer: 2
+status: not-started
+
+description: >
+  Tier Intelligence -- complete revamp of tier listing, comparison matrix,
+  creation, editing. Extends existing ProgramSlab/TierConfiguration with
+  new UI-facing REST APIs. Consumes Maker-Checker and Audit Trail frameworks.
+
+builds_shared: []
+
+consumes_shared:
+  - maker-checker-framework
+  - audit-trail-framework
+
+brd_source: brd-tiers-benefits.md
+brd_sections:
+  - "E1-US1: Tier Listing with Comparison Matrix"
+  - "E1-US2: Tier Creation"
+  - "E1-US3: Tier Editing"
+
+user_stories:
+  - "As Maya, I want to see all tiers side by side in a comparative matrix"
+  - "As Maya, I want to create a new tier through a guided form or aiRa"
+  - "As Maya, I want inline editing for simple fields, aiRa for structural changes"
+  - "KPI header: total tiers, active tiers, total members, tiers pending approval"
+  - "Status badges: Active (green), Draft (grey), Pending Approval (amber), Stopped (red)"
+  - "On save with maker-checker enabled: creates Draft, submits to approval queue"
+
+repos_affected:
+  - emf-parent/pointsengine-emf (core: extend tier CRUD, new DTOs)
+  - intouch-api-v3 (API: tier listing/CRUD controller)
+  - Thrift/thrift-ifaces-emf (IDL: tier config structs if needed)
+
+acceptance_criteria:
+  - GET /tiers returns all tiers with full config, KPIs, linked benefits
+  - POST /tiers creates tier; with MC enabled, creates PendingChange
+  - PUT /tiers/{tierId} updates tier; with MC enabled, creates PendingChange
+  - Comparison matrix data includes all config dimensions from BRD
+  - Focus mode highlights single tier column
+  - Dirty state tracking for unsaved changes

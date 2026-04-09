@@ -1,0 +1,46 @@
+# Repo roles and build priorities for Tiers & Benefits multi-epic development
+repos:
+  emf-parent:
+    path: /Users/ritwikranjan/Desktop/Artificial Intelligence/emf-parent
+    role: Core business logic (entities, services, DAOs, strategies)
+    primary_module: pointsengine-emf
+    build_tool: maven
+    epics_touching:
+      - maker-checker (new: services/makerchecker/, entity/PendingChange)
+      - auditing (new: services/audit/, entity/ConfigAuditEntry)
+      - tier-category (extend: tier CRUD, new DTOs)
+      - tier-benefits (new: entity/benefits/, services/benefits/)
+      - supplementary-partner-program (extend: PartnerProgram config)
+      - simulation (new: simulation engine)
+
+  intouch-api-v3:
+    path: /Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3
+    role: REST API gateway, Spring MVC controllers
+    build_tool: maven
+    epics_touching:
+      - maker-checker (new: ApprovalQueueController)
+      - auditing (new: ChangeLogController)
+      - tier-category (new: TierController)
+      - tier-benefits (new: BenefitsController)
+      - supplementary-partner-program (new: PartnerProgramTierController)
+
+  peb:
+    path: /Users/ritwikranjan/Desktop/emf-parent/peb
+    role: Points Engine Backend -- tier downgrade calculators, bulk evaluation
+    build_tool: maven
+    epics_touching:
+      - simulation (read: member distribution, tier evaluation logic)
+
+  Thrift:
+    path: /Users/ritwikranjan/Desktop/emf-parent/Thrift
+    role: IDL definitions for cross-service RPC
+    build_tool: maven (thrift-ifaces modules)
+    epics_touching:
+      - maker-checker (new: config_management.thrift or additions to emf.thrift)
+      - supplementary-partner-program (extend: PartnerProgramTierUpdateInfo)
+
+  kalpavriksha:
+    path: /Users/ritwikranjan/Desktop/Artificial Intelligence/kalpavriksha
+    role: Pipeline orchestration, skills, agents, BRD, registry
+    build_tool: none (documentation + config)
+    epics_touching: []
