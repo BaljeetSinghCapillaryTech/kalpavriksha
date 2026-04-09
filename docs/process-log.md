@@ -85,3 +85,47 @@
 - ADR-worthy decisions: 4 (KD-07, KD-08, KD-10, KD-06)
 - Cross-repo changes: intouch-api-v3 (major), api/prototype (1 enum), others (none)
 - Open questions for Phase 4: 5
+
+### Phase 2: Critic + Gap Analysis
+- Time: 2026-04-09
+- Skills: principles.md (Critic/Devil's Advocate) + /analyst --compliance
+- Mode: Parallel analysis (Critic challenges claims, Analyst verifies against code)
+
+#### Critic Findings
+- 10 contradictions analyzed (C-1 through C-10)
+- 2 HIGH severity: missing Thrift client (C-1), confusion between program config vs enrollment events (C-5)
+- 4 MEDIUM severity: emf-parent claim overclaimed (C-2), file count undercounted (C-4), RequestManagementController return type (C-6), ARCHIVE state no precedent (C-7)
+- 4 LOW severity: confirmed claims (C-3, C-8, C-9, C-10)
+
+#### Gap Analysis Findings
+- 28 claims verified against actual source code
+- 22 CONFIRMED, 3 CONTRADICTED, 3 PARTIAL
+- Key contradictions:
+  - V-10: Thrift client for partner programs does NOT exist in intouch-api-v3 (EmfPromotionThriftService only wraps promotion events)
+  - V-19: RequestManagementController hardcoded to return UnifiedPromotion type
+  - V-28: Cross-repo file count undercounted (~15-20 new, ~5-6 modified vs BA's ~10-15 new, ~3-4 modified)
+
+#### Gaps Not in BA/PRD
+- GAP-1 [BLOCKER]: Partner program MySQL record creation path undefined
+- GAP-2 [WARNING]: PartnerProgramUpdateEvent is tier-specific only
+- GAP-3 [INFO]: StatusChangeRequest.promotionStatus field name
+- GAP-4 [WARNING]: RequestManagementController return type
+- GAP-5 [INFO]: @Profile("!test") on EmfMongoConfig
+- GAP-6 [WARNING]: Thrift PartnerProgramLinkingEventData requires storeUnitID
+
+#### Confidence Adjustments
+- emf-parent "0 modifications": C7 -> C5
+- intouch-api-v3 file count: C6 -> C5
+- "Call EMF Thrift directly" (KD-10): implicit C7 -> C5
+
+#### Artifacts Produced
+- contradictions.md (10 contradictions with evidence)
+- gap-analysis-brd.md (28 verified claims, 6 gaps, GUARDRAILS check)
+- session-memory.md updated (6 new codebase behaviours from Phase 2)
+
+#### Key Numbers
+- Claims verified: 28
+- Contradictions found: 10 (2 HIGH, 4 MEDIUM, 4 LOW)
+- Gaps discovered: 6 (1 BLOCKER, 3 WARNING, 2 INFO)
+- GUARDRAILS checked: 6 (5 PASS, 1 WARN)
+- Blockers for Phase 4: 2 (partner program MySQL creation, SCHEDULED stored vs derived)

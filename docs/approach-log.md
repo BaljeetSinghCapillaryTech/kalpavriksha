@@ -31,3 +31,18 @@
 | D-07 | How to represent benefit links in the subscription MongoDB document? Options: (a) embedded array with benefit snapshots, (b) separate subscription_benefits collection, (c) hybrid. | **None of the above.** Store only `benefitIds: ["id1", "id2"]` -- plain array of foreign key references. No embedded metadata, no snapshots, no separate collection. Benefits will be a first-class entity (future E2/E4 run) with own CRUD, maker-checker, audit trail, mappable to tiers/subscriptions/other entities. Dummy IDs used for this run. | User decision: benefits are NOT a subscription sub-entity. Clean separation of concerns. Future-proof for Benefits-as-a-Product epic. ADR-worthy (KD-08). |
 | D-08 | Include reminders and custom fields in this run? Options: (a) include both as config storage, (b) custom fields only, (c) defer both. | **(a) Include both** -- store reminder config (embedded array, max 5, daysBefore + channel) and custom field config (embedded object with meta/link/delink/pause/resume arrays of field IDs) in the MongoDB document. Config storage ONLY -- no reminder triggering, no custom field enforcement at enrollment. | Keeps API contract complete per BRD E3-US5. Trivial document fields. No external system integration needed for config storage. Triggering and enforcement are future enhancements. (KD-09) |
 | D-09 | Enrollment API boundary: delegate to existing v2 Thrift paths, or build new v3 APIs in intouch-api-v3, or proxy? | **New v3 APIs in intouch-api-v3 calling EMF Thrift directly** (not proxying api/prototype). api/prototype v2 linking APIs remain untouched for existing callers. v3 controller is the unified surface for subscription config + enrollment. MongoDB: config/lifecycle/maker-checker. MySQL (via Thrift): enrollment records/activation writes. | User decision: follows UnifiedPromotion pattern (v3 calls Thrift directly). Clean boundary: v3 = new surface, v2 = legacy. Enrollment data stays in MySQL because EMF owns it. (KD-10) |
+
+### Phase 2 (Critic + Gap Analysis)
+
+No user decisions in this phase -- this was an automated analysis pass. Key findings surfaced for Phase 4 resolution:
+
+| # | Finding | Severity | Phase 4 Action |
+|---|---------|----------|----------------|
+| F-01 | Missing Thrift client for partner program events in intouch-api-v3 | HIGH | Inform architecture -- new file needed |
+| F-02 | Partner program MySQL record creation path undefined | BLOCKER | Must resolve before design |
+| F-03 | PartnerProgramUpdateEvent is tier-specific only | WARNING | Clarify enrollment update scope |
+| F-04 | RequestManagementController hardcoded return type | MEDIUM | Inform architecture decision |
+| F-05 | StatusChangeRequest DTO is promotion-specific | MEDIUM | Inform design decision |
+| F-06 | Thrift enrollment data requires storeUnitID | WARNING | Must resolve before enrollment design |
+| F-07 | SCHEDULED stored vs derived status | MEDIUM | Must resolve before state machine design |
+| F-08 | Cross-repo file count undercounted | INFO | Update estimates |

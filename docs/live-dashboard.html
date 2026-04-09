@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subscription-CRUD Pipeline Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'dark'});</script>
+<style>
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1e2a4a;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --accent: #00d4ff;
+    --accent-dim: #00d4ff33;
+    --success: #00e676;
+    --warning: #ffab40;
+    --danger: #ff5252;
+    --pending: #666;
+    --border: #2a3a5e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+  }
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar h2 {
+    padding: 0 20px;
+    font-size: 14px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+  .sidebar .feature-name {
+    padding: 0 20px;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .sidebar .ticket {
+    padding: 0 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+  .sidebar-nav { list-style: none; }
+  .sidebar-nav li {
+    padding: 8px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  .sidebar-nav li:hover { background: var(--bg-card); }
+  .sidebar-nav li.complete { border-left-color: var(--success); }
+  .sidebar-nav li.active { border-left-color: var(--warning); background: var(--bg-card); }
+  .sidebar-nav li.pending { color: var(--pending); }
+  .sidebar-nav li .status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .sidebar-nav li.complete .status-dot { background: var(--success); }
+  .sidebar-nav li.active .status-dot { background: var(--warning); }
+  .sidebar-nav li.pending .status-dot { background: var(--pending); }
+  .sidebar-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border);
+  }
+  .sidebar-section h3 {
+    padding: 0 20px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  /* Main Content */
+  .main {
+    margin-left: 280px;
+    flex: 1;
+    padding: 30px 40px;
+    max-width: 1200px;
+  }
+  .header {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 28px; margin-bottom: 5px; }
+  .header .subtitle { color: var(--text-secondary); font-size: 14px; }
+  /* Progress Bar */
+  .progress-container {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+  }
+  .progress-bar {
+    height: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 15px;
+  }
+  .progress-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+  .progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .progress-stats .stat-value {
+    color: var(--accent);
+    font-weight: bold;
+  }
+  /* Phase Sections */
+  .phase-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 20px;
+  }
+  .phase-section h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .phase-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: normal;
+  }
+  .phase-badge.complete { background: var(--success); color: #000; }
+  .phase-badge.active { background: var(--warning); color: #000; }
+  .phase-badge.pending { background: var(--pending); color: #fff; }
+  .phase-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 15px;
+  }
+  .skill-tag {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+    margin-bottom: 10px;
+  }
+  /* Data Tables */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  .data-table th {
+    background: var(--bg-secondary);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table tr:hover td { background: var(--bg-secondary); }
+  /* Key Numbers */
+  .key-numbers {
+    display: flex;
+    gap: 20px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+  }
+  .key-number {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 15px 20px;
+    min-width: 120px;
+    text-align: center;
+  }
+  .key-number .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--accent);
+  }
+  .key-number .label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+  }
+  /* Validation Status */
+  .validation-ok { color: var(--success); }
+  .validation-warn { color: var(--warning); }
+  .validation-fail { color: var(--danger); }
+  /* Artifact List */
+  .artifact-list {
+    list-style: none;
+    margin-top: 10px;
+  }
+  .artifact-list li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 3px 0;
+  }
+  .artifact-list li::before {
+    content: ">> ";
+    color: var(--accent);
+  }
+  /* Mermaid */
+  .mermaid {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    text-align: center;
+  }
+  p { margin: 8px 0; font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <h2>Pipeline</h2>
+  <div class="feature-name">Subscription-CRUD</div>
+  <div class="ticket">aidlc/aidlc-demo-v2 | 2026-04-09</div>
+
+  <ul class="sidebar-nav">
+    <li class="complete" onclick="document.getElementById('phase-0').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 0: Input Collection
+    </li>
+    <li class="complete" onclick="document.getElementById('phase-1').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 1: BA + PRD
+    </li>
+    <li class="complete" onclick="document.getElementById('phase-2').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 2: Critic + Gap Analysis
+    </li>
+    <li class="active" onclick="document.getElementById('phase-3').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 3: UI Extraction
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-4').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 4: Blocker Resolution
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-5').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 5: Codebase Research
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-6').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 6: HLD (Architect)
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 6a: Impact Analysis
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 7: LLD (Designer)
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 8: QA
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-9').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 9: SDET (RED)
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-10').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 10: Developer (GREEN)
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-11').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 11: Reviewer
+    </li>
+    <li class="pending" onclick="document.getElementById('phase-12').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 12: Blueprint
+    </li>
+  </ul>
+
+  <div class="sidebar-section">
+    <h3>Quick Links</h3>
+    <ul class="sidebar-nav">
+      <li class="complete"><span class="status-dot"></span>BA Q&A</li>
+      <li class="pending"><span class="status-dot"></span>API Contracts</li>
+      <li class="pending"><span class="status-dot"></span>Architecture</li>
+      <li class="pending"><span class="status-dot"></span>Cross-Repo Map</li>
+      <li class="pending"><span class="status-dot"></span>LLD Diagrams</li>
+      <li class="pending"><span class="status-dot"></span>Implementation</li>
+      <li class="pending"><span class="status-dot"></span>Review Findings</li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+  <div class="header">
+    <h1>Subscription-CRUD Pipeline Dashboard</h1>
+    <div class="subtitle">Tiers & Benefits Configuration | aidlc/aidlc-demo-v2 | Started 2026-04-09</div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-container">
+    <div class="progress-bar">
+      <div class="fill" style="width: 17%;"></div>
+    </div>
+    <div class="progress-stats">
+      <span><span class="stat-value">3</span> / 14 phases complete</span>
+      <span><span class="stat-value">11</span> artifacts generated</span>
+      <span><span class="stat-value">10</span> decisions made</span>
+      <span><span class="stat-value">0</span> code files written</span>
+    </div>
+  </div>
+
+  <!-- Phase 0: Input Collection -->
+  <section class="phase-section" id="phase-0">
+    <h2>Phase 0: Input Collection <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">pipeline-orchestrator</span>
+
+    <p>Collected and validated all inputs. BRD is a 47-page PDF covering 4 epics across Tiers, Benefits, Subscriptions, and Benefit Categories. Four code repos validated. UI prototype on v0.app identified for later extraction.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">47</div><div class="label">BRD Pages</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Epics</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Code Repos</div></div>
+      <div class="key-number"><div class="value">7</div><div class="label">Open Questions</div></div>
+    </div>
+
+    <!-- Repo Validation -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Repo Validation</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Repo</th><th>Type</th><th>Status</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>emf-parent</td>
+          <td>Multi-module Maven</td>
+          <td class="validation-ok">Valid</td>
+          <td>pointsengine-emf, emf, dvs-emf, emf-ut, etc.</td>
+        </tr>
+        <tr>
+          <td>intouch-api-v3</td>
+          <td>Spring MVC API</td>
+          <td class="validation-ok">Valid</td>
+          <td>REST gateway with src/ directory</td>
+        </tr>
+        <tr>
+          <td>cc-stack-crm</td>
+          <td>DB Schema</td>
+          <td class="validation-ok">Valid</td>
+          <td>DB tables, indexes, infrastructure -- kept for schema reference</td>
+        </tr>
+        <tr>
+          <td>thrifts</td>
+          <td>Thrift IDL</td>
+          <td class="validation-ok">Valid</td>
+          <td>thrift-ifaces-emf, thrift-ifaces-peb, thrift-ifaces-points-engine</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- BRD Scope -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">BRD Epic Scope</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Epic</th><th>Name</th><th>Priority</th><th>Key Capabilities</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>E1</td><td>Tier Intelligence</td><td>P0</td><td>Comparison matrix, creation, editing, maker-checker, change logs, simulation</td></tr>
+        <tr><td>E2</td><td>Benefits as a Product</td><td>P0</td><td>Benefits listing, creation, custom fields, tier linkage, state lifecycle</td></tr>
+        <tr><td>E3</td><td>Subscription Programs</td><td>P0</td><td>Listing, create/edit, lifecycle management, tier-based/non-tier, pricing, aiRa</td></tr>
+        <tr><td>E4</td><td>Benefit Categories</td><td>P0</td><td>Category model, 9 category types, instance linking, tier applicability, matrix view</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>pipeline-state.json</li>
+      <li>session-memory.md</li>
+      <li>process-log.md</li>
+      <li>approach-log.md</li>
+      <li>live-dashboard.html</li>
+    </ul>
+  </section>
+
+  <!-- Phase 1: BA + PRD -->
+  <section class="phase-section" id="phase-1">
+    <h2>Phase 1: BA Deep-Dive + PRD <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">/ba</span>
+    <span class="skill-tag">PRD generation</span>
+
+    <p>Interactive BA session with 7 questions resolved, producing comprehensive BA analysis and PRD with 5 epics, 16 user stories. Scope locked to E3 (Subscription Programs) with MongoDB-first architecture following UnifiedPromotion pattern. Four ADR-worthy decisions made.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">7</div><div class="label">BA Questions</div></div>
+      <div class="key-number"><div class="value">16</div><div class="label">User Stories</div></div>
+      <div class="key-number"><div class="value">54</div><div class="label">Acceptance Criteria</div></div>
+      <div class="key-number"><div class="value">10</div><div class="label">Key Decisions</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">ADRs</div></div>
+    </div>
+
+    <!-- BA Q&A Table -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">BA Q&A Summary</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Question</th><th>Decision</th><th>Key Decision</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Q1</td><td>Which user stories in scope?</td><td>E3-US2, E3-US4, E3-US5 + maker-checker</td><td>KD-04</td></tr>
+        <tr><td>Q2</td><td>Tier-linking model?</td><td>Keep codebase slab hierarchy</td><td>KD-05</td></tr>
+        <tr><td>Q3</td><td>Pricing approach?</td><td>Extended Fields (no schema changes)</td><td>KD-06</td></tr>
+        <tr><td>Q4</td><td>Lifecycle state machine?</td><td>MongoDB-first (UnifiedPromotion pattern)</td><td>KD-07 (ADR)</td></tr>
+        <tr><td>Q5</td><td>Benefit linking model?</td><td>FK references only (benefitIds array)</td><td>KD-08 (ADR)</td></tr>
+        <tr><td>Q6</td><td>Reminders + custom fields?</td><td>Config storage only, no triggering</td><td>KD-09</td></tr>
+        <tr><td>Q7</td><td>Enrollment API boundary?</td><td>v3 APIs call EMF Thrift directly</td><td>KD-10 (ADR)</td></tr>
+      </tbody>
+    </table>
+
+    <!-- PRD Epics -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">PRD Epic Structure</h3>
+    <div class="mermaid">
+graph LR
+    E1[E1: Subscription CRUD<br/>5 stories] --> E2[E2: Lifecycle<br/>6 stories]
+    E1 --> E3[E3: Benefit Linking<br/>3 stories]
+    E2 --> E4[E4: Enrollment<br/>4 stories]
+    E2 --> E5[E5: Approvals<br/>1 story]
+    style E1 fill:#1e2a4a,stroke:#00d4ff,color:#e0e0e0
+    style E2 fill:#1e2a4a,stroke:#00d4ff,color:#e0e0e0
+    style E3 fill:#1e2a4a,stroke:#00d4ff,color:#e0e0e0
+    style E4 fill:#1e2a4a,stroke:#00d4ff,color:#e0e0e0
+    style E5 fill:#1e2a4a,stroke:#00d4ff,color:#e0e0e0
+    </div>
+
+    <ul class="artifact-list">
+      <li>00-ba.md</li>
+      <li>00-ba-machine.md</li>
+      <li>00-prd.md</li>
+      <li>00-prd-machine.md</li>
+    </ul>
+  </section>
+
+  <!-- Phase 2: Critic + Gap Analysis -->
+  <section class="phase-section" id="phase-2">
+    <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">/analyst --compliance</span>
+    <span class="skill-tag">principles.md (Critic)</span>
+
+    <p>Critic challenged every claim in BA and PRD using adversarial reasoning. Analyst verified 28 codebase claims against actual source code across all 5 repos. Found 3 contradictions, 6 gaps (1 blocker), and adjusted confidence levels on 3 claims.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">28</div><div class="label">Claims Verified</div></div>
+      <div class="key-number"><div class="value">22</div><div class="label">Confirmed</div></div>
+      <div class="key-number"><div class="value">3</div><div class="label">Contradicted</div></div>
+      <div class="key-number"><div class="value">10</div><div class="label">Contradictions</div></div>
+      <div class="key-number"><div class="value">6</div><div class="label">Gaps Found</div></div>
+      <div class="key-number"><div class="value" style="color:var(--danger);">1</div><div class="label">Blockers</div></div>
+    </div>
+
+    <!-- Claims Verification Pie Chart -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Claims Verification</h3>
+    <div class="mermaid">
+pie title Claims Verification (28 total)
+    "Confirmed" : 22
+    "Contradicted" : 3
+    "Partial" : 3
+    </div>
+
+    <!-- Contradiction Severity -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Contradiction Severity</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Severity</th><th>Claim</th><th>Verdict</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>C-1</td><td style="color:var(--danger);">HIGH</td><td>Missing Thrift client for partner program events in intouch-api-v3</td><td>Gap exists -- new PartnerProgramThriftService needed</td></tr>
+        <tr><td>C-5</td><td style="color:var(--danger);">HIGH</td><td>partnerProgramLinkingEvent is for ENROLLMENT, not program config publish</td><td>Misleading -- chicken-and-egg problem</td></tr>
+        <tr><td>C-4</td><td style="color:var(--warning);">MEDIUM</td><td>Cross-repo file count undercounted (~10-15 vs actual ~15-20)</td><td>Missing Thrift client, DTOs, repo files</td></tr>
+        <tr><td>C-6</td><td style="color:var(--warning);">MEDIUM</td><td>RequestManagementController returns UnifiedPromotion type</td><td>Needs separate controller or generalized type</td></tr>
+        <tr><td>C-7</td><td style="color:var(--warning);">MEDIUM</td><td>ARCHIVE transition has no precedent in UnifiedPromotion</td><td>Novel state -- SCHEDULED, EXPIRED also new</td></tr>
+        <tr><td>C-2</td><td style="color:var(--warning);">MEDIUM</td><td>emf-parent "0 modifications" claimed at C7</td><td>Downgraded to C5 -- enrollment path not fully traced</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Confidence Adjustments -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Confidence Adjustments</h3>
+    <div class="mermaid">
+graph LR
+    A1["emf-parent: 0 mods<br/>C7 -> C5"] --> B1[Enrollment path unverified]
+    A2["File count: 10-15<br/>C6 -> C5"] --> B2[Missing ThriftService + DTOs]
+    A3["Call Thrift directly<br/>C7 -> C5"] --> B3[Client class doesn't exist]
+    style A1 fill:#ff5252,stroke:#ff5252,color:#fff
+    style A2 fill:#ff5252,stroke:#ff5252,color:#fff
+    style A3 fill:#ff5252,stroke:#ff5252,color:#fff
+    style B1 fill:#1e2a4a,stroke:#ffab40,color:#e0e0e0
+    style B2 fill:#1e2a4a,stroke:#ffab40,color:#e0e0e0
+    style B3 fill:#1e2a4a,stroke:#ffab40,color:#e0e0e0
+    </div>
+
+    <!-- Gaps Discovered -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Gaps Not in BA/PRD</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Severity</th><th>Gap</th><th>Phase 4 Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>GAP-1</td><td style="color:var(--danger);">BLOCKER</td><td>Partner program MySQL record creation path undefined</td><td>Must resolve before design</td></tr>
+        <tr><td>GAP-2</td><td style="color:var(--warning);">WARNING</td><td>PartnerProgramUpdateEvent is tier-specific only</td><td>Clarify enrollment update scope</td></tr>
+        <tr><td>GAP-4</td><td style="color:var(--warning);">WARNING</td><td>RequestManagementController hardcoded return type</td><td>Architecture decision needed</td></tr>
+        <tr><td>GAP-6</td><td style="color:var(--warning);">WARNING</td><td>Thrift PartnerProgramLinkingEventData requires storeUnitID</td><td>Determine default for admin APIs</td></tr>
+        <tr><td>GAP-3</td><td>INFO</td><td>StatusChangeRequest.promotionStatus field name</td><td>New DTO recommended</td></tr>
+        <tr><td>GAP-5</td><td>INFO</td><td>@Profile("!test") on EmfMongoConfig</td><td>Test config verification</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>contradictions.md</li>
+      <li>gap-analysis-brd.md</li>
+    </ul>
+  </section>
+
+  <!-- Phase 3: UI Extraction (pending) -->
+  <section class="phase-section" id="phase-3">
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Extract components, fields, flows from v0.app prototype.</p>
+  </section>
+
+  <!-- Phase 4: Blocker Resolution (pending) -->
+  <section class="phase-section" id="phase-4">
+    <h2>Phase 4: Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Compile and resolve all open questions, contradictions, and gaps.</p>
+  </section>
+
+  <!-- Phase 5: Codebase Research (pending) -->
+  <section class="phase-section" id="phase-5">
+    <h2>Phase 5: Codebase Research <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Per-repo exploration + cross-repo tracing.</p>
+  </section>
+
+  <!-- Phase 6: HLD (pending) -->
+  <section class="phase-section" id="phase-6">
+    <h2>Phase 6: HLD (Architect) <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Architecture design, pattern evaluation, ADRs, API contracts.</p>
+  </section>
+
+  <!-- Phase 6a: Impact Analysis (pending) -->
+  <section class="phase-section" id="phase-6a">
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Blast radius, security, performance, backward compatibility.</p>
+  </section>
+
+  <!-- Phase 7: LLD (pending) -->
+  <section class="phase-section" id="phase-7">
+    <h2>Phase 7: LLD (Designer) <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Interface contracts, compile-safe signatures, class diagrams.</p>
+  </section>
+
+  <!-- Phase 8: QA (pending) -->
+  <section class="phase-section" id="phase-8">
+    <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Test scenarios, edge cases, acceptance criteria verification.</p>
+  </section>
+
+  <!-- Phase 9: SDET RED (pending) -->
+  <section class="phase-section" id="phase-9">
+    <h2>Phase 9: SDET -- RED <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Write all test code, confirm tests compile but fail (RED state).</p>
+  </section>
+
+  <!-- Phase 10: Developer GREEN (pending) -->
+  <section class="phase-section" id="phase-10">
+    <h2>Phase 10: Developer -- GREEN <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Write production code, make all tests pass (GREEN state).</p>
+  </section>
+
+  <!-- Phase 11: Reviewer (pending) -->
+  <section class="phase-section" id="phase-11">
+    <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Code review against requirements, security, session memory.</p>
+  </section>
+
+  <!-- Phase 12: Blueprint (pending) -->
+  <section class="phase-section" id="phase-12">
+    <h2>Phase 12: Blueprint <span class="phase-badge pending">Pending</span></h2>
+    <p style="color:var(--text-secondary);">Final documentation, blueprint HTML, pipeline stats.</p>
+  </section>
+
+</main>
+</body>
+</html>

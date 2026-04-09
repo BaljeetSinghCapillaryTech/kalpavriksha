@@ -37,7 +37,12 @@
       "completed_at": "2026-04-09T12:30:00Z",
       "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md"]
     },
-    "2": { "status": "pending" },
+    "2": {
+      "status": "complete",
+      "started_at": "2026-04-09T12:30:00Z",
+      "completed_at": "2026-04-09T13:30:00Z",
+      "artifacts": ["contradictions.md", "gap-analysis-brd.md"]
+    },
     "3": { "status": "pending" },
     "4": { "status": "pending" },
     "5": { "status": "pending" },
