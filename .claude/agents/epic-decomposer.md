@@ -154,6 +154,149 @@ This gate prevents wasted work from a bad decomposition propagating into 6 devel
 
 ---
 
+### State Management (Resume + Debug)
+
+The decomposer maintains `decomposer-state.json` in the kalpavriksha repo, updated after EVERY phase:
+
+```json
+{
+  "ticket": "<ticket-id>",
+  "started_at": "<timestamp>",
+  "current_phase": "D4",
+  "completed_phases": ["D1", "D2", "D3"],
+  "phase_details": {
+    "D1": { "status": "complete", "completed_at": "...", "repos_validated": 5, "default_branches": {"emf-parent": "main", "peb": "master"} },
+    "D2": { "status": "complete", "completed_at": "...", "epics_found": 6, "shared_module_candidates": 3, "questions_asked": 8 },
+    "D3": { "status": "complete", "completed_at": "...", "contradictions": 2, "claims_verified": 15 },
+    "D4": { "status": "in-progress", "started_at": "...", "agents_spawned": 5, "agents_complete": 3 }
+  },
+  "inputs": {
+    "brd_path": "<path>",
+    "code_repos": {"emf-parent": "<path>", "intouch-api-v3": "<path>"},
+    "registry_repo": "<url>",
+    "team": [...],
+    "ticket": "<ticket-id>"
+  },
+  "questions_pending": [],
+  "questions_resolved": [
+    { "q": "Is maker-checker shared?", "answer": "Yes", "phase": "D2" }
+  ]
+}
+```
+
+**On startup**: Check if `decomposer-state.json` exists. If yes:
+```
+Found existing decomposition state:
+  Ticket: <ticket>
+  Last phase: D3 (complete)
+  Next: D4 (Codebase Deep Scan)
+
+  [R] Resume from D4
+  [S] Start fresh (overwrites existing state)
+  [V] View current state details
+```
+
+This enables: resume after interruption, partial reruns, debugging mid-pipeline.
+
+---
+
+### Idempotency Rule (Re-run Safety)
+
+If the decomposer is run twice for the same ticket or the same BRD:
+
+**Before writing ANY file**, check if it already exists:
+
+```
+File exists: epics/maker-checker.yml
+
+Comparing with new version...
+  Changed: owner (was baljeet, now ritwik)
+  Changed: layer (was 2, now 1)
+  Unchanged: scope, dependencies
+
+  [O] Overwrite with new version
+  [K] Keep existing version
+  [D] Show full diff
+```
+
+**Rules**:
+- **Never blindly overwrite** registry files — always diff first
+- If `feature.json` exists → regenerate from source files (it's a generated aggregate)
+- If `progress/*.json` shows `in-progress` or `complete` → **BLOCK overwrite** — that epic has started. Ask: "Epic X is already in-progress. Overwriting will reset its state. Proceed?"
+- If `raidlc/<ticket>/epic-division` branch already exists → ask: "Branch exists. [A] Update in place [B] Create new branch [C] Abort"
+
+---
+
+### Dependency Explosion Limits
+
+Hard constraints to prevent unmanageable complexity:
+
+| Metric | Soft Limit | Hard Limit | Action |
+|--------|-----------|------------|--------|
+| **Shared modules** | > 3 | > 5 | Soft → recommend consolidation. Hard → **WARN strongly** — "You have {N} shared modules. This will create coordination overhead. Consider merging." |
+| **Dependency depth** | > 2 layers | > 3 layers | Soft → warn. Hard → **WARN strongly** — "Layer 4 dependency detected. This is deep — consider merging layers." |
+| **Cross-developer deps** | > 2 per developer | > 3 per developer | Soft → warn about coordination cost. Hard → recommend reassignment. |
+| **Epics per developer** | > 2 | > 3 | Soft → flag workload. Hard → "Developer {name} has {N} epics. Consider reassigning." |
+
+When a limit is hit, present to architect with recommendation — **but the architect always decides**:
+```
+DEPENDENCY WARNING:
+  {count} shared modules exceeds recommended limit of 3.
+  
+  My recommendation: Merge {module_A} into {module_B} — they share
+  {evidence}. This would reduce shared modules to {new_count}.
+  
+  [A] Accept recommendation
+  [B] Keep current design — I understand the coordination cost
+  [C] Custom simplification — let me tell you what to merge
+```
+
+**The decomposer never blocks the architect.** All limits are recommendations. If the architect says [B], proceed — log the decision in `decomposer-state.json` and move on.
+
+---
+
+### Progressive Disclosure (Managing Cognitive Load)
+
+Present information in layers — summary first, details on demand:
+
+**Level 1 — Summary (always shown)**:
+```
+Epic Decomposition Summary:
+  6 epics | 2 shared modules | 3 developers | 3 layers
+
+  Ritwik: Maker Checker (L1) + Tier Category (L2)
+  Anuj: Auditing (L1) + Supplementary Partner Program (L2)  
+  Baljeet: Tier Benefits (L2) + Simulation (L3)
+
+  2 concerns flagged (1 MEDIUM, 1 HIGH)
+```
+
+**Level 2 — Expand on request (architect asks for details)**:
+```
+Want details on any of these?
+  [1] Epic details (scope, entities, repos)
+  [2] Shared module details (evidence, patterns, constraints)
+  [3] Codebase findings (per-repo scan results)
+  [4] Critic contradictions
+  [5] Analyst verifications
+  [6] Concern details
+  [7] Full dependency graph (Mermaid)
+  [A] Show everything
+```
+
+**Level 3 — Deep dive (only when specifically requested)**:
+- Full `code-analysis-*.md` contents
+- Complete `cross-repo-trace.md`
+- Full `contradictions.md` with all evidence
+
+**Rules**:
+- Mandatory checkpoints (after D2, after D4) show Level 1 + ask if architect wants Level 2
+- Phase completions show Level 1 only
+- Concerns and blockers always shown at Level 1 (never hidden)
+- Confidence below C4 always surfaced at Level 1
+
+---
+
 ### Principles Injection Block (for ALL subagent prompts)
 
 Include this in EVERY subagent prompt:
@@ -680,20 +823,47 @@ The goal: **minimize parallel dependencies**. The decomposer suggests, the archi
 ### Step 1: Run Assignment Algorithm
 
 ```
+PHASE A — Shared Module Assignment (which epic builds which module):
+
 1. For each shared module, count how many epics need it
 2. Sort by dependency count (most-needed first)
 3. For each module:
    a. Which epic has the FEWEST upstream dependencies? → assign to them
    b. If tie: which epic uses it most heavily? → assign to them
-4. After assignment, check for circular dependencies:
+4. Check for circular dependencies:
    - Epic A builds module X, consumes module Y
    - Epic B builds module Y, consumes module X
    → PROBLEM: both blocked by the other
    → FIX: merge both modules into one epic, or split into phases
-5. Based on team members from D1, suggest developer-to-epic mapping:
-   - Consider: strengths, epic complexity, shared module difficulty
-   - One developer CAN own multiple epics (AI agents reduce workload)
-   - Balance load: don't assign 3 epics to one and 1 to another
+
+PHASE B — Developer Assignment (who works on which epic):
+
+5. Score each developer-epic pair on 4 dimensions:
+
+   | Dimension | How to Score | Weight |
+   |-----------|-------------|--------|
+   | **Repo familiarity** | Does the developer know the repos this epic touches? (from team context in D1, git blame if available) | HIGH |
+   | **Domain expertise** | Does the developer understand the business domain? (from D1 team context) | HIGH |
+   | **Risk distribution** | Don't assign all high-risk epics to one person. Spread risk. | MEDIUM |
+   | **Load balance** | Roughly equal total complexity per developer. | MEDIUM |
+
+6. For each candidate assignment, compute:
+   - Total shared modules BUILT by each developer (framework builders carry more risk)
+   - Total cross-developer dependencies per developer (more deps = more coordination)
+   - Risk score per developer (sum of epic risks from D5)
+
+7. Prefer assignments where:
+   - Developer who BUILDS a shared module also CONSUMES it in another epic
+     (they understand it deeply — less coordination friction)
+   - High-risk epics go to more experienced developers
+   - Greenfield epics (no existing code) go to less experienced developers
+     (cleaner scope, fewer legacy pitfalls)
+
+8. Check dependency limits (see Dependency Explosion Limits section) — warn if exceeded
+
+IMPORTANT: This algorithm produces a SUGGESTION. The architect has full authority
+to override any assignment. Present the scoring rationale so the architect can
+make an informed decision, but never insist or block their choice.
 ```
 
 ### Step 2: Determine Sequencing
