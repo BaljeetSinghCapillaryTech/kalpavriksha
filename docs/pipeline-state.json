@@ -1,0 +1,69 @@
+{
+  "feature": "Subscription-CRUD",
+  "ticket": "aidlc-demo-v2",
+  "artifacts_path": "/Users/baljeetsingh/IdeaProjects/kalpavriksha/docs/",
+  "started_at": "2026-04-09T10:00:00Z",
+  "inputs": {
+    "brd_path": "/Users/baljeetsingh/Downloads/Tiers_Benefits_PRD_v3_Full.pdf",
+    "brd_pages": 47,
+    "code_repos": [
+      "/Users/baljeetsingh/IdeaProjects/emf-parent",
+      "/Users/baljeetsingh/IdeaProjects/intouch-api-v3",
+      "/Users/baljeetsingh/IdeaProjects/cc-stack-crm",
+      "/Users/baljeetsingh/IdeaProjects/thrifts",
+      "/Users/baljeetsingh/IdeaProjects/api/prototype"
+    ],
+    "code_repo_notes": {
+      "emf-parent": "Multi-module Maven project: pointsengine-emf, emf, dvs-emf, emf-ut, etc. Points engine, tier/slab entities, strategies, Thrift services.",
+      "intouch-api-v3": "REST API gateway, maker-checker workflows, Spring MVC.",
+      "cc-stack-crm": "DB schema, tables, indexes. Infrastructure repo containing critical data model definitions.",
+      "thrifts": "Thrift IDL definitions for cross-service RPC: thrift-ifaces-emf, thrift-ifaces-peb, thrift-ifaces-points-engine.",
+      "api/prototype": "Customer-facing REST APIs (JAX-RS/Jersey). Extended fields mechanism (ExtendedFieldResource, ExtendedFieldFacade). Communication subscription management. MongoDB-backed extended field storage."
+    },
+    "ui_source": "https://v0.app/chat/benefits-and-tiers-brainstorming-4lEe2941qm1?ref=8CQ1DC&b=v0-preview-b_beJe0cNTjk4&f=1&path=%2Fprogram%2Ftiers",
+    "ui_type": "v0.app",
+    "prior_artifacts": {}
+  },
+  "phases": {
+    "0": {
+      "status": "complete",
+      "started_at": "2026-04-09T10:00:00Z",
+      "completed_at": "2026-04-09T10:30:00Z",
+      "artifacts": ["pipeline-state.json", "session-memory.md", "process-log.md", "approach-log.md", "live-dashboard.html"]
+    },
+    "1": {
+      "status": "complete",
+      "started_at": "2026-04-09T10:30:00Z",
+      "completed_at": "2026-04-09T12:30:00Z",
+      "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md"]
+    },
+    "2": { "status": "pending" },
+    "3": { "status": "pending" },
+    "4": { "status": "pending" },
+    "5": { "status": "pending" },
+    "6": { "status": "pending" },
+    "6a": { "status": "pending" },
+    "6b": { "status": "pending" },
+    "7": { "status": "pending" },
+    "8": { "status": "pending" },
+    "8b": { "status": "pending" },
+    "9": { "status": "pending" },
+    "10": { "status": "pending" },
+    "10b": { "status": "pending" },
+    "10c": { "status": "pending" },
+    "10d": { "status": "pending" },
+    "11": { "status": "pending" },
+    "12": { "status": "pending" }
+  },
+  "git_branch": "aidlc/aidlc-demo-v2",
+  "git_branches": {},
+  "git_tags": [],
+  "scope": {
+    "in_scope": ["E3 (Subscription Programs) -- CRUD, maker-checker, subscription-benefits linking with dummy benefit objects"],
+    "out_of_scope": ["E1 (Tier Intelligence)", "E4 (Benefit Categories -- real impl deferred, dummy objects used)", "E2 (Benefits as a Product)"]
+  },
+  "lsp_enabled": true,
+  "lsp_repos": ["emf-parent"],
+  "dashboard_enabled": true,
+  "rework_cycles": []
+}
