@@ -38,7 +38,13 @@ Select a mode:
 [4] Status
     Show current pipeline progress.
 
-Enter your choice (1-4):
+[5] Decompose BRD (Architect Mode)
+    Multi-epic BRD decomposition. Identifies shared modules,
+    designs interface contracts, assigns ownership, generates
+    per-epic packages, and publishes to shared-modules-registry.
+    Run ONCE before developers start their pipelines.
+
+Enter your choice (1-5):
 ```
 
 **Wait for user input before doing anything else.**
@@ -81,8 +87,70 @@ I need a few inputs to get started:
       HLD/LLD flowcharts — viewable in browser at any time)
    • "no" — skip dashboard, markdown artifacts only
 
+8. Multi-epic coordination (optional):
+   Are you working as part of a multi-epic team?
+   • "yes" — provide registry repo URL + epic name
+     Registry repo: _______________  (e.g., capillary/shared-modules-registry)
+     Epic name: _______________      (e.g., tier-management)
+   • "no" — standalone, skip coordination
+
 Enter your inputs (or type "help" for examples):
 ```
+
+### Multi-Epic Pre-Flight (if coordination enabled)
+
+If the developer selected multi-epic: yes, run pre-flight before proceeding:
+
+```
+Step 1: Validate registry access
+  ✓ gh auth status
+  ✓ gh api repos/{registry_repo} --silent
+  ✓ git ls-remote {registry_repo} HEAD
+  Any fail → WARN + standalone mode.
+
+Step 2: Find Epic Division Branch
+  git branch -r | grep 'epic-division'
+  IF found → list, developer selects, checkout, read feature.json.
+  IF none → offer Mode [5] or continue without division.
+
+Step 3: Identify Developer
+  Read feature.json for quick overview (it aggregates all source files):
+    "Who are you?" → [1] Anuj  [2] Baljeet  [3] Ritwik
+  Verify against git config. Load assignment
+  (epics, builds, consumes, layer, codebase_evidence, risks, repos_affected).
+  If feature.json is missing or stale, fall back to reading
+  epics/*.yml, modules/*.yml, repo-map.yml directly (they are source of truth).
+
+Step 4: Branch Setup
+  For each code repo: checkout raidlc/<ticket> (create if not exists, pull if exists).
+
+Step 5: Load Epic Package + Inject Constraints
+  Read epic-packages/{epic_name}/ → session memory.
+
+Step 6: Auto-declare intent + update assignment status to in-progress.
+```
+
+Store `registry_repo`, `epic_name`, `developer`, `ticket` in `pipeline-state.json`.
+
+### Git Protocol: Single Shared Branch (multi-epic)
+
+All developers commit to `raidlc/<ticket>`. Before every push: `git pull --rebase`. Phase tags are per-epic: `raidlc/<ticket>/{epic}/phase-NN`.
+
+### Mode 5: Decompose BRD (Architect Mode)
+
+Thorough multi-epic BRD decomposition using the same analysis depth as the feature-pipeline:
+- **D1**: Input collection + validation (default branch detection, LSP init, uncommitted changes check)
+- **D2**: BA Deep-Dive + ProductEx BRD Review (parallel) — 3-lens analysis per epic, one-at-a-time questions, pattern checklist
+- **D3**: Critic + Analyst Verification (parallel) — challenges decomposition claims, verifies BRD claims against codebase
+- **D4**: Codebase Deep Scan — parallel per-repo research agents + `/cross-repo-tracer`
+- **D5**: Shared Module Design (lightweight — no code, just design summaries)
+- **D6**: Ownership Assignment (interactive — architect decides with concern flagging)
+- **D7**: Epic Package Generation (coordination artifacts only — no interfaces/Thrift/SQL)
+- **D8**: Registry Publish + Branch Setup (proper default branch detection)
+
+See `.claude/agents/epic-decomposer.md` for full D1-D8 phases.
+
+After decomposition: `[A] Switch to Mode 1` or `[B] Exit`.
 
 ### Mode 3: Jump to Phase — Provide Existing Artifacts
 
@@ -412,6 +480,10 @@ Commands: continue | status | revert | exit
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+### Post-Phase 1: Epic Coordination Check (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator` as subagent with `checkpoint: registry-scan`. It scans registry for shared modules matching this epic's PRD needs, checks intents from other developers, prompts claims for unclaimed modules, and injects shared module constraints into session memory. See `.claude/skills/coordinate/SKILL.md` Checkpoint 1.
+
 ---
 
 ## Phase 2: Critic + Gap Analysis (Subagent + Subagent)
@@ -602,6 +674,10 @@ This phase runs TWO subagents in parallel:
 4. Produce: `01-architect.md` with Mermaid diagrams, ADRs, endpoints, data model
 5. Update session-memory with architectural decisions
 
+### Post-Phase 6: Epic Coordination — Interface Check (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator` with `checkpoint: interface-check`. It cross-references HLD against registry (blocks duplicates), publishes Thrift IDL for modules this epic builds, runs compatibility check. See `.claude/skills/coordinate/SKILL.md` Checkpoint 2. If rework re-runs Phase 6, also triggers `checkpoint: rework-sync` to update registry IDL and notify consumers.
+
 ---
 
 ## Phase 6a: Impact Analysis (Subagent)
@@ -775,6 +851,10 @@ This phase runs TWO subagents in parallel:
    - **Actual test Java files** — all UTs + ITs in `src/test`
    - **Skeleton production classes** — empty stubs in `src/main` (Developer replaces these)
 5. Run `Build Verify`: compilation must PASS, tests must FAIL (RED state)
+
+### Pre-Phase 10: Epic Coordination — Final Sync (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator` with `checkpoint: final-sync`. It syncs dependency statuses (if consumed module merged since Phase 6 → switch from mocks to real code), checks for reverted modules, runs dynamic collision detection. Also starts background `checkpoint: watch` (every 30 min during Phase 10) for mid-phase change detection. See `.claude/skills/coordinate/SKILL.md` Checkpoints 3 and 3b.
 
 ---
 
@@ -1012,6 +1092,10 @@ This phase runs TWO subagents in parallel:
     Skill tool → skill: "finishing-a-development-branch"
     ```
     This presents structured options: merge to main, create PR, or cleanup.
+
+### Post-Phase 11: Epic Coordination — Duplication Check (if multi-epic enabled)
+
+If `registry_repo` is set, spawn `epic-coordinator` with `checkpoint: duplication-check`. It scans implementation for overlap with registry modules, updates module status (in-progress → ready-for-review or merged), writes final progress. See `.claude/skills/coordinate/SKILL.md` Checkpoint 4.
 
 ---
 

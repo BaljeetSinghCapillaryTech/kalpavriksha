@@ -56,8 +56,18 @@ claude --agent feature-pipeline
 | `/api-handoff` | API contract doc for UI team | after 7 or 10 |
 | `/code-review` | Java Spring Boot best-practices review (standalone or pipeline add-on) | after Phase 11 (optional) |
 | `/confluence-publisher` | Publish artifacts to Confluence (configurable per product) | after every phase |
+| `/coordinate` | Multi-epic coordination — registry scan, claims, health validation, handoff briefings | post-1, post-6, pre-9, during-9, post-11, on rework |
 
 **Deprecated** (kept for reference): `/prd-generator` (merged into `/ba`), `/gap-analyser` (merged into `/analyst --compliance`)
+
+### Multi-Epic Coordination Agents
+
+| Agent | Purpose | How to use |
+|-------|---------|------------|
+| `epic-decomposer` | Architect-led BRD decomposition. Uses `/ba` and `/cross-repo-tracer` for thorough analysis, asks clarifying questions, identifies shared modules, assigns ownership. Produces coordination artifacts only (no code/interfaces). | `feature-pipeline` Mode [5] (recommended) or `claude --agent epic-decomposer` |
+| `epic-coordinator` | Registry scan, claim management, conflict detection, health validation, mid-phase watch, rework cascade. | Auto-invoked by `feature-pipeline` at 6 checkpoints (not run standalone) |
+
+**Everything runs through `feature-pipeline`** — Mode [5] for decomposition, Modes [1-4] for development. See [multi-epic guide](docs/multi-epic-guide.md) for usage examples.
 
 ### Pipeline Rules
 - **Session memory** (`session-memory.md`) is the shared context across all phases. Updated incrementally after every decision — never batch at phase end.
@@ -82,6 +92,10 @@ Key superpowers used: `brainstorming`, `writing-plans`, `executing-plans`, `test
 2. Install Superpowers: `claude install-plugin superpowers`
 3. (Optional) Start jdtls for LSP-based code traversal
 4. Run: `claude --agent feature-pipeline`
+5. (Multi-epic) If working on a BRD with other developers:
+   - Tech lead runs `feature-pipeline` → Mode [5] Decompose (once)
+   - Each developer runs Mode [1] and selects multi-epic: yes
+   - Pipeline auto-coordinates via the shared-modules-registry
 
 ## Engineering Rules
 

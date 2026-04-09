@@ -387,6 +387,18 @@ Analyses migration needs — primarily database schema, secondarily framework/pa
 
 ---
 
+### `/coordinate` — Epic Coordinator (Pipeline-Integrated)
+
+Manages cross-epic coordination when multiple developers work on different epics from the same BRD. Auto-invoked by `feature-pipeline` at 6 checkpoints when multi-epic mode is enabled.
+
+**Six checkpoints:** `registry-scan` (post-Phase 1), `interface-check` (post-Phase 6), `final-sync` (pre-Phase 9), `watch` (during Phase 9, background), `duplication-check` (post-Phase 11), `rework-sync` (on Phase 6 re-run).
+
+**Key features:** shared modules registry, module claims via `git push`/PR, Thrift IDL compatibility checking, staleness detection (7d/14d/30d), handoff briefings, graduated severity (BLOCK/WARN/INFO/AUTO-FIX).
+
+**Related agents:** `epic-decomposer` (Mode [5]), `epic-coordinator` (subagent wrapper).
+
+---
+
 ### `/debug` — Debugger (Standalone)
 
 Invoke any time — not part of the linear flow. Works evidence-first:
