@@ -10,11 +10,11 @@
 
 | # | Severity | Source | Claim Challenged | Verdict |
 |---|----------|--------|-----------------|---------|
-| C-1 | HIGH | BA/PRD (KD-10) | "v3 enrollment APIs call EMF Thrift directly" -- but intouch-api-v3 has NO Thrift client methods for partner program events | VALID -- gap exists |
-| C-2 | MEDIUM | BA-machine | "emf-parent: 0 new files, 0 modifications" at C7 | OVERCLAIMED -- needs C5 |
-| C-3 | MEDIUM | BA-machine | "thrifts: 0 new files, 0 modifications" at C7 | CONFIRMED -- Thrift IDL already has events |
-| C-4 | HIGH | BA/PRD | "intouch-api-v3: ~10-15 new files, ~3-4 modified" at C6 | UNDERCOUNTED -- missing Thrift client class |
-| C-5 | LOW | PRD (AC-7.2) | "On ACTIVE transition, EMF Thrift partnerProgramLinkingEvent is called" | MISLEADING -- partnerProgramLinkingEvent is for ENROLLMENT, not for program config publish |
+| C-1 | ~~HIGH~~ RESOLVED | BA/PRD (KD-10) | "v3 enrollment APIs call EMF Thrift directly" -- but intouch-api-v3 has NO Thrift client methods for partner program events | PARTIALLY RESOLVED -- Thrift methods exist on two interfaces (see update below). Still need new wrapper methods in intouch-api-v3. |
+| C-2 | MEDIUM | BA-machine | "emf-parent: 0 new files, 0 modifications" at C7 | CONFIRMED at C6 -- emf-parent has existing handlers, no changes needed |
+| C-3 | MEDIUM | BA-machine | "thrifts: 0 new files, 0 modifications" at C7 | CONFIRMED -- Thrift IDL already has all needed methods |
+| C-4 | ~~HIGH~~ MEDIUM | BA/PRD | "intouch-api-v3: ~10-15 new files, ~3-4 modified" at C6 | UNDERCOUNTED -- still needs wrapper methods but not a separate Thrift service class |
+| C-5 | ~~LOW~~ RESOLVED | PRD (AC-7.2) | "On ACTIVE transition, EMF Thrift partnerProgramLinkingEvent is called" | RESOLVED -- correct flow is: ACTIVE -> createOrUpdatePartnerProgram (config), then enrollment -> partnerProgramLinkingEvent (separate concern) |
 | C-6 | MEDIUM | BA | RequestManagementController returns UnifiedPromotion type | VALID -- needs generic or new return type |
 | C-7 | MEDIUM | PRD (E2-US6) | "ARCHIVE transitions from DRAFT, ACTIVE, or EXPIRED" | NOVEL -- no precedent in UnifiedPromotion pattern |
 | C-8 | LOW | BA | StatusChangeRequest has @Pattern regex for PROMOTION actions | VALID -- needs new DTO or generalized pattern |
@@ -40,7 +40,17 @@
 
 **Impact**: The BA and PRD assume enrollment "just works" via Thrift. In reality, a new Thrift client class (or extension of `EmfPromotionThriftService`) must be created in intouch-api-v3 to call `partnerProgramLinkingEvent`, `partnerProgramDeLinkingEvent`, `partnerProgramUpdateEvent`. This is an additional new file not counted in the BA's cross-repo change estimate.
 
-**Recommendation**: Add to the implementation plan: create `PartnerProgramThriftService.java` in intouch-api-v3 using `EMFService.Iface` (same client/port as `EmfPromotionThriftService`). Update BA-machine cross-repo count.
+**RESOLUTION (user clarification + code verification):**
+
+The Thrift landscape is actually TWO interfaces:
+- **`PointsEngineRuleService.Iface`** (pointsengine_rules.thrift): Has `createOrUpdatePartnerProgram(PartnerProgramInfo, programId, orgId, lastModifiedBy, lastModifiedOn, serverReqId)` and `getAllPartnerPrograms(programId, orgId, serverReqId)`. This is the PROGRAM CONFIG CRUD interface. `PointsEngineRulesThriftService` in intouch-api-v3 already uses this interface -- just needs new wrapper methods added.
+- **`EMFService.Iface`** (emf.thrift): Has `partnerProgramLinkingEvent`, `partnerProgramDeLinkingEvent`, `partnerProgramUpdateEvent`. This is the ENROLLMENT EVENT interface. `EmfPromotionThriftService` in intouch-api-v3 uses this interface -- needs new wrapper methods for partner program enrollment events.
+
+The correct flow on ACTIVE transition:
+1. Call `PointsEngineRulesThriftService.createOrUpdatePartnerProgram()` to write program config to MySQL
+2. Then enrollment is a separate concern via `EmfPromotionThriftService` (extended with partner program methods)
+
+**Action**: No new Thrift SERVICE class needed. Add wrapper methods to existing `PointsEngineRulesThriftService` (for program config) and `EmfPromotionThriftService` (for enrollment events). Update BA-machine cross-repo count to reflect modified-not-new files.
 
 ---
 
@@ -102,32 +112,46 @@ Modified files also undercounted:
 
 ---
 
-### C-5: Confusion Between Program Config Publish and Enrollment Events [HIGH]
+### C-5: Confusion Between Program Config Publish and Enrollment Events [RESOLVED]
 
 **PRD Claim (AC-7.2)**: "On ACTIVE transition, EMF Thrift `partnerProgramLinkingEvent` is called to create/update MySQL partner_programs record."
 
-**Challenge**: `partnerProgramLinkingEvent` is for CUSTOMER ENROLLMENT (linking a customer to a partner program), NOT for creating/updating the program configuration itself.
+**Original Challenge**: `partnerProgramLinkingEvent` is for CUSTOMER ENROLLMENT, NOT for creating the program config.
 
-**Evidence from Thrift IDL**:
-```
-PartnerProgramLinkingEventData {
-  orgID, linkingStoreUnitID, loyaltyCustomerDetails,
-  customerPartnerProgramRef, eventTimeInMillis, ...
-}
-```
-This struct contains `loyaltyCustomerDetails` (customer info) and `customerPartnerProgramRef` (membership ID, tier, etc.). It's an enrollment event, not a config event.
+**RESOLUTION (user clarification + code verification):**
 
-The partner_programs MySQL table (program configuration) must already exist BEFORE enrollment can happen. The question is: who creates the partner_programs row?
+The correct two-step flow is now confirmed:
 
-Looking at `PartnerProgramLinkingInstructionExecutor` in emf-parent -- it handles the enrollment, but expects the program to already exist.
+**Step 1 -- Program Config (on ACTIVE transition):**
+`PointsEngineRuleService.createOrUpdatePartnerProgram(PartnerProgramInfo, programId, orgId, lastModifiedBy, lastModifiedOn, serverReqId)`
+- Located in: `pointsengine_rules.thrift:1269`
+- Interface: `PointsEngineRuleService.Iface` (same as `PointsEngineRulesThriftService` in intouch-api-v3)
+- Writes/updates `partner_programs` MySQL table
+- `PartnerProgramInfo` struct (pointsengine_rules.thrift:402-417):
+  - partnerProgramId (i32, required) -- 0 for create, existing ID for update
+  - partnerProgramName (string, required)
+  - description (string, required)
+  - isTierBased (bool, required)
+  - partnerProgramTiers (list<PartnerProgramTier>, optional)
+  - programToPartnerProgramPointsRatio (double, required)
+  - partnerProgramUniqueIdentifier (string, optional)
+  - partnerProgramType (PartnerProgramType: EXTERNAL/SUPPLEMENTARY, required)
+  - partnerProgramMembershipCycle (cycleType: DAYS/MONTHS, cycleValue: int, optional)
+  - isSyncWithLoyaltyTierOnDowngrade (bool, required)
+  - loyaltySyncTiers (map<string,string>, optional)
+  - updatedViaNewUI (bool, optional)
+  - expiryDate (i64, optional)
+  - backupProgramId (i32, optional)
 
-**Impact**: There may be a chicken-and-egg problem. When a subscription is approved, we need to:
-1. First: Ensure the partner_programs MySQL record exists (program config)
-2. Then: Allow enrollment via `partnerProgramLinkingEvent`
+**Step 2 -- Member Enrollment (separate concern, on enroll API call):**
+`EMFService.partnerProgramLinkingEvent(PartnerProgramLinkingEventData, isCommit, isReplayed)`
+- Located in: `emf.thrift:1798`
+- Interface: `EMFService.Iface` (same as `EmfPromotionThriftService` in intouch-api-v3)
+- Links a customer to an already-existing partner program
 
-The current api/prototype v2 flow likely handles program creation separately. The BA needs to clarify: does approving a subscription automatically create the MySQL partner_programs record? Or must it be created via a separate Thrift call (e.g., a program management API in EMF)?
+**Also discovered**: `ExpiryReminderForPartnerProgramInfo` -- Thrift already supports expiry reminder configuration per partner program (pointsengine_rules.thrift:419-425). This maps to the subscription reminder config in KD-09.
 
-**Recommendation**: This is a BLOCKER for Phase 4. Must resolve how partner_programs MySQL records are created before enrollment can work.
+The PRD's AC-7.2 must be corrected: "On ACTIVE transition, `createOrUpdatePartnerProgram` is called" (not `partnerProgramLinkingEvent`).
 
 ---
 
@@ -215,25 +239,22 @@ This exactly matches the subscription PRD claim. [C7 -- verified in source]
 
 ---
 
-## Confidence Adjustments
+## Confidence Adjustments (Post-Resolution)
 
 | Claim | Original | Adjusted | Reason |
 |-------|----------|----------|--------|
-| emf-parent: 0 modifications | C7 | C5 | Enrollment path via Thrift not fully traced |
-| intouch-api-v3: ~10-15 new files | C6 | C5 | Missing Thrift client class, DTOs, repository expansion |
-| "Call EMF Thrift directly" (KD-10) | implicit C7 | C5 | Thrift client doesn't exist yet, must be created |
-| thrifts: 0 modifications | C7 | C7 | Confirmed -- IDL already has events |
+| emf-parent: 0 modifications | C7 | C6 | Confirmed -- EMF handlers exist, no changes needed. Upgraded from C5 after Thrift flow clarified. |
+| intouch-api-v3: ~10-15 new files | C6 | C5 | Still undercounted but less severe -- wrapper methods not new classes |
+| "Call EMF Thrift directly" (KD-10) | implicit C7 | C6 | Thrift methods exist on correct interfaces. Just need wrapper methods in existing service classes. |
+| thrifts: 0 modifications | C7 | C7 | Confirmed -- IDL already has all needed methods on both interfaces |
 | api/prototype: 1 modification | C7 | C7 | Confirmed -- ExtendedField.EntityType enum addition |
 | cc-stack-crm: 0 modifications | C7 | C7 | Confirmed -- MongoDB-first avoids schema changes |
 
 ---
 
-## Questions for User
+## Questions for User (Post-Resolution)
 
-**Q1 [C3]**: How are `partner_programs` MySQL records created? The enrollment Thrift events assume the program already exists in MySQL. When a subscription transitions to ACTIVE, what creates the MySQL record?
-- Option (a): The approval flow calls a separate EMF API to upsert the program config
-- Option (b): The first enrollment call creates it lazily
-- Option (c): The partner_programs record must be pre-provisioned out-of-band
+**Q1 -- RESOLVED**: Partner program MySQL creation uses `PointsEngineRuleService.createOrUpdatePartnerProgram()` on ACTIVE transition. [C7]
 
 **Q2 [C4]**: Should SCHEDULED be a stored status or a derived status? Promotions derive UPCOMING from dates but store ACTIVE. Subscriptions could follow either pattern.
 - Option (a): Stored status -- simpler, explicit, but requires a scheduled job to transition to ACTIVE
@@ -241,9 +262,11 @@ This exactly matches the subscription PRD claim. [C7 -- verified in source]
 
 ## Assumptions Made
 
-**A1 [C5]**: The `EMFService.Iface` connection (port 9199, "emf-thrift-service") is the correct endpoint for partner program Thrift calls from intouch-api-v3, same as `EmfPromotionThriftService` uses.
+**A1 [C6]**: Both Thrift interfaces (`PointsEngineRuleService.Iface` for config, `EMFService.Iface` for enrollment events) are accessible at the same service endpoint ("emf-thrift-service", port 9199) from intouch-api-v3. Verified: `PointsEngineRulesThriftService` and `EmfPromotionThriftService` both connect to the same host/port.
 
 **A2 [C6]**: The enrollment Thrift events return `EventEvaluationResult` which is sufficient as a response for the v3 enrollment API (no additional data needed from MySQL after enrollment).
+
+**A3 [C6]**: `ExpiryReminderForPartnerProgramInfo` in pointsengine_rules.thrift can be used for the reminder configuration in KD-09, avoiding custom reminder storage in MongoDB (or used in addition to it).
 
 ---
 

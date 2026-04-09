@@ -78,16 +78,21 @@
 
 ## Gaps Not Mentioned in BA/PRD
 
-### GAP-1: Partner Program MySQL Record Creation Path [BLOCKER]
+### GAP-1: Partner Program MySQL Record Creation Path [RESOLVED]
 
-The BA/PRD assumes enrollment works via EMF Thrift. But `PartnerProgramLinkingEventData` requires `customerPartnerProgramRef.partnerProgramName` -- meaning the partner program must already exist in MySQL with that name. The BA describes creating subscriptions in MongoDB, but never describes creating the corresponding MySQL partner_programs record.
+**Original concern**: The BA/PRD assumes enrollment works via EMF Thrift but never describes how partner_programs MySQL records are created.
 
-**Options**:
-(a) On ACTIVE transition, call an EMF Thrift API to create/update the partner_programs MySQL row
-(b) Pre-provision partner_programs via existing api/prototype v2 APIs before subscription approval
-(c) Have the enrollment event handle program creation lazily
+**Resolution**: User confirmed and code verified -- `PointsEngineRuleService.createOrUpdatePartnerProgram(PartnerProgramInfo, programId, orgId, lastModifiedBy, lastModifiedOn, serverReqId)` in pointsengine_rules.thrift:1269 is the correct method. It:
+- Creates or updates the `partner_programs` MySQL row
+- Takes `PartnerProgramInfo` struct with all config fields (name, description, isTierBased, tiers, membershipCycle, type, expiryDate, etc.)
+- Is on `PointsEngineRuleService.Iface` -- the same interface `PointsEngineRulesThriftService` in intouch-api-v3 already uses
+- Currently called by the v2 UI via api/prototype -- we are migrating this call to the new v3 REST API
 
-**Evidence needed**: How does the existing v2 flow create partner_programs records? Read the api/prototype controllers for program creation.
+**Correct flow**:
+1. Subscription ACTIVE transition -> call `createOrUpdatePartnerProgram` -> writes to MySQL partner_programs
+2. Member enrollment -> call `partnerProgramLinkingEvent` (separate concern, assumes program exists)
+
+**Also found**: `createOrUpdateExpiryReminderForPartnerProgram` and `getAllExpiryReminderConfiguredPartnerPrograms` -- Thrift natively supports reminder config per partner program.
 
 ### GAP-2: PartnerProgramUpdateEvent is Tier-Specific [WARNING]
 
