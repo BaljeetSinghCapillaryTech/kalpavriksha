@@ -111,7 +111,19 @@
       "new_maven_dependencies": 0,
       "key_decisions": ["KD-25", "KD-26", "KD-27", "KD-28"]
     },
-    "8": { "status": "pending" },
+    "8": {
+      "status": "complete",
+      "started_at": "2026-04-10T10:00:00Z",
+      "completed_at": "2026-04-10T10:30:00Z",
+      "artifacts": ["04-qa.md"],
+      "test_scenarios": 54,
+      "edge_cases": 69,
+      "total_testable_items": 123,
+      "acceptance_criteria_covered": 47,
+      "adrs_covered": 5,
+      "risks_addressed": 7,
+      "gaps_identified": 6
+    },
     "8b": { "status": "pending" },
     "9": { "status": "pending" },
     "10": { "status": "pending" },
@@ -131,5 +143,30 @@
   "lsp_enabled": true,
   "lsp_repos": ["emf-parent"],
   "dashboard_enabled": true,
-  "rework_cycles": []
+  "rework_cycles": [],
+  "confluence": {
+    "cloud_id": "69031ea7-8347-4ec3-a63d-9c7289f8dc4f",
+    "space_id": "1264386327",
+    "parent_folder_id": "5434343427",
+    "run_page_id": "5446959132",
+    "artifact_pages": {
+      "session-memory.md": "5446860826",
+      "00-ba.md": "5448564748",
+      "00-prd.md": "5448105999",
+      "contradictions.md": "5447319603",
+      "gap-analysis-brd.md": "5446991919",
+      "grooming-questions.md": "5447155738",
+      "blocker-decisions.md": "5448335363",
+      "code-analysis-intouch-api-v3.md": "5447417868",
+      "code-analysis-emf-parent.md": "5448138775",
+      "code-analysis-thrifts.md": "5446893613",
+      "code-analysis-api-prototype.md": "5448237061",
+      "code-analysis-cc-stack-crm.md": "5447647256",
+      "cross-repo-trace.md": "5447974916",
+      "01-architect.md": "5448007685",
+      "02-analyst.md": "5447581727",
+      "03-designer.md": "5448368130",
+      "api-handoff.md": "5448761349"
+    }
+  }
 }

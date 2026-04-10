@@ -75,6 +75,11 @@
 | R-07 | Concurrent APPROVE race condition -- double Thrift call | MEDIUM | Open _(Analyst)_ |
 | R-08 | EXPIRED/MySQL is_active inconsistency -- accepted risk per KD-23 | LOW | Accepted _(Analyst)_ |
 | R-10 | Maker-checker SNAPSHOT swap not atomic without transaction | MEDIUM | Open _(Analyst)_ |
+| R-11 | EXPIRED subscription update -- stored=ACTIVE but effective=EXPIRED. Facade must check effective status before allowing update. | MEDIUM | Open _(QA)_ |
+| R-12 | ARCHIVE on PAUSED not in transition table -- user cannot archive a paused subscription without RESUME first. May be intentional but should be confirmed. | LOW | Open _(QA)_ |
+| R-13 | Delete DRAFT with parentId (pending version of ACTIVE) -- should be blocked to protect maker-checker workflow. Use REJECT instead. | MEDIUM | Open _(QA)_ |
+| R-14 | startDate after endDate validation not in Designer interfaces -- should be added to SubscriptionValidatorService | LOW | Open _(QA)_ |
+| R-15 | Pagination sort order not explicit in repository -- PRD requires lastModifiedOn descending but Pageable doesn't enforce it by default | LOW | Open _(QA)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |
