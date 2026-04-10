@@ -77,7 +77,7 @@
       "api_endpoints": 10,
       "adrs": 5,
       "lifecycle_states": "6 stored + 1 derived",
-      "open_questions": ["OQ-A1", "OQ-A2", "OQ-A3"]
+      "open_questions_resolved": {"OQ-A1": "KD-22: Thrift on PAUSE/RESUME", "OQ-A2": "KD-23: No Thrift on EXPIRED", "OQ-A3": "KD-24: programId mandatory+immutable, name unique per programId"}
     },
     "6a": { "status": "pending" },
     "6b": { "status": "pending" },

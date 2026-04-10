@@ -335,7 +335,7 @@
     <div class="progress-stats">
       <span><span class="stat-value">7</span> / 14 phases complete</span>
       <span><span class="stat-value">22</span> artifacts generated</span>
-      <span><span class="stat-value">21</span> decisions made</span>
+      <span><span class="stat-value">24</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
   </div>
@@ -800,7 +800,7 @@ sequenceDiagram
       <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">5</div><div class="label" style="font-size:11px; color:var(--text-secondary);">ADRs</div></div>
       <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">7</div><div class="label" style="font-size:11px; color:var(--text-secondary);">States (6+1)</div></div>
       <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">12</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Thrift Mappings</div></div>
-      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">3</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Open Questions</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--success); font-weight:bold;">0</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Open Questions</div></div>
     </div>
 
     <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Component Architecture</h3>
@@ -914,6 +914,20 @@ sequenceDiagram
     Facade->>Repo: Old ACTIVE to SNAPSHOT
     Facade->>Repo: DRAFT to ACTIVE
     </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Resolved Architecture Questions</h3>
+    <table class="data-table" style="width:100%; border-collapse:collapse; font-size:13px; margin:10px 0;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left; padding:8px; color:var(--accent);">Question</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Decision</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Impact</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">OQ-A1: PAUSE update MySQL?</td><td style="padding:8px;"><span style="color:var(--success);">YES</span> -- Thrift on PAUSE (is_active=false) + RESUME (is_active=true)</td><td style="padding:8px;">3 Thrift-calling transitions: APPROVE, PAUSE, RESUME (KD-22)</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">OQ-A2: EXPIRED trigger Thrift?</td><td style="padding:8px;"><span style="color:var(--danger);">NO</span> -- Derived at read time, no Thrift, no background job</td><td style="padding:8px;">MySQL stays is_active=true on expiry. Accepted inconsistency (KD-23)</td></tr>
+        <tr><td style="padding:8px;">OQ-A3: programId semantics?</td><td style="padding:8px;">Mandatory, immutable. Name uniqueness per programId, not org.</td><td style="padding:8px;">Subscription scoped to one loyalty program. Edge case: MongoDB per-program vs MySQL per-org uniqueness (KD-24)</td></tr>
+      </tbody>
+    </table>
 
     <ul class="artifact-list" style="list-style:none; margin-top:15px; font-size:12px; color:var(--text-secondary);">
       <li>01-architect.md</li>

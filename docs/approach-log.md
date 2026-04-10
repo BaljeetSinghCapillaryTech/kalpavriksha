@@ -68,3 +68,10 @@ No user decisions in this phase -- this was an automated analysis pass. Key find
 | D-21 | How to handle EXPIRED status? | **Derived at read time** -- same as SCHEDULED (KD-11). endDate < now on ACTIVE doc = EXPIRED. | Consistent with SCHEDULED derivation. No background jobs. KD-19. |
 | D-22 | Thrift field mapping strategy? | **12-field explicit mapping** via SubscriptionThriftPublisher. benefitIds/reminders/customFields stay MongoDB-only. updatedViaNewUI=true. | PartnerProgramInfo is a fixed struct; subscription doc is richer. MongoDB is source of truth for full config. KD-20. |
 | D-23 | API surface scope? | **10 endpoints** covering CRUD + lifecycle + benefits + approvals. All return ResponseWrapper<UnifiedSubscription>. | Complete surface per PRD E3-US5. Matches user stories in scope. KD-21. |
+
+### Phase 6 -- Architecture Open Questions (resolved by user)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-24 | OQ-A1: Should PAUSE update partner_programs.is_active in MySQL? | **(b) Yes** -- Call Thrift on PAUSE (is_active=false) and RESUME (is_active=true). MySQL must stay in sync with lifecycle transitions, not just on APPROVE. | User explicit: MySQL is_active must reflect actual lifecycle state. 3 Thrift-calling transitions: APPROVE, PAUSE, RESUME. KD-22. |
+| D-25 | OQ-A2: Should EXPIRED trigger Thrift call? | **(a) No** -- EXPIRED is derived at read time. No background job, no Thrift call. MySQL stays is_active=true when expired. | User explicit: no background jobs. MongoDB/MySQL inconsistency on expiry is accepted. KD-23. |
+| D-26 | OQ-A3: programId + name uniqueness scope. | **metadata.programId** is mandatory, immutable after creation. Name uniqueness scoped to programId within org, not org-wide. Same name valid across different programs. | User clarification: org has multiple loyalty programs, subscription belongs to exactly one. **Edge case flagged**: MongoDB validates per programId but MySQL UNIQUE(org_id, name) is org-scoped. KD-24. |

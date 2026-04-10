@@ -114,11 +114,11 @@ graph TB
 | Component | Responsibility |
 |-----------|---------------|
 | **SubscriptionController** | REST endpoints at `/v3/subscriptions`. Extracts auth context. Delegates to facade. |
-| **SubscriptionFacade** | Business logic: CRUD, status transitions, maker-checker versioning, Thrift publish coordination. |
+| **SubscriptionFacade** | Business logic: CRUD, status transitions, maker-checker versioning, Thrift publish coordination (APPROVE/PAUSE/RESUME). programId immutability enforcement. |
 | **SubscriptionRepository** | MongoRepository interface for UnifiedSubscription. @Query methods for org-scoped lookups. |
 | **SubscriptionStatusTransitionValidator** | EnumMap<SubscriptionStatus, Set<SubscriptionAction>> for valid transitions. |
-| **SubscriptionValidatorService** | Name uniqueness per org. Field constraint validation. |
-| **SubscriptionThriftPublisher** | Maps UnifiedSubscription to PartnerProgramInfo Thrift struct. Calls PointsEngineRulesThriftService. |
+| **SubscriptionValidatorService** | Name uniqueness per programId within org. programId immutability check on update. Field constraint validation. |
+| **SubscriptionThriftPublisher** | Maps UnifiedSubscription to PartnerProgramInfo Thrift struct. Calls PointsEngineRulesThriftService on APPROVE, PAUSE (is_active=false), and RESUME (is_active=true). |
 | **UnifiedSubscription** | @Document(collection="unified_subscriptions") MongoDB entity. |
 | **SubscriptionMetadata** | Nested metadata POJO: name, description, orgId, programId, status, dates, createdBy. |
 | **SubscriptionStatus** | Enum: DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, EXPIRED, ARCHIVED. |
@@ -133,7 +133,7 @@ graph TB
 - SubscriptionFacade -> SubscriptionRepository (MongoDB persistence)
 - SubscriptionFacade -> SubscriptionStatusTransitionValidator (transition guard)
 - SubscriptionFacade -> SubscriptionValidatorService (field validation)
-- SubscriptionFacade -> SubscriptionThriftPublisher (on APPROVE only)
+- SubscriptionFacade -> SubscriptionThriftPublisher (on APPROVE, PAUSE, RESUME)
 - SubscriptionThriftPublisher -> PointsEngineRulesThriftService (Thrift client)
 - SubscriptionRepository -> EmfMongoConfig (routes to emfMongoTemplate)
 - No circular dependencies. All arrows flow downward.
@@ -348,8 +348,8 @@ stateDiagram-v2
 | DRAFT | SUBMIT_FOR_APPROVAL | PENDING_APPROVAL | - |
 | PENDING_APPROVAL | APPROVE | ACTIVE | Thrift `createOrUpdatePartnerProgram` |
 | PENDING_APPROVAL | REJECT | DRAFT | Comment stored |
-| ACTIVE | PAUSE | PAUSED | - (enrollment blocking is client-side) |
-| PAUSED | RESUME | ACTIVE | - |
+| ACTIVE | PAUSE | PAUSED | Thrift `createOrUpdatePartnerProgram` with is_active=false (KD-22) |
+| PAUSED | RESUME | ACTIVE | Thrift `createOrUpdatePartnerProgram` with is_active=true (KD-22) |
 | DRAFT | ARCHIVE | ARCHIVED | Terminal |
 | ACTIVE | ARCHIVE | ARCHIVED | Terminal |
 | EXPIRED | ARCHIVE | ARCHIVED | Terminal |
@@ -398,7 +398,8 @@ sequenceDiagram
 ## 10. Business Rules and Validation
 
 ### 10.1 Create Validation
-- `metadata.name`: Required, non-blank, max 255 chars, unique per org (across DRAFT/ACTIVE/PAUSED/PENDING_APPROVAL)
+- `metadata.programId`: Required, immutable after creation, scopes subscription to a parent loyalty program (KD-24)
+- `metadata.name`: Required, non-blank, max 255 chars, unique per programId within the org (across DRAFT/ACTIVE/PAUSED/PENDING_APPROVAL) (KD-24)
 - `duration.value`: Required, positive integer
 - `duration.unit`: Required, one of DAYS/MONTHS/YEARS
 - `subscriptionType`: Required, one of TIER_BASED/NON_TIER
@@ -411,14 +412,18 @@ sequenceDiagram
 ### 10.2 Status Transition Rules
 - Only valid transitions per the EnumMap (Section 9.2)
 - Invalid transitions return 400 with allowed transitions list
-- APPROVE triggers Thrift publish (blocking -- must succeed or APPROVE fails)
+- APPROVE triggers Thrift `createOrUpdatePartnerProgram` (blocking -- must succeed or APPROVE fails)
+- PAUSE triggers Thrift `createOrUpdatePartnerProgram` with is_active=false (KD-22, blocking)
+- RESUME triggers Thrift `createOrUpdatePartnerProgram` with is_active=true (KD-22, blocking)
 - REJECT stores comment in `comments` field
+- EXPIRED (derived) does NOT trigger any Thrift call (KD-23). MySQL stays is_active=true when subscription expires.
 
 ### 10.3 Update Rules
 - DRAFT: update in place
 - ACTIVE / PAUSED: create versioned DRAFT (version N+1, parentId -> ACTIVE)
 - PENDING_APPROVAL / EXPIRED / ARCHIVED: 400 "Cannot update in status X"
 - If DRAFT already exists for ACTIVE subscription: update existing DRAFT
+- `metadata.programId`: IMMUTABLE -- 400 if update request changes programId (KD-24)
 
 ### 10.4 Delete Rules
 - Only DRAFT without parentId can be deleted
@@ -530,13 +535,13 @@ sequenceDiagram
 
 ---
 
-## 13. Open Questions
+## 13. Open Questions (ALL RESOLVED)
 
-| # | Question | Impact | For Phase |
-|---|----------|--------|-----------|
-| OQ-A1 | Should PAUSE update partner_programs.is_active in MySQL? Currently no Thrift call on PAUSE. | Enrollment behaviour when subscription is PAUSED | Designer |
-| OQ-A2 | Should EXPIRED status trigger any Thrift call? (e.g., set is_active=false in MySQL) | Data consistency between MongoDB and MySQL | Designer |
-| OQ-A3 | What programId to use for the Thrift call? Is it always from metadata.programId? | PartnerProgramInfo mapping | Designer |
+| # | Question | Resolution | Decision |
+|---|----------|------------|----------|
+| OQ-A1 | Should PAUSE update partner_programs.is_active in MySQL? | **YES** -- Call Thrift on PAUSE (is_active=false) and RESUME (is_active=true). MySQL must stay in sync with lifecycle transitions. | KD-22 |
+| OQ-A2 | Should EXPIRED status trigger any Thrift call? | **NO** -- EXPIRED is derived at read time. No background job, no Thrift call. MySQL stays is_active=true. | KD-23 |
+| OQ-A3 | What programId to use for the Thrift call? | **metadata.programId** -- the parent loyalty program. programId is mandatory, immutable after creation. Name uniqueness scoped to programId (not org-wide). | KD-24 |
 
 ---
 
@@ -561,7 +566,7 @@ C4Context
     Rel(admin, garuda, "Uses")
     Rel(garuda, subapi, "REST API", "HTTPS")
     Rel(subapi, mongo, "Read/Write", "MongoDB driver")
-    Rel(subapi, thriftsvc, "On APPROVE", "Thrift RPC")
+    Rel(subapi, thriftsvc, "On APPROVE/PAUSE/RESUME", "Thrift RPC")
     Rel(thriftsvc, mysql, "Write", "JDBC")
 ```
 
