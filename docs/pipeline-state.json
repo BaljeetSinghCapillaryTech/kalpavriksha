@@ -254,7 +254,11 @@
       "01-architect.md": "5448007685",
       "02-analyst.md": "5447581727",
       "03-designer.md": "5448368130",
-      "api-handoff.md": "5448761349"
+      "api-handoff.md": "5448761349",
+      "04-qa.md": "5449220098",
+      "04b-business-tests.md": "5448400926",
+      "05-sdet.md": "5447974952",
+      "07-reviewer.md": "5448892418"
     }
   }
 }
