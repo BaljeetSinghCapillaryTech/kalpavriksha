@@ -280,10 +280,10 @@
     <li class="complete" onclick="document.getElementById('phase-5').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 5: Codebase Research
     </li>
-    <li class="active" onclick="document.getElementById('phase-6').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-6').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 6: HLD (Architect)
     </li>
-    <li class="pending" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
+    <li class="active" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 6a: Impact Analysis
     </li>
     <li class="pending" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
@@ -310,8 +310,8 @@
     <h3>Quick Links</h3>
     <ul class="sidebar-nav">
       <li class="complete"><span class="status-dot"></span>BA Q&A</li>
-      <li class="pending"><span class="status-dot"></span>API Contracts</li>
-      <li class="pending"><span class="status-dot"></span>Architecture</li>
+      <li class="complete"><span class="status-dot"></span>API Contracts</li>
+      <li class="complete"><span class="status-dot"></span>Architecture</li>
       <li class="complete"><span class="status-dot"></span>Cross-Repo Map</li>
       <li class="pending"><span class="status-dot"></span>LLD Diagrams</li>
       <li class="pending"><span class="status-dot"></span>Implementation</li>
@@ -330,12 +330,12 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 36%;"></div>
+      <div class="fill" style="width: 50%;"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">6</span> / 14 phases complete</span>
-      <span><span class="stat-value">21</span> artifacts generated</span>
-      <span><span class="stat-value">16</span> decisions made</span>
+      <span><span class="stat-value">7</span> / 14 phases complete</span>
+      <span><span class="stat-value">22</span> artifacts generated</span>
+      <span><span class="stat-value">21</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
   </div>
@@ -786,10 +786,138 @@ sequenceDiagram
     </ul>
   </section>
 
-  <!-- Phase 6: HLD (pending) -->
+  <!-- Phase 6: HLD (Architect) -->
   <section class="phase-section" id="phase-6">
-    <h2>Phase 6: HLD (Architect) <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Architecture design, pattern evaluation, ADRs, API contracts.</p>
+    <h2>Phase 6: HLD (Architect) <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">/architect</span>
+
+    <p>Evaluated 3 architectural patterns (Clone-and-Adapt, Generic Entity Framework, Separate Microservice). Chose Clone-and-Adapt mirroring the UnifiedPromotion package structure. Produced complete HLD with 11 components, 10 API endpoints, 6-state lifecycle, maker-checker versioning, 14-field Thrift mapping, and 5 ADRs.</p>
+
+    <div class="key-numbers" style="display:flex; gap:30px; margin:15px 0;">
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">11</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Components</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">10</div><div class="label" style="font-size:11px; color:var(--text-secondary);">API Endpoints</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">5</div><div class="label" style="font-size:11px; color:var(--text-secondary);">ADRs</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">7</div><div class="label" style="font-size:11px; color:var(--text-secondary);">States (6+1)</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">12</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Thrift Mappings</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">3</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Open Questions</div></div>
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Component Architecture</h3>
+    <div class="mermaid">
+graph TB
+    subgraph "intouch-api-v3 (New)"
+        CTRL["SubscriptionController&lt;br/&gt;/v3/subscriptions"]
+        FAC["SubscriptionFacade"]
+        REPO["SubscriptionRepository"]
+        VAL["SubscriptionStatusTransitionValidator"]
+        SVAL["SubscriptionValidatorService"]
+        PUB["SubscriptionThriftPublisher"]
+        ENT["UnifiedSubscription&lt;br/&gt;@Document"]
+    end
+    subgraph "Existing (Modified)"
+        CFG["EmfMongoConfig&lt;br/&gt;+ SubscriptionRepository"]
+        THRIFT["PointsEngineRulesThriftService&lt;br/&gt;+ createOrUpdatePartnerProgram"]
+    end
+    subgraph "Existing (Unchanged)"
+        MONGO["MongoDB&lt;br/&gt;unified_subscriptions"]
+        EMFSRV["emf-parent Thrift Server"]
+        MYSQL["MySQL&lt;br/&gt;partner_programs"]
+    end
+    CTRL --> FAC
+    FAC --> REPO
+    FAC --> VAL
+    FAC --> SVAL
+    FAC --> PUB
+    REPO --> ENT
+    PUB --> THRIFT
+    REPO -.-> CFG
+    CFG -.-> MONGO
+    THRIFT --> EMFSRV
+    EMFSRV --> MYSQL
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">API Contracts</h3>
+    <table class="data-table" style="width:100%; border-collapse:collapse; font-size:13px; margin:10px 0;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left; padding:8px; color:var(--accent);">Method</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Path</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Description</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--success);">POST</span></td><td style="padding:8px;">/v3/subscriptions</td><td style="padding:8px;">Create subscription</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--accent);">GET</span></td><td style="padding:8px;">/v3/subscriptions/{id}</td><td style="padding:8px;">Get by ID</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--accent);">GET</span></td><td style="padding:8px;">/v3/subscriptions</td><td style="padding:8px;">List (paginated)</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--warning);">PUT</span></td><td style="padding:8px;">/v3/subscriptions/{id}</td><td style="padding:8px;">Update subscription</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--danger);">DELETE</span></td><td style="padding:8px;">/v3/subscriptions/{id}</td><td style="padding:8px;">Delete DRAFT</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--warning);">PUT</span></td><td style="padding:8px;">/v3/subscriptions/{id}/status</td><td style="padding:8px;">Change status (lifecycle)</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--success);">POST</span></td><td style="padding:8px;">/v3/subscriptions/{id}/benefits</td><td style="padding:8px;">Link benefits</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--accent);">GET</span></td><td style="padding:8px;">/v3/subscriptions/{id}/benefits</td><td style="padding:8px;">List benefits</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;"><span style="color:var(--danger);">DELETE</span></td><td style="padding:8px;">/v3/subscriptions/{id}/benefits</td><td style="padding:8px;">Unlink benefits</td></tr>
+        <tr><td style="padding:8px;"><span style="color:var(--accent);">GET</span></td><td style="padding:8px;">/v3/subscriptions/approvals</td><td style="padding:8px;">List pending approvals</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Lifecycle State Machine</h3>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT : Create
+    DRAFT --> PENDING_APPROVAL : SUBMIT_FOR_APPROVAL
+    PENDING_APPROVAL --> ACTIVE : APPROVE + Thrift
+    PENDING_APPROVAL --> DRAFT : REJECT
+    ACTIVE --> PAUSED : PAUSE
+    PAUSED --> ACTIVE : RESUME
+    DRAFT --> ARCHIVED : ARCHIVE
+    ACTIVE --> ARCHIVED : ARCHIVE
+    ARCHIVED --> [*] : Terminal
+    note right of ACTIVE : startDate gt now = SCHEDULED (derived)
+    note right of ACTIVE : endDate lt now = EXPIRED (derived)
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">ADR Summary</h3>
+    <table class="data-table" style="width:100%; border-collapse:collapse; font-size:13px; margin:10px 0;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left; padding:8px; color:var(--accent);">ADR</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Decision</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Key Rationale</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">ADR-1</td><td style="padding:8px;">Separate SubscriptionController</td><td style="padding:8px;">RequestManagementController hardcodes UnifiedPromotion return type</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">ADR-2</td><td style="padding:8px;">MongoDB-First + Thrift Write-Back</td><td style="padding:8px;">Proven UnifiedPromotion pattern, zero MySQL migrations</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">ADR-3</td><td style="padding:8px;">SCHEDULED/EXPIRED as Derived Status</td><td style="padding:8px;">No background jobs, consistent with UPCOMING pattern</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">ADR-4</td><td style="padding:8px;">Benefits as FK References Only</td><td style="padding:8px;">Clean separation, future E2/E4 builds real benefits</td></tr>
+        <tr><td style="padding:8px;">ADR-5</td><td style="padding:8px;">Enrollment Out of Scope</td><td style="padding:8px;">Do not touch enrollment Thrift logic (KD-16)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Maker-Checker Versioning</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant Facade as SubscriptionFacade
+    participant Repo as SubscriptionRepository
+    participant Mongo as MongoDB
+    Note over User,Mongo: Edit an ACTIVE subscription
+    User->>Facade: PUT /v3/subscriptions/{id}
+    Facade->>Repo: Find ACTIVE doc
+    Repo->>Mongo: Query
+    Mongo-->>Repo: Doc v1 ACTIVE
+    alt DRAFT exists
+        Facade->>Repo: Update existing DRAFT
+    else No DRAFT
+        Facade->>Facade: Clone, status=DRAFT, version=2, parentId=ACTIVE.objectId
+        Facade->>Repo: Save new DRAFT
+    end
+    Note over User,Mongo: Approve the DRAFT
+    User->>Facade: PUT .../status APPROVE
+    Facade->>Facade: Publish to Thrift
+    Facade->>Repo: Old ACTIVE to SNAPSHOT
+    Facade->>Repo: DRAFT to ACTIVE
+    </div>
+
+    <ul class="artifact-list" style="list-style:none; margin-top:15px; font-size:12px; color:var(--text-secondary);">
+      <li>01-architect.md</li>
+    </ul>
   </section>
 
   <!-- Phase 6a: Impact Analysis (pending) -->

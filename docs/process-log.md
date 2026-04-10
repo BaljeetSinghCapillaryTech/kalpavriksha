@@ -218,3 +218,40 @@
 - Cross-repo calls: 1 (Thrift on APPROVE only)
 - Red flags: 4
 - "0 modifications" claims verified with evidence: 4 repos (all C6+)
+
+### Phase 6: HLD -- Architecture
+- Time: 2026-04-09
+- Skill: /architect
+- Mode: Interactive (main context)
+
+#### Pattern Evaluation
+- 3 patterns evaluated: Clone-and-Adapt (UnifiedPromotion), Generic Entity Framework, Separate Microservice
+- Chosen: Clone-and-Adapt (Pattern A) -- highest codebase fit, lowest risk, proven pattern
+- Rationale: KD-07 already committed to UnifiedPromotion pattern in Phase 1. No need for Pattern B refactoring overhead.
+- Note: Pattern direction was not re-presented for user approval since KD-07 already locked this in Phase 1.
+
+#### Architecture Produced
+- Problem statement: Subscription program management API in intouch-api-v3 with CRUD, lifecycle, maker-checker, benefit linking, Thrift publish on APPROVE
+- 11 components with single-line responsibilities
+- 10 REST API endpoints at /v3/subscriptions
+- Data model: UnifiedSubscription @Document with 8 nested objects (metadata, config, migration, tierDowngrade, reminders, customFields, benefitIds)
+- 14-field Thrift mapping table (UnifiedSubscription -> PartnerProgramInfo)
+- 6-state lifecycle (DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, EXPIRED, ARCHIVED) + 1 derived (SCHEDULED)
+- Transition table with 8 valid transitions
+- Maker-checker versioning: edit-of-active creates DRAFT with parentId, approve swaps ACTIVE<->SNAPSHOT
+- 5 ADRs documented (Separate Controller, MongoDB-First, SCHEDULED Derived, Benefits FK, Enrollment Out of Scope)
+- 6-phase implementation plan with dependency graph
+
+#### Key Numbers
+- Components: 11 (9 new files + 2 modified)
+- API endpoints: 10
+- ADRs: 5
+- Lifecycle states: 6 stored + 1 derived
+- Valid transitions: 8
+- Thrift field mappings: 12
+- New key decisions: 5 (KD-17 through KD-21)
+- Open questions: 3 (OQ-A1, OQ-A2, OQ-A3)
+
+#### Artifacts Produced
+- 01-architect.md (full HLD with Mermaid diagrams)
+- session-memory.md updated (KD-17 through KD-21, 3 codebase behaviours, 3 constraints, 3 open questions)

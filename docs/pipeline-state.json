@@ -67,7 +67,18 @@
       "cross_repo_calls": 1,
       "red_flags": 4
     },
-    "6": { "status": "pending" },
+    "6": {
+      "status": "complete",
+      "started_at": "2026-04-09T16:30:00Z",
+      "completed_at": "2026-04-09T17:30:00Z",
+      "artifacts": ["01-architect.md"],
+      "pattern_chosen": "Clone-and-Adapt (UnifiedPromotion)",
+      "components": 11,
+      "api_endpoints": 10,
+      "adrs": 5,
+      "lifecycle_states": "6 stored + 1 derived",
+      "open_questions": ["OQ-A1", "OQ-A2", "OQ-A3"]
+    },
     "6a": { "status": "pending" },
     "6b": { "status": "pending" },
     "7": { "status": "pending" },

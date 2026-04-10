@@ -52,6 +52,9 @@
 | **Integration test infra**: AbstractContainerTest (Testcontainers: MongoDB, MySQL, Redis, RabbitMQ), EmfMongoConfigTest replaces EmfMongoConfig for test profile, RestTemplate + @LocalServerPort, @MockBean for external services, JUnit 5. | AbstractContainerTest.java, RequestManagementControllerTest.java | C7 _(Phase 5)_ |
 | **PromotionAction.getNormalizedAction()** maps RESUME->APPROVE, REVOKE->REJECT. Subscription uses simpler direct mapping (actions are 1:1). | PromotionAction.java:48-59 | C7 _(Phase 5)_ |
 | **RequestManagementController returns ResponseEntity<ResponseWrapper<UnifiedPromotion>>** -- hardcoded. Subscription MUST use own controller for status changes. | RequestManagementController.java:39 | C7 _(Phase 5)_ |
+| **11 components designed for subscription package**: SubscriptionController, SubscriptionFacade, SubscriptionRepository, SubscriptionStatusTransitionValidator, SubscriptionValidatorService, SubscriptionThriftPublisher, UnifiedSubscription, SubscriptionMetadata, SubscriptionStatus, SubscriptionAction, SubscriptionStatusChangeRequest. Mirrors UnifiedPromotion package structure. | 01-architect.md Section 5 | C7 _(Architect)_ |
+| **6-phase implementation plan with dependencies**: Foundation (entity+repo+config) -> CRUD (facade+controller) -> Lifecycle (validator+status changes) -> Thrift Publish (publisher+wire APPROVE) -> Benefits+Approvals (link/unlink/list) -> Maker-Checker Versioning (edit-of-active+approve-with-parent). Phases 4 and 5 can run in parallel. | 01-architect.md Section 12 | C6 _(Architect)_ |
+| **Thrift field mapping verified**: 12 fields map from UnifiedSubscription to PartnerProgramInfo. benefitIds, reminders, customFields have NO Thrift equivalent -- live only in MongoDB. partnerProgramId = 0 for create, >0 for update. updatedViaNewUI = true signals v3 origin. | 01-architect.md Section 8.3 | C7 _(Architect)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |
@@ -72,6 +75,11 @@
 | KD-14 | **PENDING enrollments honored when subscription PAUSED.** Existing PENDING enrollments remain active when subscription transitions to PAUSED. Only new enrollment attempts are blocked (400 response). | User decision: respect commitments made when subscription was ACTIVE. | Phase 4 (Blocker Q4a) | Yes |
 | KD-15 | **restrictToOneActivePerMember enforced by EMF Thrift.** v3 API does NOT pre-check this constraint. Delegation to EMF which owns enrollment logic and has ENABLE_PARTNER_PROGRAM_LINKING config. | User decision: avoid duplicating validation. EMF is authoritative. | Phase 4 (Blocker Q4b) | Yes |
 | KD-16 | **Enrollment Thrift calls stay on existing paths.** v3 does NOT wrap, modify, or call enrollment Thrift methods (partnerProgramLinkingEvent, partnerProgramDeLinkingEvent, partnerProgramUpdateEvent). Only `createOrUpdatePartnerProgram` is called from v3 on ACTIVE transition. Enrollment operations continue through existing api/prototype v2 paths. This REMOVES Epic 4 (Enrollment Operations) from scope -- E4-US1 through E4-US4 are OUT OF SCOPE for this run. | User decision: do not touch enrollment Thrift logic. Significant scope reduction -- enrollment management stays on existing v2 paths. | Phase 4 (Blocker Q5) | No -- fundamental boundary |
+| KD-17 | **[ADR-1] Separate SubscriptionController, NOT RequestManagementFacade routing.** Own controller at `/v3/subscriptions` with dedicated CRUD + status change + benefits endpoints. Does not add SUBSCRIPTION to EntityType or route through RequestManagementFacade. | RequestManagementController hardcodes `ResponseWrapper<UnifiedPromotion>` return type; StatusChangeRequest has promotion-specific field name; subscription is self-contained in its own package. | Phase 6 (Architect) | Yes -- could refactor to shared routing later |
+| KD-18 | **[ADR-2] Clone-and-Adapt architectural pattern chosen.** Mirror UnifiedPromotion package structure: entity, repository, facade, controller, status validator, thrift publisher. No shared base classes. No generic entity framework. | Fastest path, lowest risk, proven pattern. Refactoring to shared abstractions deferred until both entities are stable. KD-07 already committed to this direction. | Phase 6 (Architect) | No -- pattern already committed |
+| KD-19 | **[ADR-3] EXPIRED is also derived, same as SCHEDULED.** Both derived at read time from ACTIVE status: startDate > now = SCHEDULED, endDate < now = EXPIRED. "List SCHEDULED" = find ACTIVE where startDate > now. "List EXPIRED" = find ACTIVE where endDate < now. | Consistent derivation pattern. Avoids background jobs for expiry transitions. Follows KD-11 principle. | Phase 6 (Architect) | Yes |
+| KD-20 | **SubscriptionThriftPublisher maps 12 fields from UnifiedSubscription to PartnerProgramInfo.** Key mappings: metadata.name -> partnerProgramName, unifiedSubscriptionId -> partnerProgramUniqueIdentifier, all v3 subscriptions set partnerProgramType=SUPPLEMENTARY, updatedViaNewUI=true. Fields with no Thrift equivalent (benefitIds, reminders, customFields) live only in MongoDB. | PartnerProgramInfo struct has 14 fields; subscription document is richer. MongoDB is source of truth for full config; MySQL has subset. | Phase 6 (Architect) | No -- Thrift struct is fixed |
+| KD-21 | **10 REST API endpoints defined.** CRUD: POST, GET/{id}, GET (list), PUT/{id}, DELETE/{id}. Lifecycle: PUT/{id}/status. Benefits: POST/{id}/benefits, GET/{id}/benefits, DELETE/{id}/benefits. Approvals: GET /approvals. All return ResponseWrapper<UnifiedSubscription>. | Complete API surface per PRD E3-US5. Benefits endpoints accept dummy IDs (KD-08). | Phase 6 (Architect) | Yes -- endpoints can be added/removed |
 
 ## Constraints
 | # | Constraint | Source | Impact |
@@ -80,6 +88,9 @@
 | C-02 | Interface philosophy: Option A (Hybrid -- Direct UI + aiRa) is the recommended starting model | BRD S5 | Architecture must support both direct UI path and aiRa path |
 | C-03 | API-First Contract: all APIs must be self-reliant, validation in API not frontend | BRD S10 | Backend must return structured validation errors, not 500s |
 | C-04 | 7 open questions in BRD Section 12 still unresolved | BRD S12 | Must resolve during Phase 4 (Blocker Resolution) |
+| C-05 | All subscription queries MUST include orgId filter from auth context (tenant isolation). Cross-org access returns 404 not 403. | Architect (ADR-2, G-07) | Every repository query, every facade method |
+| C-06 | APPROVE is a blocking Thrift call -- must succeed or APPROVE fails and status rolls back. No async publish. | Architect Section 10.2 | Error handling on Thrift failure must be robust |
+| C-07 | Name uniqueness must be validated in MongoDB BEFORE Thrift call on APPROVE to avoid MySQL UNIQUE constraint violation at partner_programs(org_id, name). | Architect + Phase 5 red flag | SubscriptionValidatorService must check across DRAFT/ACTIVE/PAUSED/PENDING_APPROVAL statuses |
 
 ## Open Questions
 | # | Question | Source | Status |
@@ -90,3 +101,6 @@
 | OQ-04 | Can a benefit be linked to multiple programs, or always scoped to one? | BRD S12 | Open |
 | OQ-05 | Should aiRa handle multi-turn disambiguation? | BRD S12 | Open |
 | OQ-06 | Is the downgrade "validate on return transaction" toggle surfaced in new UI or deprecated? | BRD S12 | Open |
+| OQ-A1 | Should PAUSE update partner_programs.is_active in MySQL? Currently no Thrift call on PAUSE. | Architect | Open _(Architect)_ |
+| OQ-A2 | Should EXPIRED status trigger any Thrift call (e.g., set is_active=false in MySQL)? | Architect | Open _(Architect)_ |
+| OQ-A3 | What programId to use for the Thrift call? Always from metadata.programId? | Architect | Open _(Architect)_ |

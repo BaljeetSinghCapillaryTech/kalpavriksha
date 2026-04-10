@@ -59,3 +59,12 @@ No user decisions in this phase -- this was an automated analysis pass. Key find
 | D-16 | Architecture: RequestManagementController return type | Create separate SubscriptionController with own status change handler. Do not modify existing controller. | GAP-4/C-6 resolution. Architecture decision for Phase 6. |
 | D-17 | Architecture: StatusChangeRequest DTO | Create SubscriptionStatusChangeRequest with field name "action". | C-8 resolution. Design decision for Phase 7. |
 | D-18 | Thrift enrollment storeUnitID | **N/A** -- Enrollment Thrift calls are out of scope (KD-16). | GAP-6 resolved by scope reduction. |
+
+### Phase 6 (Architecture)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-19 | Which architectural pattern for subscriptions? Options: Clone-and-Adapt, Generic Entity Framework, Separate Microservice. | **Clone-and-Adapt (UnifiedPromotion)** -- mirror the existing package structure | KD-07 already committed to this in Phase 1. Highest codebase fit, lowest risk, zero learning curve. Generic Entity Framework rejected (risky refactoring of working code). Separate Microservice rejected (massive infrastructure overhead). KD-18. |
+| D-20 | Should subscription use RequestManagementFacade routing or own controller? | **Separate SubscriptionController** at /v3/subscriptions with own status endpoint | RequestManagementController returns hardcoded UnifiedPromotion type. StatusChangeRequest has promotion-specific field. Subscription is self-contained. KD-17, ADR-1. |
+| D-21 | How to handle EXPIRED status? | **Derived at read time** -- same as SCHEDULED (KD-11). endDate < now on ACTIVE doc = EXPIRED. | Consistent with SCHEDULED derivation. No background jobs. KD-19. |
+| D-22 | Thrift field mapping strategy? | **12-field explicit mapping** via SubscriptionThriftPublisher. benefitIds/reminders/customFields stay MongoDB-only. updatedViaNewUI=true. | PartnerProgramInfo is a fixed struct; subscription doc is richer. MongoDB is source of truth for full config. KD-20. |
+| D-23 | API surface scope? | **10 endpoints** covering CRUD + lifecycle + benefits + approvals. All return ResponseWrapper<UnifiedSubscription>. | Complete surface per PRD E3-US5. Matches user stories in scope. KD-21. |
