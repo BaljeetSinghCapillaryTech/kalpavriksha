@@ -81,6 +81,8 @@
 | R-14 | startDate after endDate validation not in Designer interfaces -- should be added to SubscriptionValidatorService | LOW | Open _(QA)_ |
 | R-15 | Pagination sort order not explicit in repository -- PRD requires lastModifiedOn descending but Pageable doesn't enforce it by default | LOW | Open _(QA)_ |
 | R-16 | Concurrent access tests need custom threading harness (CountDownLatch or similar) -- not trivially expressible in standard JUnit | MEDIUM | Open _(Business Test Gen)_ |
+| R-17 | PartnerProgramInfo Thrift struct has no `is_active` field. PAUSE/RESUME signaling to EMF must use a different mechanism (possibly via the Thrift call parameters or a separate Thrift method). Tests verify the call is made with correct partnerProgramId but cannot assert is_active field mapping. | MEDIUM | Open _(SDET)_ |
+| R-18 | SCHEDULED added to SubscriptionStatus enum as a derived value (never stored). All queries for SCHEDULED/EXPIRED subscriptions must post-process ACTIVE results with date checks. MongoDB queries cannot natively filter by derived status. | LOW | Noted _(SDET)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |
