@@ -211,7 +211,13 @@
       "code_review_optional": "skipped",
       "commit": "0c85e6e26 aidlc: fix org-wide name uniqueness to use proper MongoDB query"
     },
-    "12": { "status": "pending" }
+    "12": {
+      "status": "complete",
+      "started_at": "2026-04-10T16:30:00Z",
+      "completed_at": "2026-04-10T17:00:00Z",
+      "artifacts": ["subscription-crud-blueprint.html", "process-log.md", "approach-log.md"],
+      "pipeline_complete": true
+    }
   },
   "git_branch": "aidlc/aidlc-demo-v2",
   "git_branches": {},

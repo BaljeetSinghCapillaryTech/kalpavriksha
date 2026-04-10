@@ -84,3 +84,20 @@ No user decisions in this phase -- this was an automated analysis pass. Key find
 | D-29 | How to handle MongoDB/MySQL name uniqueness mismatch? | **Two-layer validation**: (1) validateCreate checks per-programId+orgId in MongoDB (KD-24), (2) validateNameUniquenessOrgWide called before Thrift APPROVE to prevent MySQL UNIQUE(org_id, name) failure (R-04). | MongoDB allows same name across programs. MySQL does not. SubscriptionValidatorService has both methods. KD-27. |
 | D-30 | How many Thrift publisher methods? | **Three**: publishOnApprove (is_active=true, returns partnerProgramId), publishOnPause (is_active=false), publishOnResume (is_active=true). All blocking synchronous. | Maps directly to KD-22 (three Thrift-calling transitions). All wrap PointsEngineRulesThriftService.createOrUpdatePartnerProgram(). KD-28. |
 | D-31 | Should SubscriptionAction enum have getNormalizedAction() like PromotionAction? | **No** -- simplified, no normalization needed. Subscription actions are 1:1 (no RESUME->APPROVE mapping). | PromotionAction maps RESUME->APPROVE and REVOKE->REJECT for legacy reasons. Subscription has no such legacy. Direct enum values suffice. |
+
+### Phase 10 (Developer -- GREEN)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-32 | Mockito strict stubbing: how to handle serverReqId in Thrift calls? | Use `UUID.randomUUID().toString()` as serverReqId instead of null | Mockito strict mode: anyString() does not match null. UUID approach avoids servlet context dependency (vs CapRequestIdUtil). |
+| D-33 | SubscriptionMetadata: @Builder or @Builder(toBuilder=true)? | Changed to `@Builder(toBuilder=true)` | Required for deep-copy in SubscriptionFacade.createVersionedDraft() -- creates independent copy of parent metadata. |
+| D-34 | Controller auth: Authentication or AbstractBaseAuthenticationToken? | `AbstractBaseAuthenticationToken` | Follows existing UnifiedPromotionController pattern. Provides typed access to IntouchUser.getOrgId(). |
+
+### Phase 10b (Backend Readiness)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-35 | Not-found responses: InvalidInputException (400) or NotFoundException (404)? | Changed to `NotFoundException` for all not-found cases | Backend readiness finding: HTTP semantics require 404. Global TargetGroupErrorAdvice maps NotFoundException to 404. InvalidInputException reserved for validation (400). |
+
+### Phase 11 (Reviewer)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-36 | F-1/F-2: validateNameUniquenessOrgWide was a stub. Fix approach? | Added `findByNameAndOrgIdExcludingTerminal` query to repository + implemented actual conflict lookup | Stub would block ALL APPROVE flows in production. Query excludes terminal statuses (ARCHIVED, SNAPSHOT). Only throws when actual conflict found. |
