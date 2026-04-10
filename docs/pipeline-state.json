@@ -124,7 +124,17 @@
       "risks_addressed": 7,
       "gaps_identified": 6
     },
-    "8b": { "status": "pending" },
+    "8b": {
+      "status": "complete",
+      "started_at": "2026-04-10T10:30:00Z",
+      "completed_at": "2026-04-10T11:00:00Z",
+      "artifacts": ["04b-business-tests.md"],
+      "total_test_cases": 98,
+      "unit_tests": 62,
+      "integration_tests": 36,
+      "compliance_tests": 16,
+      "gaps": 5
+    },
     "9": { "status": "pending" },
     "10": { "status": "pending" },
     "10b": { "status": "pending" },

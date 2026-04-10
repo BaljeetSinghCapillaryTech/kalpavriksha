@@ -80,6 +80,7 @@
 | R-13 | Delete DRAFT with parentId (pending version of ACTIVE) -- should be blocked to protect maker-checker workflow. Use REJECT instead. | MEDIUM | Open _(QA)_ |
 | R-14 | startDate after endDate validation not in Designer interfaces -- should be added to SubscriptionValidatorService | LOW | Open _(QA)_ |
 | R-15 | Pagination sort order not explicit in repository -- PRD requires lastModifiedOn descending but Pageable doesn't enforce it by default | LOW | Open _(QA)_ |
+| R-16 | Concurrent access tests need custom threading harness (CountDownLatch or similar) -- not trivially expressible in standard JUnit | MEDIUM | Open _(Business Test Gen)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |
