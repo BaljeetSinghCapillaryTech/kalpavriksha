@@ -287,3 +287,57 @@
 #### Artifacts Produced
 - 02-analyst.md (full impact analysis)
 - session-memory.md updated (5 codebase behaviours, 7 risks)
+
+### Phase 6b: Migration Planning
+- Time: 2026-04-09
+- Status: SKIPPED
+- Reason: No schema changes in HLD. ADR-2: Zero Flyway migrations. MongoDB-first architecture.
+
+### Phase 7: LLD -- Designer
+- Time: 2026-04-09
+- Skill: /designer
+- Mode: Subagent (reads architect output, produces compile-safe interfaces)
+
+#### Pattern Discovery (Step 0)
+- Read 10+ source files in intouch-api-v3 for pattern matching
+- All patterns traced to UnifiedPromotion equivalents (entity, repository, facade, controller, validators, enums, DTOs)
+- Key pattern decisions documented: @Component (not @Service), @Autowired field injection, java.util.Date (not Instant), @Document collection, Lombok annotations
+- No new Maven dependencies needed (all already in pom.xml)
+
+#### Types Defined (18 total)
+- **Entity**: UnifiedSubscription (root document with getEffectiveStatus())
+- **Models (8)**: SubscriptionMetadata, SubscriptionConfig, SubscriptionDuration, SubscriptionPrice, SubscriptionReminder, SubscriptionCustomFieldConfig, MigrationConfig, TierDowngradeConfig
+- **Enums (2)**: SubscriptionStatus (7 values incl. SNAPSHOT), SubscriptionAction (6 values)
+- **DTO (1)**: SubscriptionStatusChangeRequest
+- **Repository (1)**: SubscriptionRepository with 11 @Query methods
+- **Facade (1)**: SubscriptionFacade with 10 business methods (CRUD + lifecycle + benefits + approvals)
+- **Controller (1)**: SubscriptionController with 10 REST endpoints at /v3/subscriptions
+- **Validators (2)**: SubscriptionStatusTransitionValidator (EnumMap), SubscriptionValidatorService (name uniqueness, programId immutability)
+- **Thrift (1)**: SubscriptionThriftPublisher (publishOnApprove, publishOnPause, publishOnResume)
+
+#### Modified Existing Files (4)
+- PointsEngineRulesThriftService: +1 method (createOrUpdatePartnerProgram)
+- PointsEngineRulesThriftServiceStub: +1 override (test stub for above)
+- EmfMongoConfig: add SubscriptionRepository to includeFilters
+- EmfMongoConfigTest: expand basePackages + add to includeFilters
+
+#### Key Design Decisions
+- KD-25: 18 types, 11 new files, 4 modified -- Clone-and-Adapt fully realized
+- KD-26: java.util.Date per G-12.2 (known deviation from G-01.3)
+- KD-27: Two-layer name uniqueness (per-programId + per-org pre-Thrift)
+- KD-28: Three Thrift-calling methods via publisher
+
+#### Artifacts Produced
+- 03-designer.md (complete LLD with compile-safe signatures, Mermaid diagrams)
+- session-memory.md updated (KD-25 through KD-28, 3 codebase behaviours, 2 constraints)
+
+#### Key Numbers
+- Types defined: 18
+- New files: 11
+- Modified existing files: 4
+- Repository @Query methods: 11
+- Facade business methods: 10
+- Controller REST endpoints: 10
+- Error scenarios: 10
+- Maven dependencies needed: 0
+- New key decisions: 4 (KD-25 through KD-28)

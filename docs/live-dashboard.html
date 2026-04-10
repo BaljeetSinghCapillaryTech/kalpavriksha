@@ -286,10 +286,10 @@
     <li class="complete" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 6a: Impact Analysis
     </li>
-    <li class="active" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 7: LLD (Designer)
     </li>
-    <li class="pending" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
+    <li class="active" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 8: QA
     </li>
     <li class="pending" onclick="document.getElementById('phase-9').scrollIntoView({behavior:'smooth'})">
@@ -330,12 +330,12 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 57%;"></div>
+      <div class="fill" style="width: 64%;"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">8</span> / 14 phases complete</span>
-      <span><span class="stat-value">23</span> artifacts generated</span>
-      <span><span class="stat-value">24</span> decisions made</span>
+      <span><span class="stat-value">9</span> / 14 phases complete</span>
+      <span><span class="stat-value">24</span> artifacts generated</span>
+      <span><span class="stat-value">28</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
   </div>
@@ -1028,10 +1028,148 @@ pie title Risk Severity
     </ul>
   </section>
 
-  <!-- Phase 7: LLD (pending) -->
+  <!-- Phase 7: LLD (complete) -->
   <section class="phase-section" id="phase-7">
-    <h2>Phase 7: LLD (Designer) <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Interface contracts, compile-safe signatures, class diagrams.</p>
+    <h2>Phase 7: LLD (Designer) <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">/designer</span>
+    <p>Produced 18 compile-safe type definitions across 11 new files + 4 modified existing files. All patterns traced to existing UnifiedPromotion codebase. No new Maven dependencies needed.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">18</div><div class="label">Types Defined</div></div>
+      <div class="key-number"><div class="value">11</div><div class="label">New Files</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Modified Files</div></div>
+      <div class="key-number"><div class="value">10</div><div class="label">REST Endpoints</div></div>
+      <div class="key-number"><div class="value">11</div><div class="label">Repository Queries</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">New Dependencies</div></div>
+    </div>
+
+    <h3>Package Structure</h3>
+    <div class="mermaid">
+graph TD
+    subgraph "com.capillary.intouchapiv3.unified.subscription"
+        ENT[UnifiedSubscription.java]
+        REPO[SubscriptionRepository.java]
+        FAC[SubscriptionFacade.java]
+        subgraph "model/"
+            META[SubscriptionMetadata]
+            CFG[SubscriptionConfig]
+            DUR[SubscriptionDuration]
+            PRC[SubscriptionPrice]
+            REM[SubscriptionReminder]
+            CUST[SubscriptionCustomFieldConfig]
+            MIG[MigrationConfig]
+            TIER[TierDowngradeConfig]
+        end
+        subgraph "enums/"
+            STS[SubscriptionStatus]
+            ACT[SubscriptionAction]
+        end
+        subgraph "dto/"
+            DTO[SubscriptionStatusChangeRequest]
+        end
+        subgraph "validators/"
+            STVAL[SubscriptionStatusTransitionValidator]
+            SVAL[SubscriptionValidatorService]
+        end
+        subgraph "thrift/"
+            PUB[SubscriptionThriftPublisher]
+        end
+    end
+    subgraph "com.capillary.intouchapiv3.resources"
+        CTRL[SubscriptionController]
+    end
+    style ENT fill:#00d4ff33,stroke:#00d4ff
+    style CTRL fill:#00d4ff33,stroke:#00d4ff
+    style FAC fill:#00d4ff33,stroke:#00d4ff
+    </div>
+
+    <h3>Dependency Direction (No Cycles)</h3>
+    <div class="mermaid">
+graph TD
+    CTRL[SubscriptionController] --> FAC[SubscriptionFacade]
+    FAC --> REPO[SubscriptionRepository]
+    FAC --> STVAL[StatusTransitionValidator]
+    FAC --> SVAL[ValidatorService]
+    FAC --> PUB[ThriftPublisher]
+    SVAL --> REPO
+    PUB --> THRIFT[PointsEngineRulesThriftService]
+    REPO --> ENT[UnifiedSubscription]
+    ENT --> META[SubscriptionMetadata]
+    ENT --> CFG[SubscriptionConfig]
+    ENT --> STATUS[SubscriptionStatus]
+    CTRL --> DTO[StatusChangeRequest]
+    STVAL --> STATUS
+    STVAL --> ACTION[SubscriptionAction]
+    style THRIFT fill:#ffab4033,stroke:#ffab40
+    style REPO fill:#00e67633,stroke:#00e676
+    </div>
+
+    <h3>Type Inventory</h3>
+    <table class="data-table">
+      <thead><tr><th>Category</th><th>Type</th><th>Package</th><th>Pattern Source</th></tr></thead>
+      <tbody>
+        <tr><td>Entity</td><td>UnifiedSubscription</td><td>unified.subscription</td><td>UnifiedPromotion.java</td></tr>
+        <tr><td>Model</td><td>SubscriptionMetadata</td><td>unified.subscription.model</td><td>Metadata.java</td></tr>
+        <tr><td>Model</td><td>SubscriptionConfig</td><td>unified.subscription.model</td><td>New (no equivalent)</td></tr>
+        <tr><td>Model</td><td>SubscriptionDuration</td><td>unified.subscription.model</td><td>PartnerProgramMembershipCycle (Thrift)</td></tr>
+        <tr><td>Model</td><td>SubscriptionPrice</td><td>unified.subscription.model</td><td>New (KD-06 extended fields)</td></tr>
+        <tr><td>Model</td><td>SubscriptionReminder</td><td>unified.subscription.model</td><td>ExpiryReminderForPartnerProgramInfo (Thrift)</td></tr>
+        <tr><td>Model</td><td>SubscriptionCustomFieldConfig</td><td>unified.subscription.model</td><td>KD-09 config storage</td></tr>
+        <tr><td>Model</td><td>MigrationConfig</td><td>unified.subscription.model</td><td>BRD E3 migration on expiry</td></tr>
+        <tr><td>Model</td><td>TierDowngradeConfig</td><td>unified.subscription.model</td><td>PartnerProgramTierSyncConfig (emf)</td></tr>
+        <tr><td>Enum</td><td>SubscriptionStatus</td><td>unified.subscription.enums</td><td>PromotionStatus.java</td></tr>
+        <tr><td>Enum</td><td>SubscriptionAction</td><td>unified.subscription.enums</td><td>PromotionAction.java (simplified)</td></tr>
+        <tr><td>DTO</td><td>SubscriptionStatusChangeRequest</td><td>unified.subscription.dto</td><td>StatusChangeRequest.java (field renamed)</td></tr>
+        <tr><td>Repository</td><td>SubscriptionRepository</td><td>unified.subscription</td><td>UnifiedPromotionRepository.java</td></tr>
+        <tr><td>Facade</td><td>SubscriptionFacade</td><td>unified.subscription</td><td>UnifiedPromotionFacade.java</td></tr>
+        <tr><td>Controller</td><td>SubscriptionController</td><td>resources</td><td>UnifiedPromotionController.java</td></tr>
+        <tr><td>Validator</td><td>SubscriptionStatusTransitionValidator</td><td>unified.subscription.validators</td><td>StatusTransitionValidator.java</td></tr>
+        <tr><td>Validator</td><td>SubscriptionValidatorService</td><td>unified.subscription.validators</td><td>ValidatorService.java (pattern)</td></tr>
+        <tr><td>Thrift</td><td>SubscriptionThriftPublisher</td><td>unified.subscription.thrift</td><td>New (wraps existing Thrift service)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified Existing Files</h3>
+    <table class="data-table">
+      <thead><tr><th>File</th><th>Change</th><th>Risk</th></tr></thead>
+      <tbody>
+        <tr><td>PointsEngineRulesThriftService</td><td>+1 method: createOrUpdatePartnerProgram()</td><td style="color:var(--warning);">LOW (additive)</td></tr>
+        <tr><td>PointsEngineRulesThriftServiceStub</td><td>+1 override: test stub for above (R-03)</td><td style="color:var(--danger);">HIGH if missed</td></tr>
+        <tr><td>EmfMongoConfig</td><td>Add SubscriptionRepository to includeFilters (R-01)</td><td style="color:var(--danger);">HIGH if missed</td></tr>
+        <tr><td>EmfMongoConfigTest</td><td>Expand basePackages + includeFilters (R-02)</td><td style="color:var(--danger);">HIGH if missed</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Error Handling</h3>
+    <table class="data-table">
+      <thead><tr><th>Scenario</th><th>HTTP</th><th>Error Code</th></tr></thead>
+      <tbody>
+        <tr><td>Name duplicate (programId scope)</td><td>400</td><td>SUBSCRIPTION.NAME_DUPLICATE</td></tr>
+        <tr><td>Name conflict (org scope, pre-Thrift)</td><td>400</td><td>SUBSCRIPTION.NAME_CONFLICT_ORG</td></tr>
+        <tr><td>Invalid status transition</td><td>400</td><td>SUBSCRIPTION.INVALID_TRANSITION</td></tr>
+        <tr><td>Not found</td><td>404</td><td>SUBSCRIPTION.NOT_FOUND</td></tr>
+        <tr><td>Update not allowed in status</td><td>400</td><td>SUBSCRIPTION.UPDATE_NOT_ALLOWED</td></tr>
+        <tr><td>Delete non-DRAFT</td><td>400</td><td>SUBSCRIPTION.DELETE_NOT_ALLOWED</td></tr>
+        <tr><td>Thrift publish failed</td><td>500</td><td>SUBSCRIPTION.PUBLISH_FAILED</td></tr>
+        <tr><td>programId changed on update</td><td>400</td><td>SUBSCRIPTION.PROGRAM_ID_IMMUTABLE</td></tr>
+        <tr><td>linkedTierId missing for TIER_BASED</td><td>400</td><td>SUBSCRIPTION.TIER_ID_REQUIRED</td></tr>
+        <tr><td>Reminders exceed 5</td><td>400</td><td>SUBSCRIPTION.REMINDERS_LIMIT</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Pattern Decisions</h3>
+    <table class="data-table">
+      <thead><tr><th>Decision</th><th>Choice</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>KD-25</td><td>18 types, 11 new + 4 modified files</td><td>Clone-and-Adapt (KD-18)</td></tr>
+        <tr><td>KD-26</td><td>java.util.Date (not Instant)</td><td>G-12.2 over G-01.3</td></tr>
+        <tr><td>KD-27</td><td>Two-layer name uniqueness</td><td>MongoDB per-programId + MySQL per-org</td></tr>
+        <tr><td>KD-28</td><td>3 Thrift publisher methods</td><td>APPROVE + PAUSE + RESUME (KD-22)</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list"><li>03-designer.md</li></ul>
   </section>
 
   <!-- Phase 8: QA (pending) -->
