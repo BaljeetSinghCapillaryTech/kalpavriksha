@@ -283,10 +283,10 @@
     <li class="complete" onclick="document.getElementById('phase-6').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 6: HLD (Architect)
     </li>
-    <li class="active" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-6a').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 6a: Impact Analysis
     </li>
-    <li class="pending" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
+    <li class="active" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 7: LLD (Designer)
     </li>
     <li class="pending" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
@@ -330,11 +330,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 50%;"></div>
+      <div class="fill" style="width: 57%;"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">7</span> / 14 phases complete</span>
-      <span><span class="stat-value">22</span> artifacts generated</span>
+      <span><span class="stat-value">8</span> / 14 phases complete</span>
+      <span><span class="stat-value">23</span> artifacts generated</span>
       <span><span class="stat-value">24</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -934,10 +934,98 @@ sequenceDiagram
     </ul>
   </section>
 
-  <!-- Phase 6a: Impact Analysis (pending) -->
+  <!-- Phase 6a: Impact Analysis -->
   <section class="phase-section" id="phase-6a">
-    <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Blast radius, security, performance, backward compatibility.</p>
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">/analyst --impact</span>
+
+    <p>Mapped blast radius across 5 repos and 12 components. 2 modified files carry HIGH risk (EmfMongoConfig routing, PointsEngineRulesThriftService new method). No BLOCKERS. 3 HIGH risks all mitigable. 3 GUARDRAILS warnings flagged for Designer/Developer.</p>
+
+    <div class="key-numbers" style="display:flex; gap:30px; margin:15px 0;">
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--accent); font-weight:bold;">10</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Risks Found</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--danger); font-weight:bold;">3</div><div class="label" style="font-size:11px; color:var(--text-secondary);">HIGH Risks</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--success); font-weight:bold;">0</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Blockers</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--warning); font-weight:bold;">3</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Guardrail Warns</div></div>
+      <div class="key-number" style="text-align:center;"><div class="value" style="font-size:28px; color:var(--success); font-weight:bold;">6</div><div class="label" style="font-size:11px; color:var(--text-secondary);">Guardrails Pass</div></div>
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Impact Blast Radius</h3>
+    <div class="mermaid">
+mindmap
+  root((Subscription-CRUD))
+    intouch-api-v3
+      NEW: 9 files
+        SubscriptionController
+        SubscriptionFacade
+        SubscriptionRepository
+        SubscriptionThriftPublisher
+        UnifiedSubscription
+        SubscriptionMetadata
+        SubscriptionStatus
+        SubscriptionAction
+        SubscriptionStatusChangeRequest
+      MODIFY: 2 files
+        EmfMongoConfig HIGH
+        PointsEngineRulesThriftService HIGH
+      TEST: 2 updates needed
+        EmfMongoConfigTest
+        ThriftServiceStub
+    emf-parent
+      0 changes C7
+    thrifts
+      0 changes C7
+    cc-stack-crm
+      0 changes C7
+    api/prototype
+      0 changes C6
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">Risk Severity Distribution</h3>
+    <div class="mermaid">
+pie title Risk Severity
+    "HIGH (R-01, R-02, R-03)" : 3
+    "MEDIUM (R-04, R-05, R-06, R-07)" : 4
+    "LOW (R-08, R-09, R-10)" : 3
+    </div>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">GUARDRAILS Compliance</h3>
+    <table class="data-table" style="width:100%; border-collapse:collapse; font-size:13px; margin:10px 0;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left; padding:8px; color:var(--accent);">Guardrail</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Priority</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Status</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Note</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-01 Timezone</td><td style="padding:8px;">CRITICAL</td><td style="padding:8px;"><span style="color:var(--warning);">WARN</span></td><td style="padding:8px;">Derived status (SCHEDULED/EXPIRED) must use Instant.now() UTC</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-03 Security</td><td style="padding:8px;">CRITICAL</td><td style="padding:8px;"><span style="color:var(--success);">PASS</span></td><td style="padding:8px;">MongoDB queries, auth on endpoints, tenant from token</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-05 Data Integrity</td><td style="padding:8px;">HIGH</td><td style="padding:8px;"><span style="color:var(--warning);">WARN</span></td><td style="padding:8px;">SNAPSHOT swap needs transaction manager</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-06 API Design</td><td style="padding:8px;">HIGH</td><td style="padding:8px;"><span style="color:var(--success);">PASS</span></td><td style="padding:8px;">Structured errors, ISO dates, pagination</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-07 Multi-Tenancy</td><td style="padding:8px;">CRITICAL</td><td style="padding:8px;"><span style="color:var(--success);">PASS</span></td><td style="padding:8px;">orgId in every query, per-org DB routing</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-09 Backward Compat</td><td style="padding:8px;">HIGH</td><td style="padding:8px;"><span style="color:var(--success);">PASS</span></td><td style="padding:8px;">New endpoints only, no existing API changes</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">G-10 Concurrency</td><td style="padding:8px;">HIGH</td><td style="padding:8px;"><span style="color:var(--warning);">WARN</span></td><td style="padding:8px;">Concurrent APPROVE race condition</td></tr>
+        <tr><td style="padding:8px;">G-12 AI-Specific</td><td style="padding:8px;">CRITICAL</td><td style="padding:8px;"><span style="color:var(--success);">PASS</span></td><td style="padding:8px;">Following existing patterns exactly</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="color:var(--accent); margin-top:20px; font-size:14px;">HIGH Risks (must address in implementation)</h3>
+    <table class="data-table" style="width:100%; border-collapse:collapse; font-size:13px; margin:10px 0;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left; padding:8px; color:var(--accent);">Risk</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Description</th>
+        <th style="text-align:left; padding:8px; color:var(--accent);">Mitigation</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">R-01</td><td style="padding:8px;">EmfMongoConfig routing failure</td><td style="padding:8px;">Add to includeFilters + routing IT</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">R-02</td><td style="padding:8px;">EmfMongoConfigTest not updated</td><td style="padding:8px;">Expand basePackages + includeFilters</td></tr>
+        <tr><td style="padding:8px;">R-03</td><td style="padding:8px;">ThriftServiceStub missing override</td><td style="padding:8px;">Override with dummy PartnerProgramInfo</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list" style="list-style:none; margin-top:15px; font-size:12px; color:var(--text-secondary);">
+      <li>02-analyst.md</li>
+    </ul>
   </section>
 
   <!-- Phase 7: LLD (pending) -->

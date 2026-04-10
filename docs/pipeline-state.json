@@ -79,8 +79,24 @@
       "lifecycle_states": "6 stored + 1 derived",
       "open_questions_resolved": {"OQ-A1": "KD-22: Thrift on PAUSE/RESUME", "OQ-A2": "KD-23: No Thrift on EXPIRED", "OQ-A3": "KD-24: programId mandatory+immutable, name unique per programId"}
     },
-    "6a": { "status": "pending" },
-    "6b": { "status": "pending" },
+    "6a": {
+      "status": "complete",
+      "started_at": "2026-04-09T17:45:00Z",
+      "completed_at": "2026-04-09T18:15:00Z",
+      "artifacts": ["02-analyst.md"],
+      "risks_identified": 10,
+      "risks_high": 3,
+      "risks_medium": 4,
+      "risks_low": 3,
+      "guardrails_checked": 9,
+      "guardrails_pass": 6,
+      "guardrails_warn": 3,
+      "blockers": 0
+    },
+    "6b": {
+      "status": "skipped",
+      "reason": "No schema changes in HLD. ADR-2: Zero Flyway migrations. MongoDB-first architecture."
+    },
     "7": { "status": "pending" },
     "8": { "status": "pending" },
     "8b": { "status": "pending" },

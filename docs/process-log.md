@@ -255,3 +255,35 @@
 #### Artifacts Produced
 - 01-architect.md (full HLD with Mermaid diagrams)
 - session-memory.md updated (KD-17 through KD-21, 3 codebase behaviours, 3 constraints, 3 open questions)
+
+### Phase 6a: Impact Analysis
+- Time: 2026-04-09
+- Skill: /analyst --impact
+- Mode: Analysis (reads HLD, traces blast radius, checks GUARDRAILS)
+
+#### Impact Mapping
+- 12 components analyzed (10 new, 2 modified)
+- 2 modified files with HIGH risk: EmfMongoConfig (routing), PointsEngineRulesThriftService (new method)
+- 5 repos assessed: only intouch-api-v3 affected (others confirmed unchanged with C7 evidence)
+- 16 existing callers of PointsEngineRulesThriftService -- adding method is safe (additive)
+
+#### Key Findings
+- EmfMongoConfigTest has restricted basePackages -- must expand for subscription ITs
+- PointsEngineRulesThriftServiceStub must override createOrUpdatePartnerProgram or ITs fail
+- MongoDB/MySQL name uniqueness mismatch: per-programId vs per-org_id (KD-24 edge case)
+- Maker-checker SNAPSHOT swap needs emfMongoTransactionManager for atomicity
+- Concurrent APPROVE race condition needs optimistic locking
+
+#### GUARDRAILS Compliance
+- CRITICAL guardrails (G-01, G-03, G-07): PASS (G-01 has WARN for timezone in derived status)
+- HIGH guardrails (G-05, G-10): WARN (atomicity of swap, concurrent access)
+- No BLOCKERS raised
+
+#### Risk Register
+- 10 risks identified: 3 HIGH (all mitigable), 4 MEDIUM, 3 LOW
+- No BLOCKERS -- all risks can be addressed in Designer/Developer phases
+- Highest risk: EmfMongoConfig routing (R-01) -- wrong DB if misconfigured
+
+#### Artifacts Produced
+- 02-analyst.md (full impact analysis)
+- session-memory.md updated (5 codebase behaviours, 7 risks)

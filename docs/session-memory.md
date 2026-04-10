@@ -57,6 +57,21 @@
 | **Thrift field mapping verified**: 12 fields map from UnifiedSubscription to PartnerProgramInfo. benefitIds, reminders, customFields have NO Thrift equivalent -- live only in MongoDB. partnerProgramId = 0 for create, >0 for update. updatedViaNewUI = true signals v3 origin. | 01-architect.md Section 8.3 | C7 _(Architect)_ |
 | **Three Thrift-calling transitions**: APPROVE (create/update with is_active=true), PAUSE (update with is_active=false), RESUME (update with is_active=true). EXPIRED does NOT call Thrift -- MySQL stays is_active=true on expiry. | KD-22, KD-23 | C7 _(User decision)_ |
 | **programId is immutable and scopes name uniqueness**: Subscription name must be unique within programId+orgId (not just orgId). programId cannot be changed after creation. Note: MySQL UNIQUE(org_id, name) is broader than MongoDB validation -- a name can repeat across programs in MongoDB but MySQL rejects it. SubscriptionThriftPublisher must handle this edge case. | KD-24 | C7 _(User decision)_ |
+| **EmfMongoConfigTest has restricted basePackages**: Test config uses `com.capillary.intouchapiv3.unified.promotion` not the root package. Must expand to include subscription package for ITs. | EmfMongoConfigTest.java:27 | C7 _(Analyst)_ |
+| **PointsEngineRulesThriftServiceStub must override new method**: Test stub extends the real service. If createOrUpdatePartnerProgram not overridden, ITs attempt real Thrift connection and fail. | PointsEngineRulesThriftServiceStub.java:26 | C7 _(Analyst)_ |
+| **MongoConfig and EmfMongoConfig both scan root package with includeFilters**: If SubscriptionRepository not explicitly routed to EmfMongoConfig, Spring may route it to primary mongoTemplate (wrong DB). | MongoConfig.java:28-36, EmfMongoConfig.java:27-34 | C7 _(Analyst)_ |
+| **emfMongoTransactionManager bean exists**: Can be used for atomic ACTIVE<->SNAPSHOT swap in maker-checker. | EmfMongoConfig.java:61-64 | C6 _(Analyst)_ |
+
+## Risks & Concerns
+| # | Risk | Severity | Status |
+|---|------|----------|--------|
+| R-01 | EmfMongoConfig routing failure -- SubscriptionRepository routes to wrong MongoDB template | HIGH | Open _(Analyst)_ |
+| R-02 | EmfMongoConfigTest not updated -- integration tests use wrong template silently | HIGH | Open _(Analyst)_ |
+| R-03 | PointsEngineRulesThriftServiceStub missing override -- APPROVE ITs fail | HIGH | Open _(Analyst)_ |
+| R-04 | MongoDB/MySQL name uniqueness mismatch -- APPROVE returns 500 | MEDIUM | Open _(Analyst)_ |
+| R-07 | Concurrent APPROVE race condition -- double Thrift call | MEDIUM | Open _(Analyst)_ |
+| R-08 | EXPIRED/MySQL is_active inconsistency -- accepted risk per KD-23 | LOW | Accepted _(Analyst)_ |
+| R-10 | Maker-checker SNAPSHOT swap not atomic without transaction | MEDIUM | Open _(Analyst)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |
