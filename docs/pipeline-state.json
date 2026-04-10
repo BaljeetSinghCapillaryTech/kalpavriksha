@@ -176,8 +176,22 @@
       "areas_na": 1,
       "findings": ["WARN: No MongoDB index annotations (consistent with UnifiedPromotion pattern)", "FIX: Changed not-found to NotFoundException (404) from InvalidInputException (400)"]
     },
-    "10c": { "status": "pending" },
-    "10d": { "status": "pending" },
+    "10c": {
+      "status": "complete",
+      "started_at": "2026-04-10T14:15:00Z",
+      "completed_at": "2026-04-10T14:30:00Z",
+      "artifacts": [],
+      "adrs_compliant": 5,
+      "adrs_total": 5,
+      "interfaces_compliant": 8,
+      "interfaces_total": 8,
+      "guardrails_pass": 3,
+      "gaps_critical": 0,
+      "gaps_high": 0,
+      "gaps_medium": 0,
+      "gaps_low": 3
+    },
+    "10d": { "status": "skipped", "reason": "No schema changes. Phase 6b (Migration Planning) was skipped. ADR-2: zero Flyway migrations." },
     "11": { "status": "pending" },
     "12": { "status": "pending" }
   },
