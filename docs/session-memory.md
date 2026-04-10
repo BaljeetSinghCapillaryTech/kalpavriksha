@@ -42,7 +42,16 @@
 | RequestManagementController.changeStatus() returns ResponseEntity<ResponseWrapper<UnifiedPromotion>> -- hardcoded return type. SubscriptionFacade returns UnifiedSubscription, requiring either a separate controller method or generalized return type. | RequestManagementController.java in intouch-api-v3 | C7 _(Phase 2)_ |
 | StatusChangeRequest DTO has field name "promotionStatus" with @Pattern regex validating only promotion actions. Subscriptions need own DTO or generalized field. | StatusChangeRequest.java in intouch-api-v3 | C7 _(Phase 2)_ |
 | EmfMongoConfig has @Profile("!test") -- integration tests need test-specific MongoDB config for SubscriptionRepository. | EmfMongoConfig.java in intouch-api-v3 | C7 _(Phase 2)_ |
-| More codebase behaviour TBD -- populated during Phase 5 (Codebase Research) | | |
+| **UnifiedPromotion create flow**: Controller receives @Valid @RequestBody + auth token -> Facade generates UUID (no hyphens) -> validates name uniqueness via ValidatorService -> sets metadata (orgId, createdOn, lastModifiedOn, default DRAFT) -> saves to MongoRepository -> returns doc with generated IDs. | UnifiedPromotionFacade.createUnifiedPromotion():304-400 | C7 _(Phase 5)_ |
+| **UnifiedPromotion approve flow (PENDING_APPROVAL -> ACTIVE)**: For new: orchestrator.orchestrate(PUBLISH) -> metadata.setStatus(ACTIVE). For edit-of-active: editOrchestrator.orchestrateEdits() -> old ACTIVE becomes SNAPSHOT, new doc becomes ACTIVE. | UnifiedPromotionFacade.handleNewPromotionApproval():1119, handleEditingScenarioApproval():1009 | C7 _(Phase 5)_ |
+| **UnifiedPromotion.getEffectiveStatus()** derives UPCOMING (startDate > now), ENDED (endDate < now), LIVE, PAUSED_FROM_UPCOMING/LIVE/ENDED, DRAFT_FROM_ACTIVE. Pattern for subscription SCHEDULED (KD-11). | UnifiedPromotion.java:151-186 | C7 _(Phase 5)_ |
+| **PointsEngineRulesThriftService has NO partner program methods**. Has createOrUpdatePromotionV3, publishPeConfig, getAllPrograms, etc. Needs createOrUpdatePartnerProgram() wrapper method added. | PointsEngineRulesThriftService.java (full read) | C7 _(Phase 5)_ |
+| **EmfMongoConfig includeFilters** contains ONLY UnifiedPromotionRepository.class. SubscriptionRepository must be added. | EmfMongoConfig.java:30-33 | C7 _(Phase 5)_ |
+| **StatusTransitionValidator states are promotion-specific** (DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED). Subscription has different states (no STOPPED, add EXPIRED/ARCHIVED). Separate validator needed. | StatusTransitionValidator.java:38-39 | C7 _(Phase 5)_ |
+| **partner_programs.name is UNIQUE per org**. Must enforce name uniqueness in MongoDB BEFORE Thrift call on APPROVE to avoid MySQL constraint violation. | cc-stack-crm partner_programs.sql:19 | C7 _(Phase 5)_ |
+| **Integration test infra**: AbstractContainerTest (Testcontainers: MongoDB, MySQL, Redis, RabbitMQ), EmfMongoConfigTest replaces EmfMongoConfig for test profile, RestTemplate + @LocalServerPort, @MockBean for external services, JUnit 5. | AbstractContainerTest.java, RequestManagementControllerTest.java | C7 _(Phase 5)_ |
+| **PromotionAction.getNormalizedAction()** maps RESUME->APPROVE, REVOKE->REJECT. Subscription uses simpler direct mapping (actions are 1:1). | PromotionAction.java:48-59 | C7 _(Phase 5)_ |
+| **RequestManagementController returns ResponseEntity<ResponseWrapper<UnifiedPromotion>>** -- hardcoded. Subscription MUST use own controller for status changes. | RequestManagementController.java:39 | C7 _(Phase 5)_ |
 
 ## Key Decisions
 | # | Decision | Rationale | Phase | Reversible? |

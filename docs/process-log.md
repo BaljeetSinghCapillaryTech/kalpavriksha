@@ -182,3 +182,39 @@
 - New key decisions: 6 (KD-11 through KD-16)
 - PRD stories remaining: 12 (was 16)
 - Open blockers: 0
+
+### Phase 5: Codebase Research + Cross-Repo Tracing
+- Time: 2026-04-09
+- Skills: /cross-repo-tracer + per-repo exploration
+- Mode: Sequential exploration of 5 repos + cross-repo trace
+
+#### Per-Repo Exploration
+- **intouch-api-v3** (PRIMARY): Deep exploration of UnifiedPromotion pattern (entity, repository, facade, controller, status validator, MongoConfig, Thrift client). Identified all patterns to replicate. 11 new files + 2 modified files.
+- **emf-parent**: Verified createOrUpdatePartnerProgram exists in PointsEngineRuleConfigThriftImpl:252. Full call path traced to MySQL persistence. 0 changes needed (C7).
+- **thrifts**: Verified PartnerProgramInfo struct (14 fields) and method signature at pointsengine_rules.thrift:1269. 0 changes needed (C7).
+- **api/prototype**: Verified ExtendedField.EntityType lacks PARTNER_PROGRAM. Deferred to future run (price stored in MongoDB doc for this run). 0 changes needed (C6).
+- **cc-stack-crm**: Verified partner_programs table schema. UNIQUE(org_id, name) constraint noted. 0 changes needed (C7).
+
+#### Cross-Repo Trace
+- Write paths traced: Create (intouch only), Update/Edit-of-Active (intouch only), Approve (intouch -> emf Thrift), Pause (intouch only), Link Benefits (intouch only)
+- Read paths traced: Get, List (intouch only)
+- Cross-repo boundary: ONLY on APPROVE (PointsEngineRulesThriftService -> emf-parent via Thrift RPC)
+- 4 red flags identified: EmfMongoConfig includeFilters, no Thrift retry, name uniqueness MySQL constraint, PartnerProgramInfo field mapping
+
+#### Artifacts Produced
+- code-analysis-intouch-api-v3.md
+- code-analysis-emf-parent.md
+- code-analysis-thrifts.md
+- code-analysis-api-prototype.md
+- code-analysis-cc-stack-crm.md
+- cross-repo-trace.md
+- session-memory.md updated (10 new codebase behaviours from Phase 5)
+
+#### Key Numbers
+- Repos explored: 5
+- New files identified: ~11 in intouch-api-v3
+- Modified files identified: 2 in intouch-api-v3
+- Test files identified: ~5-7 new
+- Cross-repo calls: 1 (Thrift on APPROVE only)
+- Red flags: 4
+- "0 modifications" claims verified with evidence: 4 repos (all C6+)
