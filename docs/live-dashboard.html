@@ -334,7 +334,7 @@
     </div>
     <div class="progress-stats">
       <span><span class="stat-value">9</span> / 14 phases complete</span>
-      <span><span class="stat-value">24</span> artifacts generated</span>
+      <span><span class="stat-value">25</span> artifacts generated</span>
       <span><span class="stat-value">28</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -1170,6 +1170,57 @@ graph TD
     </table>
 
     <ul class="artifact-list"><li>03-designer.md</li></ul>
+  </section>
+
+  <!-- API Handoff (between Phase 7 and Phase 8) -->
+  <section class="phase-section" id="api-handoff">
+    <h2>API Handoff <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Generated: 2026-04-09</p>
+    <span class="skill-tag">/api-handoff</span>
+    <p>UI-team-ready API contract document. 10 endpoints across 4 resource groups. Self-contained -- no backend docs needed.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">10</div><div class="label">Endpoints</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Resource Groups</div></div>
+      <div class="key-number"><div class="value">5</div><div class="label">Enums Documented</div></div>
+      <div class="key-number"><div class="value">10</div><div class="label">Error Scenarios</div></div>
+    </div>
+
+    <h3>Endpoint Summary</h3>
+    <table class="data-table">
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Side Effects</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--success);">POST</td><td>/v3/subscriptions</td><td>Create subscription (DRAFT)</td><td>--</td></tr>
+        <tr><td style="color:var(--accent);">GET</td><td>/v3/subscriptions/{id}</td><td>Get by ObjectId</td><td>Derives SCHEDULED/EXPIRED</td></tr>
+        <tr><td style="color:var(--accent);">GET</td><td>/v3/subscriptions</td><td>List (paginated, filterable)</td><td>--</td></tr>
+        <tr><td style="color:var(--warning);">PUT</td><td>/v3/subscriptions/{uuid}</td><td>Update (versioned for ACTIVE)</td><td>May create new DRAFT</td></tr>
+        <tr><td style="color:var(--danger);">DELETE</td><td>/v3/subscriptions/{id}</td><td>Delete DRAFT only</td><td>--</td></tr>
+        <tr><td style="color:var(--warning);">PUT</td><td>/v3/subscriptions/{id}/status</td><td>Lifecycle transition</td><td>Thrift on APPROVE/PAUSE/RESUME</td></tr>
+        <tr><td style="color:var(--success);">POST</td><td>/v3/subscriptions/{id}/benefits</td><td>Link benefit IDs</td><td>--</td></tr>
+        <tr><td style="color:var(--accent);">GET</td><td>/v3/subscriptions/{id}/benefits</td><td>List benefit IDs</td><td>--</td></tr>
+        <tr><td style="color:var(--danger);">DELETE</td><td>/v3/subscriptions/{id}/benefits</td><td>Unlink benefit IDs</td><td>--</td></tr>
+        <tr><td style="color:var(--accent);">GET</td><td>/v3/subscriptions/approvals</td><td>List pending approvals</td><td>--</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Lifecycle State Machine</h3>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT: POST /v3/subscriptions
+    DRAFT --> PENDING_APPROVAL: SUBMIT_FOR_APPROVAL
+    DRAFT --> ARCHIVED: ARCHIVE
+    PENDING_APPROVAL --> ACTIVE: APPROVE (Thrift)
+    PENDING_APPROVAL --> DRAFT: REJECT
+    ACTIVE --> PAUSED: PAUSE (Thrift)
+    ACTIVE --> ARCHIVED: ARCHIVE
+    ACTIVE --> SCHEDULED: derived (startDate > now)
+    ACTIVE --> EXPIRED: derived (endDate < now)
+    PAUSED --> ACTIVE: RESUME (Thrift)
+    EXPIRED --> ARCHIVED: ARCHIVE
+    ARCHIVED --> [*]
+    </div>
+
+    <ul class="artifact-list"><li>api-handoff.md</li></ul>
   </section>
 
   <!-- Phase 8: QA (pending) -->
