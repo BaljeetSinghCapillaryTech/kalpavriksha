@@ -46,3 +46,16 @@ No user decisions in this phase -- this was an automated analysis pass. Key find
 | F-06 | Thrift enrollment data requires storeUnitID | WARNING | Must resolve before enrollment design |
 | F-07 | SCHEDULED stored vs derived status | MEDIUM | Must resolve before state machine design |
 | F-08 | Cross-repo file count undercounted | INFO | Update estimates |
+
+### Phase 4 (Blocker Resolution)
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| D-10 | SCHEDULED: stored status or derived from dates? | **(b) Derived** -- Store ACTIVE in MongoDB. At read time, if startDate > now, return SCHEDULED. No scheduled job needed. | Follows UnifiedPromotion UPCOMING pattern. Avoids building scheduled job infrastructure. KD-11. |
+| D-11 | Can same benefit ID be linked to multiple subscriptions? | **Yes** -- Benefits are shared, reusable entities. Same ID can appear in multiple subscriptions AND other entity types. No uniqueness constraint. No validation in this run (dummy objects). | Benefits are a cross-cutting shared resource per user's explicit design. KD-12. |
+| D-12 | Maker-checker approver configuration? | **UI-layer only** -- Backend does NOT enforce approver roles/permissions. Status transition APIs open to any authenticated caller. No SUBSCRIPTION_APPROVE permission. | Matches existing UnifiedPromotion behavior. Backend is permission-agnostic. KD-13. |
+| D-13 | PENDING enrollments when subscription PAUSED? | **(a) Honor existing** -- PENDING enrollments remain when subscription PAUSED. Only new enrollment attempts blocked. | Respect commitments made while subscription was ACTIVE. KD-14. |
+| D-14 | restrictToOneActivePerMember enforcement? | **(b) EMF Thrift** -- Delegate entirely to EMF. v3 does NOT pre-check. | EMF owns enrollment logic and data. Avoid duplication. KD-15. |
+| D-15 | Enrollment Thrift wrapping scope? | **Do NOT wrap enrollment Thrift calls.** v3 only calls `createOrUpdatePartnerProgram` on ACTIVE transition. Enrollment (link/delink/renew) stays on existing v2 paths. **This removes Epic 4 (Enrollment Operations) from scope entirely.** E4-US1 through E4-US4 are OUT OF SCOPE. | User explicit instruction: do not touch enrollment Thrift logic. Significant scope reduction. KD-16. |
+| D-16 | Architecture: RequestManagementController return type | Create separate SubscriptionController with own status change handler. Do not modify existing controller. | GAP-4/C-6 resolution. Architecture decision for Phase 6. |
+| D-17 | Architecture: StatusChangeRequest DTO | Create SubscriptionStatusChangeRequest with field name "action". | C-8 resolution. Design decision for Phase 7. |
+| D-18 | Thrift enrollment storeUnitID | **N/A** -- Enrollment Thrift calls are out of scope (KD-16). | GAP-6 resolved by scope reduction. |

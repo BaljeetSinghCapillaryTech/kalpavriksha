@@ -43,8 +43,19 @@
       "completed_at": "2026-04-09T13:30:00Z",
       "artifacts": ["contradictions.md", "gap-analysis-brd.md"]
     },
-    "3": { "status": "pending" },
-    "4": { "status": "pending" },
+    "3": {
+      "status": "skipped",
+      "reason": "Backend-only scope (KD-04). Chrome MCP unavailable for v0.app extraction. PRD defines all API contracts.",
+      "completed_at": "2026-04-09T13:35:00Z"
+    },
+    "4": {
+      "status": "complete",
+      "started_at": "2026-04-09T14:00:00Z",
+      "completed_at": "2026-04-09T14:45:00Z",
+      "artifacts": ["grooming-questions.md", "blocker-decisions.md"],
+      "decisions_made": 9,
+      "scope_changes": ["E4 (Enrollment Operations) removed from scope per KD-16"]
+    },
     "5": { "status": "pending" },
     "6": { "status": "pending" },
     "6a": { "status": "pending" },
@@ -65,7 +76,7 @@
   "git_tags": [],
   "scope": {
     "in_scope": ["E3 (Subscription Programs) -- CRUD, maker-checker, subscription-benefits linking with dummy benefit objects"],
-    "out_of_scope": ["E1 (Tier Intelligence)", "E4 (Benefit Categories -- real impl deferred, dummy objects used)", "E2 (Benefits as a Product)"]
+    "out_of_scope": ["E1 (Tier Intelligence)", "E4-original (Benefit Categories -- real impl deferred, dummy objects used)", "E2 (Benefits as a Product)", "PRD-E4/Enrollment Operations (E4-US1 through E4-US4 removed per KD-16)"]
   },
   "lsp_enabled": true,
   "lsp_repos": ["emf-parent"],

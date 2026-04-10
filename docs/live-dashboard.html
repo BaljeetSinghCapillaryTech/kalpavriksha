@@ -271,13 +271,13 @@
     <li class="complete" onclick="document.getElementById('phase-2').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 2: Critic + Gap Analysis
     </li>
-    <li class="active" onclick="document.getElementById('phase-3').scrollIntoView({behavior:'smooth'})">
-      <span class="status-dot"></span>Phase 3: UI Extraction
+    <li class="complete" onclick="document.getElementById('phase-3').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 3: UI Extraction (Skipped)
     </li>
-    <li class="pending" onclick="document.getElementById('phase-4').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-4').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 4: Blocker Resolution
     </li>
-    <li class="pending" onclick="document.getElementById('phase-5').scrollIntoView({behavior:'smooth'})">
+    <li class="active" onclick="document.getElementById('phase-5').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 5: Codebase Research
     </li>
     <li class="pending" onclick="document.getElementById('phase-6').scrollIntoView({behavior:'smooth'})">
@@ -330,12 +330,12 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 17%;"></div>
+      <div class="fill" style="width: 29%;"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">3</span> / 14 phases complete</span>
-      <span><span class="stat-value">11</span> artifacts generated</span>
-      <span><span class="stat-value">10</span> decisions made</span>
+      <span><span class="stat-value">5</span> / 14 phases complete</span>
+      <span><span class="stat-value">15</span> artifacts generated</span>
+      <span><span class="stat-value">16</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
   </div>
@@ -549,16 +549,112 @@ graph LR
     </ul>
   </section>
 
-  <!-- Phase 3: UI Extraction (pending) -->
+  <!-- Phase 3: UI Extraction (skipped) -->
   <section class="phase-section" id="phase-3">
-    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Extract components, fields, flows from v0.app prototype.</p>
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge" style="background:#555;color:#fff;">Skipped</span></h2>
+    <p class="phase-time">Skipped: 2026-04-09</p>
+    <p>Backend-only scope (KD-04). Chrome MCP unavailable for v0.app client-side rendered extraction. PRD defines all API contracts -- no UI components to extract for this run.</p>
   </section>
 
-  <!-- Phase 4: Blocker Resolution (pending) -->
+  <!-- Phase 4: Blocker Resolution (complete) -->
   <section class="phase-section" id="phase-4">
-    <h2>Phase 4: Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Compile and resolve all open questions, contradictions, and gaps.</p>
+    <h2>Phase 4: Blocker Resolution <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-09</p>
+    <span class="skill-tag">Interactive (main context)</span>
+
+    <p>Compiled 9 questions from BA, PRD, Critic, and Gap Analysis. All resolved by user. Critical scope change: Epic 4 (Enrollment Operations) removed entirely -- v3 only calls createOrUpdatePartnerProgram on ACTIVE transition. Enrollment stays on existing v2 paths.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">9</div><div class="label">Questions</div></div>
+      <div class="key-number"><div class="value">2</div><div class="label">Blockers</div></div>
+      <div class="key-number"><div class="value">6</div><div class="label">New Decisions</div></div>
+      <div class="key-number"><div class="value">-4</div><div class="label">Stories Removed</div></div>
+      <div class="key-number"><div class="value">12</div><div class="label">Stories Remaining</div></div>
+    </div>
+
+    <!-- Decision Tree: SCHEDULED Status -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Decision: SCHEDULED Status (KD-11)</h3>
+    <div class="mermaid">
+graph TD
+    Q1{"SCHEDULED: stored<br/>or derived?"} -->|"(a) Stored"| A1["Store SCHEDULED in MongoDB<br/>+ scheduled job for transition"]
+    Q1 -->|"(b) Derived"| A2["Store ACTIVE in MongoDB<br/>if startDate > now, return SCHEDULED"]
+    A1 --> T1["Requires: job infrastructure<br/>+ state reconciliation"]
+    A2 --> T2["Follows: UnifiedPromotion<br/>UPCOMING pattern"]
+    A2 --> CHOSEN["CHOSEN (KD-11)"]
+    style CHOSEN fill:#00e676,stroke:#00e676,color:#000
+    style A2 fill:#1e2a4a,stroke:#00e676,color:#e0e0e0
+    style A1 fill:#1e2a4a,stroke:#ff5252,color:#e0e0e0
+    style Q1 fill:#16213e,stroke:#00d4ff,color:#e0e0e0
+    style T1 fill:#16213e,stroke:#ff5252,color:#a0a0b0
+    style T2 fill:#16213e,stroke:#00e676,color:#a0a0b0
+    </div>
+
+    <!-- Decision Tree: Enrollment Scope (KD-16) -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Decision: Enrollment Scope (KD-16) -- CRITICAL</h3>
+    <div class="mermaid">
+graph TD
+    Q2{"Wrap enrollment<br/>Thrift in v3?"} -->|"YES"| A3["Build v3 enroll/unenroll/<br/>update/list endpoints"]
+    Q2 -->|"NO"| A4["Only createOrUpdatePartnerProgram<br/>on ACTIVE transition"]
+    A3 --> T3["Scope: +4 stories, +9 ACs<br/>EmfPromotionThriftService wrappers"]
+    A4 --> T4["Scope: -4 stories, -9 ACs<br/>Epic 4 removed entirely"]
+    A4 --> CHOSEN2["CHOSEN (KD-16)"]
+    style CHOSEN2 fill:#00e676,stroke:#00e676,color:#000
+    style A4 fill:#1e2a4a,stroke:#00e676,color:#e0e0e0
+    style A3 fill:#1e2a4a,stroke:#ff5252,color:#e0e0e0
+    style Q2 fill:#16213e,stroke:#00d4ff,color:#e0e0e0
+    style T3 fill:#16213e,stroke:#ff5252,color:#a0a0b0
+    style T4 fill:#16213e,stroke:#00e676,color:#a0a0b0
+    </div>
+
+    <!-- All Decisions Table -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">All Blocker Resolutions</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Type</th><th>Question</th><th>Decision</th><th>KD</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>BQ-1</td><td style="color:var(--danger);">BLOCKER</td><td>MySQL creation path</td><td>createOrUpdatePartnerProgram via PointsEngineRuleService</td><td>KD-10 (rev)</td></tr>
+        <tr><td>BQ-2</td><td style="color:var(--danger);">BLOCKER</td><td>SCHEDULED: stored vs derived?</td><td>Derived at read time (startDate > now)</td><td>KD-11</td></tr>
+        <tr><td>SQ-1</td><td style="color:var(--warning);">SCOPE</td><td>Benefit ID uniqueness?</td><td>Shared, reusable -- no constraint</td><td>KD-12</td></tr>
+        <tr><td>SQ-2</td><td style="color:var(--warning);">SCOPE</td><td>Maker-checker auth?</td><td>UI-layer only, backend trusts callers</td><td>KD-13</td></tr>
+        <tr><td>SQ-3</td><td style="color:var(--danger);">SCOPE*</td><td>Enrollment Thrift wrapping?</td><td>NO -- Epic 4 removed entirely</td><td>KD-16</td></tr>
+        <tr><td>FQ-1</td><td>FEASIBILITY</td><td>PENDING enrollments on PAUSE?</td><td>Honor existing, block new only</td><td>KD-14</td></tr>
+        <tr><td>FQ-2</td><td>FEASIBILITY</td><td>restrictToOneActive enforcement?</td><td>Delegate to EMF Thrift</td><td>KD-15</td></tr>
+        <tr><td>PQ-1</td><td>ARCH</td><td>Controller return type?</td><td>Separate SubscriptionController</td><td>D-16</td></tr>
+        <tr><td>PQ-2</td><td>ARCH</td><td>StatusChangeRequest DTO?</td><td>New SubscriptionStatusChangeRequest</td><td>D-17</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Scope Impact Chart -->
+    <h3 style="margin-top:20px; font-size:14px; color:var(--accent);">Scope Impact: Before vs After Phase 4</h3>
+    <div class="mermaid">
+graph LR
+    subgraph Before["Before Phase 4"]
+        B1["5 Epics"]
+        B2["16 User Stories"]
+        B3["54 Acceptance Criteria"]
+        B4["4 Thrift Methods"]
+    end
+    subgraph After["After Phase 4"]
+        A1["4 Epics"]
+        A2["12 User Stories"]
+        A3["~45 Acceptance Criteria"]
+        A4["1 Thrift Method"]
+    end
+    B1 -->|"-1"| A1
+    B2 -->|"-4"| A2
+    B3 -->|"-9"| A3
+    B4 -->|"-3"| A4
+    style Before fill:#1e2a4a,stroke:#ff5252,color:#e0e0e0
+    style After fill:#1e2a4a,stroke:#00e676,color:#e0e0e0
+    </div>
+
+    <ul class="artifact-list">
+      <li>grooming-questions.md</li>
+      <li>blocker-decisions.md</li>
+      <li>00-prd.md (updated -- Epic 4 removed, AC-7.2 fixed)</li>
+      <li>00-prd-machine.md (updated -- E4 marked OUT_OF_SCOPE)</li>
+    </ul>
   </section>
 
   <!-- Phase 5: Codebase Research (pending) -->

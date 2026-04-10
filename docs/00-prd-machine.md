@@ -17,10 +17,13 @@ epics:
     stories: [E3-US1, E3-US2, E3-US3]
   - id: E4
     name: Enrollment Operations
-    stories: [E4-US1, E4-US2, E4-US3, E4-US4]
+    stories: []
+    status: OUT_OF_SCOPE
+    reason: "KD-16: Enrollment stays on existing v2 Thrift paths. E4-US1 through E4-US4 removed."
   - id: E5
     name: Approvals
     stories: [E5-US1]
+    note: "Renumbered to E4 in 00-prd.md but kept as E5 here for traceability"
 ---
 
 # User Stories
@@ -140,34 +143,11 @@ epics:
 - behavior: removes from array, idempotent
 - acceptance_criteria: [AC-14.1, AC-14.2]
 
-## E4-US1: Enroll Member
-- priority: P0
-- api: POST /v3/subscriptions/{id}/enroll
-- input: {customerId, membershipStartDate}
-- backend: calls EMF partnerProgramLinkingEvent via Thrift
-- acceptance_criteria: [AC-15.1, AC-15.2, AC-15.3, AC-15.4, AC-15.5, AC-15.6]
-- brd_mapping: AC-S 35, 36, 37
-
-## E4-US2: Unenroll Member
-- priority: P0
-- api: POST /v3/subscriptions/{id}/unenroll
-- input: {customerId}
-- backend: calls EMF partnerProgramDeLinkingEvent via Thrift
-- acceptance_criteria: [AC-16.1, AC-16.2]
-- brd_mapping: AC-S 39
-
-## E4-US3: Update Enrollment
-- priority: P1
-- api: POST /v3/subscriptions/{id}/enrollments/update
-- input: {customerId, action}
-- backend: calls EMF partnerProgramUpdateEvent via Thrift
-- acceptance_criteria: [AC-17.1, AC-17.2]
-
-## E4-US4: List Enrollments
-- priority: P1
-- api: GET /v3/subscriptions/{id}/enrollments
-- backend: calls EMF Thrift to fetch enrollment records
-- acceptance_criteria: [AC-18.1]
+## E4-US1 through E4-US4: OUT OF SCOPE (KD-16)
+- status: OUT_OF_SCOPE
+- reason: Enrollment Thrift calls stay on existing v2 paths. v3 does NOT wrap enrollment methods.
+- removed_stories: [E4-US1 (Enroll), E4-US2 (Unenroll), E4-US3 (Update Enrollment), E4-US4 (List Enrollments)]
+- removed_acceptance_criteria: [AC-15.1 through AC-15.6, AC-16.1, AC-16.2, AC-17.1, AC-17.2, AC-18.1]
 
 ## E5-US1: List Pending Approvals
 - priority: P0
@@ -178,15 +158,16 @@ epics:
 # Epic Dependencies
 
 ```
-E1 (CRUD) --> E2 (Lifecycle) --> E4 (Enrollment)
+E1 (CRUD) --> E2 (Lifecycle)
 E1 (CRUD) --> E3 (Benefits)
 E2 (Lifecycle) --> E5 (Approvals)
+E4 (Enrollment) -- OUT OF SCOPE (KD-16)
 ```
 
 E1 must be built first (document model, repository, facade, controller).
 E2 depends on E1 for status transitions.
 E3 can be built in parallel with E2.
-E4 depends on E2 (must check subscription status before allowing enrollment).
+E4 is OUT OF SCOPE (KD-16) -- enrollment stays on existing v2 paths.
 E5 depends on E2 (queries PENDING_APPROVAL status).
 
 # Implementation Priority
@@ -196,4 +177,4 @@ E5 depends on E2 (queries PENDING_APPROVAL status).
 | 1 | E1-US1, E1-US2, E1-US3, E1-US4, E1-US5 | Core CRUD -- foundation for everything |
 | 2 | E2-US1, E2-US2, E2-US3, E2-US4, E2-US5, E2-US6 | Lifecycle -- enables maker-checker and state management |
 | 3 | E3-US1, E3-US2, E3-US3, E5-US1 | Benefits linking + approvals list (parallel) |
-| 4 | E4-US1, E4-US2, E4-US3, E4-US4 | Enrollment -- requires ACTIVE subscriptions |
+| ~~4~~ | ~~E4-US1, E4-US2, E4-US3, E4-US4~~ | ~~Enrollment~~ -- **OUT OF SCOPE (KD-16)** |

@@ -18,8 +18,8 @@ Build the backend REST API layer for subscription program management in the Garu
 - 7-state lifecycle with validated transitions
 - Maker-checker versioning: edit-of-active creates pending version
 - Benefit IDs linkable to subscriptions
-- Enrollment operations via v3 API (calling EMF Thrift)
 - Zero MySQL schema changes (MongoDB-first)
+- Enrollment stays on existing v2 paths (out of scope per KD-16)
 
 ---
 
@@ -107,7 +107,7 @@ Acceptance Criteria:
 
 Acceptance Criteria:
 - AC-7.1: APPROVE on PENDING_APPROVAL transitions to ACTIVE
-- AC-7.2: On ACTIVE transition, EMF Thrift `partnerProgramLinkingEvent` is called to create/update MySQL partner_programs record
+- AC-7.2: On ACTIVE transition, EMF Thrift `createOrUpdatePartnerProgram` is called to create/update MySQL partner_programs record
 - AC-7.3: If subscription has a future start date, status becomes SCHEDULED instead of ACTIVE
 - AC-7.4: APPROVE on non-PENDING_APPROVAL returns 400
 
@@ -164,44 +164,19 @@ Acceptance Criteria:
 
 ---
 
-### Epic 4: Enrollment Operations
+### ~~Epic 4: Enrollment Operations~~ -- OUT OF SCOPE (KD-16)
 
-**E4-US1: Enroll Member**
-
-Acceptance Criteria:
-- AC-15.1: POST `/v3/subscriptions/{id}/enroll` with `{customerId, membershipStartDate}` enrolls via EMF Thrift
-- AC-15.2: Future membershipStartDate creates PENDING enrollment
-- AC-15.3: Past membershipStartDate returns 400 ERR_INVALID_DATE
-- AC-15.4: Enrollment on PAUSED subscription returns 400 "Subscription is paused, new enrollments not permitted"
-- AC-15.5: Enrollment on non-ACTIVE/SCHEDULED subscription returns 400
-- AC-15.6: Re-enroll with new future date atomically replaces existing PENDING enrollment
-
-**E4-US2: Unenroll Member**
-
-Acceptance Criteria:
-- AC-16.1: POST `/v3/subscriptions/{id}/unenroll` with `{customerId}` unenrolls via EMF Thrift
-- AC-16.2: Can target PENDING or ACTIVE enrollment
-
-**E4-US3: Update Enrollment**
-
-Acceptance Criteria:
-- AC-17.1: POST `/v3/subscriptions/{id}/enrollments/update` with `{customerId, action}` calls EMF Thrift
-- AC-17.2: Supported actions: tier change (for TIER_BASED), pause, resume
-
-**E4-US4: List Enrollments**
-
-Acceptance Criteria:
-- AC-18.1: GET `/v3/subscriptions/{id}/enrollments` returns enrollment records from EMF
+> **Removed in Phase 4.** User decision: enrollment Thrift calls stay on existing v2 paths. v3 does NOT expose enroll/unenroll/update/list enrollment endpoints. E4-US1 through E4-US4 are deferred. See blocker-decisions.md BD-07.
 
 ---
 
-### Epic 5: Approvals
+### Epic 4: Approvals
 
-**E5-US1: List Pending Approvals**
+**E4-US1: List Pending Approvals**
 
 Acceptance Criteria:
-- AC-19.1: GET `/v3/subscriptions/approvals` returns all subscriptions in PENDING_APPROVAL status for the org
-- AC-19.2: Includes parent subscription details (if editing an ACTIVE subscription)
+- AC-15.1: GET `/v3/subscriptions/approvals` returns all subscriptions in PENDING_APPROVAL status for the org
+- AC-15.2: Includes parent subscription details (if editing an ACTIVE subscription)
 
 ---
 
@@ -210,7 +185,7 @@ Acceptance Criteria:
 | Requirement | Target |
 |-------------|--------|
 | API response time (CRUD) | < 200ms p95 |
-| API response time (enrollment via Thrift) | < 500ms p95 |
+| API response time (Thrift write-back on ACTIVE) | < 500ms p95 |
 | Concurrent requests | Handle 100 concurrent subscription create/update operations per org |
 | Data isolation | Strict tenant isolation via orgId in all queries (MongoDB + MySQL) |
 | Validation | Structured field-level error responses, never 500 for validation failures |
@@ -221,7 +196,7 @@ Acceptance Criteria:
 
 | Dependency | Type | Risk |
 |-----------|------|------|
-| EMF Thrift service availability | Runtime | Enrollment fails if EMF is down. Retry + circuit breaker recommended. |
+| EMF Thrift service availability | Runtime | ACTIVE transition write-back fails if EMF is down. Retry + circuit breaker recommended. |
 | MongoDB (emfMongoTemplate) | Runtime | Subscription CRUD fails if MongoDB is down. |
 | Multi-tenant MongoDB routing (EmfMongoTenantResolver) | Infrastructure | Must be configured for subscription collection. |
 
@@ -237,6 +212,7 @@ Acceptance Criteria:
 | Tier downgrade on exit event | Future run | EMF event handling |
 | Webhook/event firing | Future run | Event bus integration |
 | Real benefit validation | E2/E4 pipeline run | Benefits service |
+| Enrollment operations (enroll/unenroll/update/list) | Future run | KD-16: stays on existing v2 Thrift paths |
 
 ---
 

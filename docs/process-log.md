@@ -129,3 +129,56 @@
 - Gaps discovered: 6 (1 BLOCKER, 3 WARNING, 2 INFO)
 - GUARDRAILS checked: 6 (5 PASS, 1 WARN)
 - Blockers for Phase 4: 2 (partner program MySQL creation, SCHEDULED stored vs derived)
+
+### Phase 3: UI Requirements Extraction
+- Time: 2026-04-09
+- Status: SKIPPED
+- Reason: Backend-only scope (KD-04). Chrome MCP unavailable for v0.app client-side rendered extraction. PRD defines all API contracts. No UI components to extract.
+
+### Phase 4: Grooming Questions + Blocker Resolution
+- Time: 2026-04-09
+- Skill: Interactive (main context)
+- Mode: Compiled questions from BA, PRD, Critic, Gap Analysis; presented to user one at a time
+
+#### Questions Compiled
+- 9 total questions: 2 BLOCKER, 3 SCOPE, 2 FEASIBILITY, 2 PRIORITY/ARCHITECTURE
+- Sources: 00-ba.md (OQ-03, OQ-04), contradictions.md (C-1, C-5, C-6, C-7, C-8, C-9), gap-analysis-brd.md (GAP-1 through GAP-6)
+- All 9 resolved by user
+
+#### Key Outcomes
+- BQ-1 (MySQL creation path): RESOLVED -- createOrUpdatePartnerProgram on PointsEngineRuleService.Iface (KD-10 revised)
+- BQ-2 (SCHEDULED status): DERIVED at read time, not stored (KD-11)
+- SQ-1 (benefit uniqueness): Shared, reusable -- no uniqueness constraint (KD-12)
+- SQ-2 (maker-checker auth): UI-layer only, backend trusts callers (KD-13)
+- FQ-1 (PENDING on PAUSE): Honor existing PENDING enrollments (KD-14)
+- FQ-2 (enrollment constraint): Delegate to EMF Thrift (KD-15)
+- **SQ-3 (enrollment scope): CRITICAL -- Epic 4 REMOVED from scope (KD-16)**
+
+#### Scope Impact
+- PRD Epic 4 (Enrollment Operations): E4-US1 through E4-US4 removed
+- User stories: 16 -> 12
+- Acceptance criteria: 54 -> ~45
+- Thrift methods to wrap: 4 -> 1 (createOrUpdatePartnerProgram only)
+
+#### PRD Updates
+- AC-7.2 corrected: partnerProgramLinkingEvent -> createOrUpdatePartnerProgram
+- Epic 4 marked OUT OF SCOPE with KD-16 reference
+- Epic 5 (Approvals) renumbered to Epic 4 in human-readable PRD
+- NFR: "enrollment via Thrift" -> "Thrift write-back on ACTIVE"
+- Enrollment added to Out of Scope table
+
+#### Artifacts Produced
+- grooming-questions.md (9 questions with resolutions)
+- blocker-decisions.md (7 decisions with evidence trail)
+- 00-prd.md updated (Epic 4 removed, AC-7.2 fixed)
+- 00-prd-machine.md updated (E4 marked OUT_OF_SCOPE)
+- session-memory.md updated (KD-11 through KD-16)
+- approach-log.md updated (D-10 through D-18)
+
+#### Key Numbers
+- Questions resolved: 9 (all)
+- Blockers resolved: 2
+- Scope changes: 1 (Epic 4 removed)
+- New key decisions: 6 (KD-11 through KD-16)
+- PRD stories remaining: 12 (was 16)
+- Open blockers: 0
