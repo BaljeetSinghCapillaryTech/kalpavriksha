@@ -289,19 +289,19 @@
     <li class="complete" onclick="document.getElementById('phase-7').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 7: LLD (Designer)
     </li>
-    <li class="active" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
-      <span class="status-dot"></span>Phase 8: QA
+    <li class="complete" onclick="document.getElementById('phase-8').scrollIntoView({behavior:'smooth'})">
+      <span class="status-dot"></span>Phase 8: QA + Business Tests
     </li>
-    <li class="pending" onclick="document.getElementById('phase-9').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-9').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 9: SDET (RED)
     </li>
-    <li class="pending" onclick="document.getElementById('phase-10').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-10').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 10: Developer (GREEN)
     </li>
-    <li class="pending" onclick="document.getElementById('phase-11').scrollIntoView({behavior:'smooth'})">
+    <li class="complete" onclick="document.getElementById('phase-11').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 11: Reviewer
     </li>
-    <li class="pending" onclick="document.getElementById('phase-12').scrollIntoView({behavior:'smooth'})">
+    <li class="active" onclick="document.getElementById('phase-12').scrollIntoView({behavior:'smooth'})">
       <span class="status-dot"></span>Phase 12: Blueprint
     </li>
   </ul>
@@ -313,9 +313,9 @@
       <li class="complete"><span class="status-dot"></span>API Contracts</li>
       <li class="complete"><span class="status-dot"></span>Architecture</li>
       <li class="complete"><span class="status-dot"></span>Cross-Repo Map</li>
-      <li class="pending"><span class="status-dot"></span>LLD Diagrams</li>
-      <li class="pending"><span class="status-dot"></span>Implementation</li>
-      <li class="pending"><span class="status-dot"></span>Review Findings</li>
+      <li class="complete"><span class="status-dot"></span>LLD Diagrams</li>
+      <li class="complete"><span class="status-dot"></span>Implementation</li>
+      <li class="complete"><span class="status-dot"></span>Review Findings</li>
     </ul>
   </div>
 </nav>
@@ -330,13 +330,13 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 64%;"></div>
+      <div class="fill" style="width: 93%;"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">9</span> / 14 phases complete</span>
-      <span><span class="stat-value">25</span> artifacts generated</span>
+      <span><span class="stat-value">13</span> / 14 phases complete</span>
+      <span><span class="stat-value">31</span> artifacts generated</span>
       <span><span class="stat-value">28</span> decisions made</span>
-      <span><span class="stat-value">0</span> code files written</span>
+      <span><span class="stat-value">15</span> code files written</span>
     </div>
   </div>
 
@@ -1229,22 +1229,219 @@ stateDiagram-v2
     <p style="color:var(--text-secondary);">Test scenarios, edge cases, acceptance criteria verification.</p>
   </section>
 
-  <!-- Phase 9: SDET RED (pending) -->
+  <!-- Phase 9: SDET RED -->
   <section class="phase-section" id="phase-9">
-    <h2>Phase 9: SDET -- RED <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Write all test code, confirm tests compile but fail (RED state).</p>
+    <h2>Phase 9: SDET -- RED <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-10</p>
+    <span class="skill-tag">/sdet</span>
+
+    <p>Wrote 63 unit test methods across 6 test classes plus 20 integration test skeletons. Created 18 skeleton production classes (throw UnsupportedOperationException). Compilation PASS, tests FAIL -- RED confirmed.</p>
+
+    <div class="key-numbers" style="display:flex;gap:20px;margin:15px 0;flex-wrap:wrap;">
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--danger);">63</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Unit Tests</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--warning);">20</div>
+        <div style="font-size:11px;color:var(--text-secondary);">IT Skeletons</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--accent);">18</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Skeleton Classes</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--danger);">
+        <div style="font-size:24px;font-weight:bold;color:var(--danger);">RED</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Compile PASS, Tests FAIL</div>
+      </div>
+    </div>
+
+    <h3 style="color:var(--accent);margin:15px 0 10px;">Test Files Created</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Test File</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Tests</th>
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Coverage</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 8px;">SubscriptionActionTest</td><td style="text-align:center;">2</td><td>BT-38, BT-39</td></tr>
+        <tr><td style="padding:6px 8px;">UnifiedSubscriptionTest</td><td style="text-align:center;">7</td><td>BT-01 to BT-07 (effective status)</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionStatusTransitionValidatorTest</td><td style="text-align:center;">5</td><td>BT-08 to BT-15 (state machine)</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionValidatorServiceTest</td><td style="text-align:center;">22</td><td>BT-16 to BT-37 (validations)</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionThriftPublisherTest</td><td style="text-align:center;">7</td><td>BT-75 to BT-82 (Thrift)</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionFacadeTest</td><td style="text-align:center;">20</td><td>BT-40 to BT-74 (CRUD+lifecycle)</td></tr>
+        <tr style="border-top:1px solid var(--border);font-weight:bold;"><td style="padding:6px 8px;">Total</td><td style="text-align:center;">63</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+    <div class="mermaid" style="margin:15px 0;">
+    pie title Test Distribution by Component
+      "Facade (CRUD+Lifecycle)" : 20
+      "Validators" : 22
+      "Thrift Publisher" : 7
+      "Effective Status" : 7
+      "State Machine" : 5
+      "Action Parsing" : 2
+    </div>
+
+    <ul style="list-style:none;padding:0;margin-top:10px;font-size:12px;">
+      <li style="color:var(--text-secondary);">05-sdet.md</li>
+      <li style="color:var(--text-secondary);">7 test Java files + 18 skeleton production classes</li>
+    </ul>
   </section>
 
-  <!-- Phase 10: Developer GREEN (pending) -->
+  <!-- Phase 10: Developer GREEN -->
   <section class="phase-section" id="phase-10">
-    <h2>Phase 10: Developer -- GREEN <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Write production code, make all tests pass (GREEN state).</p>
+    <h2>Phase 10: Developer -- GREEN <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-10</p>
+    <span class="skill-tag">/developer</span>
+
+    <p>Replaced 7 skeleton classes with real production code implementing full subscription CRUD, lifecycle management, maker-checker workflow, benefits linking, and Thrift integration. All 63 unit tests pass -- GREEN confirmed.</p>
+
+    <div class="key-numbers" style="display:flex;gap:20px;margin:15px 0;flex-wrap:wrap;">
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--success);">
+        <div style="font-size:24px;font-weight:bold;color:var(--success);">GREEN</div>
+        <div style="font-size:11px;color:var(--text-secondary);">63/63 Tests Pass</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--accent);">7</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Skeletons Replaced</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--accent);">8</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Production Files</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--success);">0</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Test Modifications</div>
+      </div>
+    </div>
+
+    <h3 style="color:var(--accent);margin:15px 0 10px;">Skeleton Replacement Summary</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Class</th>
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Key Implementation</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Tests</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 8px;">SubscriptionAction</td><td>fromString() with case-insensitive valueOf</td><td style="text-align:center;">2</td></tr>
+        <tr><td style="padding:6px 8px;">UnifiedSubscription</td><td>getEffectiveStatus() derives SCHEDULED/EXPIRED</td><td style="text-align:center;">7</td></tr>
+        <tr><td style="padding:6px 8px;">StatusTransitionValidator</td><td>Static EnumMap with 8 state mappings</td><td style="text-align:center;">5</td></tr>
+        <tr><td style="padding:6px 8px;">ValidatorService</td><td>10+ validation rules (name, duration, type, reminders, price, dates)</td><td style="text-align:center;">22</td></tr>
+        <tr><td style="padding:6px 8px;">ThriftPublisher</td><td>6-field mapping to PartnerProgramInfo, UUID requestId</td><td style="text-align:center;">7</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionFacade</td><td>CRUD + lifecycle + maker-checker + benefits (10 methods)</td><td style="text-align:center;">20</td></tr>
+        <tr><td style="padding:6px 8px;">SubscriptionController</td><td>10 REST endpoints using AbstractBaseAuthenticationToken</td><td style="text-align:center;">-</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="color:var(--accent);margin:15px 0 10px;">Post-Implementation Validations</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Gate</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Result</th>
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Details</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 8px;">Phase 10b: Backend Readiness</td><td style="text-align:center;color:var(--warning);">WARN</td><td>1 fix: NotFoundException for 404 responses</td></tr>
+        <tr><td style="padding:6px 8px;">Phase 10c: Compliance</td><td style="text-align:center;color:var(--success);">PASS</td><td>5/5 ADRs, 8/8 interfaces, 3 low gaps</td></tr>
+        <tr><td style="padding:6px 8px;">Phase 10d: Migration</td><td style="text-align:center;color:var(--text-secondary);">N/A</td><td>No schema changes (MongoDB-first)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="mermaid" style="margin:15px 0;">
+    flowchart LR
+      subgraph "TDD Cycle"
+        R["RED: 63 tests fail"] -->|Developer implements| G["GREEN: 63 tests pass"]
+        G -->|Backend Readiness| BR["WARN: 1 fix"]
+        BR -->|Compliance| C["PASS: 5/5 ADRs"]
+      end
+    </div>
+
+    <ul style="list-style:none;padding:0;margin-top:10px;font-size:12px;">
+      <li style="color:var(--text-secondary);">06-developer.md</li>
+      <li style="color:var(--text-secondary);">8 production Java files in intouch-api-v3</li>
+    </ul>
   </section>
 
-  <!-- Phase 11: Reviewer (pending) -->
+  <!-- Phase 11: Reviewer -->
   <section class="phase-section" id="phase-11">
-    <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
-    <p style="color:var(--text-secondary);">Code review against requirements, security, session memory.</p>
+    <h2>Phase 11: Reviewer <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-10</p>
+    <span class="skill-tag">/reviewer</span>
+
+    <p>Full code review against requirements, session memory, security, and code quality. Found 2 BLOCKER findings (org-wide name uniqueness stub), fixed in 1 rework cycle. Post-fix: all 63 tests pass.</p>
+
+    <div class="key-numbers" style="display:flex;gap:20px;margin:15px 0;flex-wrap:wrap;">
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--success);">
+        <div style="font-size:24px;font-weight:bold;color:var(--success);">PASS</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Build Verified</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--danger);">2</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Blockers Found</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--success);">2</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Blockers Fixed</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);padding:12px 20px;border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:24px;font-weight:bold;color:var(--accent);">1</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Rework Cycle</div>
+      </div>
+    </div>
+
+    <h3 style="color:var(--accent);margin:15px 0 10px;">Review Findings</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">#</th>
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Finding</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Severity</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Resolution</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="padding:6px 8px;">F-1</td>
+          <td>validateNameUniquenessOrgWide was a stub that always threw -- blocks ALL APPROVE flows</td>
+          <td style="text-align:center;color:var(--danger);">BLOCKER</td>
+          <td style="text-align:center;color:var(--success);">FIXED</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 8px;">F-2</td>
+          <td>SubscriptionRepository missing findByNameAndOrgIdExcludingTerminal query</td>
+          <td style="text-align:center;color:var(--danger);">BLOCKER</td>
+          <td style="text-align:center;color:var(--success);">FIXED</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="color:var(--accent);margin:15px 0 10px;">Review Checklist</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:8px;color:var(--text-secondary);">Area</th>
+        <th style="text-align:center;padding:8px;color:var(--text-secondary);">Result</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 8px;">Requirements alignment (4 user stories)</td><td style="text-align:center;color:var(--success);">PASS</td></tr>
+        <tr><td style="padding:6px 8px;">Session memory (KD-07 to KD-28)</td><td style="text-align:center;color:var(--success);">PASS</td></tr>
+        <tr><td style="padding:6px 8px;">Security (tenant isolation, auth, injection)</td><td style="text-align:center;color:var(--success);">PASS</td></tr>
+        <tr><td style="padding:6px 8px;">Code quality (no anti-patterns)</td><td style="text-align:center;color:var(--success);">PASS</td></tr>
+        <tr><td style="padding:6px 8px;">Org-wide name uniqueness (C-10, R-04)</td><td style="text-align:center;color:var(--success);">PASS (after fix)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="mermaid" style="margin:15px 0;">
+    flowchart LR
+      subgraph "Rework Cycle 1"
+        Rev["Reviewer"] -->|"F-1/F-2 BLOCKER"| Dev["Developer"]
+        Dev -->|"Added query + impl"| Rev2["Re-verify"]
+        Rev2 -->|"63/63 PASS"| Done["Resolved"]
+      end
+    </div>
+
+    <ul style="list-style:none;padding:0;margin-top:10px;font-size:12px;">
+      <li style="color:var(--text-secondary);">07-reviewer.md</li>
+    </ul>
   </section>
 
   <!-- Phase 12: Blueprint (pending) -->

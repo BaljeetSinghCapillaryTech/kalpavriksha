@@ -192,7 +192,25 @@
       "gaps_low": 3
     },
     "10d": { "status": "skipped", "reason": "No schema changes. Phase 6b (Migration Planning) was skipped. ADR-2: zero Flyway migrations." },
-    "11": { "status": "pending" },
+    "11": {
+      "status": "complete",
+      "started_at": "2026-04-10T16:00:00Z",
+      "completed_at": "2026-04-10T16:30:00Z",
+      "artifacts": ["07-reviewer.md"],
+      "build_verified": true,
+      "tests_pass": 63,
+      "tests_fail": 0,
+      "findings_total": 2,
+      "findings_blocker": 2,
+      "findings_resolved": 2,
+      "findings_summary": [
+        "F-1 (BLOCKER): validateNameUniquenessOrgWide was a stub that always threw -- fixed with proper MongoDB query",
+        "F-2 (BLOCKER): SubscriptionRepository missing findByNameAndOrgIdExcludingTerminal query -- added"
+      ],
+      "rework_to_developer": 1,
+      "code_review_optional": "skipped",
+      "commit": "0c85e6e26 aidlc: fix org-wide name uniqueness to use proper MongoDB query"
+    },
     "12": { "status": "pending" }
   },
   "git_branch": "aidlc/aidlc-demo-v2",
@@ -205,7 +223,9 @@
   "lsp_enabled": true,
   "lsp_repos": ["emf-parent"],
   "dashboard_enabled": true,
-  "rework_cycles": [],
+  "rework_cycles": [
+    {"from": "11", "to": "10", "reason": "F-1/F-2: validateNameUniquenessOrgWide was a stub. Added findByNameAndOrgIdExcludingTerminal query and real implementation.", "severity": "BLOCKER", "resolved": true}
+  ],
   "confluence": {
     "cloud_id": "69031ea7-8347-4ec3-a63d-9c7289f8dc4f",
     "space_id": "1264386327",

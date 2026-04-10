@@ -68,6 +68,8 @@
 | **Mockito strict stubbing requires non-null serverReqId.** SubscriptionThriftPublisher passes UUID.randomUUID().toString() as serverReqId to thriftService.createOrUpdatePartnerProgram(). Tests use anyString() matcher. | SubscriptionThriftPublisherTest error diagnosis | C7 _(Developer)_ |
 | **SubscriptionMetadata changed to @Builder(toBuilder=true).** Required for deep-copy in SubscriptionFacade.createVersionedDraft(). | SubscriptionFacade.java:createVersionedDraft() | C7 _(Developer)_ |
 | **SubscriptionController uses AbstractBaseAuthenticationToken (not Authentication).** Following existing UnifiedPromotionController pattern. Extracts orgId via token.getIntouchUser().getOrgId(). | UnifiedPromotionController.java pattern | C7 _(Developer)_ |
+| **Reviewer F-1/F-2 fixed: validateNameUniquenessOrgWide was a stub.** Original implementation always threw InvalidInputException (blocking ALL APPROVE flows). Fixed by adding `findByNameAndOrgIdExcludingTerminal(String, Long)` to SubscriptionRepository and implementing actual conflict lookup. Test BT-26 updated to mock the new repository method. | Reviewer finding + code fix | C7 _(Reviewer)_ |
+| **SubscriptionRepository now has 12 @Query methods** (was 11). Added findByNameAndOrgIdExcludingTerminal for org-wide name uniqueness on APPROVE. Query: `{'metadata.name': ?0, 'metadata.orgId': ?1, 'metadata.status': { $in: ['DRAFT', 'ACTIVE', 'PAUSED', 'PENDING_APPROVAL'] }}`. | SubscriptionRepository.java:48-49 | C7 _(Reviewer)_ |
 
 ## Risks & Concerns
 | # | Risk | Severity | Status |

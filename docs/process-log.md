@@ -341,3 +341,148 @@
 - Error scenarios: 10
 - Maven dependencies needed: 0
 - New key decisions: 4 (KD-25 through KD-28)
+
+### Phase 8: QA
+- Time: 2026-04-10
+- Skill: /qa
+- Mode: Subagent
+- Test scenarios: 54
+- Edge cases: 69
+- Total testable items: 123
+- Acceptance criteria covered: 47
+- ADRs covered: 5
+- Risks addressed: 7
+- Gaps identified: 6
+
+#### Artifacts Produced
+- 04-qa.md (full QA plan)
+
+### Phase 8b: Business Test Gen
+- Time: 2026-04-10
+- Skill: /business-test-gen
+- Mode: Subagent
+- Total test cases: 98 (BT-01 through BT-98)
+- Unit tests: 62
+- Integration tests: 36
+- Compliance tests: 16
+- Gaps: 5
+
+#### Artifacts Produced
+- 04b-business-tests.md (full traceability matrix)
+
+### Phase 9: SDET -- RED Phase
+- Time: 2026-04-10
+- Skill: /sdet
+- Mode: Subagent
+- Test files created: 7
+- Test methods total: 63 (unit) + 20 (IT skeletons)
+- Skeleton production classes: 18
+- Existing files modified: 4
+- mvn compile: PASS
+- mvn test: FAIL (63 tests: 30 failures, 33 errors)
+- RED confirmed: All failures are UnsupportedOperationException("Skeleton -- Developer implements")
+
+#### Test Files Created
+- SubscriptionActionTest.java (2 tests)
+- UnifiedSubscriptionTest.java (7 tests)
+- SubscriptionStatusTransitionValidatorTest.java (5 tests)
+- SubscriptionValidatorServiceTest.java (22 tests)
+- SubscriptionThriftPublisherTest.java (7 tests)
+- SubscriptionFacadeTest.java (20 tests)
+- SubscriptionControllerIntegrationTest.java (20 IT tests -- skeletons)
+
+#### Artifacts Produced
+- 05-sdet.md (test plan + RED confirmation)
+- All test + skeleton Java files in intouch-api-v3
+
+### Phase 10: Developer -- GREEN Phase
+- Time: 2026-04-10
+- Skill: /developer
+- Mode: Interactive (main context)
+- Skeleton classes replaced: 7
+- Test modifications: 0
+- Unit tests pass: 63/63
+- GREEN confirmed: BUILD SUCCESS
+
+#### Production Files Implemented
+1. SubscriptionAction.java -- fromString() with case-insensitive parsing
+2. UnifiedSubscription.java -- getEffectiveStatus() derives SCHEDULED/EXPIRED
+3. SubscriptionStatusTransitionValidator.java -- EnumMap state machine
+4. SubscriptionValidatorService.java -- 10+ validation rules
+5. SubscriptionThriftPublisher.java -- Thrift mapping + publish methods
+6. SubscriptionFacade.java -- CRUD + lifecycle + maker-checker + benefits
+7. SubscriptionController.java -- 10 REST endpoints using AbstractBaseAuthenticationToken
+8. SubscriptionMetadata.java -- @Builder(toBuilder=true) for deep copy
+
+#### Issues Fixed During GREEN
+- Mockito strict stubbing: UUID.randomUUID().toString() for serverReqId (not null)
+- SubscriptionMetadata: @Builder -> @Builder(toBuilder=true) for createVersionedDraft
+
+#### Artifacts Produced
+- 06-developer.md
+- All production Java files in intouch-api-v3
+- Commit: `11dea9e6e aidlc: Developer GREEN phase -- all 63 unit tests pass`
+
+### Phase 10b: Backend Readiness
+- Time: 2026-04-10
+- Skill: /backend-readiness
+- Mode: Analysis
+- Verdict: READY WITH WARNINGS
+- Areas PASS: 5 (Query Performance, Thrift Compatibility, Cache, Connection, Migration)
+- Areas WARN: 1 (Error Handling -- NotFoundException vs InvalidInputException)
+- Areas FAIL: 0
+- Areas N/A: 1 (Flyway migrations -- not applicable)
+
+#### Fix Applied
+- Changed not-found responses from InvalidInputException (400) to NotFoundException (404) in getSubscription, deleteSubscription, changeStatus
+- Commit: `23b344d7f aidlc: fix not-found responses to use NotFoundException (404)`
+
+### Phase 10c: Gap Analysis (Architecture vs Code)
+- Time: 2026-04-10
+- Skill: /analyst --compliance
+- Mode: Analysis
+- ADRs compliant: 5/5
+- Interfaces compliant: 8/8
+- GUARDRAILS pass: 3
+- Gaps critical: 0
+- Gaps high: 0
+- Gaps medium: 0
+- Gaps low: 3 (cosmetic naming, no index annotations, no @Transactional on swap)
+
+### Phase 10d: Migration Validation
+- Time: 2026-04-10
+- Status: SKIPPED
+- Reason: No schema changes. Phase 6b (Migration Planning) was skipped. ADR-2: zero Flyway migrations.
+
+### Phase 11: Reviewer
+- Time: 2026-04-10
+- Skill: /reviewer
+- Mode: Subagent review, findings surfaced to main context
+- Build verified: PASS (63/63 tests)
+- Requirements alignment: All 4 user stories covered
+- Session memory alignment: All KDs (KD-07 through KD-28) compliant
+- Security: PASS (tenant isolation, auth, no injection, no PII)
+- Code quality: PASS (no anti-patterns)
+
+#### Findings
+- F-1 (BLOCKER): validateNameUniquenessOrgWide was a stub that always threw -- would block ALL APPROVE flows in production
+- F-2 (BLOCKER): SubscriptionRepository missing findByNameAndOrgIdExcludingTerminal query
+
+#### Fix Applied
+- Added findByNameAndOrgIdExcludingTerminal query to SubscriptionRepository
+- Implemented actual conflict lookup in validateNameUniquenessOrgWide
+- Updated test BT-26 to mock new repository method
+- Commit: `0c85e6e26 aidlc: fix org-wide name uniqueness to use proper MongoDB query`
+- Post-fix: All 63 tests pass
+
+#### Rework Cycle
+- 1 rework cycle: Phase 11 (Reviewer) -> Phase 10 (Developer) -> resolved
+
+#### Artifacts Produced
+- 07-reviewer.md (full review report)
+- session-memory.md updated (2 new codebase behaviours from Reviewer)
+
+## Rework History
+| Cycle | From Phase | To Phase | Reason | Severity | Resolved |
+|-------|-----------|----------|--------|----------|----------|
+| 1 | Phase 11 (Reviewer) | Phase 10 (Developer) | validateNameUniquenessOrgWide stub + missing repository query | BLOCKER | yes |
