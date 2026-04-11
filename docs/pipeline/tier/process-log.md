@@ -104,3 +104,17 @@
   - P-4: Downgrade has isFixedTypeWithoutYear, renewalWindowType (different naming)
   - P-5: isAdvanceSetting, addDefaultCommunication -- new flags
   - P-6: updatedViaNewUI flag must be set on all new strategies
+
+### Phase 6: HLD (Architect)
+- Time: 2026-04-11
+- Pattern evaluation: 6 patterns assessed, all HIGH fit with existing codebase
+- 7 ADRs documented (ADR-01 through ADR-07)
+- System architecture: 12 components across 3 repos
+- MongoDB document schema: UnifiedTierConfig (8 sections, ~50 fields) + PendingChange (generic)
+- API design: 8 endpoints (4 tier CRUD + 4 MC)
+- TierChangeApplier: CREATE flow validated, UPDATE flow designed, STOP flow designed
+- Status state machine: 7 states, 8 transitions
+- Implementation plan: 4 layers with dependency ordering
+- 5 risks catalogued with mitigations
+- 12 done criteria
+- Artifact: 01-architect.md

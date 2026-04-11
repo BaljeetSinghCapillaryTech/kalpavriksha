@@ -113,7 +113,11 @@
 - Scope limited to "Tiers CRUD" — subset of the full Tiers & Benefits BRD (Epic E1 primarily) _(Phase 0)_
 - Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito _(Phase 0)_
 - Four repos involved: emf-parent (entities/strategies), intouch-api-v3 (REST/maker-checker), peb (tier downgrade), Thrift (IDL definitions) _(Phase 0)_
-- UI screenshots pending from user for v0.app tier management screens _(Phase 0)_
+- UI screenshots provided (8 files). _(Phase 0 -- updated)_
+- 7 ADRs documented: ADR-01 (dual-storage), ADR-02 (generic MC), ADR-03 (expand-then-contract), ADR-04 (versioned edits), ADR-05 (existing Thrift), ADR-06 (new programs only), ADR-07 (atomic Thrift call) _(Architect)_
+- 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
+- MongoDB document schema: UnifiedTierConfig with 8 top-level sections (basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds, memberStats, engineConfig, metadata) _(Architect)_
+- PendingChange generic schema: entityType, entityId, payload (full snapshot), status, requestedBy, reviewedBy _(Architect)_
 
 ## Risks & Concerns
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated

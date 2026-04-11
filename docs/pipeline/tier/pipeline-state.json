@@ -80,7 +80,13 @@
         "cross-repo-trace.md"
       ]
     },
-    "6": { "status": "pending" },
+    "6": {
+      "status": "complete",
+      "completed_at": "2026-04-11T17:00:00Z",
+      "artifacts": [
+        "01-architect.md"
+      ]
+    },
     "6a": { "status": "pending" },
     "6b": { "status": "pending" },
     "7": { "status": "pending" },

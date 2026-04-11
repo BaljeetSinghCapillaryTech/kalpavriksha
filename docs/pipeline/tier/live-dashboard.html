@@ -347,8 +347,8 @@
     <a href="#phase-3" class="sidebar-link"><span class="dot complete"></span> 3. UI Extraction</a>
     <a href="#phase-4" class="sidebar-link"><span class="dot complete"></span> 4. Blockers</a>
     <a href="#phase-5" class="sidebar-link"><span class="dot complete"></span> 5. Codebase Research</a>
-    <a href="#phase-6" class="sidebar-link"><span class="dot active"></span> 6. HLD (Architect)</a>
-    <a href="#phase-6a" class="sidebar-link"><span class="dot pending"></span> 6a. Impact Analysis</a>
+    <a href="#phase-6" class="sidebar-link"><span class="dot complete"></span> 6. HLD (Architect)</a>
+    <a href="#phase-6a" class="sidebar-link"><span class="dot active"></span> 6a. Impact Analysis</a>
     <a href="#phase-6b" class="sidebar-link"><span class="dot pending"></span> 6b. Migration</a>
     <a href="#phase-7" class="sidebar-link"><span class="dot pending"></span> 7. LLD (Designer)</a>
     <a href="#phase-8" class="sidebar-link"><span class="dot pending"></span> 8. QA</a>
@@ -365,10 +365,10 @@
   <div class="sidebar-section quick-links">
     <h3>Quick Links</h3>
     <a href="#ba-qa" class="sidebar-link"><span class="dot complete"></span> BA Q&A</a>
-    <a href="#architecture" class="sidebar-link"><span class="dot pending"></span> Architecture</a>
-    <a href="#api-contracts" class="sidebar-link"><span class="dot pending"></span> API Contracts</a>
-    <a href="#cross-repo" class="sidebar-link"><span class="dot pending"></span> Cross-Repo Map</a>
-    <a href="#hld-diagrams" class="sidebar-link"><span class="dot pending"></span> HLD Diagrams</a>
+    <a href="#architecture" class="sidebar-link"><span class="dot complete"></span> Architecture</a>
+    <a href="#api-contracts" class="sidebar-link"><span class="dot complete"></span> API Contracts</a>
+    <a href="#cross-repo" class="sidebar-link"><span class="dot complete"></span> Cross-Repo Map</a>
+    <a href="#hld-diagrams" class="sidebar-link"><span class="dot complete"></span> HLD Diagrams</a>
     <a href="#lld-diagrams" class="sidebar-link"><span class="dot pending"></span> LLD Diagrams</a>
     <a href="#implementation" class="sidebar-link"><span class="dot pending"></span> Implementation</a>
     <a href="#review-findings" class="sidebar-link"><span class="dot pending"></span> Review Findings</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 31.6%"></div>
+      <div class="fill" style="width: 36.8%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">6</span> / 19 phases complete</span>
-      <span><span class="stat-value">18</span> artifacts generated</span>
+      <span><span class="stat-value">7</span> / 19 phases complete</span>
+      <span><span class="stat-value">19</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -842,14 +842,91 @@ flowchart TB
 
   <!-- Phase 6: HLD -->
   <section class="phase-section" id="phase-6">
-    <h2>Phase 6: HLD (Architect) <span class="phase-badge active">Next</span></h2>
-    <span class="skill-tag">/architect + brainstorming + writing-plans</span>
-    <p>Architecture design with pattern evaluation, ADRs, Mermaid diagrams, and API endpoints.</p>
+    <h2>Phase 6: HLD (Architect) <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <span class="skill-tag">/architect</span>
+    <p>Full architecture with 7 ADRs, system diagram (12 components), MongoDB schema (~50 fields), 8 API endpoints, TierChangeApplier conversion design, status state machine, and 4-layer implementation plan.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">7</div><div class="label">ADRs</div></div>
+      <div class="key-number"><div class="value">12</div><div class="label">Components</div></div>
+      <div class="key-number"><div class="value">8</div><div class="label">Endpoints</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Impl Layers</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="architecture">System Architecture</h3>
+    <div class="mermaid">
+graph TB
+    subgraph "intouch-api-v3"
+        TC[TierController] --> TF[TierFacade]
+        MCC[MakerCheckerController] --> MCF[MakerCheckerFacade]
+        TF --> TR[TierRepo<br/>MongoDB]
+        TF --> MCS[MakerCheckerService]
+        MCF --> MCS
+        MCS --> TCA[TierChangeApplier]
+        MCS --> PCR[PendingChangeRepo]
+        TCA --> STV[StatusTransitionValidator]
+    end
+    subgraph "emf-parent (Thrift 9199)"
+        TCA -->|createSlabAndUpdateStrategies| PERS[PointsEngineRuleService]
+        PERS --> PSD[ProgramSlabDao]
+        PERS --> SD[StrategyDao]
+    end
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="hld-diagrams">Status State Machine</h3>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT : Create (MC on)
+    [*] --> ACTIVE : Create (MC off)
+    DRAFT --> PENDING_APPROVAL : Submit
+    PENDING_APPROVAL --> ACTIVE : Approve
+    PENDING_APPROVAL --> DRAFT : Reject
+    ACTIVE --> STOPPED : Stop
+    ACTIVE --> DRAFT : Edit (new version)
+    ACTIVE --> SNAPSHOT : Replaced
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">ADR Summary</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Decision</th><th>Key Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ADR-01</td><td>Dual-storage (MongoDB + SQL)</td><td>Follows UnifiedPromotion pattern</td></tr>
+        <tr><td>ADR-02</td><td>Generic maker-checker framework</td><td>Layer 1 shared module, tiers first consumer</td></tr>
+        <tr><td>ADR-03</td><td>Expand-then-contract migration</td><td>Zero regression on 7+ engine callers</td></tr>
+        <tr><td>ADR-04</td><td>Versioned edits (parentId)</td><td>Zero-downtime, full rollback</td></tr>
+        <tr><td>ADR-05</td><td>Existing Thrift methods (no IDL change)</td><td>Methods found in pointsengine_rules.thrift</td></tr>
+        <tr><td>ADR-06</td><td>New programs only</td><td>No migration risk</td></tr>
+        <tr><td>ADR-07</td><td>Single atomic Thrift call</td><td>Verified execution order in code</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Implementation Layers</h3>
+    <div class="mermaid">
+gantt
+    title Implementation Order
+    dateFormat X
+    axisFormat %s
+    section Layer 1
+    MC Framework (generic)    :a1, 0, 3
+    section Layer 2
+    Tier CRUD APIs            :a2, 1, 4
+    section Layer 3
+    emf-parent changes        :a3, 0, 2
+    section Layer 4
+    Integration + Cache       :a4, 3, 5
+    </div>
+
+    <ul class="artifact-list">
+      <li>01-architect.md</li>
+    </ul>
   </section>
 
   <!-- Phase 6a: Impact Analysis -->
   <section class="phase-section" id="phase-6a">
-    <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/analyst --impact</span>
     <p>Blast radius mapping, security review, risk assessment, GUARDRAILS compliance.</p>
   </section>
