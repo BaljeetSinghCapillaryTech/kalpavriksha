@@ -74,3 +74,16 @@
 - Component hierarchy extracted: TiersPage -> ProgramSelector -> KpiSummaryBar -> ComparisonMatrix (5 sections)
 - User flows: 4 flows documented (view, edit, navigate to benefits, filter)
 - Artifact: ui-requirements.md
+
+### Phase 4: Grooming Questions + Blocker Resolution
+- Time: 2026-04-11
+- Items compiled: 25 (from BA, Critic, Analyst, UI, three-way gap analysis)
+- Classification: 1 BLOCKER, 3 HIGH, 6 MEDIUM, 15 SCOPE/FEASIBILITY
+- BLOCKER resolved: New Thrift method configureTier() for tier config sync
+- HIGHs resolved: PartnerProgramSlab block (409), expand-then-contract migration, tier Duration field
+- Three-way gap analysis: 11 codebase gaps (A-1 to A-11), 4 UI gaps (B-1 to B-4), 4 BRD gaps (C-1 to C-4)
+- User overrides: 3 (GQ-2: no bootstrap sync, GQ-3: Flow A confirmed, GQ-4: benefitIds only)
+- Decisions recorded: D-16 through D-29 (14 new decisions)
+- Total decisions in pipeline: 29
+- All 25 items resolved. 0 remaining open.
+- Artifacts: blocker-decisions.md, grooming-questions.md

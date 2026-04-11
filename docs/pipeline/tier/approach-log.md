@@ -36,3 +36,21 @@
 | D-13 | Tier editing approach | (a) Versioned edits (b) In-place with MC (c) Hybrid by field type | (a) Versioned edits with parentId (same as unified promotions) | Full rollback capability. Consistent with existing codebase pattern. ACTIVE stays live until new version approved. |
 | D-14 | API hosting | intouch-api-v3 vs emf-parent vs other | intouch-api-v3 (REST + MongoDB) -> Thrift -> emf-parent (SQL) | Same architecture as unified promotions. intouch-api-v3 has MongoDB access and existing approval patterns. |
 | D-15 | MC toggle granularity | (a) Per-program (b) Per-program + per-entity-type (c) Per-program + per-role | (b) Per-program + per-entity-type | Generic framework needs entity-type granularity. Different entities may have different risk profiles. |
+
+## Decisions Made During Phase 4 (Blocker Resolution)
+| # | Question | Options Presented | Chosen | Reasoning |
+|---|----------|-------------------|--------|-----------|
+| D-16 | BLOCKER: Thrift sync method missing | (a) New Thrift method (b) Direct DB (c) REST (d) Shared lib | (a) New Thrift method configureTier() | Preserves service boundary. SQL write stays in emf-parent. Consistent with architecture. |
+| D-17 | PartnerProgramSlab cascade on stop | (a) Block (b) Cascade (c) Warn (d) Defer | (a) Block (409 Conflict) | Safest. Prevents silent corruption. Cascade deferred to Anuj's SPP epic. |
+| D-18 | PeProgramSlabDao blast radius | Expand-then-contract (recommended) | Accepted. New findActiveByProgram() + unchanged findByProgram(). | Zero regression risk. Engine callers see all slabs (correct behavior). |
+| D-19 | Tier Duration field | (a) Add to MongoDB (b) Derive from strategy (c) Defer | (a) Add startDate/endDate to MongoDB doc | UI requires it. Maps to membership validity period. |
+| D-20 | isDowngradeOnReturnEnabled | (a) Preserve hidden (b) Surface (c) Deprecate | (a) Preserve hidden, pass through | Existing toggle. Product decision to surface/deprecate is out of scope. |
+| D-21 | Notification templates | (a) Store both (b) Detail only (c) Text only | (a) Store both nudges text + notificationConfig | UI needs text. Engine needs config. Coexist independently. |
+| D-22 | Pagination | No pagination. Max 50 cap. | Accepted | Programs have 3-7 tiers. Pagination is overhead. |
+| D-23 | Bootstrap sync for existing programs | (a) Auto-bootstrap (b) New programs only | (b) New programs only (user override) | No migration. Old programs keep current system. |
+| D-24 | Edit flow (ACTIVE stays live?) | Flow A (ACTIVE stays live) vs Flow B (ACTIVE -> SNAPSHOT immediately) | Flow A (ACTIVE stays live until approval) | Zero downtime. Same as unified promotions. Live traffic always served. |
+| D-25 | Benefits in listing | (a) Summary (b) Full config (c) IDs only | (c) benefitIds only (user override) | Keeps tier API decoupled from benefits. UI fetches separately. |
+| D-26 | MC notification | Hook interface only (NotificationHandler) | Accepted | Keeps framework focused. Real notifications are separate concern. |
+| D-27 | PendingChange format | (a) Full snapshot (b) Diff | (a) Full snapshot | Simpler. Approver sees full state. ChangeApplier needs full config. |
+| D-28 | "Scheduled" KPI | (a) Replace with "Pending Approval" (b) Add goLiveDate (c) Return 0 | (a) Replace with pendingApprovalTiers | No scheduled concept for tiers. Pending Approval is meaningful. |
+| D-29 | Member count cache | Cron every 10 min | Accepted | Predictable load. GROUP BY query on customer_enrollment. |

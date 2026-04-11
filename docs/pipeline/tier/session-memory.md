@@ -63,6 +63,30 @@
 - 4 KPI summary fields (totalTiers, activeTiers, scheduledTiers, totalMembers). "Scheduled" undefined. _(Phase 3)_
 - 8 screens analyzed: 4 in scope (tier listing), 4 reference-only (benefits). _(Phase 3)_
 
+## Three-Way Gap Analysis (Phase 4 -- Codebase vs UI vs BRD)
+**Category A -- In codebase but NOT in BA/PRD:**
+- A-1: retainPoints (boolean on TierConfiguration) -- preserve in MongoDB doc _(Phase 4)_
+- A-2: isDowngradeOnReturnEnabled -- BRD asks if this should be surfaced or deprecated. DECISION NEEDED. _(Phase 4)_
+- A-3: isDowngradeOnPartnerProgramExpiryEnabled -- partner program concern, preserve in MongoDB doc _(Phase 4)_
+- A-4: computationWindowStartValue/EndValue on TierDowngradePeriodConfig -- hidden config, preserve _(Phase 4)_
+- A-5: minimumDuration on TierDowngradePeriodConfig -- hidden config, preserve _(Phase 4)_
+- A-6: PeriodType enum (FIXED, SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC, FIXED_CUSTOMER_REGISTRATION) -- critical engine config, preserve _(Phase 4)_
+- A-7: Per-slab notification templates (SMS, Email, WeChat, MobilePush with per-channel configs) -- UI shows free-text "Nudges" but codebase has detailed per-channel configs. MongoDB doc must store BOTH human-readable nudge AND channel configs. _(Phase 4)_
+- A-8: expressionRelation (ArrayList<ArrayList<Integer>>) + customExpression -- how compound upgrade criteria stored. Maps to UI AND/OR pills. _(Phase 4)_
+- A-9: AdditionalUpgradeCriteria -- secondary upgrade criteria with own thresholds, currentValueType, slabUpgradeMode, trackerId. Programs can have MULTIPLE criteria. _(Phase 4)_
+- A-10: Program-level slab settings (slabUpgradePointCategoryID, slabUpgradeStrategy ID, slabUpgradeMode, slabUpgradeRuleIdentifier) -- apply to ALL tiers, not per-tier. Listing API may need to return as program context. _(Phase 4)_
+- A-11: PartnerProgramSlabHistory -- historical audit records. Relevant for future change log (E1-US5). _(Phase 4)_
+**Category B -- In UI but NOT in codebase or BA/PRD:**
+- B-1: "Tier Settings" button -- unclear what it opens. May be program-level tier settings. _(Phase 4)_
+- B-2: "Filter Tiers" button -- API needs filter support. PRD has ?status= only. _(Phase 4)_
+- B-3: Per-benefit value-per-tier comparison -- tier listing needs to JOIN benefit data from promotions system. _(Phase 4)_
+- B-4: "Manage benefits" navigation link -- UI concern, no API change. _(Phase 4)_
+**Category C -- In BRD but NOT in codebase or UI:**
+- C-1: Impact simulation -- out of scope, architecture supports via member count cache. _(Phase 4)_
+- C-2: Focus Mode -- purely UI, no API change. _(Phase 4)_
+- C-3: aiRa button -- out of scope (E3). _(Phase 4)_
+- C-4: Dirty state tracking -- UI concern, API supports via DRAFT status. _(Phase 4)_
+
 ## Constraints
 - Scope: Tier CRUD (List, Create, Edit, Delete) + extensible Maker-Checker framework. NOT change log, NOT simulation mode. _(BA — Q1)_
 - Scope limited to "Tiers CRUD" — subset of the full Tiers & Benefits BRD (Epic E1 primarily) _(Phase 0)_
@@ -74,22 +98,31 @@
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated
 - Registry repo has full decomposition on `raidlc/rtest123/epic-division` branch. _(Phase 0)_ -- Status: mitigated
 - tier-category consumes maker-checker-framework (owner: ritwik) and audit-trail-framework (owner: anuj). Both status: "designed" (not built yet). Will need mocks during development. _(Phase 0)_ -- Status: open
-- BLOCKER C-1: No Thrift method exists in emf.thrift for tier config sync (createSlab/updateSlab). The approval flow (MongoDB->SQL via Thrift) has no existing transport. Must add new Thrift method or use alternative. _(Critic)_ -- Status: OPEN BLOCKER
-- HIGH C-2: PartnerProgramSlab impact not addressed. Stopping a ProgramSlab could break partner program slab references. Need validation or cascade logic. _(Critic)_ -- Status: open
-- HIGH C-3: PeProgramSlabDao used in 7+ services (InfoLookupService, PointsEngineRuleService, PointsReturnService, ProgramCreationService, PointsEngineServiceManager, BulkOrgConfigImportValidator). Adding status filter is high blast radius. Use expand-then-contract migration. _(Critic)_ -- Status: open
-- MEDIUM C-4: Threshold validation oversimplified. Thresholds stored as CSV in strategy properties, not per-slab. AND/OR conditions possible. Exact validation rules deferred to HLD. _(Critic)_ -- Status: open
-- MEDIUM G-5: MongoDB is sharded (EmfMongoDataSourceManager.getAll()). Tier repository must handle multi-shard scenarios like UnifiedPromotionRepository. _(Analyst)_ -- Status: open
-- MEDIUM G-6: Edit flow is more complex than parentId alone. Promotions use DraftDetails, ParentDetails, UnifiedPromotionEditOrchestrator, StatusTransitionValidator. Need full pattern study. _(Analyst)_ -- Status: open
+- BLOCKER C-1: RESOLVED. Add new Thrift method configureTier(TierConfigRequest) to emf.thrift. intouch-api-v3 calls this on MC approval. emf-parent handler calls createSlabAndUpdateStrategies internally. SQL write logic stays in emf-parent, never in intouch-api-v3. _(Phase 4 — Blocker #1)_ -- Status: RESOLVED
+- HIGH C-2: RESOLVED. Block stop if PartnerProgramSlabs exist (409 Conflict). Known limitation documented for Anuj's supplementary-partner-program epic to add cascade/management logic. _(Phase 4 — HIGH #1)_ -- Status: RESOLVED
+- HIGH C-3: RESOLVED. Expand-then-contract migration. Add status column (DEFAULT 'ACTIVE'). Add NEW DAO method findActiveByProgram() with status filter. Do NOT modify existing findByProgram(). New tier listing API uses new method. Existing engine callers unchanged -- they see all slabs (correct for upgrade/downgrade serial number logic). Future phase audits existing callers. _(Phase 4 — HIGH #2)_ -- Status: RESOLVED
+- MEDIUM C-4: Threshold validation oversimplified. Thresholds stored as CSV in strategy properties, not per-slab. AND/OR conditions possible. Exact validation rules deferred to HLD. _(Critic)_ -- Status: deferred to HLD
+- MEDIUM G-5: MongoDB is sharded (EmfMongoDataSourceManager.getAll()). Tier repository must handle multi-shard scenarios like UnifiedPromotionRepository. _(Analyst)_ -- Status: noted for HLD
+- MEDIUM G-6: Edit flow is more complex than parentId alone. Promotions use DraftDetails, ParentDetails, UnifiedPromotionEditOrchestrator, StatusTransitionValidator. Need full pattern study in Phase 5. _(Analyst)_ -- Status: noted for Phase 5
+- A-2: isDowngradeOnReturnEnabled -- preserve in MongoDB doc as hidden config, don't surface in UI, pass through on Thrift sync. _(Phase 4 — SCOPE #2)_ -- Status: RESOLVED
+- A-7: Notification templates -- store BOTH nudges text field (UI display) AND notificationConfig object (engine sync). Coexist independently. New tiers start with empty notificationConfig. Existing tiers populated from strategy config on sync. _(Phase 4 — SCOPE #3)_ -- Status: RESOLVED
+- A-1,A-3-A-6,A-8-A-11: All preserved in MongoDB doc design. Hidden engine configs (retainPoints, partnerProgramExpiry, periodConfig, computationWindow, minimumDuration, PeriodType, expressionRelation, additionalCriteria, program-level slab settings) stored in the doc for round-trip fidelity. _(Phase 4)_ -- Status: RESOLVED
+- GAP-1: Tier Duration (startDate/endDate) added to MongoDB doc. Maps to membership validity period. endDate=null means Indefinite. _(Phase 4 — SCOPE #1)_ -- Status: RESOLVED
 
 ## Open Questions
 - [x] resolved: UI screenshots provided (8 screenshots from v0.app). _(Phase 0)_
 - [x] resolved: Registry has full decomposition at `raidlc/rtest123/epic-division`. Epic `tier-category` assigned to Ritwik. _(Phase 0)_
-- [ ] BLOCKER: What transport mechanism for tier config sync on approval? New Thrift method needed, or alternative? _(Critic C-1)_
-- [ ] What happens to PartnerProgramSlabs when a ProgramSlab is stopped? Block? Cascade? Warn? _(Critic C-2)_
-- [ ] What is the exact Thrift method signature needed for the new tier sync operation? _(BA)_
-- [ ] How should the member count cache be refreshed? _(BA)_
-- [ ] Should MC notification use existing system or hook interface? _(BA)_
-- [ ] Benefits linkage in listing: full config or just references? _(BA)_
+- [x] resolved: New Thrift method configureTier() in emf.thrift. SQL write stays in emf-parent. _(Phase 4 — Blocker #1)_
+- [x] resolved: Block stop (409 Conflict) if PartnerProgramSlabs exist. Cascade deferred to Anuj's SPP epic. _(Phase 4 — HIGH #1)_
+- [x] resolved: Thrift method signature -- deferred to HLD (Phase 6). Method name: configureTier(). _(Phase 4)_
+- [x] resolved: Member count cache -- scheduled job (cron) every 10 min. GROUP BY current_slab_id query -> writes to MongoDB tier docs. _(Phase 4 — GQ)_
+- [x] resolved: MC notification -- hook interface only (NotificationHandler with onSubmit/onApprove/onReject). No-op default. _(Phase 4 — GQ-5)_
+- [x] resolved: Benefits linkage -- store benefitIds only on tier doc. UI fetches benefit details separately. _(Phase 4 — GQ-4 override)_
+- [x] resolved: No pagination for tier listing. Full list returned. Max 50 tiers validation cap. _(Phase 4 — GQ-1)_
+- [x] resolved: NO bootstrap sync for existing programs. New tier CRUD is for NEW programs only. Old programs keep current system. _(Phase 4 — GQ-2 override)_
+- [x] resolved: Versioned edit flow confirmed as Flow A. ACTIVE stays live until DRAFT approved. On approval: old->SNAPSHOT, new->ACTIVE. Zero downtime. _(Phase 4 — GQ-3)_
+- [x] resolved: PendingChange stores full snapshot, not diff. _(Phase 4 — GQ-6)_
+- [x] resolved: KPI "Scheduled" replaced with "Pending Approval". No goLiveDate concept for now. _(Phase 4 — C-5)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._

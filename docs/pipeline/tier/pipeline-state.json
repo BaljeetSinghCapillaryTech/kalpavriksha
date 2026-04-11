@@ -63,7 +63,14 @@
         "ui-requirements.md"
       ]
     },
-    "4": { "status": "pending" },
+    "4": {
+      "status": "complete",
+      "completed_at": "2026-04-11T15:30:00Z",
+      "artifacts": [
+        "blocker-decisions.md",
+        "grooming-questions.md"
+      ]
+    },
     "5": { "status": "pending" },
     "6": { "status": "pending" },
     "6a": { "status": "pending" },

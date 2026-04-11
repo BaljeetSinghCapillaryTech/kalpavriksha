@@ -345,8 +345,8 @@
     <a href="#phase-1" class="sidebar-link"><span class="dot complete"></span> 1. BA + PRD</a>
     <a href="#phase-2" class="sidebar-link"><span class="dot complete"></span> 2. Critic + Gap</a>
     <a href="#phase-3" class="sidebar-link"><span class="dot complete"></span> 3. UI Extraction</a>
-    <a href="#phase-4" class="sidebar-link"><span class="dot active"></span> 4. Blockers</a>
-    <a href="#phase-5" class="sidebar-link"><span class="dot pending"></span> 5. Codebase Research</a>
+    <a href="#phase-4" class="sidebar-link"><span class="dot complete"></span> 4. Blockers</a>
+    <a href="#phase-5" class="sidebar-link"><span class="dot active"></span> 5. Codebase Research</a>
     <a href="#phase-6" class="sidebar-link"><span class="dot pending"></span> 6. HLD (Architect)</a>
     <a href="#phase-6a" class="sidebar-link"><span class="dot pending"></span> 6a. Impact Analysis</a>
     <a href="#phase-6b" class="sidebar-link"><span class="dot pending"></span> 6b. Migration</a>
@@ -392,12 +392,12 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 21.1%"></div>
+      <div class="fill" style="width: 26.3%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">4</span> / 19 phases complete</span>
-      <span><span class="stat-value">13</span> artifacts generated</span>
-      <span><span class="stat-value">15</span> decisions made</span>
+      <span><span class="stat-value">5</span> / 19 phases complete</span>
+      <span><span class="stat-value">15</span> artifacts generated</span>
+      <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
   </div>
@@ -642,13 +642,77 @@ graph LR
 
   <!-- Phase 4: Blockers -->
   <section class="phase-section" id="phase-4">
-    <h2>Phase 4: Grooming Questions + Blocker Resolution <span class="phase-badge active">Next</span></h2>
-    <p>Compile questions from all prior phases. Resolve blockers interactively.</p>
+    <h2>Phase 4: Grooming Questions + Blocker Resolution <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <p>Compiled 25 open items from Phases 1-3 + three-way gap analysis (UI vs codebase vs BRD). All resolved. 1 BLOCKER, 3 HIGH, 6 MEDIUM. 14 new decisions. 3 user overrides.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">25</div><div class="label">Items</div></div>
+      <div class="key-number"><div class="value">25</div><div class="label">Resolved</div></div>
+      <div class="key-number"><div class="value">14</div><div class="label">New Decisions</div></div>
+      <div class="key-number"><div class="value">3</div><div class="label">User Overrides</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">BLOCKER + HIGH Resolutions</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Severity</th><th>Issue</th><th>Decision</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync</td><td>New configureTier() Thrift method. SQL stays in emf-parent.</td></tr>
+        <tr><td class="status-warn">HIGH</td><td>PartnerProgramSlab cascade</td><td>Block (409 Conflict). Cascade deferred to Anuj's SPP epic.</td></tr>
+        <tr><td class="status-warn">HIGH</td><td>DAO blast radius (7+ services)</td><td>Expand-then-contract. New findActiveByProgram(). Existing unchanged.</td></tr>
+        <tr><td class="status-warn">HIGH</td><td>Tier Duration missing</td><td>Add startDate/endDate to MongoDB doc.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Three-Way Gap Analysis</h3>
+    <div class="mermaid">
+graph LR
+    subgraph "Codebase Gaps (A)"
+        A1[retainPoints]
+        A2[downgradeOnReturn]
+        A7[notification configs]
+        A9[additional criteria]
+        AX[+7 more hidden configs]
+    end
+    subgraph "UI Gaps (B)"
+        B1[Tier Settings btn]
+        B3[Benefits matrix join]
+    end
+    subgraph "BRD Gaps (C)"
+        C1[Impact simulation]
+        C2[Focus Mode]
+    end
+    A1 -->|preserved| MD[MongoDB Doc]
+    A2 -->|preserved hidden| MD
+    A7 -->|dual storage| MD
+    A9 -->|preserved| MD
+    AX -->|preserved| MD
+    B3 -->|benefitIds only| MD
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">User Overrides</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Item</th><th>Original Proposal</th><th>User Override</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>GQ-2: Bootstrap sync</td><td>Auto-bootstrap existing programs</td><td>NO. New programs only. No migration.</td></tr>
+        <tr><td>GQ-3: Edit flow</td><td>Flow A (confirmed)</td><td>Confirmed Flow A. ACTIVE stays live until approval.</td></tr>
+        <tr><td>GQ-4: Benefits in listing</td><td>Summary (name + value)</td><td>benefitIds only. UI fetches separately.</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>blocker-decisions.md</li>
+      <li>grooming-questions.md</li>
+    </ul>
   </section>
 
   <!-- Phase 5: Codebase Research -->
   <section class="phase-section" id="phase-5">
-    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/cross-repo-tracer + parallel agents</span>
     <p>Parallel research agents per repo. Cross-repo tracer maps write/read paths.</p>
   </section>
