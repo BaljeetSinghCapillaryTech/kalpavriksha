@@ -97,3 +97,10 @@
 - Cross-repo trace: 4 sequence diagrams (create, approve, list, cache refresh)
 - Change inventory: ~25 new files + 1 modified in intouch-api-v3. 1 new + 2 modified in emf-parent. 0 in Thrift IDL. 0 in peb.
 - Artifacts: code-analysis-intouch-api-v3.md, code-analysis-emf-parent.md, cross-repo-trace.md
+- LATE ADDITION: Production payload analysis from /loyalty/api/v1/strategy/tier-strategy/977
+  - P-1 CRITICAL: Points strategy layer (allocations, redemptions, expirys) not in BA/PRD. Per-slab CSV values.
+  - P-2: CSV-per-slab pattern -- new slab requires extending every strategy CSV
+  - P-3: Upgrade section confirmed matches our model
+  - P-4: Downgrade has isFixedTypeWithoutYear, renewalWindowType (different naming)
+  - P-5: isAdvanceSetting, addDefaultCommunication -- new flags
+  - P-6: updatedViaNewUI flag must be set on all new strategies
