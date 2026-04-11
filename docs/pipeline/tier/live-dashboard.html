@@ -575,12 +575,12 @@ graph TB
         <tr><th>#</th><th>Severity</th><th>Finding</th><th>Status</th></tr>
       </thead>
       <tbody>
-        <tr><td>C-1</td><td class="status-fail">BLOCKER</td><td>No Thrift method exists for tier config sync -- approval flow has no transport</td><td>Open</td></tr>
-        <tr><td>C-2</td><td class="status-warn">HIGH</td><td>PartnerProgramSlab impact not addressed in PRD</td><td>Open</td></tr>
-        <tr><td>C-3</td><td class="status-warn">HIGH</td><td>PeProgramSlabDao used in 7+ services -- status filter blast radius understated</td><td>Open</td></tr>
-        <tr><td>C-4</td><td>MEDIUM</td><td>Threshold validation oversimplified (CSV in strategy, not per-slab)</td><td>Open</td></tr>
-        <tr><td>C-5</td><td>LOW</td><td>"Scheduled" KPI has no backing concept in tier status model</td><td>Open</td></tr>
-        <tr><td>C-6</td><td>LOW</td><td>MC framework scope merges two registry epics into one pipeline</td><td>Accepted</td></tr>
+        <tr><td>C-1</td><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync -- REVISED in Phase 5: methods exist in pointsengine_rules.thrift</td><td class="status-ok">Resolved</td></tr>
+        <tr><td>C-2</td><td class="status-warn">HIGH</td><td>PartnerProgramSlab impact -- block stop (409) if references exist</td><td class="status-ok">Resolved</td></tr>
+        <tr><td>C-3</td><td class="status-warn">HIGH</td><td>PeProgramSlabDao blast radius -- expand-then-contract migration</td><td class="status-ok">Resolved</td></tr>
+        <tr><td>C-4</td><td>MEDIUM</td><td>Threshold validation -- CSV per-slab, deferred to HLD</td><td>Deferred</td></tr>
+        <tr><td>C-5</td><td>LOW</td><td>"Scheduled" KPI -- replaced with "Pending Approval"</td><td class="status-ok">Resolved</td></tr>
+        <tr><td>C-6</td><td>LOW</td><td>MC framework scope merges two registry epics</td><td>Accepted</td></tr>
       </tbody>
     </table>
 
@@ -659,7 +659,7 @@ graph LR
         <tr><th>Severity</th><th>Issue</th><th>Decision</th></tr>
       </thead>
       <tbody>
-        <tr><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync</td><td>New configureTier() Thrift method. SQL stays in emf-parent.</td></tr>
+        <tr><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync</td><td>REVISED: Methods already exist in pointsengine_rules.thrift. Add Java wrappers only.</td></tr>
         <tr><td class="status-warn">HIGH</td><td>PartnerProgramSlab cascade</td><td>Block (409 Conflict). Cascade deferred to Anuj's SPP epic.</td></tr>
         <tr><td class="status-warn">HIGH</td><td>DAO blast radius (7+ services)</td><td>Expand-then-contract. New findActiveByProgram(). Existing unchanged.</td></tr>
         <tr><td class="status-warn">HIGH</td><td>Tier Duration missing</td><td>Add startDate/endDate to MongoDB doc.</td></tr>
@@ -714,14 +714,14 @@ graph LR
   <section class="phase-section" id="phase-5">
     <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge complete">Complete</span></h2>
     <p class="phase-time">Completed: 2026-04-11</p>
-    <span class="skill-tag">/cross-repo-tracer</span>
-    <p>Deep dive into all 4 repos. CRITICAL finding: Thrift slab methods already exist (C-1 revised -- simpler than thought). Full pattern study of UnifiedPromotion edit/approval flow. Cross-repo write/read paths traced with 4 sequence diagrams.</p>
+    <span class="skill-tag">/cross-repo-tracer</span> <span class="skill-tag">jdtls LSP</span>
+    <p>Deep dive into all 4 repos. CRITICAL finding: Thrift slab methods already exist. Full pattern study of UnifiedPromotion. Production payload analysis. TierChangeApplier conversion design validated.</p>
 
     <div class="key-numbers">
       <div class="key-number"><div class="value">~25</div><div class="label">New Files</div></div>
       <div class="key-number"><div class="value">3</div><div class="label">Modified Files</div></div>
       <div class="key-number"><div class="value">0</div><div class="label">Thrift IDL Changes</div></div>
-      <div class="key-number"><div class="value">0</div><div class="label">PEB Changes</div></div>
+      <div class="key-number"><div class="value">5</div><div class="label">Risks Found</div></div>
     </div>
 
     <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="cross-repo">Cross-Repo Change Map</h3>
@@ -732,13 +732,106 @@ graph LR
       <tbody>
         <tr><td>intouch-api-v3</td><td>~25</td><td>1</td><td>Controller/Facade/Repo (follows UnifiedPromotion)</td></tr>
         <tr><td>emf-parent</td><td>1 (Flyway)</td><td>2</td><td>Add status column + new DAO method</td></tr>
-        <tr><td>Thrift IDL</td><td>0</td><td>0</td><td>Existing methods sufficient (createSlabAndUpdateStrategies)</td></tr>
-        <tr><td>peb</td><td>0</td><td>0</td><td>Expand-then-contract: unchanged (C6 verified)</td></tr>
+        <tr><td>Thrift IDL</td><td>0</td><td>0</td><td>Existing methods sufficient</td></tr>
+        <tr><td>peb</td><td>0</td><td>0</td><td>Unchanged (expand-then-contract)</td></tr>
       </tbody>
     </table>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Critical Finding: Blocker C-1 Revised</h3>
-    <p style="color: var(--success); font-size: 13px;">Thrift methods for slab CRUD already exist in pointsengine_rules.thrift (searched wrong file earlier). createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab. Only need to add Java wrapper methods in PointsEngineRulesThriftService. NO Thrift IDL change needed.</p>
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Blocker C-1 REVISED</h3>
+    <p style="color: var(--success); font-size: 13px; margin-bottom: 12px;">Thrift methods already exist in <strong>pointsengine_rules.thrift</strong> (searched wrong file earlier). NO Thrift IDL change needed.</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Thrift Method</th><th>Purpose</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>createSlabAndUpdateStrategies</td><td>Create slab + update strategies atomically</td><td class="status-ok">EXISTS</td></tr>
+        <tr><td>getAllSlabs</td><td>Read all slabs for a program</td><td class="status-ok">EXISTS</td></tr>
+        <tr><td>createOrUpdateSlab</td><td>Upsert slab record</td><td class="status-ok">EXISTS</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Production Payload Analysis</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Finding</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>P-1</td><td>Points strategy layer (allocations, redemptions, expirys) -- NOT managed by tier CRUD</td><td>Separate concern. Engine auto-extends CSV on slab creation.</td></tr>
+        <tr><td>P-2</td><td>CSV-per-slab pattern pervasive (allocation_values, threshold_values, etc.)</td><td>TierChangeApplier must pass correct strategy list.</td></tr>
+        <tr><td>P-3</td><td>Upgrade section confirmed (CUMULATIVE_PURCHASES, threshold array)</td><td>Our model matches production.</td></tr>
+        <tr><td>P-4</td><td>Downgrade: isFixedTypeWithoutYear, renewalWindowType -- new fields</td><td>Preserved in MongoDB doc.</td></tr>
+        <tr><td>P-5</td><td>isAdvanceSetting, addDefaultCommunication -- UI flags</td><td>Stored in MongoDB doc.</td></tr>
+        <tr><td>P-6</td><td>updatedViaNewUI flag on strategies</td><td>Set to true for all new strategies.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierChangeApplier -- Conversion Design</h3>
+    <div class="mermaid">
+flowchart TB
+    subgraph "Flow 1: CREATE New Tier"
+        A1[Build SlabInfo from MongoDB doc] --> A2[Fetch current strategies via Thrift]
+        A2 --> A3[Append threshold to SLAB_UPGRADE CSV]
+        A2 --> A4[Add slab entry to SLAB_DOWNGRADE JSON]
+        A3 --> A5[createSlabAndUpdateStrategies<br/>SINGLE atomic Thrift call]
+        A4 --> A5
+        A5 --> A6[Engine auto-extends<br/>POINT_ALLOCATION + POINT_EXPIRY CSVs]
+    end
+    </div>
+    <div class="mermaid">
+flowchart TB
+    subgraph "Flow 2: UPDATE Existing Tier"
+        B1[Build SlabInfo changes] --> B2[If eligibility changed:<br/>replace threshold at CSV position]
+        B1 --> B3[If downgrade changed:<br/>update slab entry in JSON]
+        B2 --> B4[createSlabAndUpdateStrategies<br/>with modified strategies]
+        B3 --> B4
+    end
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Strategy Type Map</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>ID</th><th>Type</th><th>Managed by Tier CRUD?</th><th>CSV Extension?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>POINT_ALLOCATION</td><td>No (separate)</td><td class="status-ok">Auto (appends "0")</td></tr>
+        <tr><td>2</td><td>SLAB_UPGRADE</td><td class="status-ok">Yes</td><td>Manual (append threshold)</td></tr>
+        <tr><td>3</td><td>POINT_EXPIRY</td><td>No (separate)</td><td class="status-ok">Auto (appends default)</td></tr>
+        <tr><td>4</td><td>POINT_REDEMPTION_THRESHOLD</td><td>No (separate)</td><td>SLAB_INDEPENDENT (no extension)</td></tr>
+        <tr><td>5</td><td>SLAB_DOWNGRADE</td><td class="status-ok">Yes</td><td>Manual (add slab entry)</td></tr>
+        <tr><td>6-9</td><td>POINT_RETURN, EXPIRY_REMINDER, TRACKER, EXTENSION</td><td>No</td><td>N/A</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Critical Risks</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Risk</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>R1</td><td>CSV index mapping (off-by-one = data corruption)</td><td>serialNumber-2 = CSV index. Unit test with 3,4,5+ slabs.</td></tr>
+        <tr><td>R2</td><td>Downgrade strategy monolith (read-modify-write concurrency)</td><td>@Lockable annotation on TierChangeApplier methods.</td></tr>
+        <tr><td>R3</td><td>Strategy IDs must be preserved on update</td><td>Always fetch existing strategy ID before updating.</td></tr>
+        <tr><td>R4</td><td>CSV positions preserved on soft-delete</td><td>Never remove CSV position. Soft-delete only.</td></tr>
+        <tr><td>R5</td><td>Production tier-strategy API in separate service</td><td>Our listing reads from MongoDB, not the legacy API.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Patterns Documented (from UnifiedPromotion)</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Pattern</th><th>Source</th><th>Tier Equivalent</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Controller + Facade + Repository</td><td>UnifiedPromotionController/Facade/Repository</td><td>TierController/Facade/Repository</td></tr>
+        <tr><td>Status state machine</td><td>StatusTransitionValidator</td><td>Reuse or extend</td></tr>
+        <tr><td>Distributed lock</td><td>@Lockable (TTL 300s, acquire 5s)</td><td>Reuse as-is</td></tr>
+        <tr><td>Sharded MongoDB</td><td>EmfMongoDataSourceManager</td><td>Reuse as-is</td></tr>
+        <tr><td>Response envelope</td><td>ResponseWrapper&lt;T&gt;</td><td>Reuse as-is</td></tr>
+        <tr><td>Versioned edit (parentId)</td><td>UnifiedPromotion.parentId</td><td>UnifiedTierConfig.parentId</td></tr>
+        <tr><td>Edit orchestration</td><td>UnifiedPromotionEditOrchestrator</td><td>Simpler for tiers</td></tr>
+        <tr><td>Thrift client</td><td>PointsEngineRulesThriftService (port 9199)</td><td>Add slab wrapper methods</td></tr>
+      </tbody>
+    </table>
 
     <ul class="artifact-list">
       <li>code-analysis-intouch-api-v3.md</li>
