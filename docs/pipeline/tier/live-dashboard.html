@@ -343,8 +343,8 @@
     <h3>Pipeline Phases</h3>
     <a href="#phase-0" class="sidebar-link"><span class="dot complete"></span> 0. Input Collection</a>
     <a href="#phase-1" class="sidebar-link"><span class="dot complete"></span> 1. BA + PRD</a>
-    <a href="#phase-2" class="sidebar-link"><span class="dot active"></span> 2. Critic + Gap</a>
-    <a href="#phase-3" class="sidebar-link"><span class="dot pending"></span> 3. UI Extraction</a>
+    <a href="#phase-2" class="sidebar-link"><span class="dot complete"></span> 2. Critic + Gap</a>
+    <a href="#phase-3" class="sidebar-link"><span class="dot active"></span> 3. UI Extraction</a>
     <a href="#phase-4" class="sidebar-link"><span class="dot pending"></span> 4. Blockers</a>
     <a href="#phase-5" class="sidebar-link"><span class="dot pending"></span> 5. Codebase Research</a>
     <a href="#phase-6" class="sidebar-link"><span class="dot pending"></span> 6. HLD (Architect)</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 10.5%"></div>
+      <div class="fill" style="width: 15.8%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">2</span> / 19 phases complete</span>
-      <span><span class="stat-value">10</span> artifacts generated</span>
+      <span><span class="stat-value">3</span> / 19 phases complete</span>
+      <span><span class="stat-value">12</span> artifacts generated</span>
       <span><span class="stat-value">15</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -557,14 +557,50 @@ graph TB
 
   <!-- Phase 2: Critic + Gap Analysis -->
   <section class="phase-section" id="phase-2">
-    <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge active">Next</span></h2>
-    <span class="skill-tag">/analyst --compliance + principles.md</span>
-    <p>Two parallel subagents: Critic challenges BA/PRD claims, Analyst verifies them against codebase.</p>
+    <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <span class="skill-tag">principles.md (Critic)</span> <span class="skill-tag">/analyst --compliance</span>
+    <p>Critic challenged 6 claims in BA/PRD. Analyst verified 14 codebase claims with file-level evidence. Found 1 BLOCKER and 5 additional gaps.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">6</div><div class="label">Contradictions</div></div>
+      <div class="key-number"><div class="value">14</div><div class="label">Claims Verified</div></div>
+      <div class="key-number"><div class="value">6</div><div class="label">Gaps Found</div></div>
+      <div class="key-number"><div class="value" style="color: var(--danger);">1</div><div class="label">Blockers</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Contradictions (Critic)</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Severity</th><th>Finding</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>C-1</td><td class="status-fail">BLOCKER</td><td>No Thrift method exists for tier config sync -- approval flow has no transport</td><td>Open</td></tr>
+        <tr><td>C-2</td><td class="status-warn">HIGH</td><td>PartnerProgramSlab impact not addressed in PRD</td><td>Open</td></tr>
+        <tr><td>C-3</td><td class="status-warn">HIGH</td><td>PeProgramSlabDao used in 7+ services -- status filter blast radius understated</td><td>Open</td></tr>
+        <tr><td>C-4</td><td>MEDIUM</td><td>Threshold validation oversimplified (CSV in strategy, not per-slab)</td><td>Open</td></tr>
+        <tr><td>C-5</td><td>LOW</td><td>"Scheduled" KPI has no backing concept in tier status model</td><td>Open</td></tr>
+        <tr><td>C-6</td><td>LOW</td><td>MC framework scope merges two registry epics into one pipeline</td><td>Accepted</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Claims Verification (Analyst)</h3>
+    <div class="mermaid">
+pie title Claim Verification Results
+    "Confirmed (C7)" : 13
+    "Confirmed (C6)" : 1
+    "Contradicted" : 0
+    </div>
+
+    <ul class="artifact-list">
+      <li>contradictions.md</li>
+      <li>gap-analysis-brd.md</li>
+    </ul>
   </section>
 
   <!-- Phase 3: UI Extraction -->
   <section class="phase-section" id="phase-3">
-    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge active">Next</span></h2>
     <p>Extract component hierarchy, fields, and flows from UI screenshots.</p>
   </section>
 

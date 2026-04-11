@@ -64,10 +64,22 @@
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated
 - Registry repo has full decomposition on `raidlc/rtest123/epic-division` branch. _(Phase 0)_ -- Status: mitigated
 - tier-category consumes maker-checker-framework (owner: ritwik) and audit-trail-framework (owner: anuj). Both status: "designed" (not built yet). Will need mocks during development. _(Phase 0)_ -- Status: open
+- BLOCKER C-1: No Thrift method exists in emf.thrift for tier config sync (createSlab/updateSlab). The approval flow (MongoDB->SQL via Thrift) has no existing transport. Must add new Thrift method or use alternative. _(Critic)_ -- Status: OPEN BLOCKER
+- HIGH C-2: PartnerProgramSlab impact not addressed. Stopping a ProgramSlab could break partner program slab references. Need validation or cascade logic. _(Critic)_ -- Status: open
+- HIGH C-3: PeProgramSlabDao used in 7+ services (InfoLookupService, PointsEngineRuleService, PointsReturnService, ProgramCreationService, PointsEngineServiceManager, BulkOrgConfigImportValidator). Adding status filter is high blast radius. Use expand-then-contract migration. _(Critic)_ -- Status: open
+- MEDIUM C-4: Threshold validation oversimplified. Thresholds stored as CSV in strategy properties, not per-slab. AND/OR conditions possible. Exact validation rules deferred to HLD. _(Critic)_ -- Status: open
+- MEDIUM G-5: MongoDB is sharded (EmfMongoDataSourceManager.getAll()). Tier repository must handle multi-shard scenarios like UnifiedPromotionRepository. _(Analyst)_ -- Status: open
+- MEDIUM G-6: Edit flow is more complex than parentId alone. Promotions use DraftDetails, ParentDetails, UnifiedPromotionEditOrchestrator, StatusTransitionValidator. Need full pattern study. _(Analyst)_ -- Status: open
 
 ## Open Questions
-- [ ] What specific screens from the v0.app UI should be captured as screenshots? _(Phase 0)_
+- [x] resolved: UI screenshots provided (8 screenshots from v0.app). _(Phase 0)_
 - [x] resolved: Registry has full decomposition at `raidlc/rtest123/epic-division`. Epic `tier-category` assigned to Ritwik. _(Phase 0)_
+- [ ] BLOCKER: What transport mechanism for tier config sync on approval? New Thrift method needed, or alternative? _(Critic C-1)_
+- [ ] What happens to PartnerProgramSlabs when a ProgramSlab is stopped? Block? Cascade? Warn? _(Critic C-2)_
+- [ ] What is the exact Thrift method signature needed for the new tier sync operation? _(BA)_
+- [ ] How should the member count cache be refreshed? _(BA)_
+- [ ] Should MC notification use existing system or hook interface? _(BA)_
+- [ ] Benefits linkage in listing: full config or just references? _(BA)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._

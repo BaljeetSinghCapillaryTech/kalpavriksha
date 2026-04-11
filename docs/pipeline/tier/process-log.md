@@ -43,3 +43,20 @@
 - ProductEx: NOT run in parallel this session (skipped to avoid context pressure)
 - Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
 - Session memory: 22 domain terms, 8 codebase findings, 16 key decisions, 6 constraints, 3 risks
+
+### Phase 2: Critic + Gap Analysis
+- Time: 2026-04-11
+- Critic (Devil's Advocate): 6 contradictions found (1 BLOCKER, 2 HIGH, 2 MEDIUM, 1 LOW)
+  - C-1 BLOCKER: No Thrift method for tier config sync
+  - C-2 HIGH: PartnerProgramSlab impact not addressed
+  - C-3 HIGH: PeProgramSlabDao blast radius (7+ services)
+  - C-4 MEDIUM: Threshold validation oversimplified
+  - C-5 LOW: "Scheduled" KPI undefined
+  - C-6 LOW: MC framework scope vs registry decomposition
+- Analyst (Compliance): 14 claims verified (all C6-C7), 6 gaps found
+  - G-1 BLOCKER: Same as C-1 (no Thrift method)
+  - G-2-G-6: Partner slab impact, DAO blast radius, strategy CSV thresholds, sharded MongoDB, edit flow complexity
+- All 14 BA codebase claims CONFIRMED against actual code with file-level evidence
+- Artifacts: contradictions.md, gap-analysis-brd.md
+- Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
+- Session memory: 22 domain terms, 8 codebase findings, 16 key decisions, 6 constraints, 3 risks
