@@ -87,3 +87,13 @@
 - Total decisions in pipeline: 29
 - All 25 items resolved. 0 remaining open.
 - Artifacts: blocker-decisions.md, grooming-questions.md
+
+### Phase 5: Codebase Research + Cross-Repo Tracing
+- Time: 2026-04-11
+- Repos researched: intouch-api-v3 (deep), emf-parent (deep), Thrift IDL (deep), peb (verified no changes)
+- CRITICAL FINDING: Blocker C-1 REVISED. Thrift methods for slab CRUD ALREADY EXIST in pointsengine_rules.thrift (not emf.thrift). createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab all present. PointsEngineRulesThriftService in intouch-api-v3 just needs wrapper methods added. NO new Thrift IDL change needed.
+- LSP (jdtls) used: symbol searches for CurrentValueType (1 result), UpgradeCriteria (4 results)
+- Files analyzed in depth: UnifiedPromotionEditOrchestrator (edit/rollback pattern), StatusTransitionValidator (state machine), EmfMongoDataSourceManager (sharded interface), UnifiedPromotionRepository (MongoRepository + custom queries), UnifiedPromotionController (REST pattern), PointsEngineRulesThriftService (Thrift client), ResponseWrapper (API envelope), Lockable (distributed lock), TierDowngradePeriodConfig (PeriodType, computation window), AdditionalUpgradeCriteria (secondary upgrade criteria)
+- Cross-repo trace: 4 sequence diagrams (create, approve, list, cache refresh)
+- Change inventory: ~25 new files + 1 modified in intouch-api-v3. 1 new + 2 modified in emf-parent. 0 in Thrift IDL. 0 in peb.
+- Artifacts: code-analysis-intouch-api-v3.md, code-analysis-emf-parent.md, cross-repo-trace.md

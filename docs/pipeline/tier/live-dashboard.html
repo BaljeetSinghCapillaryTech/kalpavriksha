@@ -346,8 +346,8 @@
     <a href="#phase-2" class="sidebar-link"><span class="dot complete"></span> 2. Critic + Gap</a>
     <a href="#phase-3" class="sidebar-link"><span class="dot complete"></span> 3. UI Extraction</a>
     <a href="#phase-4" class="sidebar-link"><span class="dot complete"></span> 4. Blockers</a>
-    <a href="#phase-5" class="sidebar-link"><span class="dot active"></span> 5. Codebase Research</a>
-    <a href="#phase-6" class="sidebar-link"><span class="dot pending"></span> 6. HLD (Architect)</a>
+    <a href="#phase-5" class="sidebar-link"><span class="dot complete"></span> 5. Codebase Research</a>
+    <a href="#phase-6" class="sidebar-link"><span class="dot active"></span> 6. HLD (Architect)</a>
     <a href="#phase-6a" class="sidebar-link"><span class="dot pending"></span> 6a. Impact Analysis</a>
     <a href="#phase-6b" class="sidebar-link"><span class="dot pending"></span> 6b. Migration</a>
     <a href="#phase-7" class="sidebar-link"><span class="dot pending"></span> 7. LLD (Designer)</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 26.3%"></div>
+      <div class="fill" style="width: 31.6%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">5</span> / 19 phases complete</span>
-      <span><span class="stat-value">15</span> artifacts generated</span>
+      <span><span class="stat-value">6</span> / 19 phases complete</span>
+      <span><span class="stat-value">18</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -712,14 +712,44 @@ graph LR
 
   <!-- Phase 5: Codebase Research -->
   <section class="phase-section" id="phase-5">
-    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge active">Next</span></h2>
-    <span class="skill-tag">/cross-repo-tracer + parallel agents</span>
-    <p>Parallel research agents per repo. Cross-repo tracer maps write/read paths.</p>
+    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <span class="skill-tag">/cross-repo-tracer</span>
+    <p>Deep dive into all 4 repos. CRITICAL finding: Thrift slab methods already exist (C-1 revised -- simpler than thought). Full pattern study of UnifiedPromotion edit/approval flow. Cross-repo write/read paths traced with 4 sequence diagrams.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">~25</div><div class="label">New Files</div></div>
+      <div class="key-number"><div class="value">3</div><div class="label">Modified Files</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">Thrift IDL Changes</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">PEB Changes</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="cross-repo">Cross-Repo Change Map</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Repo</th><th>New Files</th><th>Modified</th><th>Key Pattern</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>intouch-api-v3</td><td>~25</td><td>1</td><td>Controller/Facade/Repo (follows UnifiedPromotion)</td></tr>
+        <tr><td>emf-parent</td><td>1 (Flyway)</td><td>2</td><td>Add status column + new DAO method</td></tr>
+        <tr><td>Thrift IDL</td><td>0</td><td>0</td><td>Existing methods sufficient (createSlabAndUpdateStrategies)</td></tr>
+        <tr><td>peb</td><td>0</td><td>0</td><td>Expand-then-contract: unchanged (C6 verified)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Critical Finding: Blocker C-1 Revised</h3>
+    <p style="color: var(--success); font-size: 13px;">Thrift methods for slab CRUD already exist in pointsengine_rules.thrift (searched wrong file earlier). createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab. Only need to add Java wrapper methods in PointsEngineRulesThriftService. NO Thrift IDL change needed.</p>
+
+    <ul class="artifact-list">
+      <li>code-analysis-intouch-api-v3.md</li>
+      <li>code-analysis-emf-parent.md</li>
+      <li>cross-repo-trace.md</li>
+    </ul>
   </section>
 
   <!-- Phase 6: HLD -->
   <section class="phase-section" id="phase-6">
-    <h2>Phase 6: HLD (Architect) <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 6: HLD (Architect) <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/architect + brainstorming + writing-plans</span>
     <p>Architecture design with pattern evaluation, ADRs, Mermaid diagrams, and API endpoints.</p>
   </section>
