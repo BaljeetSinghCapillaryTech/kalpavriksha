@@ -854,69 +854,408 @@ flowchart TB
       <div class="key-number"><div class="value">4</div><div class="label">Impl Layers</div></div>
     </div>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="architecture">System Architecture</h3>
+    <!-- FULL SYSTEM ARCHITECTURE -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="architecture">Full System Architecture</h3>
     <div class="mermaid">
 graph TB
-    subgraph "intouch-api-v3"
-        TC[TierController] --> TF[TierFacade]
-        MCC[MakerCheckerController] --> MCF[MakerCheckerFacade]
-        TF --> TR[TierRepo<br/>MongoDB]
-        TF --> MCS[MakerCheckerService]
-        MCF --> MCS
-        MCS --> TCA[TierChangeApplier]
-        MCS --> PCR[PendingChangeRepo]
-        TCA --> STV[StatusTransitionValidator]
+    subgraph "Garuda UI (Browser)"
+        UI[Tier Listing Page<br/>Comparison Matrix]
     end
-    subgraph "emf-parent (Thrift 9199)"
-        TCA -->|createSlabAndUpdateStrategies| PERS[PointsEngineRuleService]
-        PERS --> PSD[ProgramSlabDao]
-        PERS --> SD[StrategyDao]
+
+    subgraph "intouch-api-v3 (REST + MongoDB)"
+        TC[TierController<br/>@RestController /v3/tiers]
+        MCC[MakerCheckerController<br/>@RestController /v3/maker-checker]
+        TF[TierFacade<br/>@Component]
+        MCF[MakerCheckerFacade<br/>@Component]
+        MCS[MakerCheckerService<br/>Generic Interface]
+        MCSI[MakerCheckerServiceImpl]
+        TCA[TierChangeApplier<br/>implements ChangeApplier]
+        TR[TierRepository<br/>Spring Data Mongo]
+        TRI[TierRepositoryImpl<br/>Sharded via EmfMongo]
+        PCR[PendingChangeRepo]
+        TVS[TierValidationService]
+        STV[StatusTransitionValidator]
+        PERTS[PointsEngineRules<br/>ThriftService]
+        NH[NotificationHandler<br/>Hook Interface]
     end
+
+    subgraph "MongoDB (EMF Cluster -- Sharded)"
+        UTC[(unified_tier_configs<br/>Draft + Active mirror)]
+        PC[(pending_changes<br/>Generic MC)]
+    end
+
+    subgraph "emf-parent (Thrift RPC: port 9199)"
+        PERS[PointsEngineRuleService<br/>createSlabAndUpdateStrategies]
+        COS[createOrUpdateSlab<br/>updateStrategiesForNewSlab]
+        ILS[InfoLookupService<br/>getStrategies / getSlabs]
+        PSD[PeProgramSlabDao<br/>findByProgram + NEW findActiveByProgram]
+        SD[StrategyDao<br/>saveAndFlush]
+    end
+
+    subgraph "MySQL (Warehouse)"
+        PS[(program_slabs<br/>+ NEW status column)]
+        ST[(strategies<br/>propertyValues JSON)]
+        CE[(customer_enrollment<br/>current_slab_id)]
+    end
+
+    subgraph "peb (UNCHANGED)"
+        TDB[TierDowngradeBatch<br/>ServiceImpl]
+        TRS[TierReassessment<br/>ServiceImpl]
+    end
+
+    subgraph "Cron Job"
+        CJ[Member Count<br/>Cache Refresh<br/>every 10 min]
+    end
+
+    UI -->|"REST (JSON)"| TC
+    UI -->|"REST (JSON)"| MCC
+    TC --> TF
+    MCC --> MCF
+    TF --> TVS
+    TF --> TR
+    TF --> MCS
+    MCF --> MCS
+    MCS --> MCSI
+    MCSI --> TCA
+    MCSI --> PCR
+    MCSI --> NH
+    TCA --> STV
+    TCA --> PERTS
+    TR --> TRI
+    TRI --> UTC
+    PCR --> PC
+    PERTS -->|"Thrift RPC"| PERS
+    PERS --> COS
+    PERS --> ILS
+    COS --> PSD
+    COS --> SD
+    PSD --> PS
+    SD --> ST
+    ILS --> CE
+    TDB -.->|reads| PS
+    TRS -.->|reads| PS
+    CJ -->|"GROUP BY count"| CE
+    CJ -->|"upsert stats"| UTC
     </div>
 
+    <!-- WRITE PATH: TIER CREATION -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Write Path: Tier Creation (MC Enabled)</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant UI as Garuda UI
+    participant TC as TierController
+    participant TF as TierFacade
+    participant TVS as TierValidation
+    participant TR as TierRepo (MongoDB)
+    participant MCS as MakerCheckerService
+
+    UI->>TC: POST /v3/tiers {name, eligibility, ...}
+    TC->>TF: createTier(orgId, request)
+    TF->>TVS: validate(request)
+    TVS-->>TF: OK (or 400 errors)
+    TF->>TF: isMakerCheckerEnabled(orgId, programId, TIER)?
+    TF->>TR: save(UnifiedTierConfig, status=DRAFT)
+    TR-->>TF: saved doc {_id, unifiedTierId}
+    TF-->>TC: ResponseWrapper(tierConfig, status=DRAFT)
+    TC-->>UI: 201 Created
+    Note over UI,MCS: Tier exists in MongoDB as DRAFT only.<br/>Not yet in SQL. Not visible to engine.
+    </div>
+
+    <!-- WRITE PATH: APPROVAL -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Write Path: MC Approval (MongoDB to SQL Sync)</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant UI as Approver
+    participant MCC as MC Controller
+    participant MCS as MC Service
+    participant TCA as TierChangeApplier
+    participant TR as TierRepo
+    participant PERTS as Thrift Client
+    participant EMF as emf-parent
+    participant SQL as MySQL
+
+    UI->>MCC: POST /v3/maker-checker/{id}/approve
+    MCC->>MCS: approve(changeId, userId)
+    MCS->>MCS: validate PENDING -> ACTIVE
+    MCS->>TCA: apply(pendingChange)
+
+    rect rgb(30, 42, 69)
+        Note over TCA,SQL: TierChangeApplier Conversion
+        TCA->>PERTS: getAllConfiguredStrategies(programId)
+        PERTS-->>TCA: list of Strategy objects
+        TCA->>TCA: Build SlabInfo (name, desc, color, serial)
+        TCA->>TCA: Append threshold to SLAB_UPGRADE CSV
+        TCA->>TCA: Add slab entry to SLAB_DOWNGRADE JSON
+        TCA->>PERTS: createSlabAndUpdateStrategies(slabInfo, strategies)
+        PERTS->>EMF: Thrift RPC (port 9199)
+        EMF->>SQL: UPDATE strategies (SLAB_UPGRADE)
+        EMF->>SQL: UPDATE strategies (SLAB_DOWNGRADE)
+        EMF->>SQL: INSERT program_slabs
+        EMF->>SQL: AUTO-EXTEND allocation + expiry CSVs
+        EMF-->>PERTS: SlabInfo (created, with SQL ID)
+        PERTS-->>TCA: success
+    end
+
+    TCA->>TR: update status DRAFT -> ACTIVE
+    TCA->>TR: store sqlSlabId in metadata
+    TCA-->>MCS: success
+    MCS->>MCS: update PendingChange -> APPROVED
+    MCS-->>MCC: PendingChange{APPROVED}
+    MCC-->>UI: 200 OK
+    </div>
+
+    <!-- READ PATH: TIER LISTING -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Read Path: Tier Listing</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant UI as Garuda UI
+    participant TC as TierController
+    participant TF as TierFacade
+    participant TR as TierRepo (MongoDB)
+    participant CACHE as Member Count Cache
+
+    UI->>TC: GET /v3/tiers?programId=977&status=ACTIVE
+    TC->>TF: listTiers(orgId, programId, statusFilter)
+    TF->>TR: findByOrgIdAndProgramIdAndStatus(...)
+    TR-->>TF: list of UnifiedTierConfig docs
+    TF->>CACHE: getMemberCounts(orgId, programId)
+    CACHE-->>TF: {slabId: count, ...}
+    TF->>TF: assemble TierListResponse
+    Note over TF: Attach memberCount per tier<br/>Calculate KPI summary<br/>Order by serialNumber
+    TF-->>TC: TierListResponse
+    TC-->>UI: ResponseWrapper(TierListResponse)
+    </div>
+
+    <!-- VERSIONED EDIT FLOW -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Versioned Edit Flow (ACTIVE Tier)</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant UI as Program Manager
+    participant TF as TierFacade
+    participant TR as TierRepo
+
+    UI->>TF: PUT /v3/tiers/{tierId} (edit Gold threshold)
+    TF->>TR: findById(tierId)
+    TR-->>TF: ACTIVE doc (Gold, threshold=5000)
+    TF->>TR: findDraftByParentId(tierId)
+    TR-->>TF: null (no existing draft)
+
+    rect rgb(30, 42, 69)
+        Note over TF,TR: Create New Version
+        TF->>TF: clone ACTIVE doc
+        TF->>TF: apply changes (threshold=7000)
+        TF->>TF: set status=DRAFT, parentId=tierId
+        TF->>TR: save(new DRAFT doc)
+    end
+
+    TR-->>TF: DRAFT doc {_id=newId, parentId=tierId}
+    TF-->>UI: DRAFT tier (threshold=7000)
+    Note over UI,TR: ACTIVE doc (threshold=5000) stays live.<br/>DRAFT doc (threshold=7000) awaits approval.<br/>On approve: DRAFT->ACTIVE, old ACTIVE->SNAPSHOT.
+    </div>
+
+    <!-- STATUS STATE MACHINE -->
     <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="hld-diagrams">Status State Machine</h3>
     <div class="mermaid">
 stateDiagram-v2
     [*] --> DRAFT : Create (MC on)
     [*] --> ACTIVE : Create (MC off)
-    DRAFT --> PENDING_APPROVAL : Submit
+    DRAFT --> PENDING_APPROVAL : Submit for Approval
     PENDING_APPROVAL --> ACTIVE : Approve
-    PENDING_APPROVAL --> DRAFT : Reject
-    ACTIVE --> STOPPED : Stop
-    ACTIVE --> DRAFT : Edit (new version)
-    ACTIVE --> SNAPSHOT : Replaced
+    PENDING_APPROVAL --> DRAFT : Reject (with comment)
+    ACTIVE --> STOPPED : Stop/Delete (MC off)
+    ACTIVE --> DRAFT : Edit (creates new version)
+    ACTIVE --> SNAPSHOT : Replaced by approved version
+    STOPPED --> [*] : Terminal
+    SNAPSHOT --> [*] : Archived (read-only)
+
+    note right of ACTIVE : Stays live until<br/>new version approved
+    note right of DRAFT : parentId points to<br/>ACTIVE version
+    note left of STOPPED : Blocked if<br/>PartnerProgramSlabs exist
     </div>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">ADR Summary</h3>
+    <!-- MONGODB DOCUMENT SCHEMA -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">MongoDB: UnifiedTierConfig Schema</h3>
+    <div class="mermaid">
+classDiagram
+    class UnifiedTierConfig {
+        +String _id
+        +String unifiedTierId
+        +Long orgId
+        +Int programId
+        +TierStatus status
+        +String parentId
+        +Int version
+        +BasicDetails basicDetails
+        +EligibilityCriteria eligibilityCriteria
+        +RenewalConfig renewalConfig
+        +DowngradeConfig downgradeConfig
+        +List~String~ benefitIds
+        +MemberStats memberStats
+        +EngineConfig engineConfig
+        +Metadata metadata
+    }
+    class BasicDetails {
+        +String name
+        +String description
+        +String color
+        +Int serialNumber
+        +Date startDate
+        +Date endDate
+    }
+    class EligibilityCriteria {
+        +String criteriaType
+        +List~Activity~ activities
+        +String activityRelation
+        +String membershipDuration
+        +String upgradeSchedule
+        +String nudges
+        +Boolean secondaryCriteriaEnabled
+    }
+    class DowngradeConfig {
+        +DowngradeTo downgradeTo
+        +String downgradeSchedule
+        +String expiryReminders
+        +Boolean shouldDowngrade
+    }
+    class EngineConfig {
+        +Boolean retainPoints
+        +Boolean isDowngradeOnReturnEnabled
+        +PeriodConfig periodConfig
+        +NotificationConfig notificationConfig
+        +String expressionRelation
+    }
+    class Metadata {
+        +String createdBy
+        +Date createdAt
+        +Boolean updatedViaNewUI
+        +Int sqlSlabId
+    }
+    UnifiedTierConfig *-- BasicDetails
+    UnifiedTierConfig *-- EligibilityCriteria
+    UnifiedTierConfig *-- DowngradeConfig
+    UnifiedTierConfig *-- EngineConfig
+    UnifiedTierConfig *-- Metadata
+    </div>
+
+    <!-- TIERCHANGEAPPLIER CONVERSION -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierChangeApplier: MongoDB to SQL Conversion</h3>
+    <div class="mermaid">
+flowchart LR
+    subgraph "MongoDB Document"
+        BD[basicDetails<br/>name, desc, color]
+        EC[eligibilityCriteria<br/>activities, threshold]
+        DC[downgradeConfig<br/>downgradeTo, schedule]
+    end
+
+    subgraph "Thrift Structs"
+        SI[SlabInfo<br/>name, desc, colorCode<br/>serialNumber]
+        SU[StrategyInfo type=2<br/>SLAB_UPGRADE<br/>threshold_values CSV<br/>current_value_type]
+        SD2[StrategyInfo type=5<br/>SLAB_DOWNGRADE<br/>TierConfiguration JSON<br/>slabs array]
+    end
+
+    subgraph "SQL Tables"
+        PS[program_slabs<br/>id, name, desc, serial]
+        ST[strategies<br/>propertyValues JSON]
+    end
+
+    BD -->|"map fields"| SI
+    EC -->|"build CSV"| SU
+    DC -->|"build JSON"| SD2
+    SI -->|"createSlabAndUpdateStrategies"| PS
+    SU -->|"atomic Thrift call"| ST
+    SD2 -->|"atomic Thrift call"| ST
+    </div>
+
+    <!-- STRATEGY TYPE MAP -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Strategy Types and Tier CRUD Ownership</h3>
     <table class="data-table">
       <thead>
-        <tr><th>#</th><th>Decision</th><th>Key Rationale</th></tr>
+        <tr><th>ID</th><th>Type</th><th>Managed by Tier CRUD?</th><th>On New Slab</th></tr>
       </thead>
       <tbody>
-        <tr><td>ADR-01</td><td>Dual-storage (MongoDB + SQL)</td><td>Follows UnifiedPromotion pattern</td></tr>
-        <tr><td>ADR-02</td><td>Generic maker-checker framework</td><td>Layer 1 shared module, tiers first consumer</td></tr>
-        <tr><td>ADR-03</td><td>Expand-then-contract migration</td><td>Zero regression on 7+ engine callers</td></tr>
-        <tr><td>ADR-04</td><td>Versioned edits (parentId)</td><td>Zero-downtime, full rollback</td></tr>
-        <tr><td>ADR-05</td><td>Existing Thrift methods (no IDL change)</td><td>Methods found in pointsengine_rules.thrift</td></tr>
-        <tr><td>ADR-06</td><td>New programs only</td><td>No migration risk</td></tr>
-        <tr><td>ADR-07</td><td>Single atomic Thrift call</td><td>Verified execution order in code</td></tr>
+        <tr><td>1</td><td>POINT_ALLOCATION</td><td>No (separate concern)</td><td class="status-ok">Auto-extend CSV (append "0")</td></tr>
+        <tr><td>2</td><td style="color: var(--accent);">SLAB_UPGRADE</td><td class="status-ok" style="font-weight:600;">YES -- threshold CSV</td><td>Manual: append new threshold</td></tr>
+        <tr><td>3</td><td>POINT_EXPIRY</td><td>No (separate concern)</td><td class="status-ok">Auto-extend CSV (default unit)</td></tr>
+        <tr><td>4</td><td>POINT_REDEMPTION_THRESHOLD</td><td>No (SLAB_INDEPENDENT)</td><td>No extension needed</td></tr>
+        <tr><td>5</td><td style="color: var(--accent);">SLAB_DOWNGRADE</td><td class="status-ok" style="font-weight:600;">YES -- TierConfig JSON</td><td>Manual: add slab entry</td></tr>
+        <tr><td>6-9</td><td>RETURN / REMINDER / TRACKER / EXT</td><td>No</td><td>N/A</td></tr>
       </tbody>
     </table>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Implementation Layers</h3>
+    <!-- API ENDPOINTS -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="api-contracts">API Endpoint Specifications</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Request</th><th>Response</th><th>MC?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td style="color: var(--success); font-weight:600;">GET</td><td>/v3/tiers</td><td>List tiers + KPIs</td><td>?programId, ?status</td><td>TierListResponse</td><td>-</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/tiers</td><td>Create tier</td><td>TierCreateRequest</td><td>UnifiedTierConfig</td><td>DRAFT / ACTIVE</td></tr>
+        <tr><td style="color: var(--accent); font-weight:600;">PUT</td><td>/v3/tiers/{tierId}</td><td>Edit tier</td><td>TierUpdateRequest</td><td>UnifiedTierConfig</td><td>Versioned DRAFT</td></tr>
+        <tr><td style="color: var(--danger); font-weight:600;">DELETE</td><td>/v3/tiers/{tierId}</td><td>Soft-delete (STOPPED)</td><td>-</td><td>204</td><td>PendingChange</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/submit</td><td>Submit for approval</td><td>{entityType, entityId}</td><td>PendingChange</td><td>-</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/{id}/approve</td><td>Approve change</td><td>{comment}</td><td>PendingChange</td><td>Triggers sync</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/{id}/reject</td><td>Reject change</td><td>{comment (req)}</td><td>PendingChange</td><td>Reverts</td></tr>
+        <tr><td style="color: var(--success); font-weight:600;">GET</td><td>/v3/maker-checker/pending</td><td>List pending</td><td>?entityType, ?programId</td><td>List&lt;PendingChange&gt;</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ADR SUMMARY -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Architecture Decision Records</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Decision</th><th>Alternatives Rejected</th><th>Key Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ADR-01</td><td>Dual-storage: MongoDB draft + SQL live</td><td>SQL-only draft table, MongoDB-only, CQRS/event sourcing</td><td>Follows UnifiedPromotion. Flexible drafts, stable engine reads.</td></tr>
+        <tr><td>ADR-02</td><td>Generic MC framework (ChangeApplier strategy)</td><td>Tier-specific MC, copy promotion MC</td><td>Layer 1 shared module. Benefits/subscriptions plug in later.</td></tr>
+        <tr><td>ADR-03</td><td>Expand-then-contract (status column)</td><td>Modify all 7+ callers, database view</td><td>Zero regression. Existing findByProgram() unchanged. G-05.4.</td></tr>
+        <tr><td>ADR-04</td><td>Versioned edits (parentId)</td><td>In-place edit + MC, hybrid by field type</td><td>Zero downtime. Full rollback. ACTIVE stays live.</td></tr>
+        <tr><td>ADR-05</td><td>Existing Thrift methods (no IDL change)</td><td>New Thrift method, direct DB, REST</td><td>createSlabAndUpdateStrategies exists. Add Java wrappers only.</td></tr>
+        <tr><td>ADR-06</td><td>New programs only (no bootstrap)</td><td>Auto-bootstrap existing programs</td><td>User directive. Zero migration risk.</td></tr>
+        <tr><td>ADR-07</td><td>Single atomic Thrift call</td><td>Multiple separate calls, transaction across calls</td><td>Verified execution: strategies first, then slab + auto-extend.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- IMPLEMENTATION LAYERS -->
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Implementation Plan (4 Layers)</h3>
     <div class="mermaid">
-gantt
-    title Implementation Order
-    dateFormat X
-    axisFormat %s
-    section Layer 1
-    MC Framework (generic)    :a1, 0, 3
-    section Layer 2
-    Tier CRUD APIs            :a2, 1, 4
-    section Layer 3
-    emf-parent changes        :a3, 0, 2
-    section Layer 4
-    Integration + Cache       :a4, 3, 5
+flowchart TB
+    subgraph "Layer 1: MC Framework (no dependencies)"
+        L1A[EntityType + ChangeStatus enums]
+        L1B[PendingChange MongoDB doc]
+        L1C[ChangeApplier interface]
+        L1D[MakerCheckerService + Impl]
+        L1E[NotificationHandler hook]
+        L1F[MakerCheckerController]
+        L1A --> L1B --> L1C --> L1D --> L1E --> L1F
+    end
+    subgraph "Layer 2: Tier CRUD (uses MC interfaces)"
+        L2A[TierStatus enum]
+        L2B[UnifiedTierConfig MongoDB doc]
+        L2C[TierRepository + Impl]
+        L2D[TierValidationService]
+        L2E[TierFacade]
+        L2F[TierController]
+        L2A --> L2B --> L2C --> L2D --> L2E --> L2F
+    end
+    subgraph "Layer 3: emf-parent (can start in parallel)"
+        L3A[Flyway: ADD status column]
+        L3B[ProgramSlab + status field]
+        L3C[PeProgramSlabDao + findActiveByProgram]
+        L3D[Thrift wrapper methods]
+        L3A --> L3B --> L3C --> L3D
+    end
+    subgraph "Layer 4: Integration"
+        L4A[TierChangeApplier]
+        L4B[Member count cron job]
+        L4C[End-to-end testing]
+        L4A --> L4C
+        L4B --> L4C
+    end
+    L1C -.->|"implements"| L4A
+    L2E -.->|"calls"| L1D
+    L3D -.->|"called by"| L4A
     </div>
 
     <ul class="artifact-list">
