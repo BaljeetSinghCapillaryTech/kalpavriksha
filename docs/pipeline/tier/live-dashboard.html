@@ -344,8 +344,8 @@
     <a href="#phase-0" class="sidebar-link"><span class="dot complete"></span> 0. Input Collection</a>
     <a href="#phase-1" class="sidebar-link"><span class="dot complete"></span> 1. BA + PRD</a>
     <a href="#phase-2" class="sidebar-link"><span class="dot complete"></span> 2. Critic + Gap</a>
-    <a href="#phase-3" class="sidebar-link"><span class="dot active"></span> 3. UI Extraction</a>
-    <a href="#phase-4" class="sidebar-link"><span class="dot pending"></span> 4. Blockers</a>
+    <a href="#phase-3" class="sidebar-link"><span class="dot complete"></span> 3. UI Extraction</a>
+    <a href="#phase-4" class="sidebar-link"><span class="dot active"></span> 4. Blockers</a>
     <a href="#phase-5" class="sidebar-link"><span class="dot pending"></span> 5. Codebase Research</a>
     <a href="#phase-6" class="sidebar-link"><span class="dot pending"></span> 6. HLD (Architect)</a>
     <a href="#phase-6a" class="sidebar-link"><span class="dot pending"></span> 6a. Impact Analysis</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 15.8%"></div>
+      <div class="fill" style="width: 21.1%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">3</span> / 19 phases complete</span>
-      <span><span class="stat-value">12</span> artifacts generated</span>
+      <span><span class="stat-value">4</span> / 19 phases complete</span>
+      <span><span class="stat-value">13</span> artifacts generated</span>
       <span><span class="stat-value">15</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -600,13 +600,49 @@ pie title Claim Verification Results
 
   <!-- Phase 3: UI Extraction -->
   <section class="phase-section" id="phase-3">
-    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge active">Next</span></h2>
-    <p>Extract component hierarchy, fields, and flows from UI screenshots.</p>
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <p>Analyzed 8 UI screenshots. Extracted 21 per-tier fields, 4 KPI fields, component hierarchy, and 4 user flows. Found 6 UI-BA gaps where the UI implies functionality not captured in BA/PRD.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">8</div><div class="label">Screenshots</div></div>
+      <div class="key-number"><div class="value">21</div><div class="label">Fields Extracted</div></div>
+      <div class="key-number"><div class="value">6</div><div class="label">UI-BA Gaps</div></div>
+      <div class="key-number"><div class="value">5</div><div class="label">Matrix Sections</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">UI-BA Gaps</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Severity</th><th>Gap</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>GAP-1</td><td class="status-warn">HIGH</td><td>Tier "Duration" (startDate/endDate) missing from BA/PRD entirely</td></tr>
+        <tr><td>GAP-2</td><td>MEDIUM</td><td>Activity condition compound model (operator/value/unit/AND/OR) not defined</td></tr>
+        <tr><td>GAP-3</td><td>MEDIUM</td><td>"Membership Duration" vs "Duration" are different concepts, BA conflates</td></tr>
+        <tr><td>GAP-4</td><td>LOW</td><td>Downgrade Schedule enum (MONTH_END/DAILY) not specified</td></tr>
+        <tr><td>GAP-5</td><td>LOW</td><td>Benefits matrix response format not defined</td></tr>
+        <tr><td>GAP-6</td><td>LOW</td><td>Variable tier count (UI shows up to 7 possible tiers)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Comparison Matrix Sections</h3>
+    <div class="mermaid">
+graph LR
+    A[Basic Details<br/>5 fields] --> B[Eligibility Criteria<br/>6 fields]
+    B --> C[Renewal/Retention<br/>4 fields]
+    C --> D[Downgrade/Exit<br/>3 fields]
+    D --> E[Benefits<br/>matrix]
+    </div>
+
+    <ul class="artifact-list">
+      <li>ui-requirements.md</li>
+    </ul>
   </section>
 
   <!-- Phase 4: Blockers -->
   <section class="phase-section" id="phase-4">
-    <h2>Phase 4: Grooming Questions + Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 4: Grooming Questions + Blocker Resolution <span class="phase-badge active">Next</span></h2>
     <p>Compile questions from all prior phases. Resolve blockers interactively.</p>
   </section>
 

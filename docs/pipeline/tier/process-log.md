@@ -58,5 +58,19 @@
   - G-2-G-6: Partner slab impact, DAO blast radius, strategy CSV thresholds, sharded MongoDB, edit flow complexity
 - All 14 BA codebase claims CONFIRMED against actual code with file-level evidence
 - Artifacts: contradictions.md, gap-analysis-brd.md
-- Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
-- Session memory: 22 domain terms, 8 codebase findings, 16 key decisions, 6 constraints, 3 risks
+
+### Phase 3: UI Requirements Extraction
+- Time: 2026-04-11
+- Screenshots analyzed: 8 (4 in scope for tiers, 4 reference for benefits)
+- Screens: Tier listing matrix, eligibility criteria, downgrade/exit, benefits-on-tier, benefits listing, benefit creation
+- Fields extracted: 21 per-tier fields + 4 KPI summary fields
+- 6 UI-BA gaps found:
+  - GAP-1 HIGH: Tier "Duration" (startDate/endDate) missing from BA/PRD
+  - GAP-2 MEDIUM: Activity condition compound model (operator/value/unit/relation) not defined
+  - GAP-3 MEDIUM: "Membership Duration" vs "Duration" are different concepts, BA conflates them
+  - GAP-4 LOW: Downgrade Schedule enum values (MONTH_END/DAILY) not specified in PRD
+  - GAP-5 LOW: Benefits comparison matrix format not defined in PRD response shape
+  - GAP-6 LOW: Variable tier count support needed (UI shows 7 possible tiers)
+- Component hierarchy extracted: TiersPage -> ProgramSelector -> KpiSummaryBar -> ComparisonMatrix (5 sections)
+- User flows: 4 flows documented (view, edit, navigate to benefits, filter)
+- Artifact: ui-requirements.md
