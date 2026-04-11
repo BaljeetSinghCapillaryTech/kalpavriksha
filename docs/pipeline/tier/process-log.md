@@ -27,3 +27,19 @@
 - jdtls: installation in progress via brew
 - Dashboard: created (live-dashboard.html)
 - All inputs validated
+
+### Phase 1: BA Deep-Dive + PRD Generation
+- Time: 2026-04-11
+- BRD read: 559 lines, 4 epics (E1 Tier Intelligence, E2 Benefits, E3 aiRa, E4 API-First)
+- Product docs fetched: docs.capillarytech.com (tier creation, downgrade/renewal, strategies)
+- Codebase research: ProgramSlab entity, TierConfiguration DTO, SlabUpgradeMode enum, TierDowngradeSlabConfig, PeProgramSlabDao, PeCustomerEnrollmentDao, UnifiedPromotion (MongoDB pattern), PromotionStatus lifecycle, EntityOrchestrator
+- LSP (jdtls) used: symbol search for ProgramSlab (25 results), Slab (45 results), TierConfig (15 results), CustomerEnrollment (11 results), SlabUpgradeStrategy (6 results)
+- Key finding: ZERO tier REST APIs exist in intouch-api-v3. All tier operations go through Thrift.
+- Key finding: maker-checker exists only for promotions (UnifiedPromotionFacade). No tier MC.
+- Key finding: UnifiedPromotion pattern = MongoDB draft -> EntityOrchestrator -> SQL sync on approval. THIS is the pattern for tiers.
+- Questions asked: 8 (all human concerns, resolved)
+- 8 key decisions recorded (D-08 through D-15)
+- UI screenshots reviewed: 8 screenshots from v0.app prototype covering tier listing, eligibility, downgrade, benefits, benefit listing, benefit creation
+- ProductEx: NOT run in parallel this session (skipped to avoid context pressure)
+- Artifacts: 00-ba.md, 00-ba-machine.md, 00-prd.md, 00-prd-machine.md
+- Session memory: 22 domain terms, 8 codebase findings, 16 key decisions, 6 constraints, 3 risks
