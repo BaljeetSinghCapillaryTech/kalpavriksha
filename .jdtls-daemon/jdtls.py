@@ -238,15 +238,27 @@ def find_daemon_for_cwd() -> tuple[str | None, str | None]:
     """
     Walk up from cwd to find the running daemon whose project root best
     matches (most specific / longest prefix). Returns (socket_path, root).
+
+    Also resolves symlinks: if the daemon root is a symlink (e.g. /tmp/emf-parent)
+    but cwd is the resolved real path (e.g. /Users/.../emf-parent), we match
+    against both the stored root AND its realpath.
     """
     cwd = os.getcwd()
+    cwd_real = os.path.realpath(cwd)
     candidates = []
     for name, sock_path in all_running_daemons():
         try:
             result = client_call({'command': 'status'}, sock_path)
             root = result.get('root', '')
-            if root and (cwd == root or cwd.startswith(root + os.sep)):
-                candidates.append((len(root), sock_path, root))
+            if not root:
+                continue
+            root_real = os.path.realpath(root)
+            # Match cwd (or its realpath) against root (or its realpath)
+            for r in {root, root_real}:
+                for c in {cwd, cwd_real}:
+                    if c == r or c.startswith(r + os.sep):
+                        candidates.append((len(r), sock_path, root))
+                        break
         except Exception:
             pass
     if not candidates:

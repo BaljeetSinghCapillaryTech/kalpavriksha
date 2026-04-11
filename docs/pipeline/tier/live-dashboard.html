@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiers CRUD -- Live Pipeline Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1e2a45;
+    --bg-sidebar: #0f1629;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --text-muted: #6b7280;
+    --accent: #00d4ff;
+    --accent-dim: rgba(0, 212, 255, 0.15);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --border: #2a3a5c;
+    --phase-pending: #374151;
+    --phase-active: #f59e0b;
+    --phase-complete: #10b981;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .sidebar h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .sidebar-section {
+    margin-bottom: 24px;
+  }
+
+  .sidebar-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin: 2px 0;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .sidebar-link:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+  }
+
+  .sidebar-link .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sidebar-link .dot.pending { background: var(--phase-pending); }
+  .sidebar-link .dot.active { background: var(--phase-active); }
+  .sidebar-link .dot.complete { background: var(--phase-complete); }
+
+  /* Main content */
+  .main {
+    margin-left: 260px;
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 1200px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 32px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .header-meta {
+    display: flex;
+    gap: 24px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .header-meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Progress bar */
+  .progress-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+
+  .progress-bar {
+    height: 8px;
+    background: var(--phase-pending);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .progress-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  .progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .progress-stats .stat-value {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Phase sections */
+  .phase-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .phase-section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .phase-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .phase-badge.complete {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+  }
+
+  .phase-badge.active {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+  }
+
+  .phase-badge.pending {
+    background: rgba(107, 114, 128, 0.15);
+    color: var(--text-muted);
+  }
+
+  .phase-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .skill-tag {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+  }
+
+  /* Key numbers */
+  .key-numbers {
+    display: flex;
+    gap: 24px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+
+  .key-number {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .key-number .value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .key-number .label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Data tables */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(42, 58, 92, 0.5);
+    color: var(--text-secondary);
+  }
+
+  .data-table tr:hover td {
+    background: rgba(255,255,255,0.02);
+  }
+
+  /* Status indicators */
+  .status-ok { color: var(--success); }
+  .status-warn { color: var(--warning); }
+  .status-fail { color: var(--danger); }
+
+  /* Artifact list */
+  .artifact-list {
+    list-style: none;
+    margin-top: 12px;
+  }
+
+  .artifact-list li {
+    padding: 4px 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+  }
+
+  .artifact-list li::before {
+    content: "-- ";
+    color: var(--text-muted);
+  }
+
+  /* Mermaid overrides */
+  .mermaid {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  /* Quick links */
+  .quick-links {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .quick-links h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <h2>Tiers CRUD</h2>
+
+  <div class="sidebar-section">
+    <h3>Pipeline Phases</h3>
+    <a href="#phase-0" class="sidebar-link"><span class="dot complete"></span> 0. Input Collection</a>
+    <a href="#phase-1" class="sidebar-link"><span class="dot active"></span> 1. BA + PRD</a>
+    <a href="#phase-2" class="sidebar-link"><span class="dot pending"></span> 2. Critic + Gap</a>
+    <a href="#phase-3" class="sidebar-link"><span class="dot pending"></span> 3. UI Extraction</a>
+    <a href="#phase-4" class="sidebar-link"><span class="dot pending"></span> 4. Blockers</a>
+    <a href="#phase-5" class="sidebar-link"><span class="dot pending"></span> 5. Codebase Research</a>
+    <a href="#phase-6" class="sidebar-link"><span class="dot pending"></span> 6. HLD (Architect)</a>
+    <a href="#phase-6a" class="sidebar-link"><span class="dot pending"></span> 6a. Impact Analysis</a>
+    <a href="#phase-6b" class="sidebar-link"><span class="dot pending"></span> 6b. Migration</a>
+    <a href="#phase-7" class="sidebar-link"><span class="dot pending"></span> 7. LLD (Designer)</a>
+    <a href="#phase-8" class="sidebar-link"><span class="dot pending"></span> 8. QA</a>
+    <a href="#phase-8b" class="sidebar-link"><span class="dot pending"></span> 8b. Business Tests</a>
+    <a href="#phase-9" class="sidebar-link"><span class="dot pending"></span> 9. SDET (RED)</a>
+    <a href="#phase-10" class="sidebar-link"><span class="dot pending"></span> 10. Developer (GREEN)</a>
+    <a href="#phase-10b" class="sidebar-link"><span class="dot pending"></span> 10b. Backend Ready</a>
+    <a href="#phase-10c" class="sidebar-link"><span class="dot pending"></span> 10c. Compliance</a>
+    <a href="#phase-10d" class="sidebar-link"><span class="dot pending"></span> 10d. Migration Val.</a>
+    <a href="#phase-11" class="sidebar-link"><span class="dot pending"></span> 11. Reviewer</a>
+    <a href="#phase-12" class="sidebar-link"><span class="dot pending"></span> 12. Blueprint</a>
+  </div>
+
+  <div class="sidebar-section quick-links">
+    <h3>Quick Links</h3>
+    <a href="#ba-qa" class="sidebar-link"><span class="dot pending"></span> BA Q&A</a>
+    <a href="#architecture" class="sidebar-link"><span class="dot pending"></span> Architecture</a>
+    <a href="#api-contracts" class="sidebar-link"><span class="dot pending"></span> API Contracts</a>
+    <a href="#cross-repo" class="sidebar-link"><span class="dot pending"></span> Cross-Repo Map</a>
+    <a href="#hld-diagrams" class="sidebar-link"><span class="dot pending"></span> HLD Diagrams</a>
+    <a href="#lld-diagrams" class="sidebar-link"><span class="dot pending"></span> LLD Diagrams</a>
+    <a href="#implementation" class="sidebar-link"><span class="dot pending"></span> Implementation</a>
+    <a href="#review-findings" class="sidebar-link"><span class="dot pending"></span> Review Findings</a>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Tiers CRUD -- Pipeline Dashboard</h1>
+    <div class="header-meta">
+      <span>Ticket: <strong>raidlc/ai_tier</strong></span>
+      <span>Started: <strong>2026-04-11</strong></span>
+      <span>Pipeline: <strong>v1.0</strong></span>
+      <span>Epic: <strong>tier-management</strong></span>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-container">
+    <div class="progress-bar">
+      <div class="fill" style="width: 5.3%"></div>
+    </div>
+    <div class="progress-stats">
+      <span><span class="stat-value">1</span> / 19 phases complete</span>
+      <span><span class="stat-value">6</span> artifacts generated</span>
+      <span><span class="stat-value">7</span> decisions made</span>
+      <span><span class="stat-value">0</span> code files written</span>
+    </div>
+  </div>
+
+  <!-- Phase 0: Input Collection -->
+  <section class="phase-section" id="phase-0">
+    <h2>Phase 0: Input Collection <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <p>Collected and validated all inputs. Created feature branches across 4 repos. Extracted BRD text from DOCX. Initialized session memory, process log, and approach log.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">4</div><div class="label">Repos</div></div>
+      <div class="key-number"><div class="value">559</div><div class="label">BRD Lines</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Epics in BRD</div></div>
+      <div class="key-number"><div class="value">7</div><div class="label">Decisions</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Repo Validation</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Repo</th><th>Path</th><th>Branch</th><th>Default</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>emf-parent</td>
+          <td style="font-family: monospace; font-size: 12px;">~/Desktop/Artificial Intelligence/emf-parent</td>
+          <td>raidlc/ai_tier</td>
+          <td>main</td>
+          <td class="status-ok">OK</td>
+        </tr>
+        <tr>
+          <td>intouch-api-v3</td>
+          <td style="font-family: monospace; font-size: 12px;">~/Desktop/emf-parent/intouch-api-v3</td>
+          <td>raidlc/ai_tier</td>
+          <td>main</td>
+          <td class="status-ok">OK</td>
+        </tr>
+        <tr>
+          <td>peb</td>
+          <td style="font-family: monospace; font-size: 12px;">~/Desktop/emf-parent/peb</td>
+          <td>raidlc/ai_tier</td>
+          <td>master</td>
+          <td class="status-ok">OK</td>
+        </tr>
+        <tr>
+          <td>Thrift</td>
+          <td style="font-family: monospace; font-size: 12px;">~/Desktop/emf-parent/Thrift</td>
+          <td>-- (read-only)</td>
+          <td>--</td>
+          <td class="status-ok">OK</td>
+        </tr>
+        <tr>
+          <td>kalpavriksha</td>
+          <td style="font-family: monospace; font-size: 12px;">~/Desktop/Artificial Intelligence/kalpavriksha</td>
+          <td>raidlc/ai_tier</td>
+          <td>main</td>
+          <td class="status-ok">OK</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">BRD Overview</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Epic</th><th>Name</th><th>Priority</th><th>Relevance to Tiers CRUD</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>E1</td><td>Tier Intelligence</td><td>P0</td><td class="status-ok">PRIMARY -- listing, creation, editing, maker-checker, change logs, simulation</td></tr>
+        <tr><td>E2</td><td>Benefits as a Product</td><td>P0</td><td class="status-warn">RELATED -- benefits linked to tiers, but separate module</td></tr>
+        <tr><td>E3</td><td>aiRa Configuration Layer</td><td>P0</td><td class="status-warn">RELATED -- conversational tier creation, but separate build</td></tr>
+        <tr><td>E4</td><td>API-First Contract</td><td>P0</td><td class="status-ok">PRIMARY -- all tier CRUD APIs</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>pipeline-state.json</li>
+      <li>session-memory.md</li>
+      <li>process-log.md</li>
+      <li>approach-log.md</li>
+      <li>brd-raw.md</li>
+      <li>live-dashboard.html</li>
+    </ul>
+  </section>
+
+  <!-- Phase 1: BA + PRD -->
+  <section class="phase-section" id="phase-1">
+    <h2>Phase 1: BA Deep-Dive + PRD Generation <span class="phase-badge active">Next</span></h2>
+    <span class="skill-tag">/ba + /productex (background)</span>
+    <p>Interactive business analysis with one-at-a-time questions. ProductEx reviews BRD against product docs in parallel. Produces BA analysis and PRD with user stories.</p>
+  </section>
+
+  <!-- Phase 2: Critic + Gap Analysis -->
+  <section class="phase-section" id="phase-2">
+    <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/analyst --compliance + principles.md</span>
+    <p>Two parallel subagents: Critic challenges BA/PRD claims, Analyst verifies them against codebase.</p>
+  </section>
+
+  <!-- Phase 3: UI Extraction -->
+  <section class="phase-section" id="phase-3">
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge pending">Pending</span></h2>
+    <p>Extract component hierarchy, fields, and flows from UI screenshots.</p>
+  </section>
+
+  <!-- Phase 4: Blockers -->
+  <section class="phase-section" id="phase-4">
+    <h2>Phase 4: Grooming Questions + Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+    <p>Compile questions from all prior phases. Resolve blockers interactively.</p>
+  </section>
+
+  <!-- Phase 5: Codebase Research -->
+  <section class="phase-section" id="phase-5">
+    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/cross-repo-tracer + parallel agents</span>
+    <p>Parallel research agents per repo. Cross-repo tracer maps write/read paths.</p>
+  </section>
+
+  <!-- Phase 6: HLD -->
+  <section class="phase-section" id="phase-6">
+    <h2>Phase 6: HLD (Architect) <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/architect + brainstorming + writing-plans</span>
+    <p>Architecture design with pattern evaluation, ADRs, Mermaid diagrams, and API endpoints.</p>
+  </section>
+
+  <!-- Phase 6a: Impact Analysis -->
+  <section class="phase-section" id="phase-6a">
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/analyst --impact</span>
+    <p>Blast radius mapping, security review, risk assessment, GUARDRAILS compliance.</p>
+  </section>
+
+  <!-- Phase 6b: Migration -->
+  <section class="phase-section" id="phase-6b">
+    <h2>Phase 6b: Migration Planning <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/migrator</span>
+    <p>Conditional -- only runs if schema changes identified in HLD.</p>
+  </section>
+
+  <!-- Phase 7: LLD -->
+  <section class="phase-section" id="phase-7">
+    <h2>Phase 7: LLD (Designer) + API Handoff <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/designer + /api-handoff</span>
+    <p>Detailed interface contracts, compile-safe signatures, then API contract doc for UI team.</p>
+  </section>
+
+  <!-- Phase 8: QA -->
+  <section class="phase-section" id="phase-8">
+    <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/qa</span>
+    <p>Test scenarios, edge cases, acceptance criteria per user story.</p>
+  </section>
+
+  <!-- Phase 8b: Business Tests -->
+  <section class="phase-section" id="phase-8b">
+    <h2>Phase 8b: Business Test Gen <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/business-test-gen</span>
+    <p>Map BA requirements to Designer interfaces. Full traceability from BT-xx IDs to BA reqs.</p>
+  </section>
+
+  <!-- Phase 9: SDET -->
+  <section class="phase-section" id="phase-9">
+    <h2>Phase 9: SDET -- RED Phase <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/sdet</span>
+    <p>Write all test code. Confirm compilation passes, tests FAIL (RED).</p>
+  </section>
+
+  <!-- Phase 10: Developer -->
+  <section class="phase-section" id="phase-10">
+    <h2>Phase 10: Developer -- GREEN Phase <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/developer + executing-plans</span>
+    <p>Replace skeleton classes with real production code. All tests must PASS (GREEN).</p>
+  </section>
+
+  <!-- Phase 10b: Backend Readiness -->
+  <section class="phase-section" id="phase-10b">
+    <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/backend-readiness</span>
+    <p>Query performance, Thrift compatibility, cache, errors, migrations.</p>
+  </section>
+
+  <!-- Phase 10c: Compliance -->
+  <section class="phase-section" id="phase-10c">
+    <h2>Phase 10c: Gap Analysis -- Compliance <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/analyst --compliance</span>
+    <p>Compare what was designed (HLD/LLD) against what was built (code).</p>
+  </section>
+
+  <!-- Phase 10d: Migration Validation -->
+  <section class="phase-section" id="phase-10d">
+    <h2>Phase 10d: Migration Validation <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/migrator</span>
+    <p>Conditional -- validates migration scripts against migration plan.</p>
+  </section>
+
+  <!-- Phase 11: Reviewer -->
+  <section class="phase-section" id="phase-11">
+    <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
+    <span class="skill-tag">/reviewer + verification-before-completion</span>
+    <p>Code review against requirements, session memory, security, documentation.</p>
+  </section>
+
+  <!-- Phase 12: Blueprint -->
+  <section class="phase-section" id="phase-12">
+    <h2>Phase 12: Documentation + Blueprint <span class="phase-badge pending">Pending</span></h2>
+    <p>Final documentation, process log, blueprint HTML, git tag.</p>
+  </section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2a45',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#2a3a5c',
+      lineColor: '#00d4ff',
+      secondaryColor: '#16213e',
+      tertiaryColor: '#0f1629'
+    }
+  });
+</script>
+
+</body>
+</html>

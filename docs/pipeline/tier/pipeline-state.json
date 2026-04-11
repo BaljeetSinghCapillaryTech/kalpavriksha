@@ -1,0 +1,89 @@
+{
+  "feature": "Tiers CRUD",
+  "ticket": "raidlc/ai_tier",
+  "artifacts_path": "docs/pipeline/tier/",
+  "started_at": "2026-04-11T12:00:00Z",
+  "inputs": {
+    "brd_path": "/Users/ritwikranjan/Desktop/Artificial Intelligence/Tiers_Benefits_PRD_v2_AiLed New.docx",
+    "brd_extracted": "docs/pipeline/tier/brd-raw.md",
+    "code_repos": [
+      "/Users/ritwikranjan/Desktop/Artificial Intelligence/emf-parent",
+      "/Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3",
+      "/Users/ritwikranjan/Desktop/emf-parent/peb"
+    ],
+    "thrift_path": "/Users/ritwikranjan/Desktop/emf-parent/Thrift",
+    "ui_screenshots": [],
+    "ui_url": "https://v0.app/chat/benefits-and-tiers-brainstorming-4lEe2941qm1?ref=8CQ1DC&b=v0-preview-b_beJe0cNTjk4&f=1&path=%2Fprogram%2Ftiers",
+    "prior_artifacts": {}
+  },
+  "phases": {
+    "0": {
+      "status": "complete",
+      "completed_at": "2026-04-11T12:15:00Z",
+      "artifacts": [
+        "pipeline-state.json",
+        "session-memory.md",
+        "process-log.md",
+        "approach-log.md",
+        "brd-raw.md",
+        "live-dashboard.html"
+      ]
+    },
+    "1": { "status": "pending" },
+    "2": { "status": "pending" },
+    "3": { "status": "pending" },
+    "4": { "status": "pending" },
+    "5": { "status": "pending" },
+    "6": { "status": "pending" },
+    "6a": { "status": "pending" },
+    "6b": { "status": "pending" },
+    "7": { "status": "pending" },
+    "8": { "status": "pending" },
+    "8b": { "status": "pending" },
+    "9": { "status": "pending" },
+    "10": { "status": "pending" },
+    "10b": { "status": "pending" },
+    "10c": { "status": "pending" },
+    "10d": { "status": "pending" },
+    "11": { "status": "pending" },
+    "12": { "status": "pending" }
+  },
+  "git_branches": {
+    "/Users/ritwikranjan/Desktop/Artificial Intelligence/emf-parent": {
+      "default_branch": "main",
+      "feature_branch": "raidlc/ai_tier"
+    },
+    "/Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3": {
+      "default_branch": "main",
+      "feature_branch": "raidlc/ai_tier"
+    },
+    "/Users/ritwikranjan/Desktop/emf-parent/peb": {
+      "default_branch": "master",
+      "feature_branch": "raidlc/ai_tier"
+    },
+    "/Users/ritwikranjan/Desktop/Artificial Intelligence/kalpavriksha": {
+      "default_branch": "main",
+      "feature_branch": "raidlc/ai_tier"
+    }
+  },
+  "git_tags": [],
+  "lsp_enabled": true,
+  "lsp_note": "jdtls 1.57.0 running via /tmp/emf-parent symlink (Java 23). Patched find_daemon_for_cwd for symlink resolution.",
+  "lsp_symlink": "/tmp/emf-parent",
+  "dashboard_enabled": true,
+  "multi_epic": {
+    "enabled": true,
+    "registry_repo": "BaljeetSinghCapillaryTech/kalpavriksha",
+    "epic_name": "tier-category",
+    "epic_division_branch": "raidlc/rtest123/epic-division",
+    "developer": "ritwik",
+    "assignment": {
+      "epics": ["maker-checker", "tier-category"],
+      "builds_shared": ["maker-checker-framework"],
+      "consumes_shared": ["audit-trail-framework"],
+      "layer": [1, 2],
+      "status": "in-progress"
+    }
+  },
+  "rework_cycles": []
+}
