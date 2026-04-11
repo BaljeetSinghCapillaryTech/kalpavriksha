@@ -141,3 +141,23 @@
 - Execution order: M-1+M-2 -> Deploy code -> M-3 -> Enable cache cron
 - No data migration needed (existing rows default to ACTIVE)
 - Artifact: 01b-migrator.md
+
+### Phase 7: LLD (Designer) + API Handoff
+- Time: 2026-04-11
+- Designer (03-designer.md):
+  - Package structure: 30+ classes across tier/ and makerchecker/ packages
+  - Key interfaces: ChangeApplier<T> (strategy), MakerCheckerService, NotificationHandler (hook)
+  - MongoDB documents: UnifiedTierConfig, PendingChange with full field definitions
+  - 7 enums: TierStatus, EntityType, ChangeType, ChangeStatus, CriteriaType, ActivityRelation, DowngradeSchedule
+  - Status transition rules defined as Map<TierStatus, Set<TierAction>>
+  - 3 Thrift wrapper methods specified for PointsEngineRulesThriftService
+  - emf-parent changes: ProgramSlab +status field, PeProgramSlabDao +findActiveByProgram()
+- API Handoff (api-handoff.md):
+  - 8 endpoints with complete URL, method, headers, query params
+  - Full request body examples with realistic tier data (Bronze/Silver/Gold/Platinum)
+  - Full response body examples (~300 lines of JSON across all endpoints)
+  - Error response examples: 400 (validation), 409 (conflict/partner slabs/base tier), 500 (sync failure)
+  - 2 complete end-to-end flow examples (Create+Submit+Approve, Versioned Edit)
+  - Field reference tables (operators, statuses with badge colors, downgrade schedules)
+  - 8 important notes for UI team
+- Artifacts: 03-designer.md, api-handoff.md

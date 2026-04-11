@@ -1,0 +1,1021 @@
+# API Handoff -- Tiers CRUD + Maker-Checker
+
+> For: UI Development Team (Garuda)
+> Version: 1.0
+> Base URL: `https://{host}/v3`
+> Auth: Bearer token in `Authorization` header
+> Content-Type: `application/json`
+> Date: 2026-04-11
+
+---
+
+## Authentication
+
+All endpoints require a valid Bearer token:
+
+```
+Authorization: Bearer <access_token>
+```
+
+The token carries `orgId`, `entityId` (user ID), and `tillName`. The `orgId` is extracted server-side -- you never need to pass it explicitly.
+
+---
+
+## Response Envelope
+
+All responses use the standard `ResponseWrapper<T>`:
+
+```json
+{
+  "data": { ... },
+  "errors": null,
+  "warnings": null
+}
+```
+
+On error:
+```json
+{
+  "data": null,
+  "errors": [
+    { "code": 400, "message": "Name is required" }
+  ],
+  "warnings": null
+}
+```
+
+---
+
+## 1. List Tiers
+
+### `GET /v3/tiers`
+
+Returns all tiers for a program with full configuration, KPI summary, and cached member counts.
+
+**Query Parameters:**
+
+| Param | Type | Required | Default | Example |
+|-------|------|----------|---------|---------|
+| programId | int | YES | - | `977` |
+| status | string (comma-separated) | NO | all statuses | `ACTIVE,DRAFT` |
+| includeInactive | boolean | NO | false | `true` |
+
+**Example Request:**
+```
+GET /v3/tiers?programId=977&status=ACTIVE,DRAFT
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "summary": {
+      "totalTiers": 4,
+      "activeTiers": 3,
+      "pendingApprovalTiers": 1,
+      "totalMembers": 2135,
+      "lastMemberCountRefresh": "2026-04-11T12:00:00Z"
+    },
+    "tiers": [
+      {
+        "objectId": "661a3f2e8b1c4d5e6f7a8b9c",
+        "unifiedTierId": "ut-977-001",
+        "programId": 977,
+        "status": "ACTIVE",
+        "parentId": null,
+        "version": 1,
+        "basicDetails": {
+          "name": "Bronze",
+          "description": "Entry level tier with basic benefits",
+          "color": "#CD7F32",
+          "serialNumber": 1,
+          "startDate": "2025-01-01T00:00:00Z",
+          "endDate": null
+        },
+        "eligibilityCriteria": {
+          "criteriaType": "ACTIVITY_BASED",
+          "activities": [
+            {
+              "type": "Any Purchase",
+              "operator": "ANY",
+              "value": null,
+              "unit": null
+            }
+          ],
+          "activityRelation": "OR",
+          "membershipDuration": "Indefinite",
+          "upgradeSchedule": "Immediately when eligibility is met",
+          "nudges": "Welcome email on joining",
+          "secondaryCriteriaEnabled": false
+        },
+        "renewalConfig": {
+          "renewalCriteriaType": "Same as eligibility",
+          "renewalCondition": null,
+          "renewalSchedule": null,
+          "nudges": null
+        },
+        "downgradeConfig": {
+          "downgradeTo": {
+            "tierName": null,
+            "type": "LOWEST"
+          },
+          "downgradeSchedule": "MONTH_END",
+          "expiryReminders": "Inactivity warning at 18 months",
+          "shouldDowngrade": false
+        },
+        "benefitIds": ["bf-001", "bf-007", "bf-012"],
+        "memberStats": {
+          "memberCount": 1245,
+          "lastRefreshed": "2026-04-11T12:00:00Z"
+        },
+        "metadata": {
+          "createdBy": "user-admin-01",
+          "createdAt": "2025-01-01T00:00:00Z",
+          "updatedBy": "user-admin-01",
+          "updatedAt": "2025-01-01T00:00:00Z",
+          "updatedViaNewUI": true,
+          "sqlSlabId": 3848
+        }
+      },
+      {
+        "objectId": "661a3f2e8b1c4d5e6f7a8b9d",
+        "unifiedTierId": "ut-977-002",
+        "programId": 977,
+        "status": "ACTIVE",
+        "parentId": null,
+        "version": 1,
+        "basicDetails": {
+          "name": "Silver",
+          "description": "Mid-level tier with enhanced benefits",
+          "color": "#C0C0C0",
+          "serialNumber": 2,
+          "startDate": "2025-01-01T00:00:00Z",
+          "endDate": "2025-12-31T23:59:59Z"
+        },
+        "eligibilityCriteria": {
+          "criteriaType": "ACTIVITY_BASED",
+          "activities": [
+            {
+              "type": "Spending",
+              "operator": "GTE",
+              "value": 550,
+              "unit": "RM"
+            },
+            {
+              "type": "Transactions",
+              "operator": "GTE",
+              "value": 2,
+              "unit": "transactions within a year"
+            }
+          ],
+          "activityRelation": "AND",
+          "membershipDuration": "12 months",
+          "upgradeSchedule": "Immediately when eligibility is met",
+          "nudges": "Upgrade congratulations email",
+          "secondaryCriteriaEnabled": false
+        },
+        "renewalConfig": {
+          "renewalCriteriaType": "Same as eligibility criteria",
+          "renewalCondition": {
+            "activities": [
+              {
+                "type": "Spending",
+                "operator": "GTE",
+                "value": 550,
+                "unit": "RM"
+              },
+              {
+                "type": "Transactions",
+                "operator": "GTE",
+                "value": 2,
+                "unit": "transactions within a year"
+              }
+            ],
+            "activityRelation": "AND"
+          },
+          "renewalSchedule": "End of month when duration ends",
+          "nudges": "Renewal reminder 30 days before expiry"
+        },
+        "downgradeConfig": {
+          "downgradeTo": {
+            "tierName": "Bronze",
+            "type": "SINGLE"
+          },
+          "downgradeSchedule": "MONTH_END",
+          "expiryReminders": "Downgrade warning at 60 days before expiry",
+          "shouldDowngrade": true
+        },
+        "benefitIds": ["bf-002", "bf-005", "bf-008", "bf-013"],
+        "memberStats": {
+          "memberCount": 667,
+          "lastRefreshed": "2026-04-11T12:00:00Z"
+        },
+        "metadata": {
+          "createdBy": "user-admin-01",
+          "createdAt": "2025-01-01T00:00:00Z",
+          "updatedBy": "user-admin-01",
+          "updatedAt": "2025-06-15T10:30:00Z",
+          "updatedViaNewUI": true,
+          "sqlSlabId": 3849
+        }
+      },
+      {
+        "objectId": "661a3f2e8b1c4d5e6f7a8b9e",
+        "unifiedTierId": "ut-977-003",
+        "programId": 977,
+        "status": "ACTIVE",
+        "parentId": null,
+        "version": 1,
+        "basicDetails": {
+          "name": "Gold",
+          "description": "Premium tier with exclusive benefits",
+          "color": "#FFD700",
+          "serialNumber": 3,
+          "startDate": "2025-01-01T00:00:00Z",
+          "endDate": "2025-12-31T23:59:59Z"
+        },
+        "eligibilityCriteria": {
+          "criteriaType": "ACTIVITY_BASED",
+          "activities": [
+            {
+              "type": "Spending",
+              "operator": "GTE",
+              "value": 900,
+              "unit": "RM"
+            },
+            {
+              "type": "Transactions",
+              "operator": "GTE",
+              "value": 2,
+              "unit": "transactions within a year"
+            }
+          ],
+          "activityRelation": "AND",
+          "membershipDuration": "12 months",
+          "upgradeSchedule": "Immediately when eligibility is met",
+          "nudges": "VIP welcome package notification",
+          "secondaryCriteriaEnabled": false
+        },
+        "renewalConfig": {
+          "renewalCriteriaType": "Same as eligibility criteria",
+          "renewalCondition": {
+            "activities": [
+              {
+                "type": "Spending",
+                "operator": "GTE",
+                "value": 900,
+                "unit": "RM"
+              },
+              {
+                "type": "Transactions",
+                "operator": "GTE",
+                "value": 2,
+                "unit": "transactions within a year"
+              }
+            ],
+            "activityRelation": "AND"
+          },
+          "renewalSchedule": "End of month when duration ends",
+          "nudges": "VIP renewal reminder with exclusive preview"
+        },
+        "downgradeConfig": {
+          "downgradeTo": {
+            "tierName": "Silver",
+            "type": "SINGLE"
+          },
+          "downgradeSchedule": "DAILY",
+          "expiryReminders": "Premium retention offer 90 days before expiry",
+          "shouldDowngrade": true
+        },
+        "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
+        "memberStats": {
+          "memberCount": 234,
+          "lastRefreshed": "2026-04-11T12:00:00Z"
+        },
+        "metadata": {
+          "createdBy": "user-admin-01",
+          "createdAt": "2025-01-01T00:00:00Z",
+          "updatedBy": "user-admin-02",
+          "updatedAt": "2025-09-20T14:45:00Z",
+          "updatedViaNewUI": true,
+          "sqlSlabId": 3850
+        }
+      },
+      {
+        "objectId": "661b5a1f9c2d3e4f5a6b7c8d",
+        "unifiedTierId": "ut-977-004",
+        "programId": 977,
+        "status": "DRAFT",
+        "parentId": null,
+        "version": 1,
+        "basicDetails": {
+          "name": "Platinum",
+          "description": "Elite tier for top customers",
+          "color": "#E5E4E2",
+          "serialNumber": 4,
+          "startDate": "2026-01-01T00:00:00Z",
+          "endDate": "2026-12-31T23:59:59Z"
+        },
+        "eligibilityCriteria": {
+          "criteriaType": "ACTIVITY_BASED",
+          "activities": [
+            {
+              "type": "Spending",
+              "operator": "GTE",
+              "value": 2000,
+              "unit": "RM"
+            }
+          ],
+          "activityRelation": "AND",
+          "membershipDuration": "12 months",
+          "upgradeSchedule": "Immediately when eligibility is met",
+          "nudges": "Platinum welcome call from relationship manager",
+          "secondaryCriteriaEnabled": false
+        },
+        "renewalConfig": {
+          "renewalCriteriaType": "Same as eligibility criteria",
+          "renewalCondition": {
+            "activities": [
+              {
+                "type": "Spending",
+                "operator": "GTE",
+                "value": 1500,
+                "unit": "RM"
+              }
+            ],
+            "activityRelation": "AND"
+          },
+          "renewalSchedule": "End of month when duration ends",
+          "nudges": "Platinum renewal exclusive offer 45 days before expiry"
+        },
+        "downgradeConfig": {
+          "downgradeTo": {
+            "tierName": "Gold",
+            "type": "SINGLE"
+          },
+          "downgradeSchedule": "MONTH_END",
+          "expiryReminders": "Platinum retention personal call 90 days before expiry",
+          "shouldDowngrade": true
+        },
+        "benefitIds": [],
+        "memberStats": {
+          "memberCount": 0,
+          "lastRefreshed": null
+        },
+        "metadata": {
+          "createdBy": "user-admin-02",
+          "createdAt": "2026-04-11T10:00:00Z",
+          "updatedBy": "user-admin-02",
+          "updatedAt": "2026-04-11T10:00:00Z",
+          "updatedViaNewUI": true,
+          "sqlSlabId": null
+        }
+      }
+    ]
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Error Responses:**
+
+```
+GET /v3/tiers
+→ 400 Bad Request (missing programId)
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 400, "message": "programId is required" }],
+  "warnings": null
+}
+```
+
+```
+GET /v3/tiers?programId=99999
+→ 200 OK (empty program -- not 404)
+```
+```json
+{
+  "data": {
+    "summary": { "totalTiers": 0, "activeTiers": 0, "pendingApprovalTiers": 0, "totalMembers": 0, "lastMemberCountRefresh": null },
+    "tiers": []
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+---
+
+## 2. Create Tier
+
+### `POST /v3/tiers`
+
+Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, saves as ACTIVE and syncs to SQL immediately.
+
+**Request Body:**
+
+```json
+{
+  "programId": 977,
+  "basicDetails": {
+    "name": "Platinum",
+    "description": "Elite tier for top customers",
+    "color": "#E5E4E2",
+    "startDate": "2026-01-01T00:00:00Z",
+    "endDate": "2026-12-31T23:59:59Z"
+  },
+  "eligibilityCriteria": {
+    "criteriaType": "ACTIVITY_BASED",
+    "activities": [
+      {
+        "type": "Spending",
+        "operator": "GTE",
+        "value": 2000,
+        "unit": "RM"
+      }
+    ],
+    "activityRelation": "AND",
+    "membershipDuration": "12 months",
+    "upgradeSchedule": "Immediately when eligibility is met",
+    "nudges": "Platinum welcome call from relationship manager",
+    "secondaryCriteriaEnabled": false
+  },
+  "renewalConfig": {
+    "renewalCriteriaType": "Same as eligibility criteria",
+    "renewalCondition": {
+      "activities": [
+        {
+          "type": "Spending",
+          "operator": "GTE",
+          "value": 1500,
+          "unit": "RM"
+        }
+      ],
+      "activityRelation": "AND"
+    },
+    "renewalSchedule": "End of month when duration ends",
+    "nudges": "Platinum renewal exclusive offer 45 days before expiry"
+  },
+  "downgradeConfig": {
+    "downgradeTo": {
+      "tierName": "Gold",
+      "type": "SINGLE"
+    },
+    "downgradeSchedule": "MONTH_END",
+    "expiryReminders": "Platinum retention personal call 90 days before expiry",
+    "shouldDowngrade": true
+  },
+  "benefitIds": []
+}
+```
+
+**Notes:**
+- `serialNumber` is auto-assigned (next in sequence). Do NOT send it.
+- `status` is set by the server based on MC toggle. Do NOT send it.
+- `unifiedTierId` is generated by the server. Do NOT send it.
+- `color` must be a valid hex code (e.g., `#E5E4E2`).
+- `programId` is required.
+- `basicDetails.name` must be unique within the program.
+
+**Example Response (201 Created, MC enabled -- saved as DRAFT):**
+
+```json
+{
+  "data": {
+    "objectId": "661b5a1f9c2d3e4f5a6b7c8d",
+    "unifiedTierId": "ut-977-004",
+    "programId": 977,
+    "status": "DRAFT",
+    "parentId": null,
+    "version": 1,
+    "basicDetails": {
+      "name": "Platinum",
+      "description": "Elite tier for top customers",
+      "color": "#E5E4E2",
+      "serialNumber": 4,
+      "startDate": "2026-01-01T00:00:00Z",
+      "endDate": "2026-12-31T23:59:59Z"
+    },
+    "eligibilityCriteria": { "..." : "same as request" },
+    "renewalConfig": { "..." : "same as request" },
+    "downgradeConfig": { "..." : "same as request" },
+    "benefitIds": [],
+    "memberStats": { "memberCount": 0, "lastRefreshed": null },
+    "metadata": {
+      "createdBy": "user-admin-02",
+      "createdAt": "2026-04-11T10:00:00Z",
+      "updatedBy": "user-admin-02",
+      "updatedAt": "2026-04-11T10:00:00Z",
+      "updatedViaNewUI": true,
+      "sqlSlabId": null
+    }
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Error Responses:**
+
+```
+POST /v3/tiers (duplicate name)
+→ 409 Conflict
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 409, "message": "A tier with name 'Gold' already exists in program 977" }],
+  "warnings": null
+}
+```
+
+```
+POST /v3/tiers (validation error)
+→ 400 Bad Request
+```
+```json
+{
+  "data": null,
+  "errors": [
+    { "code": 400, "message": "basicDetails.name is required" },
+    { "code": 400, "message": "eligibilityCriteria.criteriaType must match program criteria type (ACTIVITY_BASED)" }
+  ],
+  "warnings": null
+}
+```
+
+---
+
+## 3. Update Tier
+
+### `PUT /v3/tiers/{tierId}`
+
+Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (the ACTIVE stays live).
+
+**Path Parameter:** `tierId` = the `objectId` or `unifiedTierId`
+
+**Request Body (partial update -- send only changed fields):**
+
+```json
+{
+  "basicDetails": {
+    "name": "Gold Plus",
+    "description": "Enhanced premium tier",
+    "color": "#DAA520"
+  },
+  "eligibilityCriteria": {
+    "activities": [
+      {
+        "type": "Spending",
+        "operator": "GTE",
+        "value": 1200,
+        "unit": "RM"
+      }
+    ]
+  }
+}
+```
+
+**Example Response (200 OK, editing an ACTIVE tier -- new DRAFT created):**
+
+```json
+{
+  "data": {
+    "objectId": "661c7b3a0d4e5f6a7b8c9d0e",
+    "unifiedTierId": "ut-977-003",
+    "programId": 977,
+    "status": "DRAFT",
+    "parentId": "661a3f2e8b1c4d5e6f7a8b9e",
+    "version": 2,
+    "basicDetails": {
+      "name": "Gold Plus",
+      "description": "Enhanced premium tier",
+      "color": "#DAA520",
+      "serialNumber": 3,
+      "startDate": "2025-01-01T00:00:00Z",
+      "endDate": "2025-12-31T23:59:59Z"
+    },
+    "eligibilityCriteria": {
+      "criteriaType": "ACTIVITY_BASED",
+      "activities": [
+        {
+          "type": "Spending",
+          "operator": "GTE",
+          "value": 1200,
+          "unit": "RM"
+        }
+      ],
+      "activityRelation": "AND",
+      "membershipDuration": "12 months",
+      "upgradeSchedule": "Immediately when eligibility is met",
+      "nudges": "VIP welcome package notification",
+      "secondaryCriteriaEnabled": false
+    },
+    "renewalConfig": { "..." : "inherited from ACTIVE version" },
+    "downgradeConfig": { "..." : "inherited from ACTIVE version" },
+    "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
+    "memberStats": { "memberCount": 234, "lastRefreshed": "2026-04-11T12:00:00Z" },
+    "metadata": {
+      "createdBy": "user-admin-02",
+      "createdAt": "2026-04-11T14:00:00Z",
+      "updatedBy": "user-admin-02",
+      "updatedAt": "2026-04-11T14:00:00Z",
+      "updatedViaNewUI": true,
+      "sqlSlabId": null
+    }
+  },
+  "errors": null,
+  "warnings": [{ "message": "This is a versioned edit. The ACTIVE tier (Gold) remains live. Submit this draft for approval to replace it." }]
+}
+```
+
+**Key behaviors:**
+- Editing a **DRAFT**: updates in place (same objectId)
+- Editing an **ACTIVE**: creates NEW document with `parentId` pointing to ACTIVE. Returns the new DRAFT.
+- Editing a **PENDING_APPROVAL**: updates in place
+- `serialNumber` cannot be changed (immutable)
+- If a DRAFT already exists for this ACTIVE tier, the existing DRAFT is updated (one DRAFT per ACTIVE)
+
+**Error: editing a STOPPED tier:**
+```
+PUT /v3/tiers/661a... (STOPPED tier)
+→ 400 Bad Request
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 400, "message": "Cannot edit a tier in STOPPED status. Allowed transitions: none." }],
+  "warnings": null
+}
+```
+
+---
+
+## 4. Delete Tier (Soft-Delete)
+
+### `DELETE /v3/tiers/{tierId}`
+
+Soft-deletes a tier (sets status to STOPPED). If MC enabled, creates a PendingChange.
+
+**Example Request:**
+```
+DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (204 No Content, MC disabled):**
+```
+HTTP/1.1 204 No Content
+```
+
+**Example Response (200 OK, MC enabled -- PendingChange created):**
+```json
+{
+  "data": {
+    "objectId": "661d8c4b1e5f6a7b8c9d0e1f",
+    "entityType": "TIER",
+    "entityId": "ut-977-003",
+    "changeType": "DELETE",
+    "status": "PENDING",
+    "requestedBy": "user-admin-02",
+    "requestedAt": "2026-04-11T15:00:00Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "comment": null
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Error: tier has PartnerProgramSlabs:**
+```
+DELETE /v3/tiers/661a... (has partner program refs)
+→ 409 Conflict
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 409, "message": "Cannot stop tier 'Gold' -- it has 2 active partner program slab mappings. Remove them first." }],
+  "warnings": null
+}
+```
+
+**Error: cannot delete base tier with members:**
+```
+DELETE /v3/tiers/661a... (base tier, serialNumber=1, members=1245)
+→ 409 Conflict
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 409, "message": "Cannot stop base tier 'Bronze' -- 1245 members are currently assigned to it." }],
+  "warnings": null
+}
+```
+
+---
+
+## 5. Submit for Approval
+
+### `POST /v3/maker-checker/submit`
+
+Submits a DRAFT tier (or other entity) for maker-checker approval.
+
+**Request Body:**
+```json
+{
+  "entityType": "TIER",
+  "entityId": "661b5a1f9c2d3e4f5a6b7c8d"
+}
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "objectId": "661e9d5c2f6a7b8c9d0e1f2a",
+    "orgId": 100458,
+    "programId": 977,
+    "entityType": "TIER",
+    "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
+    "changeType": "CREATE",
+    "status": "PENDING",
+    "requestedBy": "user-admin-02",
+    "requestedAt": "2026-04-11T11:00:00Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "comment": null
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Side effect:** The tier's status changes from DRAFT to PENDING_APPROVAL.
+
+**Error: tier is not in DRAFT status:**
+```json
+{
+  "data": null,
+  "errors": [{ "code": 400, "message": "Tier is in ACTIVE status. Only DRAFT tiers can be submitted for approval." }],
+  "warnings": null
+}
+```
+
+---
+
+## 6. Approve Change
+
+### `POST /v3/maker-checker/{changeId}/approve`
+
+Approves a pending change. Triggers TierChangeApplier to sync MongoDB to SQL via Thrift.
+
+**Path Parameter:** `changeId` = the PendingChange `objectId`
+
+**Request Body:**
+```json
+{
+  "comment": "Approved. Platinum tier config looks good."
+}
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "objectId": "661e9d5c2f6a7b8c9d0e1f2a",
+    "orgId": 100458,
+    "programId": 977,
+    "entityType": "TIER",
+    "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
+    "changeType": "CREATE",
+    "status": "APPROVED",
+    "requestedBy": "user-admin-02",
+    "requestedAt": "2026-04-11T11:00:00Z",
+    "reviewedBy": "user-admin-01",
+    "reviewedAt": "2026-04-11T13:30:00Z",
+    "comment": "Approved. Platinum tier config looks good."
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Side effects:**
+- Tier status: PENDING_APPROVAL -> ACTIVE
+- SQL: ProgramSlab created + strategies updated via Thrift
+- `metadata.sqlSlabId` populated with the MySQL ID
+- If versioned edit: old ACTIVE -> SNAPSHOT, new doc -> ACTIVE
+
+**Error: Thrift sync failed:**
+```json
+{
+  "data": null,
+  "errors": [{ "code": 500, "message": "Failed to sync tier to backend. Approval rolled back. Please retry." }],
+  "warnings": null
+}
+```
+
+---
+
+## 7. Reject Change
+
+### `POST /v3/maker-checker/{changeId}/reject`
+
+Rejects a pending change. Comment is required.
+
+**Request Body:**
+```json
+{
+  "comment": "Gold threshold too low -- 1200 RM would overlap with Silver at 550 RM. Please increase to at least 1500 RM."
+}
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "objectId": "661e9d5c2f6a7b8c9d0e1f2a",
+    "orgId": 100458,
+    "programId": 977,
+    "entityType": "TIER",
+    "entityId": "661c7b3a0d4e5f6a7b8c9d0e",
+    "changeType": "UPDATE",
+    "status": "REJECTED",
+    "requestedBy": "user-admin-02",
+    "requestedAt": "2026-04-11T14:00:00Z",
+    "reviewedBy": "user-admin-01",
+    "reviewedAt": "2026-04-11T15:00:00Z",
+    "comment": "Gold threshold too low -- 1200 RM would overlap with Silver at 550 RM. Please increase to at least 1500 RM."
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Side effect:** Tier status: PENDING_APPROVAL -> DRAFT (can be edited and re-submitted).
+
+**Error: missing comment:**
+```json
+{
+  "data": null,
+  "errors": [{ "code": 400, "message": "Comment is required when rejecting a change" }],
+  "warnings": null
+}
+```
+
+---
+
+## 8. List Pending Changes
+
+### `GET /v3/maker-checker/pending`
+
+Lists all pending changes awaiting approval.
+
+**Query Parameters:**
+
+| Param | Type | Required | Example |
+|-------|------|----------|---------|
+| entityType | string | NO | `TIER` |
+| programId | int | NO | `977` |
+
+**Example Request:**
+```
+GET /v3/maker-checker/pending?entityType=TIER&programId=977
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "objectId": "661e9d5c2f6a7b8c9d0e1f2a",
+      "orgId": 100458,
+      "programId": 977,
+      "entityType": "TIER",
+      "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
+      "changeType": "CREATE",
+      "status": "PENDING",
+      "requestedBy": "user-admin-02",
+      "requestedAt": "2026-04-11T11:00:00Z",
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "comment": null
+    }
+  ],
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Empty result:**
+```json
+{
+  "data": [],
+  "errors": null,
+  "warnings": null
+}
+```
+
+---
+
+## 9. Complete Flow Example: Create + Submit + Approve
+
+### Step 1: Create Platinum tier (MC enabled -- becomes DRAFT)
+```
+POST /v3/tiers
+→ 201 Created, status: "DRAFT", objectId: "661b5a..."
+```
+
+### Step 2: Submit for approval
+```
+POST /v3/maker-checker/submit
+Body: { "entityType": "TIER", "entityId": "661b5a..." }
+→ 200 OK, changeId: "661e9d..."
+```
+Tier status changes: DRAFT -> PENDING_APPROVAL
+
+### Step 3: Approve
+```
+POST /v3/maker-checker/661e9d.../approve
+Body: { "comment": "Looks good" }
+→ 200 OK
+```
+Tier status changes: PENDING_APPROVAL -> ACTIVE
+SQL sync happens. `metadata.sqlSlabId` populated.
+
+### Step 4: Verify in listing
+```
+GET /v3/tiers?programId=977
+→ Platinum now appears with status: "ACTIVE" and sqlSlabId set
+```
+
+---
+
+## 10. Complete Flow Example: Edit ACTIVE Tier (Versioned)
+
+### Step 1: Edit Gold tier (ACTIVE, objectId: "661a...9e")
+```
+PUT /v3/tiers/661a...9e
+Body: { "basicDetails": { "name": "Gold Plus" }, "eligibilityCriteria": { "activities": [{ "type": "Spending", "operator": "GTE", "value": 1200, "unit": "RM" }] } }
+→ 200 OK, NEW objectId: "661c7b...", status: "DRAFT", parentId: "661a...9e"
+```
+The original Gold (objectId: "661a...9e") stays ACTIVE. A new DRAFT is created.
+
+### Step 2: Listing shows BOTH
+```
+GET /v3/tiers?programId=977
+→ Gold (ACTIVE, threshold 900) + Gold Plus (DRAFT, threshold 1200, parentId: 661a...9e)
+```
+
+### Step 3: Submit + Approve
+```
+POST /v3/maker-checker/submit + POST /v3/maker-checker/{id}/approve
+```
+Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
+
+---
+
+## 11. Field Reference
+
+### Activity Operators
+| Operator | Meaning | Example |
+|----------|---------|---------|
+| `GTE` | Greater than or equal | Spending >= 550 RM |
+| `LTE` | Less than or equal | Transactions <= 10 |
+| `EQ` | Equal to | Visits = 5 |
+| `ANY` | Any value (no threshold) | Any Purchase |
+
+### Tier Statuses (for UI badge rendering)
+| Status | Badge Color | User Can... |
+|--------|------------|-------------|
+| `DRAFT` | Grey | Edit, Submit, Delete |
+| `PENDING_APPROVAL` | Amber | View (approver can Approve/Reject) |
+| `ACTIVE` | Green | Edit (creates new version), Stop |
+| `PAUSED` | Blue | Resume, Stop |
+| `STOPPED` | Red | View only |
+| `SNAPSHOT` | Dark grey | View only (archived version) |
+
+### Downgrade Schedules
+| Value | Meaning | Badge Color in UI |
+|-------|---------|------------------|
+| `MONTH_END` | Downgrade evaluated at end of month | Yellow |
+| `DAILY` | Downgrade evaluated daily | Light yellow |
+
+---
+
+## 12. Important Notes for UI Team
+
+1. **`serialNumber` is auto-assigned and immutable.** Never send it in create/update. It determines tier ordering.
+2. **`unifiedTierId` persists across versions.** When an ACTIVE tier is edited, the new DRAFT has the same `unifiedTierId` but a different `objectId`. Use `unifiedTierId` to track a tier's identity across versions.
+3. **`parentId` indicates a versioned edit.** If a DRAFT has a non-null `parentId`, it is a pending edit of an ACTIVE tier. The `parentId` is the ACTIVE version's `objectId`.
+4. **`sqlSlabId` is null for DRAFT tiers.** It is populated only after MC approval syncs to SQL. Use it to link to legacy systems if needed.
+5. **Member counts are cached.** `memberStats.lastRefreshed` shows when the count was last updated (every ~10 minutes). Display it to set expectations.
+6. **`engineConfig` is NOT returned in the listing response.** It is hidden engine config for round-trip fidelity. Only visible in the full tier detail endpoint (if needed later).
+7. **All dates are ISO-8601 UTC.** Convert to user's timezone for display.
+8. **The `benefitIds` array contains benefit ObjectIds.** Fetch benefit details via a separate `GET /v3/benefits/{benefitId}` endpoint (out of scope for this pipeline).

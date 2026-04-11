@@ -350,8 +350,8 @@
     <a href="#phase-6" class="sidebar-link"><span class="dot complete"></span> 6. HLD (Architect)</a>
     <a href="#phase-6a" class="sidebar-link"><span class="dot complete"></span> 6a. Impact Analysis</a>
     <a href="#phase-6b" class="sidebar-link"><span class="dot complete"></span> 6b. Migration</a>
-    <a href="#phase-7" class="sidebar-link"><span class="dot active"></span> 7. LLD (Designer)</a>
-    <a href="#phase-8" class="sidebar-link"><span class="dot pending"></span> 8. QA</a>
+    <a href="#phase-7" class="sidebar-link"><span class="dot complete"></span> 7. LLD (Designer)</a>
+    <a href="#phase-8" class="sidebar-link"><span class="dot active"></span> 8. QA</a>
     <a href="#phase-8b" class="sidebar-link"><span class="dot pending"></span> 8b. Business Tests</a>
     <a href="#phase-9" class="sidebar-link"><span class="dot pending"></span> 9. SDET (RED)</a>
     <a href="#phase-10" class="sidebar-link"><span class="dot pending"></span> 10. Developer (GREEN)</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 47.4%"></div>
+      <div class="fill" style="width: 52.6%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">9</span> / 19 phases complete</span>
-      <span><span class="stat-value">21</span> artifacts generated</span>
+      <span><span class="stat-value">10</span> / 19 phases complete</span>
+      <span><span class="stat-value">23</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -1359,14 +1359,79 @@ flowchart LR
 
   <!-- Phase 7: LLD -->
   <section class="phase-section" id="phase-7">
-    <h2>Phase 7: LLD (Designer) + API Handoff <span class="phase-badge pending">Pending</span></h2>
-    <span class="skill-tag">/designer + /api-handoff</span>
-    <p>Detailed interface contracts, compile-safe signatures, then API contract doc for UI team.</p>
+    <h2>Phase 7: LLD (Designer) + API Handoff <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
+    <span class="skill-tag">/designer</span> <span class="skill-tag">/api-handoff</span>
+    <p>30+ class definitions with compile-safe signatures. Complete API handoff with realistic JSON examples for all 8 endpoints. 2 end-to-end flow walkthroughs. Field reference tables for UI rendering.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">30+</div><div class="label">Classes</div></div>
+      <div class="key-number"><div class="value">8</div><div class="label">API Endpoints</div></div>
+      <div class="key-number"><div class="value">7</div><div class="label">Enums</div></div>
+      <div class="key-number"><div class="value">5</div><div class="label">Interfaces</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);" id="lld-diagrams">Component Dependency Graph</h3>
+    <div class="mermaid">
+graph TD
+    TC[TierController] --> TF[TierFacade]
+    MCC[MakerCheckerController] --> MCF[MakerCheckerFacade]
+    TF --> TVS[TierValidationService]
+    TF --> TR[TierRepository]
+    TF --> MCS["MakerCheckerService (interface)"]
+    MCF --> MCS
+    MCS --> MCSI[MakerCheckerServiceImpl]
+    MCSI --> PCR[PendingChangeRepo]
+    MCSI --> CA["ChangeApplier (interface)"]
+    MCSI --> NH["NotificationHandler (hook)"]
+    CA -.->|"implements"| TCA[TierChangeApplier]
+    TCA --> PERTS[ThriftService]
+    TCA --> TR
+    TR --> TRI[TierRepositoryImpl]
+    TRI --> EMDS[EmfMongoDataSource]
+    style CA stroke-dasharray: 5 5
+    style NH stroke-dasharray: 5 5
+    style MCS stroke-dasharray: 5 5
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Key Interfaces</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Interface</th><th>Methods</th><th>First Impl</th></tr>
+      </thead>
+      <tbody>
+        <tr><td style="color: var(--accent);">ChangeApplier&lt;T&gt;</td><td>apply(), revert(), getEntityType()</td><td>TierChangeApplier</td></tr>
+        <tr><td style="color: var(--accent);">MakerCheckerService</td><td>submit(), approve(), reject(), listPending(), isMCEnabled()</td><td>MakerCheckerServiceImpl</td></tr>
+        <tr><td style="color: var(--accent);">NotificationHandler</td><td>onSubmit(), onApprove(), onReject()</td><td>NoOpNotificationHandler</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">API Handoff Highlights</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Endpoint</th><th>Examples Provided</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>GET /v3/tiers</td><td>Full 4-tier response (Bronze/Silver/Gold + Platinum draft), empty program, 400</td></tr>
+        <tr><td>POST /v3/tiers</td><td>Create Platinum, 201 (DRAFT), 409 (duplicate), 400 (validation)</td></tr>
+        <tr><td>PUT /v3/tiers/{id}</td><td>Edit Gold -> Gold Plus (versioned), 200 with parentId, 400 (stopped tier)</td></tr>
+        <tr><td>DELETE /v3/tiers/{id}</td><td>204 (MC off), 200 (MC on), 409 (partner slabs), 409 (base tier)</td></tr>
+        <tr><td>POST submit</td><td>Submit DRAFT, 200, 400 (wrong status)</td></tr>
+        <tr><td>POST approve</td><td>Approve with comment, 200, 500 (sync failure)</td></tr>
+        <tr><td>POST reject</td><td>Reject with reason, 200, 400 (missing comment)</td></tr>
+        <tr><td>GET pending</td><td>List with filters, empty result</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>03-designer.md</li>
+      <li>api-handoff.md</li>
+    </ul>
   </section>
 
   <!-- Phase 8: QA -->
   <section class="phase-section" id="phase-8">
-    <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 8: QA <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/qa</span>
     <p>Test scenarios, edge cases, acceptance criteria per user story.</p>
   </section>
