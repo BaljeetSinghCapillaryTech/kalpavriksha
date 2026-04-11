@@ -129,3 +129,15 @@
 - 8 risks catalogued (0 blocker, 2 high, 3 medium, 3 low)
 - No blockers raised against Architect design
 - Artifact: 02-analyst.md
+
+### Phase 6b: Migration Planning
+- Time: 2026-04-11
+- Finding: emf-parent has NO Flyway/Liquibase. Migrations are standalone SQL scripts.
+- 3 migrations planned:
+  - M-1: ALTER TABLE program_slabs ADD COLUMN status (FAST, <1s)
+  - M-2: CREATE INDEX idx_program_slabs_org_program_status (FAST, <1s)
+  - M-3: CREATE INDEX idx_ce_org_program_slab_active on customer_enrollment (SLOW, 5-30 min, maintenance window, ALGORITHM=INPLACE)
+- All backward-compatible. All have rollback scripts.
+- Execution order: M-1+M-2 -> Deploy code -> M-3 -> Enable cache cron
+- No data migration needed (existing rows default to ACTIVE)
+- Artifact: 01b-migrator.md

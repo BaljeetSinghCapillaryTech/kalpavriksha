@@ -349,8 +349,8 @@
     <a href="#phase-5" class="sidebar-link"><span class="dot complete"></span> 5. Codebase Research</a>
     <a href="#phase-6" class="sidebar-link"><span class="dot complete"></span> 6. HLD (Architect)</a>
     <a href="#phase-6a" class="sidebar-link"><span class="dot complete"></span> 6a. Impact Analysis</a>
-    <a href="#phase-6b" class="sidebar-link"><span class="dot active"></span> 6b. Migration</a>
-    <a href="#phase-7" class="sidebar-link"><span class="dot pending"></span> 7. LLD (Designer)</a>
+    <a href="#phase-6b" class="sidebar-link"><span class="dot complete"></span> 6b. Migration</a>
+    <a href="#phase-7" class="sidebar-link"><span class="dot active"></span> 7. LLD (Designer)</a>
     <a href="#phase-8" class="sidebar-link"><span class="dot pending"></span> 8. QA</a>
     <a href="#phase-8b" class="sidebar-link"><span class="dot pending"></span> 8b. Business Tests</a>
     <a href="#phase-9" class="sidebar-link"><span class="dot pending"></span> 9. SDET (RED)</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 42.1%"></div>
+      <div class="fill" style="width: 47.4%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">8</span> / 19 phases complete</span>
-      <span><span class="stat-value">20</span> artifacts generated</span>
+      <span><span class="stat-value">9</span> / 19 phases complete</span>
+      <span><span class="stat-value">21</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -1316,9 +1316,45 @@ flowchart TB
 
   <!-- Phase 6b: Migration -->
   <section class="phase-section" id="phase-6b">
-    <h2>Phase 6b: Migration Planning <span class="phase-badge active">Next</span></h2>
+    <h2>Phase 6b: Migration Planning <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/migrator</span>
-    <p>Conditional -- only runs if schema changes identified in HLD.</p>
+    <p>3 migrations planned. emf-parent has NO Flyway/Liquibase -- standalone SQL scripts. All backward-compatible with rollback.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">3</div><div class="label">Migrations</div></div>
+      <div class="key-number"><div class="value">2</div><div class="label">Tables</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">Data Migrations</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Migration Execution Order</h3>
+    <div class="mermaid">
+flowchart LR
+    M1["M-1: ADD COLUMN status<br/>program_slabs<br/>< 1s"] --> M2["M-2: ADD INDEX<br/>program_slabs<br/>< 1s"]
+    M2 --> DEP["Deploy code"]
+    DEP --> M3["M-3: ADD INDEX<br/>customer_enrollment<br/>5-30 min (INPLACE)"]
+    M3 --> CRON["Enable cache cron"]
+    style M1 fill:#10b981,color:#fff
+    style M2 fill:#10b981,color:#fff
+    style DEP fill:#00d4ff,color:#000
+    style M3 fill:#f59e0b,color:#000
+    style CRON fill:#10b981,color:#fff
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Table</th><th>Change</th><th>Duration</th><th>Downtime?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>M-1</td><td>program_slabs</td><td>ADD COLUMN status DEFAULT 'ACTIVE'</td><td class="status-ok">< 1s</td><td>No</td></tr>
+        <tr><td>M-2</td><td>program_slabs</td><td>ADD INDEX (org_id, program_id, status)</td><td class="status-ok">< 1s</td><td>No</td></tr>
+        <tr><td>M-3</td><td>customer_enrollment</td><td>ADD INDEX (covering for GROUP BY count)</td><td class="status-warn">5-30 min</td><td>No (INPLACE)</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>01b-migrator.md</li>
+    </ul>
   </section>
 
   <!-- Phase 7: LLD -->
