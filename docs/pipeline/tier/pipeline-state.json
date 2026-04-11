@@ -87,7 +87,11 @@
         "01-architect.md"
       ]
     },
-    "6a": { "status": "pending" },
+    "6a": {
+      "status": "complete",
+      "completed_at": "2026-04-11T18:30:00Z",
+      "artifacts": ["02-analyst.md"]
+    },
     "6b": { "status": "pending" },
     "7": { "status": "pending" },
     "8": { "status": "pending" },

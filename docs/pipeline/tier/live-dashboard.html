@@ -348,8 +348,8 @@
     <a href="#phase-4" class="sidebar-link"><span class="dot complete"></span> 4. Blockers</a>
     <a href="#phase-5" class="sidebar-link"><span class="dot complete"></span> 5. Codebase Research</a>
     <a href="#phase-6" class="sidebar-link"><span class="dot complete"></span> 6. HLD (Architect)</a>
-    <a href="#phase-6a" class="sidebar-link"><span class="dot active"></span> 6a. Impact Analysis</a>
-    <a href="#phase-6b" class="sidebar-link"><span class="dot pending"></span> 6b. Migration</a>
+    <a href="#phase-6a" class="sidebar-link"><span class="dot complete"></span> 6a. Impact Analysis</a>
+    <a href="#phase-6b" class="sidebar-link"><span class="dot active"></span> 6b. Migration</a>
     <a href="#phase-7" class="sidebar-link"><span class="dot pending"></span> 7. LLD (Designer)</a>
     <a href="#phase-8" class="sidebar-link"><span class="dot pending"></span> 8. QA</a>
     <a href="#phase-8b" class="sidebar-link"><span class="dot pending"></span> 8b. Business Tests</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 36.8%"></div>
+      <div class="fill" style="width: 42.1%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">7</span> / 19 phases complete</span>
-      <span><span class="stat-value">19</span> artifacts generated</span>
+      <span><span class="stat-value">8</span> / 19 phases complete</span>
+      <span><span class="stat-value">20</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -1265,14 +1265,58 @@ flowchart TB
 
   <!-- Phase 6a: Impact Analysis -->
   <section class="phase-section" id="phase-6a">
-    <h2>Phase 6a: Impact Analysis <span class="phase-badge active">Next</span></h2>
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/analyst --impact</span>
-    <p>Blast radius mapping, security review, risk assessment, GUARDRAILS compliance.</p>
+    <p>Blast radius mapped across 4 repos and 10+ modules. Security compliant. Performance acceptable. 8 risks catalogued. No blockers against HLD.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">2</div><div class="label">Files Modified</div></div>
+      <div class="key-number"><div class="value">7</div><div class="label">Modules Checked</div></div>
+      <div class="key-number"><div class="value">8</div><div class="label">Risks</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">Blockers</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">GUARDRAILS Compliance</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Guardrail</th><th>Status</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>G-01 Timezone</td><td class="status-warn">ATTENTION</td><td>Use Instant not Date in new code. Convert at Thrift boundary.</td></tr>
+        <tr><td>G-03 Security</td><td class="status-ok">COMPLIANT</td><td>Auth via token, parameterized queries, no PII.</td></tr>
+        <tr><td>G-04 Performance</td><td class="status-warn">ATTENTION</td><td>Member count cache needs INDEX on customer_enrollment.</td></tr>
+        <tr><td>G-05 Data Integrity</td><td class="status-ok">COMPLIANT</td><td>Expand-then-contract, @Lockable, transactional Thrift call.</td></tr>
+        <tr><td>G-06 API Design</td><td class="status-warn">ATTENTION</td><td>Need idempotency key for POST /v3/tiers (G-06.1).</td></tr>
+        <tr><td>G-07 Multi-Tenancy</td><td class="status-ok">COMPLIANT</td><td>All queries scoped by orgId. Cron job needs tenant context.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Risk Register</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Risk</th><th>Severity</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>R1</td><td>CSV index off-by-one</td><td class="status-warn">HIGH</td><td>Unit tests with 3,4,5+ slabs</td></tr>
+        <tr><td>R2</td><td>Downgrade strategy race</td><td>MEDIUM</td><td>@Lockable (300s TTL)</td></tr>
+        <tr><td>R3</td><td>Strategy ID collision</td><td>MEDIUM</td><td>Fetch existing ID before update</td></tr>
+        <tr><td>R4</td><td>Member count index needed</td><td>MEDIUM</td><td>Add covering index via Flyway</td></tr>
+        <tr><td>R5</td><td>Timezone: Date vs Instant</td><td>MEDIUM</td><td>Enforce Instant in new code</td></tr>
+        <tr><td>R6</td><td>Idempotency on POST</td><td>LOW</td><td>Use unifiedTierId for dedup</td></tr>
+        <tr><td>R7</td><td>Cron job tenant context</td><td>LOW</td><td>Iterate per-org</td></tr>
+        <tr><td>R8</td><td>MC self-approval</td><td>LOW</td><td>Product decision (requestedBy != reviewedBy)</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>02-analyst.md</li>
+    </ul>
   </section>
 
   <!-- Phase 6b: Migration -->
   <section class="phase-section" id="phase-6b">
-    <h2>Phase 6b: Migration Planning <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 6b: Migration Planning <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/migrator</span>
     <p>Conditional -- only runs if schema changes identified in HLD.</p>
   </section>

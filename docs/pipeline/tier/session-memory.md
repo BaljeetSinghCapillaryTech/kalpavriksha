@@ -118,6 +118,11 @@
 - 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
 - MongoDB document schema: UnifiedTierConfig with 8 top-level sections (basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds, memberStats, engineConfig, metadata) _(Architect)_
 - PendingChange generic schema: entityType, entityId, payload (full snapshot), status, requestedBy, reviewedBy _(Architect)_
+- Impact analysis: blast radius SMALL (2 modified in emf-parent, 0 in peb/Thrift). Full backward compatibility. _(Analyst)_
+- GUARDRAILS attention: G-01 (use Instant not Date in new code), G-06.1 (add idempotency key for POST /tiers), G-07.3 (cron job tenant context) _(Analyst)_
+- 8 risks catalogued: R1 CSV off-by-one (HIGH), R2 downgrade race (MEDIUM, mitigated), R3 strategy ID collision (MEDIUM), R4 member count index (MEDIUM), R5 timezone (MEDIUM), R6 idempotency (LOW), R7 cron tenant (LOW), R8 MC self-approval (LOW, product decision) _(Analyst)_
+- Security: COMPLIANT with G-03. Auth via token, parameterized queries, no PII exposure. One product question: should MC prevent self-approval? _(Analyst)_
+- Performance: Tier listing <200ms. Member count cache needs INDEX on customer_enrollment(org_id, program_id, current_slab_id, is_active). Separate Flyway migration. _(Analyst)_
 
 ## Risks & Concerns
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated
