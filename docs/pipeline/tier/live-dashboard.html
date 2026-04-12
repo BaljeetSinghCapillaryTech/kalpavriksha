@@ -351,8 +351,8 @@
     <a href="#phase-6a" class="sidebar-link"><span class="dot complete"></span> 6a. Impact Analysis</a>
     <a href="#phase-6b" class="sidebar-link"><span class="dot complete"></span> 6b. Migration</a>
     <a href="#phase-7" class="sidebar-link"><span class="dot complete"></span> 7. LLD (Designer)</a>
-    <a href="#phase-8" class="sidebar-link"><span class="dot active"></span> 8. QA</a>
-    <a href="#phase-8b" class="sidebar-link"><span class="dot pending"></span> 8b. Business Tests</a>
+    <a href="#phase-8" class="sidebar-link"><span class="dot complete"></span> 8. QA</a>
+    <a href="#phase-8b" class="sidebar-link"><span class="dot active"></span> 8b. Business Tests</a>
     <a href="#phase-9" class="sidebar-link"><span class="dot pending"></span> 9. SDET (RED)</a>
     <a href="#phase-10" class="sidebar-link"><span class="dot pending"></span> 10. Developer (GREEN)</a>
     <a href="#phase-10b" class="sidebar-link"><span class="dot pending"></span> 10b. Backend Ready</a>
@@ -392,11 +392,11 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 52.6%"></div>
+      <div class="fill" style="width: 57.9%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">10</span> / 19 phases complete</span>
-      <span><span class="stat-value">23</span> artifacts generated</span>
+      <span><span class="stat-value">11</span> / 19 phases complete</span>
+      <span><span class="stat-value">24</span> artifacts generated</span>
       <span><span class="stat-value">29</span> decisions made</span>
       <span><span class="stat-value">0</span> code files written</span>
     </div>
@@ -1431,14 +1431,41 @@ graph TD
 
   <!-- Phase 8: QA -->
   <section class="phase-section" id="phase-8">
-    <h2>Phase 8: QA <span class="phase-badge active">Next</span></h2>
+    <h2>Phase 8: QA <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/qa</span>
-    <p>Test scenarios, edge cases, acceptance criteria per user story.</p>
+    <p>65 test scenarios across 7 categories. 41 P0 must-pass tests. Covers CRUD, maker-checker, status transitions, CSV correctness, multi-tenancy, concurrency, backward compatibility.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">65</div><div class="label">Test Scenarios</div></div>
+      <div class="key-number"><div class="value">41</div><div class="label">P0 (Must-Pass)</div></div>
+      <div class="key-number"><div class="value">7</div><div class="label">Categories</div></div>
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr><th>Category</th><th>P0</th><th>P1</th><th>P2</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Tier Listing</td><td>7</td><td>4</td><td>1</td><td>12</td></tr>
+        <tr><td>Tier Creation</td><td>7</td><td>3</td><td>0</td><td>10</td></tr>
+        <tr><td>Tier Editing</td><td>5</td><td>3</td><td>1</td><td>9</td></tr>
+        <tr><td>Tier Deletion</td><td>4</td><td>2</td><td>0</td><td>6</td></tr>
+        <tr><td>Maker-Checker</td><td>7</td><td>4</td><td>0</td><td>11</td></tr>
+        <tr><td>MC Toggle</td><td>4</td><td>1</td><td>0</td><td>5</td></tr>
+        <tr><td>Cross-Cutting</td><td>7</td><td>5</td><td>0</td><td>12</td></tr>
+        <tr style="font-weight:600;"><td>Total</td><td>41</td><td>22</td><td>2</td><td>65</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>04-qa.md</li>
+    </ul>
   </section>
 
   <!-- Phase 8b: Business Tests -->
   <section class="phase-section" id="phase-8b">
-    <h2>Phase 8b: Business Test Gen <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 8b: Business Test Gen <span class="phase-badge active">Next</span></h2>
     <span class="skill-tag">/business-test-gen</span>
     <p>Map BA requirements to Designer interfaces. Full traceability from BT-xx IDs to BA reqs.</p>
   </section>

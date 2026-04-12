@@ -102,7 +102,11 @@
       "completed_at": "2026-04-11T19:30:00Z",
       "artifacts": ["03-designer.md", "api-handoff.md"]
     },
-    "8": { "status": "pending" },
+    "8": {
+      "status": "complete",
+      "completed_at": "2026-04-11T20:00:00Z",
+      "artifacts": ["04-qa.md"]
+    },
     "8b": { "status": "pending" },
     "9": { "status": "pending" },
     "10": { "status": "pending" },

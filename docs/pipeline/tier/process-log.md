@@ -161,3 +161,12 @@
   - Field reference tables (operators, statuses with badge colors, downgrade schedules)
   - 8 important notes for UI team
 - Artifacts: 03-designer.md, api-handoff.md
+
+### Phase 8: QA
+- Time: 2026-04-11
+- 65 test scenarios across 7 categories
+- Breakdown: 41 P0 (must-pass), 22 P1, 2 P2
+- Categories: Listing (12), Creation (10), Editing (9), Deletion (6), Maker-Checker (11), MC Toggle (5), Cross-Cutting (12)
+- Cross-cutting covers: multi-tenancy isolation (G-07), concurrency (@Lockable), backward compatibility, CSV index correctness (R1 HIGH risk)
+- Test data requirements: 2+ programs, 7+ tier states, 4+ strategy types
+- Artifact: 04-qa.md

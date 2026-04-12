@@ -1,7 +1,7 @@
 # API Handoff -- Tiers CRUD + Maker-Checker
 
 > For: UI Development Team (Garuda)
-> Version: 1.0
+> Version: 1.1 (added: Get Tier Detail, MC Config, Change Detail, per-status Delete, Idempotency)
 > Base URL: `https://{host}/v3`
 > Auth: Bearer token in `Authorization` header
 > Content-Type: `application/json`
@@ -410,11 +410,176 @@ GET /v3/tiers?programId=99999
 
 ---
 
-## 2. Create Tier
+## 2. Get Tier Detail
+
+### `GET /v3/tiers/{tierId}`
+
+Returns the full tier document including `engineConfig` (hidden engine settings **not** included in the listing endpoint). Use this for edit form pre-fill and version comparison.
+
+**Path Parameter:** `tierId` = the `objectId` or `unifiedTierId`
+
+**Example Request:**
+```
+GET /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "objectId": "661a3f2e8b1c4d5e6f7a8b9e",
+    "unifiedTierId": "ut-977-003",
+    "programId": 977,
+    "status": "ACTIVE",
+    "parentId": null,
+    "version": 1,
+    "basicDetails": {
+      "name": "Gold",
+      "description": "Premium tier with exclusive benefits",
+      "color": "#FFD700",
+      "serialNumber": 3,
+      "startDate": "2025-01-01T00:00:00Z",
+      "endDate": "2025-12-31T23:59:59Z"
+    },
+    "eligibilityCriteria": {
+      "criteriaType": "ACTIVITY_BASED",
+      "activities": [
+        {
+          "type": "Spending",
+          "operator": "GTE",
+          "value": 900,
+          "unit": "RM"
+        },
+        {
+          "type": "Transactions",
+          "operator": "GTE",
+          "value": 2,
+          "unit": "transactions within a year"
+        }
+      ],
+      "activityRelation": "AND",
+      "membershipDuration": "12 months",
+      "upgradeSchedule": "Immediately when eligibility is met",
+      "nudges": "VIP welcome package notification",
+      "secondaryCriteriaEnabled": false
+    },
+    "renewalConfig": {
+      "renewalCriteriaType": "Same as eligibility criteria",
+      "renewalCondition": {
+        "activities": [
+          {
+            "type": "Spending",
+            "operator": "GTE",
+            "value": 900,
+            "unit": "RM"
+          },
+          {
+            "type": "Transactions",
+            "operator": "GTE",
+            "value": 2,
+            "unit": "transactions within a year"
+          }
+        ],
+        "activityRelation": "AND"
+      },
+      "renewalSchedule": "End of month when duration ends",
+      "nudges": "VIP renewal reminder with exclusive preview"
+    },
+    "downgradeConfig": {
+      "downgradeTo": {
+        "tierName": "Silver",
+        "type": "SINGLE"
+      },
+      "downgradeSchedule": "DAILY",
+      "expiryReminders": "Premium retention offer 90 days before expiry",
+      "shouldDowngrade": true
+    },
+    "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
+    "memberStats": {
+      "memberCount": 234,
+      "lastRefreshed": "2026-04-11T12:00:00Z"
+    },
+    "engineConfig": {
+      "retainPoints": true,
+      "isDowngradeOnReturnEnabled": false,
+      "isDowngradeOnPartnerProgramExpiryEnabled": false,
+      "isAdvanceSetting": true,
+      "addDefaultCommunication": false,
+      "periodConfig": {
+        "type": "SLAB_UPGRADE",
+        "value": 12,
+        "unit": "NUM_MONTHS",
+        "startDate": null,
+        "computationWindowStartValue": null,
+        "computationWindowEndValue": null,
+        "minimumDuration": 0
+      },
+      "expressionRelation": null,
+      "customExpression": null,
+      "isFixedTypeWithoutYear": false,
+      "renewalWindowType": "FIXED_DATE_BASED",
+      "notificationConfig": {
+        "sms": null,
+        "email": {
+          "subject": "Your Gold Tier Status",
+          "body": "...",
+          "templateId": 12345,
+          "senderId": "loyalty"
+        },
+        "weChat": null,
+        "mobilePush": null
+      }
+    },
+    "metadata": {
+      "createdBy": "user-admin-01",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedBy": "user-admin-02",
+      "updatedAt": "2025-09-20T14:45:00Z",
+      "updatedViaNewUI": true,
+      "sqlSlabId": 3850
+    }
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Key difference from listing:** This endpoint includes the `engineConfig` section -- hidden engine configurations preserved for round-trip fidelity. Do NOT display `engineConfig` in the UI. Preserve it on edit (send it back unchanged in the PUT body).
+
+**Error Responses:**
+
+```
+GET /v3/tiers/nonexistent-id
+→ 404 Not Found
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 404, "message": "Tier not found" }],
+  "warnings": null
+}
+```
+
+**When to use:**
+- **Edit form pre-fill**: Fetch full document before showing the edit screen. The listing endpoint strips `engineConfig`.
+- **Version comparison**: When a DRAFT has a `parentId`, fetch both the DRAFT and the ACTIVE (parentId) to compute a diff client-side.
+- **Admin detail view**: Show full configuration including engine settings.
+
+---
+
+## 3. Create Tier
 
 ### `POST /v3/tiers`
 
 Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, saves as ACTIVE and syncs to SQL immediately.
+
+**Headers:**
+
+| Header | Required | Description | Example |
+|--------|----------|-------------|---------|
+| Authorization | YES | Bearer token | `Bearer eyJhbGciOiJSUzI1NiJ9...` |
+| Idempotency-Key | Recommended | Prevents duplicate tier creation on retry. Same key within 24 hours returns the original response. | `idem-tier-create-abc123` |
 
 **Request Body:**
 
@@ -550,7 +715,7 @@ POST /v3/tiers (validation error)
 
 ---
 
-## 3. Update Tier
+## 4. Update Tier
 
 ### `PUT /v3/tiers/{tierId}`
 
@@ -655,11 +820,18 @@ PUT /v3/tiers/661a... (STOPPED tier)
 
 ---
 
-## 4. Delete Tier (Soft-Delete)
+## 5. Delete Tier
 
 ### `DELETE /v3/tiers/{tierId}`
 
-Soft-deletes a tier (sets status to STOPPED). If MC enabled, creates a PendingChange.
+Soft-deletes a tier. Behavior depends on the tier's **current status** and the **MC toggle**:
+
+| Current Status | MC Enabled | MC Disabled |
+|----------------|-----------|-------------|
+| **DRAFT** | Immediate removal (no MC gate -- tier was never live) | Immediate removal |
+| **ACTIVE** | Creates PendingChange. Tier stays ACTIVE until approved. | Immediate STOPPED + SQL sync. |
+| **PENDING_APPROVAL** | Not allowed (reject the pending change first) | Not allowed |
+| **STOPPED / SNAPSHOT** | Not allowed (terminal states) | Not allowed |
 
 **Example Request:**
 ```
@@ -720,7 +892,7 @@ DELETE /v3/tiers/661a... (base tier, serialNumber=1, members=1245)
 
 ---
 
-## 5. Submit for Approval
+## 6. Submit for Approval
 
 ### `POST /v3/maker-checker/submit`
 
@@ -769,7 +941,7 @@ Submits a DRAFT tier (or other entity) for maker-checker approval.
 
 ---
 
-## 6. Approve Change
+## 7. Approve Change
 
 ### `POST /v3/maker-checker/{changeId}/approve`
 
@@ -823,7 +995,7 @@ Approves a pending change. Triggers TierChangeApplier to sync MongoDB to SQL via
 
 ---
 
-## 7. Reject Change
+## 8. Reject Change
 
 ### `POST /v3/maker-checker/{changeId}/reject`
 
@@ -871,7 +1043,7 @@ Rejects a pending change. Comment is required.
 
 ---
 
-## 8. List Pending Changes
+## 9. List Pending Changes
 
 ### `GET /v3/maker-checker/pending`
 
@@ -924,7 +1096,156 @@ GET /v3/maker-checker/pending?entityType=TIER&programId=977
 
 ---
 
-## 9. Complete Flow Example: Create + Submit + Approve
+## 10. Get Change Detail
+
+### `GET /v3/maker-checker/{changeId}`
+
+Returns the full pending change document including the embedded payload snapshot. The approver uses this to review what was changed before approving or rejecting.
+
+**Path Parameter:** `changeId` = the PendingChange `objectId`
+
+**Example Request:**
+```
+GET /v3/maker-checker/661e9d5c2f6a7b8c9d0e1f2a
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (200 OK -- CREATE change):**
+```json
+{
+  "data": {
+    "objectId": "661e9d5c2f6a7b8c9d0e1f2a",
+    "orgId": 100458,
+    "programId": 977,
+    "entityType": "TIER",
+    "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
+    "changeType": "CREATE",
+    "status": "PENDING",
+    "payload": {
+      "objectId": "661b5a1f9c2d3e4f5a6b7c8d",
+      "unifiedTierId": "ut-977-004",
+      "programId": 977,
+      "status": "PENDING_APPROVAL",
+      "parentId": null,
+      "version": 1,
+      "basicDetails": {
+        "name": "Platinum",
+        "description": "Elite tier for top customers",
+        "color": "#E5E4E2",
+        "serialNumber": 4,
+        "startDate": "2026-01-01T00:00:00Z",
+        "endDate": "2026-12-31T23:59:59Z"
+      },
+      "eligibilityCriteria": {
+        "criteriaType": "ACTIVITY_BASED",
+        "activities": [
+          { "type": "Spending", "operator": "GTE", "value": 2000, "unit": "RM" }
+        ],
+        "activityRelation": "AND",
+        "membershipDuration": "12 months",
+        "upgradeSchedule": "Immediately when eligibility is met",
+        "nudges": "Platinum welcome call from relationship manager",
+        "secondaryCriteriaEnabled": false
+      },
+      "renewalConfig": { "..." : "full config" },
+      "downgradeConfig": { "..." : "full config" },
+      "benefitIds": [],
+      "engineConfig": { "..." : "full engine config for round-trip" },
+      "metadata": {
+        "createdBy": "user-admin-02",
+        "createdAt": "2026-04-11T10:00:00Z",
+        "updatedBy": "user-admin-02",
+        "updatedAt": "2026-04-11T10:00:00Z",
+        "updatedViaNewUI": true,
+        "sqlSlabId": null
+      }
+    },
+    "requestedBy": "user-admin-02",
+    "requestedAt": "2026-04-11T11:00:00Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "comment": null
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**For UPDATE changes:** The `payload` contains the full NEW state of the tier. To show a diff, also fetch the current ACTIVE version via `GET /v3/tiers/{payload.parentId}` and compare client-side.
+
+**For DELETE changes:** The `payload` contains the tier that will be stopped. The `changeType` is `"DELETE"`.
+
+**Error Responses:**
+
+```
+GET /v3/maker-checker/nonexistent-id
+→ 404 Not Found
+```
+```json
+{
+  "data": null,
+  "errors": [{ "code": 404, "message": "Pending change not found" }],
+  "warnings": null
+}
+```
+
+---
+
+## 11. Maker-Checker Toggle Status
+
+### `GET /v3/maker-checker/config`
+
+Returns whether maker-checker is enabled for a given program and entity type. Call this on page load to determine the save/submit flow in the UI.
+
+**Query Parameters:**
+
+| Param | Type | Required | Example |
+|-------|------|----------|---------|
+| programId | int | YES | `977` |
+| entityType | string | YES | `TIER` |
+
+**Example Request:**
+```
+GET /v3/maker-checker/config?programId=977&entityType=TIER
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (200 OK -- MC enabled):**
+```json
+{
+  "data": {
+    "programId": 977,
+    "entityType": "TIER",
+    "makerCheckerEnabled": true
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Example Response (200 OK -- MC disabled):**
+```json
+{
+  "data": {
+    "programId": 977,
+    "entityType": "TIER",
+    "makerCheckerEnabled": false
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**UI behavior based on response:**
+
+| `makerCheckerEnabled` | Create Flow | Edit Flow | Delete Flow |
+|-----------------------|------------|-----------|-------------|
+| `true` | Saves as DRAFT. Show "Submit for Approval" button. | Creates versioned DRAFT. Show "Submit for Approval". | Creates PendingChange. Approver must confirm. |
+| `false` | Saves as ACTIVE immediately. Syncs to SQL. No approval step. | Applies edit immediately. Syncs to SQL. | Sets STOPPED immediately. No approval step. |
+
+---
+
+## 12. Complete Flow Example: Create + Submit + Approve
 
 ### Step 1: Create Platinum tier (MC enabled -- becomes DRAFT)
 ```
@@ -957,7 +1278,7 @@ GET /v3/tiers?programId=977
 
 ---
 
-## 10. Complete Flow Example: Edit ACTIVE Tier (Versioned)
+## 13. Complete Flow Example: Edit ACTIVE Tier (Versioned)
 
 ### Step 1: Edit Gold tier (ACTIVE, objectId: "661a...9e")
 ```
@@ -981,7 +1302,32 @@ Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
 
 ---
 
-## 11. Field Reference
+## 14. Complete Flow Example: Delete (Draft vs Active)
+
+### Deleting a DRAFT tier (immediate -- no MC gate)
+```
+DELETE /v3/tiers/661b5a1f9c2d3e4f5a6b7c8d
+→ 204 No Content
+```
+The DRAFT document is removed from MongoDB. No PendingChange is created because the tier was never live.
+
+### Deleting an ACTIVE tier (MC enabled -- requires approval)
+```
+DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
+→ 200 OK, PendingChange with changeType: "DELETE"
+```
+A PendingChange is created. The tier stays ACTIVE until the approver approves the stop.
+
+### Deleting an ACTIVE tier (MC disabled -- immediate)
+```
+DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
+→ 204 No Content
+```
+Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
+
+---
+
+## 15. Field Reference
 
 ### Activity Operators
 | Operator | Meaning | Example |
@@ -997,7 +1343,6 @@ Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
 | `DRAFT` | Grey | Edit, Submit, Delete |
 | `PENDING_APPROVAL` | Amber | View (approver can Approve/Reject) |
 | `ACTIVE` | Green | Edit (creates new version), Stop |
-| `PAUSED` | Blue | Resume, Stop |
 | `STOPPED` | Red | View only |
 | `SNAPSHOT` | Dark grey | View only (archived version) |
 
@@ -1009,7 +1354,7 @@ Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
 
 ---
 
-## 12. Important Notes for UI Team
+## 16. Important Notes for UI Team
 
 1. **`serialNumber` is auto-assigned and immutable.** Never send it in create/update. It determines tier ordering.
 2. **`unifiedTierId` persists across versions.** When an ACTIVE tier is edited, the new DRAFT has the same `unifiedTierId` but a different `objectId`. Use `unifiedTierId` to track a tier's identity across versions.
@@ -1019,3 +1364,20 @@ Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
 6. **`engineConfig` is NOT returned in the listing response.** It is hidden engine config for round-trip fidelity. Only visible in the full tier detail endpoint (if needed later).
 7. **All dates are ISO-8601 UTC.** Convert to user's timezone for display.
 8. **The `benefitIds` array contains benefit ObjectIds.** Fetch benefit details via a separate `GET /v3/benefits/{benefitId}` endpoint (out of scope for this pipeline).
+9. **Call `GET /v3/maker-checker/config` on page load** to determine whether to show MC flow (Submit for Approval) or direct-save flow.
+10. **For version comparison (edit review):** Fetch DRAFT via `GET /v3/tiers/{draftId}` and ACTIVE via `GET /v3/tiers/{draft.parentId}`. Compute diff client-side.
+11. **Deleting a DRAFT does NOT require MC approval.** It is removed immediately since it was never live.
+
+---
+
+## 17. Not In Scope (This Release)
+
+These features are **not available** in the current API. Do not build UI for them.
+
+| Feature | Reason | Future |
+|---------|--------|--------|
+| **Tier Reorder** | `serialNumber` is immutable and auto-assigned. Tiers cannot be reordered or inserted between existing tiers. | No current plan. |
+| **Tier Settings** (program-level) | The "Tier Settings" button in the UI prototype maps to program-level slab settings (upgrade mode, point category, etc.). API not designed yet. | Will be designed in a future pipeline run. |
+| **Version History / Diff** | SNAPSHOT documents are preserved in MongoDB when a version is replaced. A dedicated history endpoint is not built yet. | Architecture supports it. Planned for Change Log (E1-US5). |
+| **Bulk Operations** | No batch create/update/delete. One tier at a time. | No current plan. |
+| **Real-time Member Counts** | `memberStats.memberCount` is cached (refreshed every ~10 minutes via cron). No live query or manual refresh endpoint. | Cron-based. No on-demand refresh API. |

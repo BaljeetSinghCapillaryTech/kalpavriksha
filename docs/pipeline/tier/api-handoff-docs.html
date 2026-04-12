@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiers CRUD -- API Reference for Garuda UI Team</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1e2a45;
+    --bg-sidebar: #0f1629;
+    --bg-code: #0d1117;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --text-muted: #6b7280;
+    --accent: #00d4ff;
+    --accent-dim: rgba(0, 212, 255, 0.15);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #6366f1;
+    --border: #2a3a5c;
+    --get: #10b981;
+    --post: #6366f1;
+    --put: #f59e0b;
+    --delete: #ef4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    width: 280px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .sidebar-logo .icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), #6366f1);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .sidebar-logo h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .sidebar-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    padding-left: 46px;
+  }
+
+  .sidebar-section {
+    margin-bottom: 20px;
+  }
+
+  .sidebar-section h3 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding-left: 10px;
+  }
+
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    margin: 1px 0;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .sidebar-link:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+  }
+
+  .sidebar-link.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .method-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .method-dot.get { background: var(--get); }
+  .method-dot.post { background: var(--post); }
+  .method-dot.put { background: var(--put); }
+  .method-dot.delete { background: var(--delete); }
+
+  /* ─── Main Content ─── */
+  .main {
+    margin-left: 280px;
+    flex: 1;
+    padding: 40px 60px;
+    max-width: 960px;
+  }
+
+  .hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    max-width: 600px;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .hero-meta-item strong {
+    color: var(--text-secondary);
+  }
+
+  /* ─── Endpoint Cards ─── */
+  .endpoint-section {
+    margin-bottom: 48px;
+    scroll-margin-top: 24px;
+  }
+
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .method-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    letter-spacing: 0.5px;
+    min-width: 64px;
+  }
+
+  .method-badge.get { background: rgba(16, 185, 129, 0.15); color: var(--get); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .method-badge.post { background: rgba(99, 102, 241, 0.15); color: var(--post); border: 1px solid rgba(99, 102, 241, 0.3); }
+  .method-badge.put { background: rgba(245, 158, 11, 0.15); color: var(--put); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .method-badge.delete { background: rgba(239, 68, 68, 0.15); color: var(--delete); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  .endpoint-path {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 15px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .endpoint-desc {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 20px;
+    max-width: 680px;
+  }
+
+  /* ─── Cards ─── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* ─── Tables ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(42, 58, 92, 0.5);
+    color: var(--text-secondary);
+  }
+
+  tr:hover td {
+    background: rgba(255,255,255,0.02);
+  }
+
+  td code {
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* ─── Code Blocks ─── */
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  pre .label {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.05);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .json-key { color: #79c0ff; }
+  .json-str { color: #a5d6ff; }
+  .json-num { color: #d2a8ff; }
+  .json-bool { color: #ff7b72; }
+  .json-null { color: #8b949e; }
+  .comment { color: #8b949e; font-style: italic; }
+
+  /* ─── Status Badges ─── */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .status-badge.draft { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+  .status-badge.pending { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+  .status-badge.active { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+  .status-badge.stopped { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .status-badge.snapshot { background: rgba(75, 85, 99, 0.2); color: #6b7280; border: 1px solid rgba(75, 85, 99, 0.3); }
+
+  /* ─── Info/Warning Boxes ─── */
+  .callout {
+    padding: 14px 18px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .callout-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+    margin-top: 1px;
+  }
+
+  .callout.info {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+  }
+
+  .callout.warning {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+  }
+
+  .callout.success {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+  }
+
+  .callout.danger {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+  }
+
+  /* ─── Diagrams ─── */
+  .diagram-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+
+  .diagram-container h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* ─── Dividers ─── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  /* ─── Endpoint Summary Grid ─── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: border-color 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .summary-card:hover {
+    border-color: var(--accent);
+  }
+
+  .summary-card .method-path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .summary-card .desc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ─── Flow Steps ─── */
+  .flow-steps {
+    counter-reset: step;
+  }
+
+  .flow-step {
+    position: relative;
+    padding-left: 48px;
+    padding-bottom: 24px;
+    border-left: 2px solid var(--border);
+    margin-left: 16px;
+  }
+
+  .flow-step:last-child {
+    border-left-color: transparent;
+  }
+
+  .flow-step::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: -13px;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .flow-step h5 {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .flow-step p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .flow-step code {
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a4a6c; }
+
+  /* ─── Section Headers ─── */
+  .section-header {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    scroll-margin-top: 24px;
+  }
+
+  .section-subheader {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  /* ─── Out of scope ─── */
+  .oos-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .oos-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    border-left: 3px solid var(--danger);
+  }
+
+  .oos-item h5 {
+    color: var(--text-primary);
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .oos-item p {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── SIDEBAR ─── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon">&#9854;</div>
+    <h1>Tiers API</h1>
+  </div>
+  <div class="sidebar-meta">v1.1 &middot; 11 endpoints &middot; 2026-04-12</div>
+
+  <div class="sidebar-section">
+    <h3>Overview</h3>
+    <a href="#overview" class="sidebar-link active">
+      <span class="method-dot" style="background: var(--accent)"></span> Getting Started
+    </a>
+    <a href="#auth" class="sidebar-link">
+      <span class="method-dot" style="background: var(--text-muted)"></span> Authentication
+    </a>
+    <a href="#statuses" class="sidebar-link">
+      <span class="method-dot" style="background: var(--text-muted)"></span> Status Lifecycle
+    </a>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Tier CRUD</h3>
+    <a href="#list-tiers" class="sidebar-link"><span class="method-dot get"></span> List Tiers</a>
+    <a href="#get-tier" class="sidebar-link"><span class="method-dot get"></span> Get Tier Detail</a>
+    <a href="#create-tier" class="sidebar-link"><span class="method-dot post"></span> Create Tier</a>
+    <a href="#update-tier" class="sidebar-link"><span class="method-dot put"></span> Update Tier</a>
+    <a href="#delete-tier" class="sidebar-link"><span class="method-dot delete"></span> Delete Tier</a>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Maker-Checker</h3>
+    <a href="#mc-config" class="sidebar-link"><span class="method-dot get"></span> MC Config</a>
+    <a href="#submit" class="sidebar-link"><span class="method-dot post"></span> Submit</a>
+    <a href="#approve" class="sidebar-link"><span class="method-dot post"></span> Approve</a>
+    <a href="#reject" class="sidebar-link"><span class="method-dot post"></span> Reject</a>
+    <a href="#list-pending" class="sidebar-link"><span class="method-dot get"></span> List Pending</a>
+    <a href="#get-change" class="sidebar-link"><span class="method-dot get"></span> Change Detail</a>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Guides</h3>
+    <a href="#flow-create" class="sidebar-link"><span class="method-dot" style="background: var(--success)"></span> Create Flow</a>
+    <a href="#flow-edit" class="sidebar-link"><span class="method-dot" style="background: var(--warning)"></span> Edit Flow</a>
+    <a href="#flow-delete" class="sidebar-link"><span class="method-dot" style="background: var(--danger)"></span> Delete Flow</a>
+    <a href="#not-in-scope" class="sidebar-link"><span class="method-dot" style="background: var(--text-muted)"></span> Not In Scope</a>
+  </div>
+</nav>
+
+<!-- ─── MAIN ─── -->
+<main class="main">
+
+  <!-- ─── HERO ─── -->
+  <section class="hero" id="overview">
+    <h1>Tiers CRUD &mdash; API Reference</h1>
+    <p>Complete API contract for the Garuda UI team. Covers tier CRUD, generic maker-checker approval workflows, and all supporting endpoints.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item"><strong>Base URL</strong> https://{host}/v3</div>
+      <div class="hero-meta-item"><strong>Auth</strong> Bearer token</div>
+      <div class="hero-meta-item"><strong>Format</strong> JSON</div>
+      <div class="hero-meta-item"><strong>Endpoints</strong> 11</div>
+    </div>
+  </section>
+
+  <!-- ─── ENDPOINT SUMMARY ─── -->
+  <div class="summary-grid">
+    <a href="#list-tiers" class="summary-card">
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/tiers</code></div>
+      <div class="desc">List tiers with KPI summary</div>
+    </a>
+    <a href="#get-tier" class="summary-card">
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/tiers/{id}</code></div>
+      <div class="desc">Single tier detail + engineConfig</div>
+    </a>
+    <a href="#create-tier" class="summary-card">
+      <div class="method-path"><span class="method-badge post">POST</span> <code>/v3/tiers</code></div>
+      <div class="desc">Create a new tier</div>
+    </a>
+    <a href="#update-tier" class="summary-card">
+      <div class="method-path"><span class="method-badge put">PUT</span> <code>/v3/tiers/{id}</code></div>
+      <div class="desc">Edit tier (versioned if ACTIVE)</div>
+    </a>
+    <a href="#delete-tier" class="summary-card">
+      <div class="method-path"><span class="method-badge delete">DEL</span> <code>/v3/tiers/{id}</code></div>
+      <div class="desc">Soft-delete (per-status behavior)</div>
+    </a>
+    <a href="#mc-config" class="summary-card">
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/config</code></div>
+      <div class="desc">MC toggle status</div>
+    </a>
+    <a href="#submit" class="summary-card">
+      <div class="method-path"><span class="method-badge post">POST</span> <code>/v3/maker-checker/submit</code></div>
+      <div class="desc">Submit for approval</div>
+    </a>
+    <a href="#approve" class="summary-card">
+      <div class="method-path"><span class="method-badge post">POST</span> <code>.../approve</code></div>
+      <div class="desc">Approve change</div>
+    </a>
+    <a href="#reject" class="summary-card">
+      <div class="method-path"><span class="method-badge post">POST</span> <code>.../reject</code></div>
+      <div class="desc">Reject change</div>
+    </a>
+    <a href="#list-pending" class="summary-card">
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/pending</code></div>
+      <div class="desc">List pending changes</div>
+    </a>
+    <a href="#get-change" class="summary-card">
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/{id}</code></div>
+      <div class="desc">Change detail + payload</div>
+    </a>
+    <a href="#not-in-scope" class="summary-card" style="border-left: 3px solid var(--danger)">
+      <div class="method-path" style="color: var(--text-muted)">Not In Scope</div>
+      <div class="desc">Reorder, settings, history, bulk ops</div>
+    </a>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ─── AUTHENTICATION ─── -->
+  <section id="auth" class="endpoint-section">
+    <h2 class="section-header">Authentication</h2>
+    <p class="section-subheader">All endpoints require a valid Bearer token in the Authorization header.</p>
+    <pre><span class="json-key">Authorization</span>: Bearer &lt;access_token&gt;</pre>
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div>The token carries <code>orgId</code>, <code>entityId</code> (user ID), and <code>tillName</code>. The <code>orgId</code> is extracted server-side &mdash; you never pass it explicitly.</div>
+    </div>
+  </section>
+
+  <!-- ─── RESPONSE ENVELOPE ─── -->
+  <section class="endpoint-section">
+    <h2 class="section-header">Response Envelope</h2>
+    <p class="section-subheader">Every response wraps data in <code>ResponseWrapper&lt;T&gt;</code>.</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div>
+        <pre><span class="label">SUCCESS</span>
+{
+  <span class="json-key">"data"</span>: { ... },
+  <span class="json-key">"errors"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"warnings"</span>: <span class="json-null">null</span>
+}</pre>
+      </div>
+      <div>
+        <pre><span class="label">ERROR</span>
+{
+  <span class="json-key">"data"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"errors"</span>: [
+    { <span class="json-key">"code"</span>: <span class="json-num">400</span>,
+      <span class="json-key">"message"</span>: <span class="json-str">"Name is required"</span> }
+  ],
+  <span class="json-key">"warnings"</span>: <span class="json-null">null</span>
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── STATUS LIFECYCLE ─── -->
+  <section id="statuses" class="endpoint-section">
+    <h2 class="section-header">Status Lifecycle</h2>
+    <p class="section-subheader">Tier statuses and allowed transitions. Use for badge rendering and button visibility.</p>
+
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;">
+      <span class="status-badge draft">DRAFT</span>
+      <span class="status-badge pending">PENDING_APPROVAL</span>
+      <span class="status-badge active">ACTIVE</span>
+      <span class="status-badge stopped">STOPPED</span>
+      <span class="status-badge snapshot">SNAPSHOT</span>
+    </div>
+
+    <div class="diagram-container">
+      <h4>State Machine</h4>
+      <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT : Create (MC on)
+    [*] --> ACTIVE : Create (MC off)
+    DRAFT --> PENDING_APPROVAL : Submit
+    DRAFT --> [*] : Delete (immediate)
+    PENDING_APPROVAL --> ACTIVE : Approve
+    PENDING_APPROVAL --> DRAFT : Reject
+    ACTIVE --> STOPPED : Stop (MC off)
+    ACTIVE --> DRAFT : Edit (new version)
+    ACTIVE --> SNAPSHOT : Version replaced
+    STOPPED --> [*] : Terminal
+    SNAPSHOT --> [*] : Terminal
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Status Reference</h4>
+      <table>
+        <tr><th>Status</th><th>Badge</th><th>User Can...</th></tr>
+        <tr><td><code>DRAFT</code></td><td><span class="status-badge draft">DRAFT</span></td><td>Edit, Submit for Approval, Delete</td></tr>
+        <tr><td><code>PENDING_APPROVAL</code></td><td><span class="status-badge pending">PENDING</span></td><td>View only (approver: Approve / Reject)</td></tr>
+        <tr><td><code>ACTIVE</code></td><td><span class="status-badge active">ACTIVE</span></td><td>Edit (creates new version), Stop</td></tr>
+        <tr><td><code>STOPPED</code></td><td><span class="status-badge stopped">STOPPED</span></td><td>View only (terminal)</td></tr>
+        <tr><td><code>SNAPSHOT</code></td><td><span class="status-badge snapshot">SNAPSHOT</span></td><td>View only (archived version)</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── 1. LIST TIERS ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="list-tiers" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/v3/tiers</span>
+    </div>
+    <p class="endpoint-desc">Returns all tiers for a program with full configuration, KPI summary, and cached member counts. This is the primary endpoint for the tier listing/comparison page.</p>
+
+    <div class="card">
+      <h4>Query Parameters</h4>
+      <table>
+        <tr><th>Param</th><th>Type</th><th>Required</th><th>Default</th><th>Example</th></tr>
+        <tr><td><code>programId</code></td><td>int</td><td>YES</td><td>&mdash;</td><td><code>977</code></td></tr>
+        <tr><td><code>status</code></td><td>string (comma-sep)</td><td>NO</td><td>all</td><td><code>ACTIVE,DRAFT</code></td></tr>
+        <tr><td><code>includeInactive</code></td><td>boolean</td><td>NO</td><td>false</td><td><code>true</code></td></tr>
+      </table>
+    </div>
+
+    <pre><span class="label">REQUEST</span>
+GET /v3/tiers?programId=977&amp;status=ACTIVE,DRAFT
+Authorization: Bearer eyJhbGci...</pre>
+
+    <pre><span class="label">RESPONSE 200</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"summary"</span>: {
+      <span class="json-key">"totalTiers"</span>: <span class="json-num">4</span>,
+      <span class="json-key">"activeTiers"</span>: <span class="json-num">3</span>,
+      <span class="json-key">"pendingApprovalTiers"</span>: <span class="json-num">1</span>,
+      <span class="json-key">"totalMembers"</span>: <span class="json-num">2135</span>,
+      <span class="json-key">"lastMemberCountRefresh"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+    },
+    <span class="json-key">"tiers"</span>: [
+      {
+        <span class="json-key">"objectId"</span>: <span class="json-str">"661a3f2e8b1c4d5e6f7a8b9c"</span>,
+        <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-001"</span>,
+        <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+        <span class="json-key">"status"</span>: <span class="json-str">"ACTIVE"</span>,
+        <span class="json-key">"basicDetails"</span>: {
+          <span class="json-key">"name"</span>: <span class="json-str">"Bronze"</span>,
+          <span class="json-key">"color"</span>: <span class="json-str">"#CD7F32"</span>,
+          <span class="json-key">"serialNumber"</span>: <span class="json-num">1</span>,
+          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"endDate"</span>: <span class="json-null">null</span>
+        },
+        <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">1245</span> },
+        <span class="comment">// ... eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds</span>
+      },
+      <span class="comment">// ... more tiers ordered by serialNumber</span>
+    ]
+  }
+}</pre>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div><strong>engineConfig is NOT included</strong> in listing responses. Use <code>GET /v3/tiers/{tierId}</code> for the full document including engine config.</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── 2. GET TIER DETAIL ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="get-tier" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/v3/tiers/{tierId}</span>
+    </div>
+    <p class="endpoint-desc">Returns the full tier document including <code>engineConfig</code> (hidden engine settings not in the listing). Use this for edit form pre-fill and version comparison.</p>
+
+    <div class="card">
+      <h4>Path Parameter</h4>
+      <table>
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>tierId</code></td><td>string</td><td>The <code>objectId</code> or <code>unifiedTierId</code></td></tr>
+      </table>
+    </div>
+
+    <pre><span class="label">RESPONSE 200</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661a3f2e8b1c4d5e6f7a8b9e"</span>,
+    <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-003"</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"ACTIVE"</span>,
+    <span class="json-key">"basicDetails"</span>: { <span class="comment">/* same as listing */</span> },
+    <span class="json-key">"eligibilityCriteria"</span>: { <span class="comment">/* same as listing */</span> },
+    <span class="json-key">"renewalConfig"</span>: { <span class="comment">/* same as listing */</span> },
+    <span class="json-key">"downgradeConfig"</span>: { <span class="comment">/* same as listing */</span> },
+    <span class="json-key">"engineConfig"</span>: {
+      <span class="json-key">"retainPoints"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"isDowngradeOnReturnEnabled"</span>: <span class="json-bool">false</span>,
+      <span class="json-key">"isAdvanceSetting"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"periodConfig"</span>: {
+        <span class="json-key">"type"</span>: <span class="json-str">"SLAB_UPGRADE"</span>,
+        <span class="json-key">"value"</span>: <span class="json-num">12</span>,
+        <span class="json-key">"unit"</span>: <span class="json-str">"NUM_MONTHS"</span>
+      },
+      <span class="json-key">"notificationConfig"</span>: { <span class="comment">/* per-channel: sms, email, weChat, mobilePush */</span> }
+    },
+    <span class="json-key">"metadata"</span>: {
+      <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3850</span>,
+      <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>
+    }
+  }
+}</pre>
+
+    <div class="callout warning">
+      <span class="callout-icon">&#9888;</span>
+      <div><strong>Do NOT display engineConfig in the UI.</strong> It contains hidden engine settings for round-trip fidelity. When editing, send it back unchanged in the PUT request body.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div><strong>Version comparison:</strong> When a DRAFT has a <code>parentId</code>, fetch both <code>GET /v3/tiers/{draftId}</code> and <code>GET /v3/tiers/{draft.parentId}</code> to compute a diff client-side.</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── 3. CREATE TIER ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="create-tier" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/v3/tiers</span>
+    </div>
+    <p class="endpoint-desc">Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, saves as ACTIVE and syncs to SQL immediately.</p>
+
+    <div class="card">
+      <h4>Headers</h4>
+      <table>
+        <tr><th>Header</th><th>Required</th><th>Description</th></tr>
+        <tr><td><code>Authorization</code></td><td>YES</td><td>Bearer token</td></tr>
+        <tr><td><code>Idempotency-Key</code></td><td>Recommended</td><td>Prevents duplicate creation on retry. Same key within 24h returns original response.</td></tr>
+      </table>
+    </div>
+
+    <pre><span class="label">REQUEST BODY</span>
+{
+  <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+  <span class="json-key">"basicDetails"</span>: {
+    <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>,
+    <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
+    <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
+    <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
+    <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+  },
+  <span class="json-key">"eligibilityCriteria"</span>: {
+    <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+    <span class="json-key">"activities"</span>: [
+      { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2000</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+    ],
+    <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+    <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+    <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+  },
+  <span class="json-key">"renewalConfig"</span>: { <span class="comment">/* optional */</span> },
+  <span class="json-key">"downgradeConfig"</span>: { <span class="comment">/* optional */</span> }
+}</pre>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div><code>serialNumber</code> is auto-assigned (next in sequence). <code>status</code> is set by the server. <code>unifiedTierId</code> is generated. Do NOT send these fields.</div>
+    </div>
+
+    <pre><span class="label">RESPONSE 201 (MC enabled)</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661b5a1f..."</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"DRAFT"</span>,
+    <span class="json-key">"basicDetails"</span>: { <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>, <span class="comment">/* auto-assigned */</span> },
+    <span class="comment">// ... full tier document</span>
+  }
+}</pre>
+
+    <div class="card">
+      <h4>Error Responses</h4>
+      <table>
+        <tr><th>Status</th><th>Condition</th><th>Message</th></tr>
+        <tr><td><code>400</code></td><td>Missing required field</td><td><code>basicDetails.name is required</code></td></tr>
+        <tr><td><code>409</code></td><td>Duplicate name</td><td><code>A tier with name 'Gold' already exists in program 977</code></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── 4. UPDATE TIER ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="update-tier" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge put">PUT</span>
+      <span class="endpoint-path">/v3/tiers/{tierId}</span>
+    </div>
+    <p class="endpoint-desc">Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (the ACTIVE stays live until approved).</p>
+
+    <div class="card">
+      <h4>Behavior by Current Status</h4>
+      <table>
+        <tr><th>Current Status</th><th>What Happens</th><th>Returns</th></tr>
+        <tr><td><span class="status-badge draft">DRAFT</span></td><td>Updates in place (same objectId)</td><td>Updated DRAFT</td></tr>
+        <tr><td><span class="status-badge active">ACTIVE</span></td><td>Creates NEW DRAFT with <code>parentId</code> &rarr; ACTIVE</td><td>New DRAFT doc</td></tr>
+        <tr><td><span class="status-badge pending">PENDING</span></td><td>Updates in place</td><td>Updated PENDING doc</td></tr>
+        <tr><td><span class="status-badge stopped">STOPPED</span></td><td>Not allowed</td><td><code>400</code> error</td></tr>
+      </table>
+    </div>
+
+    <pre><span class="label">REQUEST BODY (partial update)</span>
+{
+  <span class="json-key">"basicDetails"</span>: {
+    <span class="json-key">"name"</span>: <span class="json-str">"Gold Plus"</span>,
+    <span class="json-key">"color"</span>: <span class="json-str">"#DAA520"</span>
+  },
+  <span class="json-key">"eligibilityCriteria"</span>: {
+    <span class="json-key">"activities"</span>: [
+      { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">1200</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+    ]
+  }
+}</pre>
+
+    <div class="callout warning">
+      <span class="callout-icon">&#9888;</span>
+      <div><strong>serialNumber is immutable.</strong> It cannot be changed. Tiers cannot be reordered.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div>If a DRAFT already exists for this ACTIVE tier, the existing DRAFT is updated (one DRAFT per ACTIVE at a time).</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── 5. DELETE TIER ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="delete-tier" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge delete">DELETE</span>
+      <span class="endpoint-path">/v3/tiers/{tierId}</span>
+    </div>
+    <p class="endpoint-desc">Soft-deletes a tier. Behavior depends on the tier's current status and the MC toggle.</p>
+
+    <div class="card">
+      <h4>Behavior Matrix</h4>
+      <table>
+        <tr><th>Current Status</th><th>MC Enabled</th><th>MC Disabled</th></tr>
+        <tr><td><span class="status-badge draft">DRAFT</span></td><td>Immediate removal (no MC gate)</td><td>Immediate removal</td></tr>
+        <tr><td><span class="status-badge active">ACTIVE</span></td><td>Creates PendingChange; stays ACTIVE until approved</td><td>Immediate STOPPED + SQL sync</td></tr>
+        <tr><td><span class="status-badge pending">PENDING</span></td><td colspan="2">Not allowed (reject the pending change first)</td></tr>
+        <tr><td><span class="status-badge stopped">STOPPED</span></td><td colspan="2">Not allowed (terminal state)</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Error Responses</h4>
+      <table>
+        <tr><th>Status</th><th>Condition</th><th>Message</th></tr>
+        <tr><td><code>409</code></td><td>Has partner program refs</td><td><code>Cannot stop tier 'Gold' -- 2 active partner program slab mappings</code></td></tr>
+        <tr><td><code>409</code></td><td>Base tier with members</td><td><code>Cannot stop base tier 'Bronze' -- 1245 members assigned</code></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── MC CONFIG ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="mc-config" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/v3/maker-checker/config</span>
+    </div>
+    <p class="endpoint-desc">Returns whether maker-checker is enabled for a program + entity type. <strong>Call this on page load</strong> to determine the save/submit flow.</p>
+
+    <div class="card">
+      <h4>Query Parameters</h4>
+      <table>
+        <tr><th>Param</th><th>Type</th><th>Required</th><th>Example</th></tr>
+        <tr><td><code>programId</code></td><td>int</td><td>YES</td><td><code>977</code></td></tr>
+        <tr><td><code>entityType</code></td><td>string</td><td>YES</td><td><code>TIER</code></td></tr>
+      </table>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div>
+        <pre><span class="label">MC ENABLED</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+    <span class="json-key">"makerCheckerEnabled"</span>: <span class="json-bool">true</span>
+  }
+}</pre>
+      </div>
+      <div>
+        <pre><span class="label">MC DISABLED</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+    <span class="json-key">"makerCheckerEnabled"</span>: <span class="json-bool">false</span>
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>UI Behavior</h4>
+      <table>
+        <tr><th>MC State</th><th>Create</th><th>Edit</th><th>Delete</th></tr>
+        <tr><td><code>true</code></td><td>Save as DRAFT + "Submit for Approval"</td><td>Versioned DRAFT + "Submit"</td><td>PendingChange created</td></tr>
+        <tr><td><code>false</code></td><td>Save &amp; activate immediately</td><td>Applied immediately</td><td>STOPPED immediately</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── SUBMIT ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="submit" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/v3/maker-checker/submit</span>
+    </div>
+    <p class="endpoint-desc">Submits a DRAFT tier (or other entity) for maker-checker approval. Changes status to PENDING_APPROVAL.</p>
+
+    <pre><span class="label">REQUEST BODY</span>
+{
+  <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+  <span class="json-key">"entityId"</span>: <span class="json-str">"661b5a1f9c2d3e4f5a6b7c8d"</span>
+}</pre>
+
+    <pre><span class="label">RESPONSE 200</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661e9d5c..."</span>,
+    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+    <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+    <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+  }
+}</pre>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── APPROVE ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="approve" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/v3/maker-checker/{changeId}/approve</span>
+    </div>
+    <p class="endpoint-desc">Approves a pending change. Triggers TierChangeApplier to sync MongoDB to SQL via Thrift.</p>
+
+    <pre><span class="label">REQUEST BODY</span>
+{
+  <span class="json-key">"comment"</span>: <span class="json-str">"Approved. Platinum tier config looks good."</span>
+}</pre>
+
+    <div class="callout success">
+      <span class="callout-icon">&#10003;</span>
+      <div><strong>Side effects on approve:</strong><br>
+        &bull; Tier: PENDING_APPROVAL &rarr; ACTIVE<br>
+        &bull; SQL: ProgramSlab created + strategies updated<br>
+        &bull; <code>metadata.sqlSlabId</code> populated<br>
+        &bull; If versioned edit: old ACTIVE &rarr; SNAPSHOT
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── REJECT ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="reject" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/v3/maker-checker/{changeId}/reject</span>
+    </div>
+    <p class="endpoint-desc">Rejects a pending change. Comment is required. Tier reverts to DRAFT status.</p>
+
+    <pre><span class="label">REQUEST BODY</span>
+{
+  <span class="json-key">"comment"</span>: <span class="json-str">"Threshold too low -- 1200 RM overlaps with Silver. Increase to 1500+."</span>
+}</pre>
+
+    <div class="callout danger">
+      <span class="callout-icon">&#10007;</span>
+      <div><strong>Comment is required.</strong> The API returns <code>400</code> if comment is missing on reject.</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── LIST PENDING ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="list-pending" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/v3/maker-checker/pending</span>
+    </div>
+    <p class="endpoint-desc">Lists all pending changes awaiting approval. Filterable by entity type and program.</p>
+
+    <div class="card">
+      <h4>Query Parameters</h4>
+      <table>
+        <tr><th>Param</th><th>Type</th><th>Required</th><th>Example</th></tr>
+        <tr><td><code>entityType</code></td><td>string</td><td>NO</td><td><code>TIER</code></td></tr>
+        <tr><td><code>programId</code></td><td>int</td><td>NO</td><td><code>977</code></td></tr>
+      </table>
+    </div>
+
+    <pre><span class="label">RESPONSE 200</span>
+{
+  <span class="json-key">"data"</span>: [
+    {
+      <span class="json-key">"objectId"</span>: <span class="json-str">"661e9d5c..."</span>,
+      <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+      <span class="json-key">"entityId"</span>: <span class="json-str">"661b5a1f..."</span>,
+      <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
+      <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+      <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+    }
+  ]
+}</pre>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── GET CHANGE DETAIL ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="get-change" class="endpoint-section">
+    <div class="endpoint-header">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/v3/maker-checker/{changeId}</span>
+    </div>
+    <p class="endpoint-desc">Returns the full pending change document including the embedded payload snapshot. Approvers use this to review what changed before deciding.</p>
+
+    <pre><span class="label">RESPONSE 200</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661e9d5c..."</span>,
+    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
+    <span class="json-key">"entityId"</span>: <span class="json-str">"661b5a1f..."</span>,
+    <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+    <span class="json-key">"payload"</span>: {
+      <span class="comment">// Full tier document snapshot</span>
+      <span class="json-key">"basicDetails"</span>: { <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>, <span class="comment">/*...*/</span> },
+      <span class="json-key">"eligibilityCriteria"</span>: { <span class="comment">/*...*/</span> },
+      <span class="json-key">"engineConfig"</span>: { <span class="comment">/*...*/</span> }
+    },
+    <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+  }
+}</pre>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div><strong>For UPDATE changes:</strong> The <code>payload</code> is the full NEW state. Fetch the current ACTIVE version via <code>GET /v3/tiers/{payload.parentId}</code> to show a diff.</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── FLOW: CREATE ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="flow-create" class="endpoint-section">
+    <h2 class="section-header">Flow: Create + Submit + Approve</h2>
+    <p class="section-subheader">Complete lifecycle of creating a new tier with MC enabled.</p>
+
+    <div class="diagram-container">
+      <div class="mermaid">
+sequenceDiagram
+    participant UI as Garuda UI
+    participant API as /v3/tiers
+    participant MC as /v3/maker-checker
+    participant SQL as MySQL (via Thrift)
+
+    UI->>API: POST /v3/tiers {Platinum config}
+    API-->>UI: 201 {status: DRAFT, objectId: 661b...}
+    UI->>MC: POST /submit {entityType: TIER, entityId: 661b...}
+    MC-->>UI: 200 {changeId: 661e..., status: PENDING}
+    Note over UI: Tier status: PENDING_APPROVAL
+    UI->>MC: POST /661e.../approve {comment: "Looks good"}
+    MC->>SQL: Thrift sync (ProgramSlab + strategies)
+    MC-->>UI: 200 {status: APPROVED}
+    Note over UI: Tier status: ACTIVE, sqlSlabId set
+      </div>
+    </div>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <h5>Create Tier</h5>
+        <p><code>POST /v3/tiers</code> &rarr; returns DRAFT with <code>objectId</code></p>
+      </div>
+      <div class="flow-step">
+        <h5>Submit for Approval</h5>
+        <p><code>POST /v3/maker-checker/submit</code> &rarr; tier becomes PENDING_APPROVAL, returns <code>changeId</code></p>
+      </div>
+      <div class="flow-step">
+        <h5>Approve</h5>
+        <p><code>POST /v3/maker-checker/{changeId}/approve</code> &rarr; syncs to SQL, tier becomes ACTIVE</p>
+      </div>
+      <div class="flow-step">
+        <h5>Verify</h5>
+        <p><code>GET /v3/tiers?programId=977</code> &rarr; Platinum appears with <code>status: ACTIVE</code> and <code>sqlSlabId</code> set</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── FLOW: EDIT ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="flow-edit" class="endpoint-section">
+    <h2 class="section-header">Flow: Edit ACTIVE Tier (Versioned)</h2>
+    <p class="section-subheader">Editing an ACTIVE tier creates a new DRAFT. The ACTIVE version stays live until approved.</p>
+
+    <div class="diagram-container">
+      <div class="mermaid">
+sequenceDiagram
+    participant UI as Garuda UI
+    participant API as /v3/tiers
+
+    UI->>API: GET /v3/tiers/661a...9e (fetch for edit form)
+    API-->>UI: 200 {Gold, ACTIVE, engineConfig: {...}}
+    UI->>API: PUT /v3/tiers/661a...9e {name: "Gold Plus"}
+    API-->>UI: 200 {NEW objectId: 661c..., DRAFT, parentId: 661a...9e}
+    Note over UI: Gold (ACTIVE) + Gold Plus (DRAFT) both visible
+    Note over UI: Submit + Approve...
+    Note over UI: Gold Plus → ACTIVE, Gold → SNAPSHOT
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-icon">&#8505;</span>
+      <div><strong>Zero downtime.</strong> The ACTIVE version serves live traffic until the DRAFT is approved. On approval, the swap is atomic: new &rarr; ACTIVE, old &rarr; SNAPSHOT.</div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── FLOW: DELETE ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="flow-delete" class="endpoint-section">
+    <h2 class="section-header">Flow: Delete (Draft vs Active)</h2>
+    <p class="section-subheader">Delete behavior depends on the tier's current status.</p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div class="card">
+        <h4>Deleting a DRAFT</h4>
+        <pre>DELETE /v3/tiers/661b5a...
+<span class="comment">→ 204 No Content (immediate)</span></pre>
+        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">No MC gate. The tier was never live. Document removed from MongoDB.</p>
+      </div>
+      <div class="card">
+        <h4>Deleting an ACTIVE (MC on)</h4>
+        <pre>DELETE /v3/tiers/661a3f...
+<span class="comment">→ 200 OK (PendingChange created)</span></pre>
+        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">Tier stays ACTIVE until approver approves the stop. Then: STOPPED + SQL sync.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── FIELD REFERENCE ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section class="endpoint-section">
+    <h2 class="section-header">Field Reference</h2>
+
+    <div class="card">
+      <h4>Activity Operators</h4>
+      <table>
+        <tr><th>Operator</th><th>Meaning</th><th>Example</th></tr>
+        <tr><td><code>GTE</code></td><td>Greater than or equal</td><td>Spending &ge; 550 RM</td></tr>
+        <tr><td><code>LTE</code></td><td>Less than or equal</td><td>Transactions &le; 10</td></tr>
+        <tr><td><code>EQ</code></td><td>Equal to</td><td>Visits = 5</td></tr>
+        <tr><td><code>ANY</code></td><td>Any value (no threshold)</td><td>Any Purchase</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Downgrade Schedules</h4>
+      <table>
+        <tr><th>Value</th><th>Meaning</th><th>Badge</th></tr>
+        <tr><td><code>MONTH_END</code></td><td>Evaluated at end of month</td><td style="color: #fbbf24;">Yellow</td></tr>
+        <tr><td><code>DAILY</code></td><td>Evaluated daily</td><td style="color: #fcd34d;">Light yellow</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Key Identifiers</h4>
+      <table>
+        <tr><th>Field</th><th>Purpose</th><th>Notes</th></tr>
+        <tr><td><code>objectId</code></td><td>MongoDB document ID</td><td>Changes on versioned edit</td></tr>
+        <tr><td><code>unifiedTierId</code></td><td>Tier identity across versions</td><td>Persists forever. Use for tracking.</td></tr>
+        <tr><td><code>parentId</code></td><td>Points to ACTIVE when editing</td><td>Non-null = versioned edit</td></tr>
+        <tr><td><code>sqlSlabId</code></td><td>MySQL ProgramSlab.id</td><td>Null until first SQL sync (after approval)</td></tr>
+        <tr><td><code>serialNumber</code></td><td>Tier ordering</td><td>Immutable. Auto-assigned.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── NOT IN SCOPE ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="not-in-scope" class="endpoint-section">
+    <h2 class="section-header">Not In Scope (This Release)</h2>
+    <p class="section-subheader">These features are not available. Do not build UI for them.</p>
+
+    <div class="oos-grid">
+      <div class="oos-item">
+        <h5>Tier Reorder</h5>
+        <p><code>serialNumber</code> is immutable and auto-assigned. Tiers cannot be reordered or inserted between existing tiers. No current plan.</p>
+      </div>
+      <div class="oos-item">
+        <h5>Tier Settings (Program-Level)</h5>
+        <p>The "Tier Settings" button maps to program-level slab settings (upgrade mode, point category). API not designed yet. Future pipeline run.</p>
+      </div>
+      <div class="oos-item">
+        <h5>Version History / Diff</h5>
+        <p>SNAPSHOT documents are preserved in MongoDB. A dedicated history endpoint is not built. Planned for Change Log (E1-US5).</p>
+      </div>
+      <div class="oos-item">
+        <h5>Bulk Operations</h5>
+        <p>No batch create/update/delete. One tier at a time.</p>
+      </div>
+      <div class="oos-item">
+        <h5>Real-time Member Counts</h5>
+        <p><code>memberStats.memberCount</code> is cached (refreshed every ~10 min via cron). No live query or manual refresh endpoint.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <footer style="text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 12px;">
+    Tiers CRUD API Reference v1.1 &middot; Generated 2026-04-12 &middot; For Garuda UI Team<br>
+    Pipeline: feature-pipeline &middot; Ticket: raidlc/ai_tier
+  </footer>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2a45',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#2a3a5c',
+      lineColor: '#00d4ff',
+      secondaryColor: '#16213e',
+      tertiaryColor: '#0f1629',
+      noteBkgColor: '#1e2a45',
+      noteTextColor: '#a0a0b0',
+      noteBorderColor: '#2a3a5c'
+    }
+  });
+
+  // Active sidebar link on scroll
+  const sections = document.querySelectorAll('.endpoint-section[id]');
+  const links = document.querySelectorAll('.sidebar-link');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    links.forEach(l => {
+      l.classList.remove('active');
+      if (l.getAttribute('href') === '#' + current) l.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
