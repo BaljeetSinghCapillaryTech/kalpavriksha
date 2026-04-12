@@ -1470,52 +1470,59 @@ graph TD
     <p>Map BA requirements to Designer interfaces. Full traceability from BT-xx IDs to BA reqs.</p>
   </section>
 
+  <!-- Phase 8b: Business Test Gen -->
+  <section class="phase-section" id="phase-8b">
+    <h2>Phase 8b: Business Test Gen <span class="phase-badge complete">Complete</span></h2>
+    <span class="skill-tag">/business-test-gen</span>
+    <p>141 business test cases (84 UT + 45 IT + 12 compliance). Full traceability: 52/52 ACs, 89/89 QA scenarios, 16/16 designer interfaces, 7/7 ADRs.</p>
+  </section>
+
   <!-- Phase 9: SDET -->
   <section class="phase-section" id="phase-9">
-    <h2>Phase 9: SDET -- RED Phase <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 9: SDET -- RED Phase <span class="phase-badge complete">Complete</span></h2>
     <span class="skill-tag">/sdet</span>
-    <p>Write all test code. Confirm compilation passes, tests FAIL (RED).</p>
+    <p>37 skeleton production classes + 4 unit test files (28 methods). RED confirmed: compilation PASS, 22/28 tests error (expected). Java 17 required.</p>
   </section>
 
   <!-- Phase 10: Developer -->
   <section class="phase-section" id="phase-10">
-    <h2>Phase 10: Developer -- GREEN Phase <span class="phase-badge pending">Pending</span></h2>
-    <span class="skill-tag">/developer + executing-plans</span>
-    <p>Replace skeleton classes with real production code. All tests must PASS (GREEN).</p>
+    <h2>Phase 10: Developer -- GREEN Phase <span class="phase-badge complete">Complete</span></h2>
+    <span class="skill-tag">/developer</span>
+    <p><strong>GREEN: 28/28 tests pass.</strong> Implemented: TierValidationService (validation logic), TierFacade (CRUD orchestration with MC toggle, versioned edits), MakerCheckerServiceImpl (submit/approve/reject lifecycle), TierChangeApplier (version swap). 3 test modifications documented.</p>
   </section>
 
   <!-- Phase 10b: Backend Readiness -->
   <section class="phase-section" id="phase-10b">
-    <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 10b: Backend Readiness <span class="phase-badge complete">Complete</span></h2>
     <span class="skill-tag">/backend-readiness</span>
-    <p>Query performance, Thrift compatibility, cache, errors, migrations.</p>
+    <p>Verdict: READY WITH WARNINGS. 0 blockers, 3 warnings (missing MongoDB indexes, Thrift not wired, controllers not wired). All warnings are pre-production Layer 3/4 items.</p>
   </section>
 
   <!-- Phase 10c: Compliance -->
   <section class="phase-section" id="phase-10c">
-    <h2>Phase 10c: Gap Analysis -- Compliance <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 10c: Gap Analysis -- Compliance <span class="phase-badge complete">Complete</span></h2>
     <span class="skill-tag">/analyst --compliance</span>
-    <p>Compare what was designed (HLD/LLD) against what was built (code).</p>
+    <p>7 ADRs checked: 3 COMPLIANT, 2 PARTIAL (expected), 2 NOT STARTED (Layer 3). GUARDRAILS: G-01 UTC COMPLIANT, G-07 tenant COMPLIANT. 0 CRITICAL, 1 HIGH (migration pending).</p>
   </section>
 
   <!-- Phase 10d: Migration Validation -->
   <section class="phase-section" id="phase-10d">
-    <h2>Phase 10d: Migration Validation <span class="phase-badge pending">Pending</span></h2>
+    <h2>Phase 10d: Migration Validation <span class="phase-badge" style="background:rgba(107,114,128,0.2);color:#9ca3af;">Skipped</span></h2>
     <span class="skill-tag">/migrator</span>
-    <p>Conditional -- validates migration scripts against migration plan.</p>
+    <p>No Flyway migration scripts in scope for Layer 1-2. Migration (program_slabs.status column) is Layer 3 work in emf-parent.</p>
   </section>
 
   <!-- Phase 11: Reviewer -->
   <section class="phase-section" id="phase-11">
-    <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
-    <span class="skill-tag">/reviewer + verification-before-completion</span>
-    <p>Code review against requirements, session memory, security, documentation.</p>
+    <h2>Phase 11: Reviewer <span class="phase-badge complete">Complete</span></h2>
+    <span class="skill-tag">/reviewer</span>
+    <p><strong>APPROVED.</strong> Build: PASS (28/28 UTs). Requirements: 39/52 PASS, 9 PARTIAL (Layer 3/4), 0 FAIL. Security: COMPLIANT. GUARDRAILS: COMPLIANT. 0 blockers, 5 non-blocking suggestions.</p>
   </section>
 
   <!-- Phase 12: Blueprint -->
   <section class="phase-section" id="phase-12">
-    <h2>Phase 12: Documentation + Blueprint <span class="phase-badge pending">Pending</span></h2>
-    <p>Final documentation, process log, blueprint HTML, git tag.</p>
+    <h2>Phase 12: Documentation + Blueprint <span class="phase-badge complete">Complete</span></h2>
+    <p>Blueprint: <a href="tiers-crud-blueprint.html" style="color:var(--accent);">tiers-crud-blueprint.html</a> &middot; API Docs: <a href="api-handoff-docs.html" style="color:var(--accent);">api-handoff-docs.html</a></p>
   </section>
 
 </div>

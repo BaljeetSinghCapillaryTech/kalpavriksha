@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiers CRUD -- Feature Blueprint</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e; --bg2: #16213e; --card: #1e2a45; --sidebar-bg: #0f1629;
+    --text: #e0e0e0; --muted: #6b7280; --accent: #00d4ff; --success: #10b981;
+    --warning: #f59e0b; --danger: #ef4444; --border: #2a3a5c;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; line-height: 1.6; }
+  .sidebar { width: 260px; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 24px 16px; position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; z-index: 10; }
+  .sidebar h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 20px; }
+  .sidebar a { display: block; padding: 6px 12px; margin: 2px 0; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 13px; }
+  .sidebar a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .main { margin-left: 260px; flex: 1; padding: 40px 48px; max-width: 920px; }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h2 { font-size: 20px; margin: 32px 0 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 15px; margin: 20px 0 8px; color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(42,58,92,0.5); color: #a0a0b0; }
+  code { background: #0d1117; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--accent); }
+  .badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.pass { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .badge.partial { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .badge.skip { background: rgba(107,114,128,0.2); color: #9ca3af; border: 1px solid rgba(107,114,128,0.3); }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat .num { font-size: 28px; font-weight: 800; color: var(--accent); }
+  .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .mermaid { display: flex; justify-content: center; margin: 16px 0; }
+  .diagram { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; overflow-x: auto; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h2>Blueprint</h2>
+  <a href="#overview">Overview</a>
+  <a href="#stats">Pipeline Stats</a>
+  <a href="#phases">Phase Summary</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#apis">API Surface</a>
+  <a href="#code">Code Map</a>
+  <a href="#decisions">Key Decisions</a>
+  <a href="#risks">Risks & Mitigations</a>
+  <a href="#remaining">Remaining Work</a>
+  <a href="#artifacts">Artifacts</a>
+</nav>
+
+<main class="main">
+
+<h1>Tiers CRUD &mdash; Feature Blueprint</h1>
+<p style="color:var(--muted); margin-bottom: 24px;">Ticket: raidlc/ai_tier &middot; Pipeline: feature-pipeline v1.0 &middot; Date: 2026-04-12</p>
+
+<section id="overview">
+<h2>Overview</h2>
+<div class="card">
+<p>New tier CRUD REST APIs in <code>intouch-api-v3</code> following the dual-storage pattern (MongoDB drafts + SQL live). Includes a <strong>generic maker-checker framework</strong> (tiers are the first consumer; benefits, subscriptions plug in later). Versioned edits with parentId, soft-delete with status lifecycle, and cached member counts.</p>
+<p style="margin-top:8px; color:var(--muted);">Repos: intouch-api-v3 (primary), emf-parent (Layer 3 — pending), peb (unchanged), Thrift (unchanged)</p>
+</div>
+</section>
+
+<section id="stats">
+<h2>Pipeline Stats</h2>
+<div class="stat-grid">
+  <div class="stat"><div class="num">13</div><div class="label">Phases Completed</div></div>
+  <div class="stat"><div class="num">19</div><div class="label">Documents Generated</div></div>
+  <div class="stat"><div class="num">89</div><div class="label">QA Scenarios</div></div>
+  <div class="stat"><div class="num">141</div><div class="label">Business Test Cases</div></div>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="num">28</div><div class="label">Unit Tests (GREEN)</div></div>
+  <div class="stat"><div class="num">37</div><div class="label">Skeleton Classes</div></div>
+  <div class="stat"><div class="num">4</div><div class="label">Production Classes</div></div>
+  <div class="stat"><div class="num">11</div><div class="label">API Endpoints</div></div>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="num">52</div><div class="label">Acceptance Criteria</div></div>
+  <div class="stat"><div class="num">7</div><div class="label">ADRs</div></div>
+  <div class="stat"><div class="num">0</div><div class="label">Blockers (final)</div></div>
+  <div class="stat"><div class="num">39/52</div><div class="label">ACs PASS</div></div>
+</div>
+</section>
+
+<section id="phases">
+<h2>Phase Summary</h2>
+<table>
+  <tr><th>Phase</th><th>Name</th><th>Status</th><th>Artifact</th></tr>
+  <tr><td>0</td><td>Input Collection</td><td><span class="badge pass">COMPLETE</span></td><td>pipeline-state.json</td></tr>
+  <tr><td>1</td><td>BA + PRD</td><td><span class="badge pass">COMPLETE</span></td><td>00-ba.md, 00-prd.md</td></tr>
+  <tr><td>2</td><td>Critic + Gap Analysis</td><td><span class="badge pass">COMPLETE</span></td><td>contradictions.md, gap-analysis-brd.md</td></tr>
+  <tr><td>3</td><td>UI Requirements</td><td><span class="badge pass">COMPLETE</span></td><td>ui-requirements.md</td></tr>
+  <tr><td>4</td><td>Blocker Resolution</td><td><span class="badge pass">COMPLETE</span></td><td>blocker-decisions.md</td></tr>
+  <tr><td>5</td><td>Codebase Research</td><td><span class="badge pass">COMPLETE</span></td><td>code-analysis-*.md, cross-repo-trace.md</td></tr>
+  <tr><td>6</td><td>HLD Architecture</td><td><span class="badge pass">COMPLETE</span></td><td>01-architect.md</td></tr>
+  <tr><td>6a</td><td>Impact Analysis</td><td><span class="badge pass">COMPLETE</span></td><td>02-analyst.md</td></tr>
+  <tr><td>6b</td><td>Migration Planning</td><td><span class="badge pass">COMPLETE</span></td><td>01b-migrator.md</td></tr>
+  <tr><td>7</td><td>LLD Designer</td><td><span class="badge pass">COMPLETE</span></td><td>03-designer.md, api-handoff.md</td></tr>
+  <tr><td>7.5</td><td>API Handoff v1.1</td><td><span class="badge pass">COMPLETE</span></td><td>api-handoff-docs.html</td></tr>
+  <tr><td>8</td><td>QA</td><td><span class="badge pass">COMPLETE</span></td><td>04-qa.md</td></tr>
+  <tr><td>8b</td><td>Business Test Gen</td><td><span class="badge pass">COMPLETE</span></td><td>04b-business-tests.md</td></tr>
+  <tr><td>9</td><td>SDET (RED)</td><td><span class="badge pass">COMPLETE</span></td><td>05-sdet.md + test code</td></tr>
+  <tr><td>10</td><td>Developer (GREEN)</td><td><span class="badge pass">COMPLETE</span></td><td>Production code (28/28 pass)</td></tr>
+  <tr><td>10b</td><td>Backend Readiness</td><td><span class="badge partial">WARNINGS</span></td><td>backend-readiness.md</td></tr>
+  <tr><td>10c</td><td>Compliance</td><td><span class="badge pass">COMPLETE</span></td><td>02-analyst-compliance.md</td></tr>
+  <tr><td>10d</td><td>Migration Validation</td><td><span class="badge skip">SKIPPED</span></td><td>No scripts in Layer 1-2</td></tr>
+  <tr><td>11</td><td>Reviewer</td><td><span class="badge pass">APPROVED</span></td><td>07-reviewer.md</td></tr>
+  <tr><td>12</td><td>Blueprint</td><td><span class="badge pass">COMPLETE</span></td><td>tiers-crud-blueprint.html</td></tr>
+</table>
+</section>
+
+<section id="architecture">
+<h2>Architecture</h2>
+<div class="diagram">
+<div class="mermaid">
+graph TB
+    subgraph "Garuda UI"
+        UI[Browser]
+    end
+    subgraph "intouch-api-v3"
+        TC[TierController<br/>/v3/tiers]
+        MCC[MakerCheckerController<br/>/v3/maker-checker]
+        TF[TierFacade]
+        MCF[MakerCheckerFacade]
+        MCS[MakerCheckerService]
+        TCA[TierChangeApplier]
+        TR[TierRepository]
+        PCR[PendingChangeRepository]
+        TVS[TierValidationService]
+    end
+    subgraph "MongoDB"
+        UTC[(unified_tier_configs)]
+        PC[(pending_changes)]
+    end
+    subgraph "emf-parent via Thrift"
+        PERS[PointsEngineRuleService]
+        PS[(program_slabs)]
+        ST[(strategies)]
+    end
+    UI --> TC
+    UI --> MCC
+    TC --> TF
+    MCC --> MCF
+    TF --> TR
+    TF --> TVS
+    TF --> MCS
+    MCF --> MCS
+    MCS --> TCA
+    MCS --> PCR
+    TR --> UTC
+    PCR --> PC
+    TCA -.->|Thrift - Layer 3| PERS
+    PERS --> PS
+    PERS --> ST
+</div>
+</div>
+
+<h3>Status Lifecycle</h3>
+<div class="diagram">
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT : Create (MC on)
+    [*] --> ACTIVE : Create (MC off)
+    DRAFT --> PENDING_APPROVAL : Submit
+    DRAFT --> [*] : Delete
+    PENDING_APPROVAL --> ACTIVE : Approve
+    PENDING_APPROVAL --> DRAFT : Reject
+    ACTIVE --> STOPPED : Stop
+    ACTIVE --> DRAFT : Edit (versioned)
+    ACTIVE --> SNAPSHOT : Version replaced
+    STOPPED --> [*]
+    SNAPSHOT --> [*]
+</div>
+</div>
+</section>
+
+<section id="apis">
+<h2>API Surface (11 Endpoints)</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Status</th></tr>
+  <tr><td><code>GET</code></td><td>/v3/tiers</td><td>List tiers + KPI</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/tiers/{id}</td><td>Tier detail + engineConfig</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/tiers</td><td>Create tier</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>PUT</code></td><td>/v3/tiers/{id}</td><td>Edit (versioned)</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>DELETE</code></td><td>/v3/tiers/{id}</td><td>Soft-delete</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/maker-checker/config</td><td>MC toggle status</td><td><span class="badge partial">Stub</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/maker-checker/submit</td><td>Submit for approval</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/maker-checker/{id}/approve</td><td>Approve change</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/maker-checker/{id}/reject</td><td>Reject change</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/maker-checker/pending</td><td>List pending changes</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/maker-checker/{id}</td><td>Change detail</td><td><span class="badge partial">Stub</span></td></tr>
+</table>
+<p style="color:var(--muted); font-size:12px;">Full API reference: <a href="api-handoff-docs.html" style="color:var(--accent);">api-handoff-docs.html</a></p>
+</section>
+
+<section id="code">
+<h2>Code Map (intouch-api-v3)</h2>
+<h3>Production Classes (39 files)</h3>
+<table>
+  <tr><th>Package</th><th>Files</th><th>Purpose</th></tr>
+  <tr><td><code>tier/enums/</code></td><td>5</td><td>TierStatus, CriteriaType, ActivityRelation, DowngradeSchedule, DowngradeTargetType</td></tr>
+  <tr><td><code>tier/model/</code></td><td>9</td><td>BasicDetails, EligibilityCriteria, Activity, RenewalConfig, DowngradeConfig, DowngradeTo, MemberStats, EngineConfig, TierMetadata</td></tr>
+  <tr><td><code>tier/dto/</code></td><td>4</td><td>TierCreateRequest, TierUpdateRequest, TierListResponse, KpiSummary</td></tr>
+  <tr><td><code>tier/</code></td><td>5</td><td>UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierChangeApplier</td></tr>
+  <tr><td><code>makerchecker/</code></td><td>12</td><td>Generic MC framework (service, facade, repos, enums, DTOs, notification)</td></tr>
+  <tr><td><code>resources/</code></td><td>2</td><td>TierController, MakerCheckerController (skeleton - needs wiring)</td></tr>
+</table>
+
+<h3>Test Classes (4 files, 28 tests)</h3>
+<table>
+  <tr><th>Test</th><th>Methods</th><th>Covers</th></tr>
+  <tr><td>TierFacadeTest</td><td>12</td><td>Listing, create, edit (versioned), delete</td></tr>
+  <tr><td>TierValidationServiceTest</td><td>6</td><td>Name, color, date, uniqueness, serial, cap</td></tr>
+  <tr><td>MakerCheckerServiceImplTest</td><td>7</td><td>Submit, approve, reject, list, notification</td></tr>
+  <tr><td>TierChangeApplierTest</td><td>3</td><td>Entity type, apply, version swap</td></tr>
+</table>
+</section>
+
+<section id="decisions">
+<h2>Key Decisions (7 ADRs)</h2>
+<table>
+  <tr><th>#</th><th>Decision</th><th>Code Status</th></tr>
+  <tr><td>ADR-01</td><td>Dual-Storage (MongoDB + SQL)</td><td><span class="badge partial">MongoDB done, SQL pending</span></td></tr>
+  <tr><td>ADR-02</td><td>Generic Maker-Checker Framework</td><td><span class="badge pass">COMPLIANT</span></td></tr>
+  <tr><td>ADR-03</td><td>Expand-Then-Contract Migration</td><td><span class="badge skip">Layer 3</span></td></tr>
+  <tr><td>ADR-04</td><td>Versioned Edits with parentId</td><td><span class="badge pass">COMPLIANT</span></td></tr>
+  <tr><td>ADR-05</td><td>Existing Thrift (No IDL Change)</td><td><span class="badge partial">Wrappers pending</span></td></tr>
+  <tr><td>ADR-06</td><td>New Programs Only</td><td><span class="badge pass">COMPLIANT</span></td></tr>
+  <tr><td>ADR-07</td><td>Atomic Thrift Call</td><td><span class="badge skip">Layer 3</span></td></tr>
+</table>
+</section>
+
+<section id="risks">
+<h2>Risks & Mitigations</h2>
+<table>
+  <tr><th>Risk</th><th>Severity</th><th>Mitigation</th><th>Status</th></tr>
+  <tr><td>R1: CSV index off-by-one</td><td>HIGH</td><td>Unit test with 3,4,5+ slabs. serialNumber-2 = CSV index.</td><td>Test planned (BT-81)</td></tr>
+  <tr><td>R2: Downgrade race condition</td><td>MEDIUM</td><td>@Lockable on TierChangeApplier</td><td>Pending (Layer 3)</td></tr>
+  <tr><td>R3: Strategy ID preservation</td><td>MEDIUM</td><td>Fetch existing ID before update</td><td>Test planned (BT-87)</td></tr>
+  <tr><td>R4: Member count index</td><td>MEDIUM</td><td>INDEX on customer_enrollment</td><td>Pending (Layer 4)</td></tr>
+  <tr><td>R5: Timezone drift</td><td>MEDIUM</td><td>java.time.Instant everywhere</td><td><span class="badge pass">Mitigated</span></td></tr>
+</table>
+</section>
+
+<section id="remaining">
+<h2>Remaining Work (Layer 3-4)</h2>
+<div class="card">
+<h3>Layer 3: emf-parent Changes</h3>
+<ul style="color:var(--muted); font-size:13px; padding-left:20px;">
+  <li>Flyway migration: ALTER TABLE program_slabs ADD COLUMN status</li>
+  <li>ProgramSlab.java: add status field</li>
+  <li>PeProgramSlabDao: add findActiveByProgram()</li>
+  <li>PointsEngineRulesThriftService: add wrapper methods</li>
+  <li>TierChangeApplier: wire Thrift, add @Lockable, implement CREATE/DELETE sync</li>
+</ul>
+</div>
+<div class="card">
+<h3>Layer 4: Integration + Cache</h3>
+<ul style="color:var(--muted); font-size:13px; padding-left:20px;">
+  <li>Wire TierController &rarr; TierFacade (REST endpoints functional)</li>
+  <li>Wire MakerCheckerController &rarr; MakerCheckerFacade</li>
+  <li>Add @ExceptionHandler for validation/state/not-found errors</li>
+  <li>Integrate isMakerCheckerEnabled with OrgConfigService</li>
+  <li>Member count cron job (every 10 min)</li>
+  <li>MongoDB compound indexes (@CompoundIndex or startup initializer)</li>
+  <li>Integration tests (TierIntegrationTest, MakerCheckerIntegrationTest)</li>
+  <li>Idempotency-Key dedup logic</li>
+</ul>
+</div>
+</section>
+
+<section id="artifacts">
+<h2>Artifacts</h2>
+<table>
+  <tr><th>File</th><th>Phase</th><th>Purpose</th></tr>
+  <tr><td>pipeline-state.json</td><td>0</td><td>Pipeline state tracker</td></tr>
+  <tr><td>session-memory.md</td><td>0-11</td><td>Shared context across all phases</td></tr>
+  <tr><td>brd-raw.md</td><td>0</td><td>Extracted BRD text</td></tr>
+  <tr><td>00-ba.md / 00-ba-machine.md</td><td>1</td><td>Business analysis + machine-readable</td></tr>
+  <tr><td>00-prd.md / 00-prd-machine.md</td><td>1</td><td>Product requirements document</td></tr>
+  <tr><td>contradictions.md</td><td>2</td><td>Critic findings</td></tr>
+  <tr><td>gap-analysis-brd.md</td><td>2</td><td>BRD vs codebase gaps</td></tr>
+  <tr><td>ui-requirements.md</td><td>3</td><td>UI field + screen inventory</td></tr>
+  <tr><td>blocker-decisions.md</td><td>4</td><td>Resolved blockers</td></tr>
+  <tr><td>grooming-questions.md</td><td>4</td><td>All Q&A resolved</td></tr>
+  <tr><td>code-analysis-*.md</td><td>5</td><td>Per-repo codebase findings</td></tr>
+  <tr><td>cross-repo-trace.md</td><td>5</td><td>Write/read path diagrams</td></tr>
+  <tr><td>01-architect.md</td><td>6</td><td>HLD + 7 ADRs</td></tr>
+  <tr><td>02-analyst.md</td><td>6a</td><td>Impact analysis + risks</td></tr>
+  <tr><td>01b-migrator.md</td><td>6b</td><td>Migration plan</td></tr>
+  <tr><td>03-designer.md</td><td>7</td><td>LLD + interface contracts</td></tr>
+  <tr><td>api-handoff.md</td><td>7</td><td>API contract (markdown)</td></tr>
+  <tr><td>api-handoff-docs.html</td><td>7.5</td><td>Interactive API reference</td></tr>
+  <tr><td>04-qa.md</td><td>8</td><td>89 test scenarios</td></tr>
+  <tr><td>04b-business-tests.md</td><td>8b</td><td>141 business test cases</td></tr>
+  <tr><td>05-sdet.md</td><td>9</td><td>SDET RED + skeleton inventory</td></tr>
+  <tr><td>backend-readiness.md</td><td>10b</td><td>Production readiness gate</td></tr>
+  <tr><td>02-analyst-compliance.md</td><td>10c</td><td>Architecture vs code check</td></tr>
+  <tr><td>07-reviewer.md</td><td>11</td><td>Final review — APPROVED</td></tr>
+  <tr><td>tiers-crud-blueprint.html</td><td>12</td><td>This blueprint</td></tr>
+</table>
+</section>
+
+<hr>
+<footer style="text-align:center; padding:24px 0; color:var(--muted); font-size:12px;">
+  Tiers CRUD Feature Blueprint &middot; raidlc/ai_tier &middot; Generated 2026-04-12<br>
+  Pipeline: feature-pipeline v1.0 &middot; Phases: 13/14 complete &middot; Reviewer: APPROVED
+</footer>
+
+</main>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark',
+    themeVariables: { primaryColor:'#1e2a45', primaryTextColor:'#e0e0e0', primaryBorderColor:'#2a3a5c', lineColor:'#00d4ff', secondaryColor:'#16213e' }
+  });
+</script>
+</body>
+</html>
