@@ -46,7 +46,7 @@ sequenceDiagram
     
     UI->>MCC: POST /v3/maker-checker/{id}/approve
     MCC->>MCS: approve(changeId, reviewedBy)
-    MCS->>MCS: validate status transition (PENDING->ACTIVE)
+    MCS->>MCS: validate status transition (PENDING_APPROVAL->ACTIVE)
     MCS->>TCA: apply(pendingChange)
     TCA->>TCA: extract SlabInfo + StrategyInfo from MongoDB doc
     TCA->>PERTS: createSlabAndUpdateStrategies(programId, orgId, slabInfo, strategyInfos)
@@ -124,7 +124,7 @@ sequenceDiagram
 | NEW | makerchecker/PendingChange.java | MongoDB @Document for pending changes |
 | NEW | makerchecker/PendingChangeRepository.java | MongoRepository for pending changes |
 | NEW | makerchecker/enums/EntityType.java | TIER, BENEFIT, SUBSCRIPTION, etc. |
-| NEW | makerchecker/enums/ChangeStatus.java | PENDING, APPROVED, REJECTED |
+| NEW | makerchecker/enums/ChangeStatus.java | PENDING_APPROVAL, APPROVED, REJECTED |
 | NEW | makerchecker/dto/SubmitChangeRequest.java | Submit request |
 | NEW | makerchecker/dto/ApprovalRequest.java | Approve/reject request |
 | NEW | makerchecker/NotificationHandler.java | Hook interface for notifications |

@@ -134,7 +134,7 @@ graph TB
 | `PendingChangeRepository` | MongoDB repository for pending changes. |
 | `NotificationHandler` | Hook interface: onSubmit, onApprove, onReject. No-op default. |
 | `EntityType` | Enum: TIER, BENEFIT, SUBSCRIPTION. Extensible. |
-| `ChangeStatus` | Enum: PENDING, APPROVED, REJECTED. |
+| `ChangeStatus` | Enum: PENDING_APPROVAL, APPROVED, REJECTED. |
 
 ### 4.3 emf-parent Changes (minimal)
 
@@ -221,6 +221,7 @@ graph TB
     "isDowngradeOnPartnerProgramExpiryEnabled": "boolean",
     "isAdvanceSetting": "boolean",
     "addDefaultCommunication": "boolean",
+    "slabUpgradeMode": "string (EAGER | DYNAMIC | LAZY) -- program-level upgrade mode",
     "periodConfig": {
       "type": "FIXED | SLAB_UPGRADE | SLAB_UPGRADE_CYCLIC | FIXED_CUSTOMER_REGISTRATION",
       "value": "int",
@@ -229,6 +230,18 @@ graph TB
       "computationWindowStartValue": "int | null",
       "computationWindowEndValue": "int | null",
       "minimumDuration": "int"
+    },
+    "downgradeEngineConfig": {
+      "_comment": "Engine-level downgrade settings not surfaced in UI downgradeConfig",
+      "isActive": "boolean -- master toggle for downgrade section",
+      "conditionAlways": "boolean -- if true, downgrade condition is always evaluated",
+      "conditionValues": {
+        "purchase": "string (threshold or empty)",
+        "numVisits": "string (threshold or empty)",
+        "points": "string (threshold or empty)",
+        "trackerCount": "[int] (tracker-based condition values)"
+      },
+      "renewalOrderString": "string (renewal evaluation order)"
     },
     "expressionRelation": "[[int]] | null",
     "customExpression": "string | null",
@@ -266,7 +279,7 @@ graph TB
   "entityId": "string (the unifiedTierId or equivalent)",
   "changeType": "CREATE | UPDATE | DELETE",
   "payload": "{ full snapshot of the entity document }",
-  "status": "PENDING | APPROVED | REJECTED",
+  "status": "PENDING_APPROVAL | APPROVED | REJECTED",
   "requestedBy": "string (userId)",
   "requestedAt": "date",
   "reviewedBy": "string | null",

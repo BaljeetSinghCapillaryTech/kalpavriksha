@@ -506,14 +506,26 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
       "isDowngradeOnPartnerProgramExpiryEnabled": false,
       "isAdvanceSetting": true,
       "addDefaultCommunication": false,
+      "slabUpgradeMode": "LAZY",
       "periodConfig": {
         "type": "SLAB_UPGRADE",
         "value": 12,
         "unit": "NUM_MONTHS",
         "startDate": null,
-        "computationWindowStartValue": null,
-        "computationWindowEndValue": null,
+        "computationWindowStartValue": 12,
+        "computationWindowEndValue": 0,
         "minimumDuration": 0
+      },
+      "downgradeEngineConfig": {
+        "isActive": true,
+        "conditionAlways": true,
+        "conditionValues": {
+          "purchase": "",
+          "numVisits": "",
+          "points": "",
+          "trackerCount": []
+        },
+        "renewalOrderString": ""
       },
       "expressionRelation": null,
       "customExpression": null,
@@ -852,7 +864,7 @@ HTTP/1.1 204 No Content
     "entityType": "TIER",
     "entityId": "ut-977-003",
     "changeType": "DELETE",
-    "status": "PENDING",
+    "status": "PENDING_APPROVAL",
     "requestedBy": "user-admin-02",
     "requestedAt": "2026-04-11T15:00:00Z",
     "reviewedBy": null,
@@ -916,7 +928,7 @@ Submits a DRAFT tier (or other entity) for maker-checker approval.
     "entityType": "TIER",
     "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
     "changeType": "CREATE",
-    "status": "PENDING",
+    "status": "PENDING_APPROVAL",
     "requestedBy": "user-admin-02",
     "requestedAt": "2026-04-11T11:00:00Z",
     "reviewedBy": null,
@@ -1072,7 +1084,7 @@ GET /v3/maker-checker/pending?entityType=TIER&programId=977
       "entityType": "TIER",
       "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
       "changeType": "CREATE",
-      "status": "PENDING",
+      "status": "PENDING_APPROVAL",
       "requestedBy": "user-admin-02",
       "requestedAt": "2026-04-11T11:00:00Z",
       "reviewedBy": null,
@@ -1120,7 +1132,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
     "entityType": "TIER",
     "entityId": "661b5a1f9c2d3e4f5a6b7c8d",
     "changeType": "CREATE",
-    "status": "PENDING",
+    "status": "PENDING_APPROVAL",
     "payload": {
       "objectId": "661b5a1f9c2d3e4f5a6b7c8d",
       "unifiedTierId": "ut-977-004",
@@ -1354,7 +1366,81 @@ Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
 
 ---
 
-## 16. Important Notes for UI Team
+## 16. Legacy API Mapping Reference
+
+The production legacy API (`/loyalty/api/v1/strategy/tier-strategy/{programId}`) uses a different data format. This table maps legacy fields to the new `/v3/tiers` API.
+
+### Criteria Type Mapping
+
+| Production (`upgrade.current_value_type`) | New API (`eligibilityCriteria.criteriaType`) |
+|------------------------------------------|----------------------------------------------|
+| `CUMULATIVE_PURCHASES` | `ACTIVITY_BASED` |
+| `CURRENT_POINTS` | `CURRENT_POINTS` |
+| `LIFETIME_POINTS` | `LIFETIME_POINTS` |
+| `LIFETIME_PURCHASES` | `LIFETIME_PURCHASES` |
+| `TRACKER_VALUE` | `TRACKER_VALUE` |
+
+### Threshold Format
+
+| Production | New API |
+|-----------|---------|
+| `upgrade.threshold_value: ["2000","5000","12000"]` — program-wide CSV array, N-1 values for N tiers (base tier has no threshold). Position = serialNumber - 2. | `eligibilityCriteria.activities[].value: 2000` — per-tier individual value. TierChangeApplier joins/splits during sync. |
+
+### Downgrade Field Mapping
+
+| Production (`downgrade.*`) | New API | Section |
+|----------------------------|---------|---------|
+| `is_active` | `engineConfig.downgradeEngineConfig.isActive` | engineConfig |
+| `should_downgrade` | `downgradeConfig.shouldDowngrade` | downgradeConfig |
+| `downgrade_to` ("LOWEST"/"SINGLE"/"THRESHOLD") | `downgradeConfig.downgradeTo.type` | downgradeConfig |
+| `daily_downgrade_enabled: true` | `downgradeConfig.downgradeSchedule: "DAILY"` | downgradeConfig |
+| `daily_downgrade_enabled: false` | `downgradeConfig.downgradeSchedule: "MONTH_END"` | downgradeConfig |
+| `start_date` | `engineConfig.periodConfig.startDate` | engineConfig |
+| `time_period` | `engineConfig.periodConfig.value` | engineConfig |
+| `condition` ("SLAB_UPGRADE", etc.) | `engineConfig.periodConfig.type` | engineConfig |
+| `condition_always` | `engineConfig.downgradeEngineConfig.conditionAlways` | engineConfig |
+| `purchase`, `num_visits`, `points`, `tracker_count` | `engineConfig.downgradeEngineConfig.conditionValues.*` | engineConfig |
+| `renewal_order_string` | `engineConfig.downgradeEngineConfig.renewalOrderString` | engineConfig |
+| `expression_relation` | `engineConfig.expressionRelation` | engineConfig |
+| `original_expression` | `engineConfig.customExpression` | engineConfig |
+| `isFixedTypeWithoutYear` | `engineConfig.isFixedTypeWithoutYear` | engineConfig |
+| `minimum_duration` | `engineConfig.periodConfig.minimumDuration` | engineConfig |
+| `renewalWindowType` | `engineConfig.renewalWindowType` | engineConfig |
+| `computationWindowStartValue` | `engineConfig.periodConfig.computationWindowStartValue` | engineConfig |
+| `computationWindowEndValue` | `engineConfig.periodConfig.computationWindowEndValue` | engineConfig |
+
+### Top-Level / Upgrade Mapping
+
+| Production | New API | Section |
+|-----------|---------|---------|
+| `slabId` | `metadata.sqlSlabId` | metadata |
+| `programId` (string) | `programId` (int) | top-level |
+| `name` | `basicDetails.name` | basicDetails |
+| `description` | `basicDetails.description` | basicDetails |
+| `color` | `basicDetails.color` | basicDetails |
+| `isAdvanceSetting` | `engineConfig.isAdvanceSetting` | engineConfig |
+| `addDefaultCommunication` | `engineConfig.addDefaultCommunication` | engineConfig |
+| `upgrade.slab_upgrade_mode` | `engineConfig.slabUpgradeMode` | engineConfig |
+| `upgrade.secondary_criteria_enabled` | `eligibilityCriteria.secondaryCriteriaEnabled` | eligibilityCriteria |
+
+### pointsSaveData (NOT in new API)
+
+The production response includes `pointsSaveData` (allocations, redemptions, expirys). These are **NOT included** in the new `/v3/tiers` API by design:
+- Points strategies are managed by the engine, not by tier CRUD.
+- When a new slab is created via Thrift, the engine auto-extends all allocation/expiry CSVs.
+- TierChangeApplier only sends SLAB_UPGRADE and SLAB_DOWNGRADE strategies.
+
+### Type Differences
+
+| Field | Production | New API | Note |
+|-------|-----------|---------|------|
+| `programId` | `"977"` (string) | `977` (int) | UI should handle both |
+| `threshold_value` | `["2000"]` (string[]) | `2000` (number) | Per-tier number in new API |
+| `time_period` | `"12"` (string) | `12` (number) | New API uses proper types |
+
+---
+
+## 17. Important Notes for UI Team
 
 1. **`serialNumber` is auto-assigned and immutable.** Never send it in create/update. It determines tier ordering.
 2. **`unifiedTierId` persists across versions.** When an ACTIVE tier is edited, the new DRAFT has the same `unifiedTierId` but a different `objectId`. Use `unifiedTierId` to track a tier's identity across versions.
@@ -1370,7 +1456,7 @@ Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
 
 ---
 
-## 17. Not In Scope (This Release)
+## 18. Not In Scope (This Release)
 
 These features are **not available** in the current API. Do not build UI for them.
 

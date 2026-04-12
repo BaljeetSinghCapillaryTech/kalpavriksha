@@ -60,7 +60,7 @@ com.capillary.intouchapiv3/
     enums/
       EntityType.java                      -- TIER, BENEFIT, SUBSCRIPTION
       ChangeType.java                      -- CREATE, UPDATE, DELETE
-      ChangeStatus.java                    -- PENDING, APPROVED, REJECTED
+      ChangeStatus.java                    -- PENDING_APPROVAL, APPROVED, REJECTED
 ```
 
 ---
@@ -289,7 +289,7 @@ public enum ChangeType {
 }
 
 public enum ChangeStatus {
-    PENDING, APPROVED, REJECTED
+    PENDING_APPROVAL, APPROVED, REJECTED
 }
 
 public enum CriteriaType {

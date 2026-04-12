@@ -585,6 +585,7 @@
     <a href="#flow-create" class="sidebar-link"><span class="method-dot" style="background: var(--success)"></span> Create Flow</a>
     <a href="#flow-edit" class="sidebar-link"><span class="method-dot" style="background: var(--warning)"></span> Edit Flow</a>
     <a href="#flow-delete" class="sidebar-link"><span class="method-dot" style="background: var(--danger)"></span> Delete Flow</a>
+    <a href="#legacy-mapping" class="sidebar-link"><span class="method-dot" style="background: var(--warning)"></span> Legacy Mapping</a>
     <a href="#not-in-scope" class="sidebar-link"><span class="method-dot" style="background: var(--text-muted)"></span> Not In Scope</a>
   </div>
 </nav>
@@ -782,19 +783,106 @@ Authorization: Bearer eyJhbGci...</pre>
         <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-001"</span>,
         <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
         <span class="json-key">"status"</span>: <span class="json-str">"ACTIVE"</span>,
+        <span class="json-key">"parentId"</span>: <span class="json-null">null</span>,
+        <span class="json-key">"version"</span>: <span class="json-num">1</span>,
         <span class="json-key">"basicDetails"</span>: {
           <span class="json-key">"name"</span>: <span class="json-str">"Bronze"</span>,
+          <span class="json-key">"description"</span>: <span class="json-str">"Entry level tier with basic benefits"</span>,
           <span class="json-key">"color"</span>: <span class="json-str">"#CD7F32"</span>,
           <span class="json-key">"serialNumber"</span>: <span class="json-num">1</span>,
           <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
           <span class="json-key">"endDate"</span>: <span class="json-null">null</span>
         },
-        <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">1245</span> },
-        <span class="comment">// ... eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds</span>
+        <span class="json-key">"eligibilityCriteria"</span>: {
+          <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+          <span class="json-key">"activities"</span>: [
+            { <span class="json-key">"type"</span>: <span class="json-str">"Any Purchase"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"ANY"</span>, <span class="json-key">"value"</span>: <span class="json-null">null</span>, <span class="json-key">"unit"</span>: <span class="json-null">null</span> }
+          ],
+          <span class="json-key">"activityRelation"</span>: <span class="json-str">"OR"</span>,
+          <span class="json-key">"membershipDuration"</span>: <span class="json-str">"Indefinite"</span>,
+          <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+          <span class="json-key">"nudges"</span>: <span class="json-str">"Welcome email on joining"</span>,
+          <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+        },
+        <span class="json-key">"renewalConfig"</span>: {
+          <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility"</span>,
+          <span class="json-key">"renewalCondition"</span>: <span class="json-null">null</span>,
+          <span class="json-key">"renewalSchedule"</span>: <span class="json-null">null</span>,
+          <span class="json-key">"nudges"</span>: <span class="json-null">null</span>
+        },
+        <span class="json-key">"downgradeConfig"</span>: {
+          <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-null">null</span>, <span class="json-key">"type"</span>: <span class="json-str">"LOWEST"</span> },
+          <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"MONTH_END"</span>,
+          <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Inactivity warning at 18 months"</span>,
+          <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">false</span>
+        },
+        <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-001"</span>, <span class="json-str">"bf-007"</span>, <span class="json-str">"bf-012"</span>],
+        <span class="json-key">"memberStats"</span>: {
+          <span class="json-key">"memberCount"</span>: <span class="json-num">1245</span>,
+          <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+        },
+        <span class="json-key">"metadata"</span>: {
+          <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-01"</span>,
+          <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-01"</span>,
+          <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
+          <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3848</span>
+        }
       },
-      <span class="comment">// ... more tiers ordered by serialNumber</span>
+      {
+        <span class="json-key">"objectId"</span>: <span class="json-str">"661a3f2e8b1c4d5e6f7a8b9d"</span>,
+        <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-002"</span>,
+        <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+        <span class="json-key">"status"</span>: <span class="json-str">"ACTIVE"</span>,
+        <span class="json-key">"parentId"</span>: <span class="json-null">null</span>,
+        <span class="json-key">"version"</span>: <span class="json-num">1</span>,
+        <span class="json-key">"basicDetails"</span>: {
+          <span class="json-key">"name"</span>: <span class="json-str">"Silver"</span>,
+          <span class="json-key">"description"</span>: <span class="json-str">"Mid-level tier with enhanced benefits"</span>,
+          <span class="json-key">"color"</span>: <span class="json-str">"#C0C0C0"</span>,
+          <span class="json-key">"serialNumber"</span>: <span class="json-num">2</span>,
+          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+        },
+        <span class="json-key">"eligibilityCriteria"</span>: {
+          <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+          <span class="json-key">"activities"</span>: [
+            { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">550</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> },
+            { <span class="json-key">"type"</span>: <span class="json-str">"Transactions"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2</span>, <span class="json-key">"unit"</span>: <span class="json-str">"transactions within a year"</span> }
+          ],
+          <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+          <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+          <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+          <span class="json-key">"nudges"</span>: <span class="json-str">"Upgrade congratulations email"</span>,
+          <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+        },
+        <span class="json-key">"renewalConfig"</span>: {
+          <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility criteria"</span>,
+          <span class="json-key">"renewalCondition"</span>: {
+            <span class="json-key">"activities"</span>: [
+              { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">550</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> },
+              { <span class="json-key">"type"</span>: <span class="json-str">"Transactions"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2</span>, <span class="json-key">"unit"</span>: <span class="json-str">"transactions within a year"</span> }
+            ],
+            <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>
+          },
+          <span class="json-key">"renewalSchedule"</span>: <span class="json-str">"End of month when duration ends"</span>,
+          <span class="json-key">"nudges"</span>: <span class="json-str">"Renewal reminder 30 days before expiry"</span>
+        },
+        <span class="json-key">"downgradeConfig"</span>: {
+          <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-str">"Bronze"</span>, <span class="json-key">"type"</span>: <span class="json-str">"SINGLE"</span> },
+          <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"MONTH_END"</span>,
+          <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Downgrade warning at 60 days before expiry"</span>,
+          <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
+        },
+        <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-002"</span>, <span class="json-str">"bf-005"</span>, <span class="json-str">"bf-008"</span>],
+        <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">667</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span> },
+        <span class="json-key">"metadata"</span>: { <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3849</span>, <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span> }
+      }
     ]
-  }
+  },
+  <span class="json-key">"errors"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"warnings"</span>: <span class="json-null">null</span>
 }</pre>
 
     <div class="callout info">
@@ -828,27 +916,94 @@ Authorization: Bearer eyJhbGci...</pre>
   <span class="json-key">"data"</span>: {
     <span class="json-key">"objectId"</span>: <span class="json-str">"661a3f2e8b1c4d5e6f7a8b9e"</span>,
     <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-003"</span>,
+    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
     <span class="json-key">"status"</span>: <span class="json-str">"ACTIVE"</span>,
-    <span class="json-key">"basicDetails"</span>: { <span class="comment">/* same as listing */</span> },
-    <span class="json-key">"eligibilityCriteria"</span>: { <span class="comment">/* same as listing */</span> },
-    <span class="json-key">"renewalConfig"</span>: { <span class="comment">/* same as listing */</span> },
-    <span class="json-key">"downgradeConfig"</span>: { <span class="comment">/* same as listing */</span> },
+    <span class="json-key">"parentId"</span>: <span class="json-null">null</span>,
+    <span class="json-key">"version"</span>: <span class="json-num">1</span>,
+    <span class="json-key">"basicDetails"</span>: {
+      <span class="json-key">"name"</span>: <span class="json-str">"Gold"</span>,
+      <span class="json-key">"description"</span>: <span class="json-str">"Premium tier with exclusive benefits"</span>,
+      <span class="json-key">"color"</span>: <span class="json-str">"#FFD700"</span>,
+      <span class="json-key">"serialNumber"</span>: <span class="json-num">3</span>,
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+    },
+    <span class="json-key">"eligibilityCriteria"</span>: {
+      <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+      <span class="json-key">"activities"</span>: [
+        { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">900</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> },
+        { <span class="json-key">"type"</span>: <span class="json-str">"Transactions"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2</span>, <span class="json-key">"unit"</span>: <span class="json-str">"transactions within a year"</span> }
+      ],
+      <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+      <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+      <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+      <span class="json-key">"nudges"</span>: <span class="json-str">"VIP welcome package notification"</span>,
+      <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+    },
+    <span class="json-key">"renewalConfig"</span>: {
+      <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility criteria"</span>,
+      <span class="json-key">"renewalCondition"</span>: {
+        <span class="json-key">"activities"</span>: [
+          { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">900</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> },
+          { <span class="json-key">"type"</span>: <span class="json-str">"Transactions"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2</span>, <span class="json-key">"unit"</span>: <span class="json-str">"transactions within a year"</span> }
+        ],
+        <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>
+      },
+      <span class="json-key">"renewalSchedule"</span>: <span class="json-str">"End of month when duration ends"</span>,
+      <span class="json-key">"nudges"</span>: <span class="json-str">"VIP renewal reminder with exclusive preview"</span>
+    },
+    <span class="json-key">"downgradeConfig"</span>: {
+      <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-str">"Silver"</span>, <span class="json-key">"type"</span>: <span class="json-str">"SINGLE"</span> },
+      <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"DAILY"</span>,
+      <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Premium retention offer 90 days before expiry"</span>,
+      <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
+    },
+    <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-003"</span>, <span class="json-str">"bf-006"</span>, <span class="json-str">"bf-009"</span>, <span class="json-str">"bf-011"</span>, <span class="json-str">"bf-014"</span>],
+    <span class="json-key">"memberStats"</span>: {
+      <span class="json-key">"memberCount"</span>: <span class="json-num">234</span>,
+      <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+    },
     <span class="json-key">"engineConfig"</span>: {
       <span class="json-key">"retainPoints"</span>: <span class="json-bool">true</span>,
       <span class="json-key">"isDowngradeOnReturnEnabled"</span>: <span class="json-bool">false</span>,
       <span class="json-key">"isAdvanceSetting"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"addDefaultCommunication"</span>: <span class="json-bool">false</span>,
+      <span class="json-key">"slabUpgradeMode"</span>: <span class="json-str">"LAZY"</span>,
       <span class="json-key">"periodConfig"</span>: {
         <span class="json-key">"type"</span>: <span class="json-str">"SLAB_UPGRADE"</span>,
         <span class="json-key">"value"</span>: <span class="json-num">12</span>,
-        <span class="json-key">"unit"</span>: <span class="json-str">"NUM_MONTHS"</span>
+        <span class="json-key">"unit"</span>: <span class="json-str">"NUM_MONTHS"</span>,
+        <span class="json-key">"computationWindowStartValue"</span>: <span class="json-num">12</span>,
+        <span class="json-key">"computationWindowEndValue"</span>: <span class="json-num">0</span>
       },
-      <span class="json-key">"notificationConfig"</span>: { <span class="comment">/* per-channel: sms, email, weChat, mobilePush */</span> }
+      <span class="json-key">"downgradeEngineConfig"</span>: {
+        <span class="json-key">"isActive"</span>: <span class="json-bool">true</span>,
+        <span class="json-key">"conditionAlways"</span>: <span class="json-bool">true</span>,
+        <span class="json-key">"conditionValues"</span>: { <span class="json-key">"purchase"</span>: <span class="json-str">""</span>, <span class="json-key">"numVisits"</span>: <span class="json-str">""</span>, <span class="json-key">"points"</span>: <span class="json-str">""</span> },
+        <span class="json-key">"renewalOrderString"</span>: <span class="json-str">""</span>
+      },
+      <span class="json-key">"expressionRelation"</span>: <span class="json-null">null</span>,
+      <span class="json-key">"customExpression"</span>: <span class="json-null">null</span>,
+      <span class="json-key">"isFixedTypeWithoutYear"</span>: <span class="json-bool">false</span>,
+      <span class="json-key">"renewalWindowType"</span>: <span class="json-str">"FIXED_DATE_BASED"</span>,
+      <span class="json-key">"notificationConfig"</span>: {
+        <span class="json-key">"sms"</span>: <span class="json-null">null</span>,
+        <span class="json-key">"email"</span>: { <span class="json-key">"subject"</span>: <span class="json-str">"Your Gold Tier Status"</span>, <span class="json-key">"body"</span>: <span class="json-str">"..."</span>, <span class="json-key">"templateId"</span>: <span class="json-num">12345</span>, <span class="json-key">"senderId"</span>: <span class="json-str">"loyalty"</span> },
+        <span class="json-key">"weChat"</span>: <span class="json-null">null</span>,
+        <span class="json-key">"mobilePush"</span>: <span class="json-null">null</span>
+      }
     },
     <span class="json-key">"metadata"</span>: {
-      <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3850</span>,
-      <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>
+      <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-01"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+      <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-09-20T14:45:00Z"</span>,
+      <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3850</span>
     }
-  }
+  },
+  <span class="json-key">"errors"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"warnings"</span>: <span class="json-null">null</span>
 }</pre>
 
     <div class="callout warning">
@@ -902,8 +1057,24 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
     <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
   },
-  <span class="json-key">"renewalConfig"</span>: { <span class="comment">/* optional */</span> },
-  <span class="json-key">"downgradeConfig"</span>: { <span class="comment">/* optional */</span> }
+  <span class="json-key">"renewalConfig"</span>: {
+    <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility criteria"</span>,
+    <span class="json-key">"renewalCondition"</span>: {
+      <span class="json-key">"activities"</span>: [
+        { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">1500</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+      ],
+      <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>
+    },
+    <span class="json-key">"renewalSchedule"</span>: <span class="json-str">"End of month when duration ends"</span>,
+    <span class="json-key">"nudges"</span>: <span class="json-str">"Platinum renewal exclusive offer 45 days before expiry"</span>
+  },
+  <span class="json-key">"downgradeConfig"</span>: {
+    <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-str">"Gold"</span>, <span class="json-key">"type"</span>: <span class="json-str">"SINGLE"</span> },
+    <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"MONTH_END"</span>,
+    <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Platinum retention personal call 90 days before expiry"</span>,
+    <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
+  },
+  <span class="json-key">"benefitIds"</span>: []
 }</pre>
 
     <div class="callout info">
@@ -911,14 +1082,49 @@ Authorization: Bearer eyJhbGci...</pre>
       <div><code>serialNumber</code> is auto-assigned (next in sequence). <code>status</code> is set by the server. <code>unifiedTierId</code> is generated. Do NOT send these fields.</div>
     </div>
 
-    <pre><span class="label">RESPONSE 201 (MC enabled)</span>
+    <pre><span class="label">RESPONSE 201 (MC enabled &mdash; saved as DRAFT)</span>
 {
   <span class="json-key">"data"</span>: {
-    <span class="json-key">"objectId"</span>: <span class="json-str">"661b5a1f..."</span>,
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661b5a1f9c2d3e4f5a6b7c8d"</span>,
+    <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-004"</span>,
+    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
     <span class="json-key">"status"</span>: <span class="json-str">"DRAFT"</span>,
-    <span class="json-key">"basicDetails"</span>: { <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>, <span class="comment">/* auto-assigned */</span> },
-    <span class="comment">// ... full tier document</span>
-  }
+    <span class="json-key">"parentId"</span>: <span class="json-null">null</span>,
+    <span class="json-key">"version"</span>: <span class="json-num">1</span>,
+    <span class="json-key">"basicDetails"</span>: {
+      <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>,
+      <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
+      <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
+      <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>,
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+    },
+    <span class="json-key">"eligibilityCriteria"</span>: {
+      <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+      <span class="json-key">"activities"</span>: [
+        { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2000</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+      ],
+      <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+      <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+      <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+      <span class="json-key">"nudges"</span>: <span class="json-str">"Platinum welcome call from relationship manager"</span>,
+      <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+    },
+    <span class="json-key">"renewalConfig"</span>: { <span class="comment">/* as sent in request */</span> },
+    <span class="json-key">"downgradeConfig"</span>: { <span class="comment">/* as sent in request */</span> },
+    <span class="json-key">"benefitIds"</span>: [],
+    <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">0</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-null">null</span> },
+    <span class="json-key">"metadata"</span>: {
+      <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+      <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+      <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
+    }
+  },
+  <span class="json-key">"errors"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"warnings"</span>: <span class="json-null">null</span>
 }</pre>
 
     <div class="card">
@@ -954,10 +1160,11 @@ Authorization: Bearer eyJhbGci...</pre>
       </table>
     </div>
 
-    <pre><span class="label">REQUEST BODY (partial update)</span>
+    <pre><span class="label">REQUEST BODY (partial update &mdash; send only changed fields)</span>
 {
   <span class="json-key">"basicDetails"</span>: {
     <span class="json-key">"name"</span>: <span class="json-str">"Gold Plus"</span>,
+    <span class="json-key">"description"</span>: <span class="json-str">"Enhanced premium tier"</span>,
     <span class="json-key">"color"</span>: <span class="json-str">"#DAA520"</span>
   },
   <span class="json-key">"eligibilityCriteria"</span>: {
@@ -965,6 +1172,66 @@ Authorization: Bearer eyJhbGci...</pre>
       { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">1200</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
     ]
   }
+}</pre>
+
+    <pre><span class="label">RESPONSE 200 (editing ACTIVE &mdash; new DRAFT created)</span>
+{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"objectId"</span>: <span class="json-str">"661c7b3a0d4e5f6a7b8c9d0e"</span>,
+    <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-003"</span>,
+    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"DRAFT"</span>,
+    <span class="json-key">"parentId"</span>: <span class="json-str">"661a3f2e8b1c4d5e6f7a8b9e"</span>,
+    <span class="json-key">"version"</span>: <span class="json-num">2</span>,
+    <span class="json-key">"basicDetails"</span>: {
+      <span class="json-key">"name"</span>: <span class="json-str">"Gold Plus"</span>,
+      <span class="json-key">"description"</span>: <span class="json-str">"Enhanced premium tier"</span>,
+      <span class="json-key">"color"</span>: <span class="json-str">"#DAA520"</span>,
+      <span class="json-key">"serialNumber"</span>: <span class="json-num">3</span>,
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+    },
+    <span class="json-key">"eligibilityCriteria"</span>: {
+      <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+      <span class="json-key">"activities"</span>: [
+        { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">1200</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+      ],
+      <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+      <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+      <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+      <span class="json-key">"nudges"</span>: <span class="json-str">"VIP welcome package notification"</span>,
+      <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+    },
+    <span class="json-key">"renewalConfig"</span>: {
+      <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility criteria"</span>,
+      <span class="json-key">"renewalCondition"</span>: {
+        <span class="json-key">"activities"</span>: [
+          { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">900</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+        ],
+        <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>
+      },
+      <span class="json-key">"renewalSchedule"</span>: <span class="json-str">"End of month when duration ends"</span>,
+      <span class="json-key">"nudges"</span>: <span class="json-str">"VIP renewal reminder with exclusive preview"</span>
+    },
+    <span class="json-key">"downgradeConfig"</span>: {
+      <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-str">"Silver"</span>, <span class="json-key">"type"</span>: <span class="json-str">"SINGLE"</span> },
+      <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"DAILY"</span>,
+      <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Premium retention offer 90 days before expiry"</span>,
+      <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
+    },
+    <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-003"</span>, <span class="json-str">"bf-006"</span>, <span class="json-str">"bf-009"</span>, <span class="json-str">"bf-011"</span>, <span class="json-str">"bf-014"</span>],
+    <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">234</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span> },
+    <span class="json-key">"metadata"</span>: {
+      <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T14:00:00Z"</span>,
+      <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T14:00:00Z"</span>,
+      <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
+    }
+  },
+  <span class="json-key">"errors"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"warnings"</span>: [{ <span class="json-key">"message"</span>: <span class="json-str">"This is a versioned edit. The ACTIVE tier (Gold) remains live. Submit this draft for approval to replace it."</span> }]
 }</pre>
 
     <div class="callout warning">
@@ -1089,7 +1356,7 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"objectId"</span>: <span class="json-str">"661e9d5c..."</span>,
     <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
     <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
-    <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
     <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
     <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
   }
@@ -1176,7 +1443,7 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
       <span class="json-key">"entityId"</span>: <span class="json-str">"661b5a1f..."</span>,
       <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
-      <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+      <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
       <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
       <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
     }
@@ -1203,12 +1470,64 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
     <span class="json-key">"entityId"</span>: <span class="json-str">"661b5a1f..."</span>,
     <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
-    <span class="json-key">"status"</span>: <span class="json-str">"PENDING"</span>,
+    <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
     <span class="json-key">"payload"</span>: {
-      <span class="comment">// Full tier document snapshot</span>
-      <span class="json-key">"basicDetails"</span>: { <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>, <span class="comment">/*...*/</span> },
-      <span class="json-key">"eligibilityCriteria"</span>: { <span class="comment">/*...*/</span> },
-      <span class="json-key">"engineConfig"</span>: { <span class="comment">/*...*/</span> }
+      <span class="json-key">"objectId"</span>: <span class="json-str">"661b5a1f9c2d3e4f5a6b7c8d"</span>,
+      <span class="json-key">"unifiedTierId"</span>: <span class="json-str">"ut-977-004"</span>,
+      <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
+      <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
+      <span class="json-key">"parentId"</span>: <span class="json-null">null</span>,
+      <span class="json-key">"version"</span>: <span class="json-num">1</span>,
+      <span class="json-key">"basicDetails"</span>: {
+        <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>,
+        <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
+        <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
+        <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>,
+        <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
+        <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+      },
+      <span class="json-key">"eligibilityCriteria"</span>: {
+        <span class="json-key">"criteriaType"</span>: <span class="json-str">"ACTIVITY_BASED"</span>,
+        <span class="json-key">"activities"</span>: [
+          { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">2000</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+        ],
+        <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>,
+        <span class="json-key">"membershipDuration"</span>: <span class="json-str">"12 months"</span>,
+        <span class="json-key">"upgradeSchedule"</span>: <span class="json-str">"Immediately when eligibility is met"</span>,
+        <span class="json-key">"nudges"</span>: <span class="json-str">"Platinum welcome call from relationship manager"</span>,
+        <span class="json-key">"secondaryCriteriaEnabled"</span>: <span class="json-bool">false</span>
+      },
+      <span class="json-key">"renewalConfig"</span>: {
+        <span class="json-key">"renewalCriteriaType"</span>: <span class="json-str">"Same as eligibility criteria"</span>,
+        <span class="json-key">"renewalCondition"</span>: {
+          <span class="json-key">"activities"</span>: [
+            { <span class="json-key">"type"</span>: <span class="json-str">"Spending"</span>, <span class="json-key">"operator"</span>: <span class="json-str">"GTE"</span>, <span class="json-key">"value"</span>: <span class="json-num">1500</span>, <span class="json-key">"unit"</span>: <span class="json-str">"RM"</span> }
+          ],
+          <span class="json-key">"activityRelation"</span>: <span class="json-str">"AND"</span>
+        },
+        <span class="json-key">"renewalSchedule"</span>: <span class="json-str">"End of month when duration ends"</span>,
+        <span class="json-key">"nudges"</span>: <span class="json-str">"Platinum renewal exclusive offer 45 days before expiry"</span>
+      },
+      <span class="json-key">"downgradeConfig"</span>: {
+        <span class="json-key">"downgradeTo"</span>: { <span class="json-key">"tierName"</span>: <span class="json-str">"Gold"</span>, <span class="json-key">"type"</span>: <span class="json-str">"SINGLE"</span> },
+        <span class="json-key">"downgradeSchedule"</span>: <span class="json-str">"MONTH_END"</span>,
+        <span class="json-key">"expiryReminders"</span>: <span class="json-str">"Platinum retention personal call 90 days before expiry"</span>,
+        <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
+      },
+      <span class="json-key">"benefitIds"</span>: [],
+      <span class="json-key">"engineConfig"</span>: {
+        <span class="json-key">"retainPoints"</span>: <span class="json-bool">false</span>,
+        <span class="json-key">"isAdvanceSetting"</span>: <span class="json-bool">false</span>,
+        <span class="json-key">"slabUpgradeMode"</span>: <span class="json-str">"LAZY"</span>,
+        <span class="json-key">"periodConfig"</span>: { <span class="json-key">"type"</span>: <span class="json-str">"SLAB_UPGRADE"</span>, <span class="json-key">"value"</span>: <span class="json-num">12</span>, <span class="json-key">"unit"</span>: <span class="json-str">"NUM_MONTHS"</span> },
+        <span class="json-key">"downgradeEngineConfig"</span>: { <span class="json-key">"isActive"</span>: <span class="json-bool">true</span>, <span class="json-key">"conditionAlways"</span>: <span class="json-bool">true</span> }
+      },
+      <span class="json-key">"metadata"</span>: {
+        <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
+        <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+        <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
+        <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
+      }
     },
     <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
     <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
@@ -1241,7 +1560,7 @@ sequenceDiagram
     UI->>API: POST /v3/tiers {Platinum config}
     API-->>UI: 201 {status: DRAFT, objectId: 661b...}
     UI->>MC: POST /submit {entityType: TIER, entityId: 661b...}
-    MC-->>UI: 200 {changeId: 661e..., status: PENDING}
+    MC-->>UI: 200 {changeId: 661e..., status: PENDING_APPROVAL}
     Note over UI: Tier status: PENDING_APPROVAL
     UI->>MC: POST /661e.../approve {comment: "Looks good"}
     MC->>SQL: Thrift sync (ProgramSlab + strategies)
@@ -1363,6 +1682,70 @@ sequenceDiagram
         <tr><td><code>parentId</code></td><td>Points to ACTIVE when editing</td><td>Non-null = versioned edit</td></tr>
         <tr><td><code>sqlSlabId</code></td><td>MySQL ProgramSlab.id</td><td>Null until first SQL sync (after approval)</td></tr>
         <tr><td><code>serialNumber</code></td><td>Tier ordering</td><td>Immutable. Auto-assigned.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- ─── LEGACY MAPPING ─── -->
+  <!-- ════════════════════════════════════════ -->
+  <section id="legacy-mapping" class="endpoint-section">
+    <h2 class="section-header">Legacy API Mapping Reference</h2>
+    <p class="section-subheader">Maps fields from the production <code>/loyalty/api/v1/strategy/tier-strategy/{programId}</code> to the new <code>/v3/tiers</code> API.</p>
+
+    <div class="card">
+      <h4>Criteria Type Mapping</h4>
+      <table>
+        <tr><th>Production (<code>upgrade.current_value_type</code>)</th><th>New API (<code>eligibilityCriteria.criteriaType</code>)</th></tr>
+        <tr><td><code>CUMULATIVE_PURCHASES</code></td><td><code>ACTIVITY_BASED</code></td></tr>
+        <tr><td><code>CURRENT_POINTS</code></td><td><code>CURRENT_POINTS</code></td></tr>
+        <tr><td><code>LIFETIME_POINTS</code></td><td><code>LIFETIME_POINTS</code></td></tr>
+        <tr><td><code>LIFETIME_PURCHASES</code></td><td><code>LIFETIME_PURCHASES</code></td></tr>
+        <tr><td><code>TRACKER_VALUE</code></td><td><code>TRACKER_VALUE</code></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Threshold Format</h4>
+      <table>
+        <tr><th>Production</th><th>New API</th></tr>
+        <tr>
+          <td><code>threshold_value: ["2000","5000","12000"]</code><br><span style="color:var(--text-muted);font-size:11px;">Program-wide CSV array. N-1 values for N tiers. Position = serialNumber - 2.</span></td>
+          <td><code>activities[].value: 2000</code><br><span style="color:var(--text-muted);font-size:11px;">Per-tier individual value. TierChangeApplier joins/splits during sync.</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Downgrade Field Mapping</h4>
+      <table>
+        <tr><th>Production (<code>downgrade.*</code>)</th><th>New API</th><th>Section</th></tr>
+        <tr><td><code>is_active</code></td><td><code>engineConfig.downgradeEngineConfig.isActive</code></td><td>engineConfig</td></tr>
+        <tr><td><code>should_downgrade</code></td><td><code>downgradeConfig.shouldDowngrade</code></td><td>downgradeConfig</td></tr>
+        <tr><td><code>downgrade_to</code></td><td><code>downgradeConfig.downgradeTo.type</code></td><td>downgradeConfig</td></tr>
+        <tr><td><code>daily_downgrade_enabled: true</code></td><td><code>downgradeSchedule: "DAILY"</code></td><td>downgradeConfig</td></tr>
+        <tr><td><code>daily_downgrade_enabled: false</code></td><td><code>downgradeSchedule: "MONTH_END"</code></td><td>downgradeConfig</td></tr>
+        <tr><td><code>condition_always</code></td><td><code>engineConfig.downgradeEngineConfig.conditionAlways</code></td><td>engineConfig</td></tr>
+        <tr><td><code>purchase</code>, <code>num_visits</code>, <code>points</code></td><td><code>engineConfig.downgradeEngineConfig.conditionValues.*</code></td><td>engineConfig</td></tr>
+        <tr><td><code>renewal_order_string</code></td><td><code>engineConfig.downgradeEngineConfig.renewalOrderString</code></td><td>engineConfig</td></tr>
+        <tr><td><code>slab_upgrade_mode</code></td><td><code>engineConfig.slabUpgradeMode</code></td><td>engineConfig</td></tr>
+      </table>
+    </div>
+
+    <div class="callout warning">
+      <span class="callout-icon">&#9888;</span>
+      <div><strong>pointsSaveData is NOT in the new API.</strong> Allocations, redemptions, and expiry strategies are managed by the engine. When a new slab is created via Thrift, the engine auto-extends all CSV values. TierChangeApplier only sends SLAB_UPGRADE and SLAB_DOWNGRADE strategies.</div>
+    </div>
+
+    <div class="card">
+      <h4>Type Differences</h4>
+      <table>
+        <tr><th>Field</th><th>Production</th><th>New API</th></tr>
+        <tr><td><code>programId</code></td><td><code>"977"</code> (string)</td><td><code>977</code> (int)</td></tr>
+        <tr><td><code>threshold_value</code></td><td><code>["2000"]</code> (string[])</td><td><code>2000</code> (number)</td></tr>
+        <tr><td><code>time_period</code></td><td><code>"12"</code> (string)</td><td><code>12</code> (number)</td></tr>
       </table>
     </div>
   </section>

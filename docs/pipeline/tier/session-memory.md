@@ -117,6 +117,8 @@
 - 7 ADRs documented: ADR-01 (dual-storage), ADR-02 (generic MC), ADR-03 (expand-then-contract), ADR-04 (versioned edits), ADR-05 (existing Thrift), ADR-06 (new programs only), ADR-07 (atomic Thrift call) _(Architect)_
 - 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
 - API handoff v1.1: 11 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail). No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5 — API handoff enhancement)_
+- Production payload validation (program 977): 5 missing engineConfig fields discovered. Added: slabUpgradeMode (program-level, from upgrade.slab_upgrade_mode), downgradeEngineConfig.isActive (from downgrade.is_active), downgradeEngineConfig.conditionAlways (from downgrade.condition_always), downgradeEngineConfig.conditionValues (purchase/numVisits/points/trackerCount), downgradeEngineConfig.renewalOrderString. Full legacy-to-new mapping table added to api-handoff Section 16. _(Phase 7.5 — production validation)_
+- criteriaType mapping: production CUMULATIVE_PURCHASES = our ACTIVITY_BASED. TierChangeApplier converts. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values. _(Phase 7.5)_
 - MongoDB document schema: UnifiedTierConfig with 8 top-level sections (basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds, memberStats, engineConfig, metadata) _(Architect)_
 - PendingChange generic schema: entityType, entityId, payload (full snapshot), status, requestedBy, reviewedBy _(Architect)_
 - Impact analysis: blast radius SMALL (2 modified in emf-parent, 0 in peb/Thrift). Full backward compatibility. _(Analyst)_
@@ -154,6 +156,14 @@
 - [x] resolved: Versioned edit flow confirmed as Flow A. ACTIVE stays live until DRAFT approved. On approval: old->SNAPSHOT, new->ACTIVE. Zero downtime. _(Phase 4 — GQ-3)_
 - [x] resolved: PendingChange stores full snapshot, not diff. _(Phase 4 — GQ-6)_
 - [x] resolved: KPI "Scheduled" replaced with "Pending Approval". No goLiveDate concept for now. _(Phase 4 — C-5)_
+
+## QA Findings (Phase 8)
+- 89 test scenarios covering 52/52 acceptance criteria, 7/7 ADRs, 8 risks, 6 guardrail areas _(QA)_
+- Most critical gap: No test infrastructure for MongoDB + Thrift integration tests in intouch-api-v3. SDET must establish embedded MongoDB + Thrift mock. _(QA)_
+- ~45 existing test files in emf-parent + peb need regression runs after Flyway migration (ADR-03 expand-then-contract) _(QA)_
+- 0 existing tier/MC tests in intouch-api-v3 — all tests for tier CRUD and MC framework are net-new _(QA)_
+- Edge cases flagged: concurrent serialNumber assignment, @Lockable for concurrent approvals, one-DRAFT-per-ACTIVE enforcement, engineConfig round-trip fidelity _(QA)_
+- Business Test Gen (Phase 8b) complete: 141 business test cases (84 UT + 45 IT + 12 compliance) across 7 sections. Full traceability: 52/52 ACs, 89/89 QA scenarios, 16/16 designer interface methods, 7/7 ADRs, 8/8 risks, 8 guardrail areas. 7 coverage gaps documented (all deferred or SDET-addressable, no blockers). Artifact: 04b-business-tests.md _(Business Test Gen)_
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._

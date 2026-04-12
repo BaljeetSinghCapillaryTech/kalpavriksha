@@ -104,11 +104,11 @@
     },
     "8": {
       "status": "complete",
-      "completed_at": "2026-04-11T20:00:00Z",
+      "completed_at": "2026-04-12T10:00:00Z",
       "artifacts": ["04-qa.md"]
     },
-    "8b": { "status": "pending" },
-    "9": { "status": "pending" },
+    "8b": { "status": "complete", "completed_at": "2026-04-12T10:30:00Z", "artifacts": ["04b-business-tests.md"] },
+    "9": { "status": "complete", "completed_at": "2026-04-12T12:50:00Z", "artifacts": ["05-sdet.md"] },
     "10": { "status": "pending" },
     "10b": { "status": "pending" },
     "10c": { "status": "pending" },
