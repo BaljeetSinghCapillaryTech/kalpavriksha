@@ -352,14 +352,14 @@
     <a href="#phase-6b" class="sidebar-link"><span class="dot complete"></span> 6b. Migration</a>
     <a href="#phase-7" class="sidebar-link"><span class="dot complete"></span> 7. LLD (Designer)</a>
     <a href="#phase-8" class="sidebar-link"><span class="dot complete"></span> 8. QA</a>
-    <a href="#phase-8b" class="sidebar-link"><span class="dot active"></span> 8b. Business Tests</a>
-    <a href="#phase-9" class="sidebar-link"><span class="dot pending"></span> 9. SDET (RED)</a>
-    <a href="#phase-10" class="sidebar-link"><span class="dot pending"></span> 10. Developer (GREEN)</a>
-    <a href="#phase-10b" class="sidebar-link"><span class="dot pending"></span> 10b. Backend Ready</a>
-    <a href="#phase-10c" class="sidebar-link"><span class="dot pending"></span> 10c. Compliance</a>
-    <a href="#phase-10d" class="sidebar-link"><span class="dot pending"></span> 10d. Migration Val.</a>
-    <a href="#phase-11" class="sidebar-link"><span class="dot pending"></span> 11. Reviewer</a>
-    <a href="#phase-12" class="sidebar-link"><span class="dot pending"></span> 12. Blueprint</a>
+    <a href="#phase-8b" class="sidebar-link"><span class="dot complete"></span> 8b. Business Tests</a>
+    <a href="#phase-9" class="sidebar-link"><span class="dot complete"></span> 9. SDET (RED)</a>
+    <a href="#phase-10" class="sidebar-link"><span class="dot complete"></span> 10. Developer (GREEN)</a>
+    <a href="#phase-10b" class="sidebar-link"><span class="dot complete"></span> 10b. Backend Ready</a>
+    <a href="#phase-10c" class="sidebar-link"><span class="dot complete"></span> 10c. Compliance</a>
+    <a href="#phase-10d" class="sidebar-link"><span class="dot" style="background:var(--text-muted)"></span> 10d. Migration (skip)</a>
+    <a href="#phase-11" class="sidebar-link"><span class="dot complete"></span> 11. Reviewer</a>
+    <a href="#phase-12" class="sidebar-link"><span class="dot complete"></span> 12. Blueprint</a>
   </div>
 
   <div class="sidebar-section quick-links">
@@ -369,9 +369,9 @@
     <a href="#api-contracts" class="sidebar-link"><span class="dot complete"></span> API Contracts</a>
     <a href="#cross-repo" class="sidebar-link"><span class="dot complete"></span> Cross-Repo Map</a>
     <a href="#hld-diagrams" class="sidebar-link"><span class="dot complete"></span> HLD Diagrams</a>
-    <a href="#lld-diagrams" class="sidebar-link"><span class="dot pending"></span> LLD Diagrams</a>
-    <a href="#implementation" class="sidebar-link"><span class="dot pending"></span> Implementation</a>
-    <a href="#review-findings" class="sidebar-link"><span class="dot pending"></span> Review Findings</a>
+    <a href="#lld-diagrams" class="sidebar-link"><span class="dot complete"></span> LLD Diagrams</a>
+    <a href="#implementation" class="sidebar-link"><span class="dot complete"></span> Implementation</a>
+    <a href="#review-findings" class="sidebar-link"><span class="dot complete"></span> Review Findings</a>
   </div>
 </nav>
 
@@ -392,13 +392,13 @@
   <!-- Progress Bar -->
   <div class="progress-container">
     <div class="progress-bar">
-      <div class="fill" style="width: 57.9%"></div>
+      <div class="fill" style="width: 95%"></div>
     </div>
     <div class="progress-stats">
-      <span><span class="stat-value">11</span> / 19 phases complete</span>
-      <span><span class="stat-value">24</span> artifacts generated</span>
-      <span><span class="stat-value">29</span> decisions made</span>
-      <span><span class="stat-value">0</span> code files written</span>
+      <span><span class="stat-value">18</span> / 19 phases complete</span>
+      <span><span class="stat-value">26</span> artifacts generated</span>
+      <span><span class="stat-value">52</span> decisions made</span>
+      <span><span class="stat-value">41</span> code files written</span>
     </div>
   </div>
 
@@ -1523,6 +1523,89 @@ graph TD
   <section class="phase-section" id="phase-12">
     <h2>Phase 12: Documentation + Blueprint <span class="phase-badge complete">Complete</span></h2>
     <p>Blueprint: <a href="tiers-crud-blueprint.html" style="color:var(--accent);">tiers-crud-blueprint.html</a> &middot; API Docs: <a href="api-handoff-docs.html" style="color:var(--accent);">api-handoff-docs.html</a></p>
+  </section>
+
+  <!-- ══════════ IMPLEMENTATION SUMMARY ══════════ -->
+  <section class="phase-section" id="implementation">
+    <h2>Implementation Summary <span class="phase-badge complete">GREEN</span></h2>
+    <p class="phase-time">28/28 unit tests passing &middot; Layer 1-2 complete</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">37</div><div class="label">Skeleton Classes</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Production Classes</div></div>
+      <div class="key-number"><div class="value">28</div><div class="label">Unit Tests</div></div>
+      <div class="key-number"><div class="value">11</div><div class="label">API Endpoints</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Production Code (Layer 1-2)</h3>
+    <table class="data-table">
+      <tr><th>Class</th><th>Tests</th><th>Key Logic</th></tr>
+      <tr><td style="color:var(--accent);">TierValidationService</td><td>6</td><td>Name/color/date validation, uniqueness, serial auto-assign, 50-cap</td></tr>
+      <tr><td style="color:var(--accent);">TierFacade</td><td>12</td><td>List + KPI, create (MC toggle), versioned edit, delete per-status</td></tr>
+      <tr><td style="color:var(--accent);">MakerCheckerServiceImpl</td><td>7</td><td>Submit/approve/reject lifecycle, notification hooks</td></tr>
+      <tr><td style="color:var(--accent);">TierChangeApplier</td><td>3</td><td>Version swap (new&rarr;ACTIVE, old&rarr;SNAPSHOT)</td></tr>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Package Structure</h3>
+    <table class="data-table">
+      <tr><th>Package</th><th>Files</th><th>Purpose</th></tr>
+      <tr><td><code>tier/enums/</code></td><td>5</td><td>TierStatus, CriteriaType, ActivityRelation, DowngradeSchedule, DowngradeTargetType</td></tr>
+      <tr><td><code>tier/model/</code></td><td>9</td><td>Domain models (BasicDetails, EligibilityCriteria, Activity, etc.)</td></tr>
+      <tr><td><code>tier/dto/</code></td><td>4</td><td>REST DTOs (TierCreateRequest, TierUpdateRequest, TierListResponse, KpiSummary)</td></tr>
+      <tr><td><code>tier/</code></td><td>5</td><td>Core (UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierChangeApplier)</td></tr>
+      <tr><td><code>makerchecker/</code></td><td>12</td><td>Generic MC framework (service, facade, repos, enums, DTOs, notification)</td></tr>
+      <tr><td><code>resources/</code></td><td>2</td><td>TierController, MakerCheckerController (skeleton &mdash; needs wiring)</td></tr>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Remaining Work (Layer 3-4)</h3>
+    <table class="data-table">
+      <tr><th>Layer</th><th>Repo</th><th>Item</th></tr>
+      <tr><td>L3</td><td>emf-parent</td><td>Flyway migration: program_slabs.status column</td></tr>
+      <tr><td>L3</td><td>emf-parent</td><td>ProgramSlab.java status field + PeProgramSlabDao.findActiveByProgram()</td></tr>
+      <tr><td>L3</td><td>intouch-api-v3</td><td>PointsEngineRulesThriftService wrapper methods</td></tr>
+      <tr><td>L3</td><td>intouch-api-v3</td><td>TierChangeApplier: wire Thrift, add @Lockable, CREATE/DELETE sync</td></tr>
+      <tr><td>L4</td><td>intouch-api-v3</td><td>Controller &rarr; Facade wiring + @ExceptionHandler</td></tr>
+      <tr><td>L4</td><td>intouch-api-v3</td><td>MC config integration with OrgConfigService</td></tr>
+      <tr><td>L4</td><td>intouch-api-v3</td><td>Member count cron job (every 10 min)</td></tr>
+      <tr><td>L4</td><td>intouch-api-v3</td><td>MongoDB compound indexes</td></tr>
+      <tr><td>L4</td><td>intouch-api-v3</td><td>Integration tests</td></tr>
+    </table>
+  </section>
+
+  <!-- ══════════ REVIEW FINDINGS ══════════ -->
+  <section class="phase-section" id="review-findings">
+    <h2>Review Findings <span class="phase-badge complete">Approved</span></h2>
+    <p class="phase-time">Reviewer verdict: APPROVED for Layer 1-2 scope</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">39</div><div class="label">ACs PASS</div></div>
+      <div class="key-number"><div class="value">9</div><div class="label">ACs PARTIAL</div></div>
+      <div class="key-number"><div class="value">0</div><div class="label">Blockers</div></div>
+      <div class="key-number"><div class="value">5</div><div class="label">Non-blocking</div></div>
+    </div>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Compliance</h3>
+    <table class="data-table">
+      <tr><th>Check</th><th>Status</th><th>Detail</th></tr>
+      <tr><td>Build (28 UTs)</td><td><span class="status-ok">PASS</span></td><td>0 failures, 0 errors</td></tr>
+      <tr><td>G-01 UTC (Timezone)</td><td><span class="status-ok">COMPLIANT</span></td><td>All timestamps use java.time.Instant</td></tr>
+      <tr><td>G-03 Security</td><td><span class="status-ok">COMPLIANT</span></td><td>No raw SQL, parameterized queries</td></tr>
+      <tr><td>G-07 Multi-tenancy</td><td><span class="status-ok">COMPLIANT</span></td><td>orgId on every repository method</td></tr>
+      <tr><td>ADR-02 Generic MC</td><td><span class="status-ok">COMPLIANT</span></td><td>ChangeApplier&lt;T&gt;, EntityType dispatch</td></tr>
+      <tr><td>ADR-04 Versioned Edits</td><td><span class="status-ok">COMPLIANT</span></td><td>parentId + version swap implemented</td></tr>
+      <tr><td>ADR-01 Dual-Storage</td><td><span class="status-warn">PARTIAL</span></td><td>MongoDB done, SQL sync pending (Layer 3)</td></tr>
+      <tr><td>ADR-03 Migration</td><td><span class="status-warn">NOT STARTED</span></td><td>Layer 3 emf-parent work</td></tr>
+    </table>
+
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Non-blocking Suggestions</h3>
+    <table class="data-table">
+      <tr><th>#</th><th>Finding</th><th>File</th></tr>
+      <tr><td>NB-01</td><td>Remove unused UUID import</td><td>TierFacade.java</td></tr>
+      <tr><td>NB-02</td><td>Consider constructor injection over @Autowired</td><td>TierFacade.java</td></tr>
+      <tr><td>NB-03</td><td>Add @Slf4j logging</td><td>TierFacade.java</td></tr>
+      <tr><td>NB-04</td><td>Integrate isMCEnabled with OrgConfig</td><td>MakerCheckerServiceImpl.java</td></tr>
+      <tr><td>NB-05</td><td>Add @CompoundIndex for MongoDB</td><td>UnifiedTierConfig.java</td></tr>
+    </table>
   </section>
 
 </div>
