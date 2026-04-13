@@ -94,7 +94,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "endDate": null
         },
         "eligibilityCriteria": {
-          "criteriaType": "ACTIVITY_BASED",
+          "criteriaType": "CUMULATIVE_PURCHASES",
           "activities": [
             {
               "type": "Any Purchase",
@@ -154,7 +154,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "endDate": "2025-12-31T23:59:59Z"
         },
         "eligibilityCriteria": {
-          "criteriaType": "ACTIVITY_BASED",
+          "criteriaType": "CUMULATIVE_PURCHASES",
           "activities": [
             {
               "type": "Spending",
@@ -236,7 +236,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "endDate": "2025-12-31T23:59:59Z"
         },
         "eligibilityCriteria": {
-          "criteriaType": "ACTIVITY_BASED",
+          "criteriaType": "CUMULATIVE_PURCHASES",
           "activities": [
             {
               "type": "Spending",
@@ -318,7 +318,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "endDate": "2026-12-31T23:59:59Z"
         },
         "eligibilityCriteria": {
-          "criteriaType": "ACTIVITY_BASED",
+          "criteriaType": "CUMULATIVE_PURCHASES",
           "activities": [
             {
               "type": "Spending",
@@ -443,7 +443,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
       "endDate": "2025-12-31T23:59:59Z"
     },
     "eligibilityCriteria": {
-      "criteriaType": "ACTIVITY_BASED",
+      "criteriaType": "CUMULATIVE_PURCHASES",
       "activities": [
         {
           "type": "Spending",
@@ -606,7 +606,7 @@ Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, sa
     "endDate": "2026-12-31T23:59:59Z"
   },
   "eligibilityCriteria": {
-    "criteriaType": "ACTIVITY_BASED",
+    "criteriaType": "CUMULATIVE_PURCHASES",
     "activities": [
       {
         "type": "Spending",
@@ -719,7 +719,7 @@ POST /v3/tiers (validation error)
   "data": null,
   "errors": [
     { "code": 400, "message": "basicDetails.name is required" },
-    { "code": 400, "message": "eligibilityCriteria.criteriaType must match program criteria type (ACTIVITY_BASED)" }
+    { "code": 400, "message": "eligibilityCriteria.criteriaType must match program criteria type (CUMULATIVE_PURCHASES)" }
   ],
   "warnings": null
 }
@@ -777,7 +777,7 @@ Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (th
       "endDate": "2025-12-31T23:59:59Z"
     },
     "eligibilityCriteria": {
-      "criteriaType": "ACTIVITY_BASED",
+      "criteriaType": "CUMULATIVE_PURCHASES",
       "activities": [
         {
           "type": "Spending",
@@ -1149,7 +1149,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "endDate": "2026-12-31T23:59:59Z"
       },
       "eligibilityCriteria": {
-        "criteriaType": "ACTIVITY_BASED",
+        "criteriaType": "CUMULATIVE_PURCHASES",
         "activities": [
           { "type": "Spending", "operator": "GTE", "value": 2000, "unit": "RM" }
         ],
@@ -1372,13 +1372,15 @@ The production legacy API (`/loyalty/api/v1/strategy/tier-strategy/{programId}`)
 
 ### Criteria Type Mapping
 
-| Production (`upgrade.current_value_type`) | New API (`eligibilityCriteria.criteriaType`) |
-|------------------------------------------|----------------------------------------------|
-| `CUMULATIVE_PURCHASES` | `ACTIVITY_BASED` |
-| `CURRENT_POINTS` | `CURRENT_POINTS` |
-| `LIFETIME_POINTS` | `LIFETIME_POINTS` |
-| `LIFETIME_PURCHASES` | `LIFETIME_PURCHASES` |
-| `TRACKER_VALUE` | `TRACKER_VALUE` |
+The new API uses the **same enum values** as production. No conversion is needed in `TierChangeApplier`.
+
+| Enum Value | Used In |
+|-----------|---------|
+| `CUMULATIVE_PURCHASES` | Production + New API |
+| `CURRENT_POINTS` | Production + New API |
+| `LIFETIME_POINTS` | Production + New API |
+| `LIFETIME_PURCHASES` | Production + New API |
+| `TRACKER_VALUE` | Production + New API |
 
 ### Threshold Format
 

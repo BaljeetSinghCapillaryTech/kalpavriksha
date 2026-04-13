@@ -118,7 +118,7 @@
 - 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
 - API handoff v1.1: 11 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail). No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5 — API handoff enhancement)_
 - Production payload validation (program 977): 5 missing engineConfig fields discovered. Added: slabUpgradeMode (program-level, from upgrade.slab_upgrade_mode), downgradeEngineConfig.isActive (from downgrade.is_active), downgradeEngineConfig.conditionAlways (from downgrade.condition_always), downgradeEngineConfig.conditionValues (purchase/numVisits/points/trackerCount), downgradeEngineConfig.renewalOrderString. Full legacy-to-new mapping table added to api-handoff Section 16. _(Phase 7.5 — production validation)_
-- criteriaType mapping: production CUMULATIVE_PURCHASES = our ACTIVITY_BASED. TierChangeApplier converts. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values. _(Phase 7.5)_
+- criteriaType: new API uses SAME production enum values (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No conversion needed in TierChangeApplier -- values pass through directly. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values -- TierChangeApplier joins/splits during sync. _(Phase 7.5, updated Phase 7-rework)_
 - MongoDB document schema: UnifiedTierConfig with 8 top-level sections (basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds, memberStats, engineConfig, metadata) _(Architect)_
 - PendingChange generic schema: entityType, entityId, payload (full snapshot), status, requestedBy, reviewedBy _(Architect)_
 - Impact analysis: blast radius SMALL (2 modified in emf-parent, 0 in peb/Thrift). Full backward compatibility. _(Analyst)_
@@ -167,3 +167,17 @@
 
 ## Rework Log
 _Tracks re-run cycles to detect unresolved loops._
+
+### Rework #1 — Minimize deviation from production patterns (2026-04-13)
+**Trigger**: User feedback — ACTIVITY_BASED enum rename and conversion logic is unnecessary deviation from emf-parent codebase.
+**Decision**: Use production enum values as-is (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No renaming, no conversion in TierChangeApplier for criteriaType.
+**Scope**: Phases 7-12 artifacts + Java source files (CriteriaType.java, TierChangeApplierTest.java).
+**What changed**:
+- CriteriaType enum: ACTIVITY_BASED → CUMULATIVE_PURCHASES (matches production)
+- TierChangeApplier: no criteriaType conversion step needed (values pass through directly)
+- BT-77: changed from conversion test to pass-through verification test
+- Section 16 mapping table: now shows identity mapping (same values, no conversion)
+- Per-tier threshold format KEPT (good UX improvement, user agreed)
+- Downgrade UI/engineConfig split KEPT (helps UI team)
+**What stayed the same**: Architecture, dual-storage, maker-checker, all other field structures.
+**Impact**: Simpler code (less conversion logic), closer alignment with emf-parent patterns.

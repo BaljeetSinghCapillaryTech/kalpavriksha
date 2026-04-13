@@ -84,7 +84,7 @@ basicDetails: {
 **API fields needed:**
 ```
 eligibilityCriteria: {
-  criteriaType: enum (ACTIVITY_BASED, ...),
+  criteriaType: enum (CUMULATIVE_PURCHASES, ...),
   activities: [
     {
       type: string,  // "Spending", "Transactions", "Any Purchase"

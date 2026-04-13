@@ -158,7 +158,7 @@
 | BT-74 | shouldPassOnlyUpgradeAndDowngradeStrategiesToThrift | US6-AC3, US6-AC4 | Full UnifiedTierConfig | Thrift call receives exactly [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies, NOT allocation/expiry | TS-A05 | TierChangeApplier.apply | UT |
 | BT-75 | shouldUpdateSqlSlabIdInMongoAfterSync | US6-AC4 | Approved tier, Thrift returns SlabInfo with id=42 | MongoDB doc metadata.sqlSlabId = 42 | TS-A01 | TierChangeApplier.apply | UT |
 | BT-76 | shouldSwapVersionsOnEditApproval | US3-AC8, US6-AC4 | PendingChange for UPDATE with parentId | New doc -> ACTIVE, old ACTIVE doc -> SNAPSHOT | TS-A08 | TierChangeApplier.apply | UT |
-| BT-77 | shouldConvertCriteriaTypeToCumulativePurchases | US6-AC3 | criteriaType=ACTIVITY_BASED | Thrift current_value_type=CUMULATIVE_PURCHASES | TS-A05 | TierChangeApplier.apply | UT |
+| BT-77 | shouldPassCriteriaTypeDirectlyToThrift | US6-AC3 | criteriaType=CUMULATIVE_PURCHASES | Thrift current_value_type=CUMULATIVE_PURCHASES (same value, no conversion) | TS-A05 | TierChangeApplier.apply | UT |
 | BT-78 | shouldSetUpdatedViaNewUIFlagTrue | US6-AC3 | Any tier sync | SlabInfo.updatedViaNewUI = true, StrategyInfo.updatedViaNewUI = true | TS-A05 | TierChangeApplier.apply | UT |
 | BT-79 | shouldApplyDeleteBySettingStatusToStopped | US4-AC2, US4-AC3 | PendingChange with changeType=DELETE | MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED | TS-A09 | TierChangeApplier.apply | UT |
 

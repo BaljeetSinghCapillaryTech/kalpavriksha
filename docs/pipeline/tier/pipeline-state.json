@@ -153,5 +153,24 @@
       "status": "in-progress"
     }
   },
-  "rework_cycles": []
+  "rework_cycles": [
+    {
+      "id": 1,
+      "date": "2026-04-13",
+      "trigger": "User feedback: ACTIVITY_BASED enum rename is unnecessary deviation from emf-parent",
+      "scope": "Phases 7-12 + Java source (CriteriaType.java, TierChangeApplierTest.java)",
+      "change": "Use production enum values (CUMULATIVE_PURCHASES etc.), remove criteriaType conversion logic",
+      "affected_files": [
+        "CriteriaType.java",
+        "TierChangeApplierTest.java",
+        "03-designer.md",
+        "01-architect.md",
+        "ui-requirements.md",
+        "api-handoff.md",
+        "api-handoff-docs.html",
+        "04b-business-tests.md",
+        "session-memory.md"
+      ]
+    }
+  ]
 }

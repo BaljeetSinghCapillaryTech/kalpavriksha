@@ -40,7 +40,7 @@ com.capillary.intouchapiv3/
       TierMetadata.java                    -- created/updated by, sqlSlabId
     enums/
       TierStatus.java                      -- DRAFT, PENDING_APPROVAL, ACTIVE, etc.
-      CriteriaType.java                    -- ACTIVITY_BASED, CURRENT_POINTS, etc.
+      CriteriaType.java                    -- CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.
       ActivityRelation.java                -- AND, OR
       DowngradeSchedule.java               -- MONTH_END, DAILY
       DowngradeTargetType.java             -- SINGLE, THRESHOLD, LOWEST
@@ -293,7 +293,7 @@ public enum ChangeStatus {
 }
 
 public enum CriteriaType {
-    ACTIVITY_BASED, CURRENT_POINTS, LIFETIME_POINTS, LIFETIME_PURCHASES, TRACKER_VALUE
+    CUMULATIVE_PURCHASES, CURRENT_POINTS, LIFETIME_POINTS, LIFETIME_PURCHASES, TRACKER_VALUE
 }
 
 public enum ActivityRelation { AND, OR }

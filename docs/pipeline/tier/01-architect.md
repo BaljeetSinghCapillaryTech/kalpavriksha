@@ -171,7 +171,7 @@ graph TB
   },
 
   "eligibilityCriteria": {
-    "criteriaType": "ACTIVITY_BASED | CURRENT_POINTS | LIFETIME_POINTS | LIFETIME_PURCHASES | TRACKER_VALUE",
+    "criteriaType": "CUMULATIVE_PURCHASES | CURRENT_POINTS | LIFETIME_POINTS | LIFETIME_PURCHASES | TRACKER_VALUE",
     "activities": [
       {
         "type": "string (Spending, Transactions, Any Purchase, etc.)",
