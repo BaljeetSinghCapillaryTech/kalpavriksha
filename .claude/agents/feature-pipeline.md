@@ -722,10 +722,13 @@ This phase runs TWO subagents in parallel:
 
 ---
 
-## Phase 8b: Business Test Gen (Subagent)
+## Phase 8b: Business Test Gen (Subagent + Superpowers)
 
 **Skill**: `/business-test-gen` (`.claude/skills/business-test-gen/SKILL.md`)
 **Mode**: Subagent — maps requirements to testable contracts
+**Superpowers**: `verification-before-completion` (first run + rework), `receiving-code-review` (rework only)
+
+### First Run
 
 1. Spawn subagent:
    ```
@@ -746,9 +749,165 @@ This phase runs TWO subagents in parallel:
 
    Produce: 04b-business-tests.md with full traceability (BT-xx IDs).
    ```
-2. Display summary: "N business test cases generated. M unit, K integration, J compliance."
-3. If coverage gaps found: display to user and route to concerned phase
-4. Update process-log, session-memory
+2. **Invoke superpower** before declaring phase complete:
+   ```
+   Skill tool → skill: "verification-before-completion"
+   ```
+   Verification checklist (evidence required for each — counts and IDs, not assertions):
+   - Every acceptance criterion in `00-ba.md` has ≥1 BT-xx test case → list: `AC-N → BT-xx`
+   - Every QA scenario in `04-qa.md` is referenced by ≥1 BT-xx → list: `TS-N → BT-xx`
+   - Every Designer interface method in `03-designer.md` has ≥1 BT-xx → list: `Method → BT-xx`
+   - Every ADR in `01-architect.md` has ≥1 compliance test case → list: `ADR-N → BT-Cxx`
+   - Every HIGH+ risk in session memory has a mitigation test case → list: `Risk → BT-Rxx`
+   - Coverage summary matches actual BT-xx count in `04b-business-tests.md`
+
+   If verification finds gaps → fix them before returning. If gaps require upstream changes → raise BLOCKER.
+3. Display summary: "N business test cases generated. M unit, K integration, J compliance. Coverage: verified (evidence in artifact)."
+4. If coverage gaps found: display to user and route to concerned phase
+5. Update process-log, session-memory
+
+### Rework Mode (ISTQB Suspect-Link Protocol)
+
+**Triggered by**: Reviewer blocker, manual rework entry, or forward cascade from an upstream phase.
+
+Phase 8b enters rework mode when it receives a **structured rework payload** (see Rework System → Structured Rework Payload Format). The rework payload specifies which items changed and how.
+
+**Step R1: Receive & parse rework payload**
+
+Read the rework payload from the triggering source:
+```
+REWORK CONTEXT:
+  Source: [Reviewer | Manual | Cascade from Phase X]
+  Trigger: [reviewer | manual | cascade]
+  Affected items: [list of REQ-xx, TS-xx, method names, or BT-xx IDs]
+  Change classifications: [ADDED | CHANGED | REMOVED | CLARIFIED per item]
+  Context: [why rework is needed]
+```
+
+Also read: the current `04b-business-tests.md` (existing test cases) and the updated upstream artifacts that triggered rework.
+
+**Step R2: Invoke `receiving-code-review` superpower — structured disagreement**
+```
+Skill tool → skill: "receiving-code-review"
+```
+
+For each item in the rework payload, evaluate with evidence:
+
+| Feedback Item | Agree? | Evidence | Action |
+|---|---|---|---|
+| REQ-03 needs new BT-xx | Yes | AC-03 has no test case in 04b-business-tests.md | Generate new BT-xx |
+| BT-12 expected output wrong | No — output matches Designer contract | `03-designer.md` line 45: return type is `ConflictException` which matches BT-12 | Challenge — escalate to Reviewer |
+| BT-18 is obsolete | Yes | REQ-09 removed in BA rework delta | Mark OBSOLETE, remove |
+
+**Rules for structured disagreement:**
+- Do NOT blindly accept all feedback — validate each item against source artifacts
+- If a feedback item contradicts a Designer interface or BA acceptance criterion → challenge it with evidence and escalate
+- If feedback is ambiguous → request clarification via BLOCKER: `BLOCKER: TARGET=Reviewer | Clarification needed: [what's ambiguous]`
+- Track acceptance rate: if <50% of feedback items are accepted, flag to user — may indicate systemic misalignment
+
+**Step R3: Suspect-link triage (Polarion/DOORS-aligned)**
+
+For every existing BT-xx test case in `04b-business-tests.md`, check if its traceability links are affected by the rework payload:
+
+| Check | If affected → |
+|---|---|
+| Traced BA requirement (AC-xx) is in the CHANGED/REMOVED list | Suspect |
+| Traced Designer method signature changed | Suspect |
+| Traced QA scenario (TS-xx) is in the CHANGED/REMOVED list | Suspect |
+| None of the above | CONFIRMED — not affected |
+
+For each suspect test case, classify:
+
+| Triage Status | Condition | Action |
+|---|---|---|
+| **CONFIRMED** | No traced items affected by rework payload | Keep as-is, no changes |
+| **UPDATE** | Traced item changed but test structure valid (e.g., threshold value changed, error type renamed) | Update input/output/expected values only |
+| **REGENERATE** | Structural change — test logic is invalid (e.g., new flow, removed precondition, interface signature change) | Delete test case, regenerate from updated source artifacts |
+| **OBSOLETE** | Traced requirement or interface removed upstream | Remove test case entirely |
+| **NEW** | New requirement, interface, or QA scenario added upstream | Generate fresh BT-xx test cases following Derivation Protocol |
+
+**Step R4: Execute scoped rework**
+
+- **CONFIRMED** cases: untouched — do not regenerate
+- **UPDATE** cases: edit in place — change only the affected fields (input, expected output, error type)
+- **REGENERATE** cases: delete existing BT-xx, regenerate from updated source artifacts using the Derivation Protocol
+- **OBSOLETE** cases: remove from `04b-business-tests.md`, note in delta log
+- **NEW** cases: generate using Derivation Protocol, assign new BT-xx IDs continuing from the last existing ID (no renumbering)
+
+**Step R5: Produce delta log**
+
+Append to `04b-business-tests.md`:
+
+```markdown
+## Rework Delta — Cycle [N]
+
+**Source**: [Reviewer | Manual | Cascade from Phase X]
+**Date**: [YYYY-MM-DD]
+**Trigger**: [reason for rework]
+
+### Triage Summary
+| Status | Count | BT-IDs |
+|--------|-------|--------|
+| CONFIRMED | [N] | BT-01, BT-02, BT-03, ... |
+| UPDATE | [N] | BT-05, BT-09 |
+| REGENERATE | [N] | BT-12 |
+| OBSOLETE | [N] | BT-18 |
+| NEW | [N] | BT-25, BT-26 |
+
+### Change Detail
+| BT-ID | Triage | What Changed | Before | After | Traced To |
+|-------|--------|-------------|--------|-------|-----------|
+| BT-05 | UPDATE | Expected output | DuplicateNameException | ConflictException | REQ-03, TierService.create() |
+| BT-12 | REGENERATE | New boundary condition for threshold=0 | — | shouldRejectZeroThreshold | REQ-05, TierService.create() |
+| BT-18 | OBSOLETE | REQ-09 removed from scope | shouldValidateReturnTransaction | Removed | REQ-09 (removed) |
+| BT-25 | NEW | Grace period notification test | — | shouldSendNotificationBeforeGracePeriodExpiry | REQ-12, TierNotificationService.notify() |
+
+### Structured Disagreement Log
+| Feedback Item | Accepted? | Rationale | Action Taken |
+|---|---|---|---|
+| [item from rework payload] | Yes/No | [evidence] | [action] |
+```
+
+**Step R6: Invoke `verification-before-completion` superpower**
+```
+Skill tool → skill: "verification-before-completion"
+```
+Same verification checklist as first run, plus rework-specific checks:
+- All REGENERATE cases have replacement BT-xx in the artifact
+- All NEW cases have been generated with valid traceability links
+- All OBSOLETE cases have been removed — no orphan BT-xx references
+- No CONFIRMED case was accidentally modified (diff check)
+- Updated coverage summary matches actual BT-xx count post-rework
+- Delta log is complete and consistent with triage summary
+
+**Step R7: Return to orchestrator with rework delta**
+
+```
+PHASE: Business Test Gen (REWORK — Cycle [N])
+STATUS: complete | blocked
+ARTIFACT: 04b-business-tests.md (updated)
+TRIGGER: [reviewer | manual | cascade]
+
+REWORK SUMMARY:
+- Feedback items received: [count]
+- Accepted: [count] | Challenged: [count]
+- Triage: [CONFIRMED count] confirmed, [UPDATE count] updated, [REGENERATE count] regenerated, [OBSOLETE count] removed, [NEW count] new
+- Net change: [+N new, -M removed, ~K modified] test cases
+- Total test cases after rework: [count] ([UT count] unit, [IT count] integration)
+- Coverage: verified (evidence in artifact)
+
+FORWARD CASCADE PAYLOAD:
+  Changed BT-xx IDs: [list — for SDET to triage its test code]
+  Change classifications: [per BT-xx: ADDED | CHANGED | REMOVED]
+  
+BLOCKERS:
+- [any items challenged or needing clarification — or "None"]
+
+SESSION MEMORY UPDATES:
+- [brief list of what was added to which sections]
+```
+
+The orchestrator uses `FORWARD CASCADE PAYLOAD` to construct the rework payload for Phase 9 (SDET), continuing the cascade.
 
 ---
 
@@ -1217,22 +1376,34 @@ This block replaces reading the full principles.md (which is long). It captures 
 
 ---
 
-## Rework History (adopted from AIDLC)
+## Rework System
+
+### Rework History (adopted from AIDLC)
 
 When a phase routes back to a prior phase (e.g., Reviewer finds blocker → back to Developer), log it in both `process-log.md` and `pipeline-state.json`:
 
 ```markdown
 ## Rework History
-| Cycle | From Phase | To Phase | Reason | Severity | Resolved |
-|-------|-----------|----------|--------|----------|----------|
-| 1 | Phase 11 (Reviewer) | Phase 10 (Developer) | Missing tenant filter in TierChangeLogDao | BLOCKER | yes |
-| 2 | Phase 10c (Compliance) | Phase 10 (Developer) | Interface mismatch on TierFacade.publishDraft | HIGH | yes |
+| Cycle | From Phase | To Phase | Trigger | Reason | Scope | Severity | Resolved |
+|-------|-----------|----------|---------|--------|-------|----------|----------|
+| 1 | Phase 11 (Reviewer) | Phase 10 (Developer) | reviewer | Missing tenant filter in TierChangeLogDao | REQ-07, BT-G07 | BLOCKER | yes |
+| 2 | Phase 10c (Compliance) | Phase 10 (Developer) | reviewer | Interface mismatch on TierFacade.publishDraft | REQ-03 | HIGH | yes |
+| 3 | manual | Phase 8b (BTG) | manual | AC-5 grace period logic was incorrect | REQ-05, BT-12, BT-13 | HIGH | yes |
 ```
 
 In `pipeline-state.json`, track rework:
 ```json
 "rework_cycles": [
-  {"from": "11", "to": "9", "reason": "...", "severity": "BLOCKER", "resolved": true}
+  {
+    "from": "11",
+    "to": "9",
+    "trigger": "reviewer",
+    "reason": "...",
+    "scope": ["REQ-xx", "BT-xx"],
+    "severity": "BLOCKER",
+    "resolved": true,
+    "cascade_phases": ["10", "11"]
+  }
 ]
 ```
 
@@ -1244,6 +1415,159 @@ This suggests a systemic issue, not a simple fix. Please review the findings and
   [B] Accept current state with known issues
   [C] Revert to an earlier phase
 ```
+
+---
+
+### Forward Cascade Rules (IEEE 829 / ISTQB-aligned)
+
+**Principle**: When Phase X is reworked, every downstream phase that consumed Phase X's output is **suspect** (ISTQB term). Suspect phases must re-run — but in **rework mode** (delta-aware), not as a fresh run, unless the delta exceeds 50% of the original artifact.
+
+**Cascade Matrix:**
+
+| Reworked Phase | Forward Cascade (re-run in order) | Artifacts Invalidated |
+|---|---|---|
+| BA (Phase 1) | Critic → Blockers → Architect → Impact → Designer → QA → BTG → SDET → Developer → Reviewer | All artifacts |
+| Architect (Phase 6) | Impact → Designer → QA → BTG → SDET → Developer → Reviewer | 01-architect.md + all downstream |
+| Designer (Phase 7) | QA → BTG → SDET → Developer → Reviewer | 03-designer.md + all downstream |
+| QA (Phase 8) | BTG → SDET → Developer → Reviewer | 04-qa.md + all downstream |
+| BTG (Phase 8b) | SDET → Developer → Reviewer | 04b-business-tests.md + all downstream |
+| SDET (Phase 9) | Developer → Reviewer | 05-sdet.md + all downstream |
+| Developer (Phase 10) | Reviewer only | 06-developer.md |
+
+**Cascade execution protocol:**
+
+1. **Reworked phase completes** → produces a delta log listing what changed (IDs, change type)
+2. **Orchestrator reads delta log** → determines which downstream phases are affected:
+   - If delta touches items that a downstream phase traces to → that phase is suspect
+   - If delta is entirely within items no downstream phase references → cascade stops
+3. **Each suspect downstream phase receives a rework payload:**
+   ```
+   REWORK PAYLOAD:
+     Source phase: [Phase that was reworked]
+     Trigger: [reviewer | manual | cascade]
+     Changed items: [list of IDs + change classification]
+     Change classifications:
+       ADDED    — new requirement/interface/test case introduced
+       CHANGED  — existing item modified (logic, signature, threshold)
+       REMOVED  — item deleted from scope
+       CLARIFIED — wording/description changed, logic unchanged
+   ```
+4. **Downstream phase performs suspect-link triage** (see Phase 8b Rework Mode for the detailed protocol — all phases follow the same pattern):
+   - **CONFIRMED** — not affected, keep as-is
+   - **UPDATE** — affected but structurally valid, update values only
+   - **REGENERATE** — structurally invalid, delete and regenerate
+   - **OBSOLETE** — traced item removed upstream, remove
+   - **NEW** — new upstream item, generate fresh
+5. **If delta > 50% of the original artifact** → switch to full regeneration mode (fresh run, not delta). Log: `⚠️ Delta exceeds 50% — switching to full regeneration for Phase [N]`
+6. **Each cascaded phase produces its own delta log** → feeding the next phase in the cascade
+
+**Cascade termination conditions:**
+- All suspect downstream phases produce delta logs with 0 changes (no cascading impact)
+- Circuit breaker triggers (3 cycles for same phase pair)
+- User manually stops: `stop cascade`
+
+---
+
+### Manual Rework Entry
+
+Users can trigger rework from any completed phase by saying:
+
+```
+rework from Phase 8b
+rework from Designer
+rework from QA with scope REQ-05, REQ-08
+```
+
+**Protocol:**
+
+1. **Validate state** — check `pipeline-state.json` that the target phase has `status: "completed"` at least once. If not:
+   ```
+   ❌ Phase 8b has not been completed yet — nothing to rework.
+   Did you mean to run it for the first time? Use: resume
+   ```
+
+2. **Collect scope** — if user didn't specify scope, ask:
+   ```
+   What needs rework in Phase 8b (Business Test Gen)?
+   
+   Options:
+     [A] Specific requirements — provide REQ-xx or BT-xx IDs
+     [B] Full regeneration — redo the entire phase from scratch
+     [C] Let me describe — I'll parse your description into affected IDs
+   
+   Your choice:
+   ```
+
+3. **Show impact preview** — before executing, show the full blast radius:
+   ```
+   ⚠️  MANUAL REWORK — Phase 8b (Business Test Gen)
+   
+   Reason: [user's reason]
+   Scope:  [specific IDs or "full regeneration"]
+   
+   Forward cascade will re-run (in rework mode):
+     → Phase 9  (SDET — RED)      — test code for affected BT-xx cases
+     → Phase 10 (Developer — GREEN) — production code for affected tests
+     → Phase 11 (Reviewer)          — re-verify traceability + code review
+   
+   Artifacts that will be updated:
+     • 04b-business-tests.md  (delta or full regen)
+     • 05-sdet.md + test code (delta)
+     • 06-developer.md + production code (delta)
+     • 07-reviewer.md (re-review)
+   
+   Estimated rework depth: [SHALLOW — 1-5 test cases | MODERATE — 5-15 | DEEP — 15+ or full regen]
+   
+   Proceed? [Y/N]
+   ```
+
+4. **On confirmation** — log in rework history with `trigger: "manual"`, execute the target phase in rework mode, then forward cascade.
+
+5. **In `pipeline-state.json`:**
+   ```json
+   {
+     "from": "manual",
+     "to": "8b",
+     "trigger": "manual",
+     "reason": "AC-5 grace period logic was incorrect",
+     "scope": ["REQ-05", "BT-12", "BT-13"],
+     "severity": "HIGH",
+     "resolved": false,
+     "cascade_phases": ["9", "10", "11"]
+   }
+   ```
+
+---
+
+### Structured Rework Payload Format (Standard for All Phases)
+
+When Reviewer (or any phase) routes work back to a prior phase, the blocker output MUST include a **structured rework payload** — not just a text description. This enables scoped, delta-aware rework instead of full regeneration.
+
+```markdown
+REWORK REQUEST:
+  Target phase: [Phase Name (Phase Number)]
+  Source: [Phase that detected the issue]
+  Trigger: reviewer | blocker | cascade | manual
+  Severity: BLOCKER | HIGH | MEDIUM
+  
+  Affected items:
+  | ID | Type | Classification | Description |
+  |----|------|---------------|-------------|
+  | REQ-03 | requirement | CHANGED | Grace period acceptance criterion updated |
+  | BT-12 | test-case | UPDATE | Expected output needs to match new grace period logic |
+  | BT-13 | test-case | REGENERATE | Boundary condition invalid after threshold change |
+  | REQ-12 | requirement | ADDED | New requirement for notification on downgrade |
+  
+  Change classifications:
+    ADDED     — new item introduced upstream, needs coverage downstream
+    CHANGED   — existing item modified, downstream may need updating
+    REMOVED   — item deleted, downstream references are now orphaned
+    CLARIFIED — cosmetic/wording change, downstream likely unaffected (verify)
+  
+  Context: [free-text explanation of what changed and why]
+```
+
+This format is consumed by the receiving phase's rework protocol (see Phase 8b Rework Mode as the reference implementation). All phases that support rework MUST parse this format.
 
 ---
 
@@ -1265,7 +1589,7 @@ Examples:
 - Phase 5: `🔧 Skills: /cross-repo-tracer + parallel repo exploration`
 - Phase 6: `🔧 Skills: /architect + brainstorming superpower + writing-plans superpower`
 - Phase 7: `🔧 Skills: /designer`
-- Phase 8b: `🔧 Skills: /business-test-gen`
+- Phase 8b: `🔧 Skills: /business-test-gen + verification-before-completion superpower (+ receiving-code-review on rework)`
 - Phase 9: `🔧 Skills: /sdet (RED phase — writes all tests)`
 - Phase 10: `🔧 Skills: /developer (GREEN phase — writes production code) + executing-plans superpower`
 - Phase 10b: `🔧 Skills: /backend-readiness`
@@ -1613,7 +1937,7 @@ Each phase is run by reading its corresponding skill file in `.claude/skills/`. 
 | Migrator (Phase 6b) | `.claude/skills/migrator/SKILL.md` | Subagent | sonnet | Structured DDL scripts, mechanical correctness |
 | Designer (Phase 7) | `.claude/skills/designer/SKILL.md` | Subagent | opus | Code generation strength, compile-safe output |
 | QA (Phase 8) | `.claude/skills/qa/SKILL.md` | Subagent | sonnet | Combinatorial but structured scenario generation |
-| Business Test Gen (Phase 8b) | `.claude/skills/business-test-gen/SKILL.md` | Subagent | sonnet | Structured mapping, traceability matrix |
+| Business Test Gen (Phase 8b) | `.claude/skills/business-test-gen/SKILL.md` | Subagent + superpowers | sonnet | Structured mapping, traceability matrix, suspect-link triage on rework |
 | SDET — RED (Phase 9) | `.claude/skills/sdet/SKILL.md` | Subagent | sonnet | Test code generation, RED confirmation |
 | Developer — GREEN (Phase 10) | `.claude/skills/developer/SKILL.md` | Interactive (main context) | opus | Production code implementation requires deep reasoning and architectural awareness |
 | Backend Readiness (Phase 10b) | `.claude/skills/backend-readiness/SKILL.md` | Subagent | sonnet | Pattern-matching against known anti-patterns |

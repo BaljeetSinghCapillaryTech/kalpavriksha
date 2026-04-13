@@ -297,19 +297,44 @@ Check `brdQnA.md` for any questions still marked as unresolved/open. For each:
 | [question text] | [Backend] | None | Out of current scope |
 ```
 
-### 1e: Route Gaps to Concerned Phases
+### 1e: Route Gaps to Concerned Phases (Structured Rework Payload)
 
-For each `FAIL` in the traceability matrix, raise a **requirements gap blocker**:
+For each `FAIL` in the traceability matrix, raise a **structured rework request** — not just a text description. This enables the receiving phase to perform scoped, delta-aware rework instead of full regeneration.
 
 ```
-REQUIREMENTS GAP:
-  Requirement: [REQ-ID] — [requirement text]
-  Earliest gap: [Phase Name] ([NN-artifact.md])
-  Evidence: [what's missing or misaligned — be specific]
+REWORK REQUEST:
+  Target phase: [Phase Name (Phase Number)]
+  Source: Reviewer (Phase 11)
+  Trigger: reviewer
+  Severity: BLOCKER | HIGH
+  
+  Affected items:
+  | ID | Type | Classification | Description |
+  |----|------|---------------|-------------|
+  | [REQ-xx] | requirement | [ADDED|CHANGED|REMOVED|CLARIFIED] | [what's missing or misaligned] |
+  | [BT-xx] | test-case | [UPDATE|REGENERATE|NEW|OBSOLETE] | [how this test case is affected] |
+  | [TS-xx] | qa-scenario | [CHANGED|REMOVED|ADDED] | [how QA scenario is affected] |
+  | [method] | interface | [CHANGED|ADDED|REMOVED] | [how Designer interface is affected] |
+  
+  Change classifications:
+    ADDED     — new item introduced, needs coverage downstream
+    CHANGED   — existing item modified, downstream may need updating
+    REMOVED   — item deleted, downstream references are now orphaned
+    CLARIFIED — cosmetic/wording change, downstream likely unaffected (verify)
+  
+  Evidence: [what's missing or misaligned — be specific, cite artifact + line/section]
   Downstream impact: [which later phases are also affected because of this gap]
+  
+  Context: [free-text explanation of what the target phase needs to do]
 ```
 
 **Routing rule**: Always route to the **earliest** phase where the gap exists. If Designer missed an interface, route to Designer — not to Developer who couldn't implement what wasn't designed.
+
+**Classification guidance for the Reviewer:**
+- When routing to **Business Test Gen (Phase 8b)**: identify specific BT-xx IDs affected, or REQ-xx / TS-xx that lack BT-xx coverage. Use `NEW` for missing coverage, `UPDATE` for incorrect expected values, `REGENERATE` for structurally wrong test cases, `OBSOLETE` for test cases tracing to removed requirements.
+- When routing to **Designer (Phase 7)**: identify missing interface methods or incorrect signatures.
+- When routing to **QA (Phase 8)**: identify missing test scenarios or contradictory scenarios.
+- When routing to **Developer (Phase 10)**: identify failing tests or incorrect implementations.
 
 ### 1f: Requirements Traceability Summary
 
@@ -324,10 +349,11 @@ After completing the cross-verification, show a summary before proceeding:
    PARTIAL: [count]
 
    Gaps by phase:
-     Architect: [count] gaps
-     Designer:  [count] gaps
-     QA:        [count] gaps
-     Developer: [count] gaps
+     Architect:         [count] gaps
+     Designer:          [count] gaps
+     QA:                [count] gaps
+     Business Test Gen: [count] gaps
+     Developer:         [count] gaps
 
    Unresolved BRD questions affecting scope: [count]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -410,8 +436,13 @@ SUMMARY:
 
 BLOCKERS:
 - [each must-fix item — or "None"]
-  For requirements gaps, format as:
-  - TARGET: [Phase Name] | REQ: [REQ-ID] | ISSUE: [what's missing in that phase's artifact]
+  For requirements gaps, emit structured rework requests (one per target phase):
+  - TARGET: [Phase Name] | TRIGGER: reviewer | SEVERITY: [BLOCKER|HIGH]
+    AFFECTED ITEMS:
+    | ID | Type | Classification | Description |
+    |----|------|---------------|-------------|
+    | [REQ/BT/TS-xx] | [requirement|test-case|qa-scenario|interface] | [ADDED|CHANGED|REMOVED|CLARIFIED] | [specific issue] |
+    CONTEXT: [what the target phase needs to do]
 
 SESSION MEMORY UPDATES:
 - [brief list of what was added to which sections]
