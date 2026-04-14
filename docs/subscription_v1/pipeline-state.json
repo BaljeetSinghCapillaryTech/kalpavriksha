@@ -31,18 +31,48 @@
       "completed_at": "2026-04-14T12:00:00Z",
       "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md"]
     },
-    "2": {"status": "pending"},
-    "3": {"status": "pending"},
-    "4": {"status": "pending"},
-    "5": {"status": "pending"},
-    "6": {"status": "pending"},
+    "2": {"status": "complete", "completed_at": "2026-04-14T14:00:00Z", "artifacts": ["02-critic.md", "02-analyst.md"]},
+    "3": {"status": "skipped", "note": "No dedicated UI artifacts to analyse"},
+    "4": {"status": "skipped", "note": "Blockers resolved inline during Phase 2 Critic/Analyst Q&A"},
+    "5": {"status": "complete", "completed_at": "2026-04-14T15:30:00Z", "artifacts": ["05-cross-repo-trace.md"]},
+    "6": {"status": "complete", "completed_at": "2026-04-14T17:00:00Z", "artifacts": ["01-architect.md"]},
     "6a": {"status": "pending"},
     "6b": {"status": "pending"},
-    "7": {"status": "pending"},
-    "8": {"status": "pending"},
-    "8b": {"status": "pending"},
-    "9": {"status": "pending"},
-    "10": {"status": "pending"},
+    "7": {"status": "complete", "completed_at": "2026-04-14T18:30:00Z", "artifacts": ["03-designer.md"]},
+    "8": {"status": "complete", "completed_at": "2026-04-14T20:00:00Z", "artifacts": ["04-qa.md"]},
+    "8b": {"status": "complete", "completed_at": "2026-04-14T21:30:00Z", "artifacts": ["04b-business-tests.md"]},
+    "9": {
+      "status": "complete",
+      "completed_at": "2026-04-14T22:45:00Z",
+      "artifacts": ["05-sdet.md"],
+      "red_confirmation": {
+        "intouch_api_v3_compile": "PASS",
+        "intouch_api_v3_ut_run": "23 tests, 14 errors (RED)",
+        "emf_parent_compile": "PASS (Java 8)",
+        "emf_parent_ut_run": "6 tests, 6 failures (RED)"
+      },
+      "skeleton_files_created": {
+        "intouch_api_v3": ["SubscriptionStatus", "SubscriptionType", "CycleType", "MigrateOnExpiry", "ReminderChannel", "SubscriptionAction", "ApprovableEntity", "ApprovableEntityHandler", "PublishResult", "MakerCheckerService", "SubscriptionProgram", "SubscriptionProgramRepository", "SubscriptionPublishService", "SubscriptionApprovalHandler", "SubscriptionFacade", "SubscriptionController", "SubscriptionNotFoundException", "SubscriptionNameConflictException", "InvalidSubscriptionStateException"],
+        "intouch_api_v3_thrift_wrapper": ["PointsEngineRulesThriftService (3 new stub methods)"]
+      },
+      "test_files_created": {
+        "intouch_api_v3_ut": ["SubscriptionApprovalHandlerTest", "SubscriptionPublishServiceTest", "MakerCheckerServiceTest", "SubscriptionProgramRepositoryTest"],
+        "intouch_api_v3_it": ["SubscriptionFacadeIT"],
+        "emf_parent_ut": ["PartnerProgramIsActiveConditionalTest"]
+      }
+    },
+    "10": {
+      "status": "complete",
+      "completed_at": "2026-04-14T23:22:00Z",
+      "artifacts": ["06-developer.md"],
+      "green_confirmation": {
+        "intouch_api_v3_ut": "23/23 PASS (GREEN)",
+        "intouch_api_v3_it": "16/16 PASS (GREEN — Docker via Colima)",
+        "emf_parent": "BLOCKED — Thrift IDL update required (isActive field, BT-24–26)"
+      },
+      "skeleton_classes_replaced": 9,
+      "tests_modified_by_developer": 6
+    },
     "10b": {"status": "pending"},
     "10c": {"status": "pending"},
     "10d": {"status": "pending"},
