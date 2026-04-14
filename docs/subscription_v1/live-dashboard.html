@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subscription Program Revamp -- Pipeline Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad: true, theme: 'dark'});</script>
+<style>
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1e2a45;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --accent: #00d4ff;
+    --accent-dim: #00d4ff33;
+    --green: #00e676;
+    --yellow: #ffd600;
+    --red: #ff5252;
+    --orange: #ff9100;
+    --border: #2a3a5e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+  }
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar h2 {
+    font-size: 14px;
+    color: var(--accent);
+    padding: 0 20px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .sidebar .feature-name {
+    font-size: 16px;
+    color: var(--text-primary);
+    padding: 0 20px;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .sidebar .ticket {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 0 20px;
+    margin-bottom: 20px;
+  }
+  .sidebar nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .sidebar nav a:hover { background: var(--bg-card); color: var(--text-primary); }
+  .sidebar nav a.complete { color: var(--green); }
+  .sidebar nav a.active { color: var(--yellow); background: var(--accent-dim); }
+  .sidebar nav a .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .sidebar nav a.complete .dot { background: var(--green); }
+  .sidebar nav a.active .dot { background: var(--yellow); }
+  .sidebar .section-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 16px 20px 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-top: 1px solid var(--border);
+    margin-top: 10px;
+  }
+  /* Main content */
+  .main {
+    margin-left: 260px;
+    flex: 1;
+    padding: 24px 40px;
+    max-width: 1100px;
+  }
+  .header {
+    margin-bottom: 30px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  /* Progress bar */
+  .progress-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .progress-bar .bar-track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .progress-bar .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    border-radius: 4px;
+    transition: width 0.5s;
+  }
+  .progress-stats {
+    display: flex;
+    gap: 30px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .progress-stats .stat-value {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 15px;
+  }
+  /* Phase sections */
+  .phase-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .phase-section h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .phase-badge {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .phase-badge.complete { background: #00e67622; color: var(--green); border: 1px solid var(--green); }
+  .phase-badge.pending { background: #2a3a5e; color: var(--text-secondary); border: 1px solid var(--border); }
+  .phase-badge.active { background: #ffd60022; color: var(--yellow); border: 1px solid var(--yellow); }
+  .phase-time { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+  .skill-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    margin-right: 6px;
+    margin-bottom: 10px;
+  }
+  .phase-section p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 10px; }
+  /* Key numbers */
+  .key-numbers {
+    display: flex;
+    gap: 20px;
+    margin: 16px 0;
+  }
+  .key-number {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 80px;
+  }
+  .key-number .value { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .key-number .label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  /* Tables */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .data-table th {
+    background: var(--bg-secondary);
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+  }
+  .data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .data-table tr:hover td { background: var(--bg-secondary); }
+  /* Artifact list */
+  .artifact-list {
+    list-style: none;
+    margin: 12px 0;
+  }
+  .artifact-list li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 4px 0;
+  }
+  .artifact-list li::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 8px;
+  }
+  /* Mermaid */
+  .mermaid {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+  /* Status indicators */
+  .status-ok { color: var(--green); }
+  .status-warn { color: var(--orange); }
+  .status-fail { color: var(--red); }
+  .status-pending { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <h2>Pipeline</h2>
+  <div class="feature-name">Subscription Program Revamp</div>
+  <div class="ticket">aidlc/subscription_v1 | 2026-04-14</div>
+
+  <nav>
+    <a href="#phase-0" class="complete"><span class="dot"></span>0. Input Collection</a>
+    <a href="#phase-1" class="active"><span class="dot"></span>1. BA + PRD</a>
+    <a href="#phase-2"><span class="dot"></span>2. Critic + Gap Analysis</a>
+    <a href="#phase-3"><span class="dot"></span>3. UI Extraction</a>
+    <a href="#phase-4"><span class="dot"></span>4. Blocker Resolution</a>
+    <a href="#phase-5"><span class="dot"></span>5. Codebase Research</a>
+    <a href="#phase-6"><span class="dot"></span>6. HLD (Architect)</a>
+    <a href="#phase-6a"><span class="dot"></span>6a. Impact Analysis</a>
+    <a href="#phase-6b"><span class="dot"></span>6b. Migration Planning</a>
+    <a href="#phase-7"><span class="dot"></span>7. LLD (Designer)</a>
+    <a href="#phase-8"><span class="dot"></span>8. QA</a>
+    <a href="#phase-8b"><span class="dot"></span>8b. Business Test Gen</a>
+    <a href="#phase-9"><span class="dot"></span>9. SDET (RED)</a>
+    <a href="#phase-10"><span class="dot"></span>10. Developer (GREEN)</a>
+    <a href="#phase-10b"><span class="dot"></span>10b. Backend Readiness</a>
+    <a href="#phase-10c"><span class="dot"></span>10c. Compliance</a>
+    <a href="#phase-10d"><span class="dot"></span>10d. Migration Validation</a>
+    <a href="#phase-11"><span class="dot"></span>11. Reviewer</a>
+    <a href="#phase-12"><span class="dot"></span>12. Blueprint</a>
+  </nav>
+
+  <div class="section-label">Quick Links</div>
+  <nav>
+    <a href="#ba-qa"><span class="dot"></span>BA Q&A</a>
+    <a href="#api-contracts"><span class="dot"></span>API Contracts</a>
+    <a href="#architecture"><span class="dot"></span>Architecture</a>
+    <a href="#cross-repo"><span class="dot"></span>Cross-Repo Map</a>
+    <a href="#lld-diagrams"><span class="dot"></span>LLD Diagrams</a>
+    <a href="#implementation"><span class="dot"></span>Implementation</a>
+    <a href="#review-findings"><span class="dot"></span>Review Findings</a>
+  </nav>
+</aside>
+
+<!-- Main Content -->
+<div class="main">
+  <div class="header">
+    <h1>Subscription Program Revamp</h1>
+    <div class="subtitle">Tiers & Benefits PRD v3 -- aiRa-Powered Conversational Configuration | Pipeline v1.0</div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar">
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 5%;"></div>
+    </div>
+    <div class="progress-stats">
+      <span><span class="stat-value">1</span> / 19 phases complete</span>
+      <span><span class="stat-value">5</span> artifacts generated</span>
+      <span><span class="stat-value">3</span> decisions made</span>
+      <span><span class="stat-value">0</span> code files written</span>
+    </div>
+  </div>
+
+  <!-- Phase 0: Input Collection -->
+  <section class="phase-section" id="phase-0">
+    <h2>Phase 0: Input Collection <span class="phase-badge complete">Complete</span></h2>
+    <p class="phase-time">Completed: 2026-04-14</p>
+    <p>Collected all inputs: 47-page BRD (Tiers & Benefits PRD v3), 9 code repos across 4 codebases, v0.app UI prototype, live dashboard enabled. All repos validated and feature branches created.</p>
+
+    <div class="key-numbers">
+      <div class="key-number"><div class="value">47</div><div class="label">BRD Pages</div></div>
+      <div class="key-number"><div class="value">4</div><div class="label">Epics</div></div>
+      <div class="key-number"><div class="value">9</div><div class="label">Code Repos</div></div>
+      <div class="key-number"><div class="value">6</div><div class="label">Open Questions</div></div>
+    </div>
+
+    <h3 style="font-size:14px; margin: 16px 0 8px; color: var(--text-primary);">Repo Validation</h3>
+    <table class="data-table">
+      <thead><tr><th>Repo</th><th>Type</th><th>Branch</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>intouch-api-v3</td><td>REST API Gateway</td><td>aidlc/subscription_v1</td><td class="status-ok">OK -- Clean</td></tr>
+        <tr><td>emf-parent</td><td>Points Engine (multi-module)</td><td>aidlc/subscription_v1</td><td class="status-ok">OK -- .vscode/ only</td></tr>
+        <tr><td>thrift-ifaces-emf</td><td>Thrift IDL (EMF)</td><td>aidlc/subscription_v1</td><td class="status-ok">OK -- .idea/ only</td></tr>
+        <tr><td>thrift-ifaces-peb</td><td>Thrift IDL (PEB)</td><td>aidlc/subscription_v1</td><td class="status-ok">OK -- .idea/ only</td></tr>
+        <tr><td>thrift-ifaces-pointsengine-rules</td><td>Thrift IDL (Rules)</td><td>aidlc/subscription_v1</td><td class="status-warn">WARN -- carry-over mods from prior work</td></tr>
+        <tr><td>cc-stack-crm</td><td>DB Schema (read-only)</td><td>master</td><td class="status-ok">OK -- Read-only reference</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:14px; margin: 16px 0 8px; color: var(--text-primary);">BRD Epic Summary</h3>
+    <table class="data-table">
+      <thead><tr><th>Epic</th><th>Name</th><th>Priority</th><th>User Stories</th></tr></thead>
+      <tbody>
+        <tr><td>E1</td><td>Tier Intelligence</td><td>P0</td><td>US1-US6 (Listing, Create, Edit, Maker-Checker, Change Log, Simulation)</td></tr>
+        <tr><td>E2</td><td>Benefits as a Product</td><td>P0</td><td>US1-US3 (Listing, Creation, Custom Fields)</td></tr>
+        <tr><td>E3</td><td>Subscription Programs</td><td>P0</td><td>US1-US5 (Listing, Create/Edit, aiRa, Lifecycle, API Contract)</td></tr>
+        <tr><td>E4</td><td>Benefit Categories</td><td>P0</td><td>Category model, 9 category types, config rules, acceptance criteria</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="artifact-list">
+      <li>pipeline-state.json</li>
+      <li>session-memory.md</li>
+      <li>process-log.md</li>
+      <li>approach-log.md</li>
+      <li>live-dashboard.html</li>
+    </ul>
+  </section>
+
+  <!-- Phase 1: BA + PRD -->
+  <section class="phase-section" id="phase-1">
+    <h2>Phase 1: BA Deep-Dive + PRD Generation <span class="phase-badge active">In Progress</span></h2>
+    <p>Business analysis of the Tiers & Benefits PRD, codebase research across all repos, question protocol, and PRD generation.</p>
+  </section>
+
+  <!-- Phase 2: Critic + Gap Analysis -->
+  <section class="phase-section" id="phase-2">
+    <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 3: UI Extraction -->
+  <section class="phase-section" id="phase-3">
+    <h2>Phase 3: UI Requirements Extraction <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 4: Blocker Resolution -->
+  <section class="phase-section" id="phase-4">
+    <h2>Phase 4: Grooming + Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 5: Codebase Research -->
+  <section class="phase-section" id="phase-5">
+    <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 6: HLD -->
+  <section class="phase-section" id="phase-6">
+    <h2>Phase 6: HLD -- Architecture <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 6a: Impact -->
+  <section class="phase-section" id="phase-6a">
+    <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 6b: Migration -->
+  <section class="phase-section" id="phase-6b">
+    <h2>Phase 6b: Migration Planning <span class="phase-badge pending">Pending (Conditional)</span></h2>
+  </section>
+
+  <!-- Phase 7: LLD -->
+  <section class="phase-section" id="phase-7">
+    <h2>Phase 7: LLD -- Designer <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 8: QA -->
+  <section class="phase-section" id="phase-8">
+    <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 8b: Business Test Gen -->
+  <section class="phase-section" id="phase-8b">
+    <h2>Phase 8b: Business Test Gen <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 9: SDET RED -->
+  <section class="phase-section" id="phase-9">
+    <h2>Phase 9: SDET -- RED <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 10: Developer GREEN -->
+  <section class="phase-section" id="phase-10">
+    <h2>Phase 10: Developer -- GREEN <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 10b: Backend Readiness -->
+  <section class="phase-section" id="phase-10b">
+    <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 10c: Compliance -->
+  <section class="phase-section" id="phase-10c">
+    <h2>Phase 10c: Gap Analysis -- Compliance <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 10d: Migration Validation -->
+  <section class="phase-section" id="phase-10d">
+    <h2>Phase 10d: Migration Validation <span class="phase-badge pending">Pending (Conditional)</span></h2>
+  </section>
+
+  <!-- Phase 11: Reviewer -->
+  <section class="phase-section" id="phase-11">
+    <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Phase 12: Blueprint -->
+  <section class="phase-section" id="phase-12">
+    <h2>Phase 12: Documentation + Blueprint <span class="phase-badge pending">Pending</span></h2>
+  </section>
+
+  <!-- Quick Link Sections (populated by later phases) -->
+  <section class="phase-section" id="ba-qa" style="display:none;">
+    <h2>BA Q&A History</h2>
+  </section>
+  <section class="phase-section" id="api-contracts" style="display:none;">
+    <h2>API Contracts</h2>
+  </section>
+  <section class="phase-section" id="architecture" style="display:none;">
+    <h2>Architecture</h2>
+  </section>
+  <section class="phase-section" id="cross-repo" style="display:none;">
+    <h2>Cross-Repo Map</h2>
+  </section>
+  <section class="phase-section" id="lld-diagrams" style="display:none;">
+    <h2>LLD Diagrams</h2>
+  </section>
+  <section class="phase-section" id="implementation" style="display:none;">
+    <h2>Implementation</h2>
+  </section>
+  <section class="phase-section" id="review-findings" style="display:none;">
+    <h2>Review Findings</h2>
+  </section>
+
+</div>
+</body>
+</html>
