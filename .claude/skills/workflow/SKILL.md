@@ -422,7 +422,8 @@ When the user types `api-handoff` at any pause prompt (typically after Designer 
        Write output to <artifacts-path>/api-handoff.md
        Return the structured summary.
    ```
-2. Display the result and return to the same pause prompt (do not advance to the next phase).
+2. **Publish to Confluence:** Invoke `/confluence-publisher` (Step 2) with the generated `api-handoff.md` and `api-handoff.openapi.yaml` (if generated). Skip if `confluence` is not configured in pipeline-state.json.
+3. Display the result and return to the same pause prompt (do not advance to the next phase).
 
 ### Gap Analysis Command
 
