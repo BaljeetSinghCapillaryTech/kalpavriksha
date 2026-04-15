@@ -56,6 +56,67 @@ Any DAO call inside a loop = **N+1 risk**. Flag as BLOCKER.
 - Any `findAll()` without pagination?
 - Any aggregation on large tables without date/org filter?
 
+### 1d: Database Index Audit
+
+**This check is MANDATORY for any feature that creates or modifies database tables or collections.**
+
+Applies to all database types — MongoDB, MySQL, PostgreSQL, etc.
+
+1. **Discover all new/modified entities or tables:**
+   - Search files changed by the Developer phase for entity definitions, table creation, or schema changes.
+   - For each entity/table, record the name and database type.
+   - **Adapt to the project's tech stack** — detect which ORM, query framework, or raw query pattern the project uses (JPA, Spring Data, Hibernate, MyBatis, JOOQ, raw JDBC, Mongoose, Prisma, SQLAlchemy, etc.).
+
+2. **Inventory all query paths:**
+   For each repository, DAO, or query targeting these entities/tables:
+   - Extract the fields used in WHERE clauses, filter conditions, and query-by-example methods.
+   - Extract fields used in native/custom queries (annotations, query builders, raw SQL/NoSQL).
+   - Extract fields used in JOIN conditions, ORDER BY, and GROUP BY clauses.
+
+3. **Check existing index definitions:**
+   Search for indexes already defined — adapt search patterns to the project's stack:
+   - **Annotations**: index annotations on entities or fields (language/framework-specific)
+   - **Migration scripts**: Flyway, Liquibase, Alembic, Knex, Prisma migrations, etc.
+   - **Programmatic creation**: index initializers, schema setup code, post-construct hooks
+   - **Schema files**: DDL scripts, MongoDB collection config, etc.
+
+4. **Gap analysis — for every query path, verify a supporting index exists:**
+
+   | Query Path | Fields Used | Index Exists? | Severity |
+   |---|---|---|---|
+   | (method/query name) | {field1, field2} | YES / **NO** | BLOCKER if NO |
+
+   **Rules:**
+   - Every query that runs in a production hot path (API calls, scheduled jobs, event handlers) MUST have a supporting index. Missing index = **BLOCKER**.
+   - Queries only used in admin/batch/one-off contexts = **WARNING** if missing.
+   - Primary key / `_id` indexes are automatic — don't flag them.
+   - Compound/composite indexes must respect the database's index prefix rules (e.g., leftmost prefix for B-tree indexes).
+   - If the entity has a tenant/org field, it SHOULD be the leading field in compound indexes (multi-tenancy best practice).
+
+5. **Follow the project's existing index pattern:**
+   - Discover HOW this project defines indexes (annotations, migrations, programmatic, DDL scripts).
+   - New indexes MUST follow the same pattern — flag if they deviate.
+
+6. **Unique constraint check:**
+   - If any query is used for uniqueness validation (e.g., checking duplicate names before insert), a **unique index/constraint** should exist to enforce it at the database level — not just application-level checks. Application-only uniqueness is a race condition.
+
+**Output:**
+```markdown
+### Database Index Audit
+
+Database type: [MongoDB / MySQL / PostgreSQL / ...]
+Index creation pattern in project: [annotations / migrations / programmatic / DDL scripts]
+
+| Table/Collection | Query Path | Fields | Index Status | Severity |
+|---|---|---|---|---|
+| (name) | (method/query) | {field1, field2} | MISSING | BLOCKER |
+| ... | ... | ... | ... | ... |
+
+Recommended indexes:
+- (index definition in project's format) — covers (which queries)
+- ...
+```
+
 **Output per finding:**
 ```
 | Finding | File:Line | Severity | Evidence |
@@ -191,6 +252,7 @@ Produce `backend-readiness.md`:
 | Area | Status | Findings | Severity |
 |------|--------|----------|----------|
 | Query Performance | PASS/FAIL/WARN | N findings | highest severity |
+| Database Index Audit | PASS/FAIL/WARN/N/A | N findings | highest severity |
 | Thrift Compatibility | PASS/FAIL/WARN | N findings | highest severity |
 | Cache Invalidation | PASS/FAIL/WARN | N findings | highest severity |
 | Resource Management | PASS/FAIL/WARN | N findings | highest severity |
@@ -218,6 +280,6 @@ Each finding rated C1-C7. Findings below C5 flagged for human review.
 
 | Severity | Criteria | Action |
 |----------|----------|--------|
-| **BLOCKER** | N+1 in production path, missing tenant filter, Thrift breaking change, resource leak, no timeout on external call | Must fix. Route back to Developer. |
-| **WARNING** | Missing pagination, no cache eviction, broad transaction scope, migration without rollback | Should fix before merge. |
+| **BLOCKER** | N+1 in production path, missing tenant filter, Thrift breaking change, resource leak, no timeout on external call, **missing database index for hot-path query** | Must fix. Route back to Developer. |
+| **WARNING** | Missing pagination, no cache eviction, broad transaction scope, migration without rollback, **missing database index for admin/batch query** | Should fix before merge. |
 | **INFO** | SELECT *, connection pool could be tuned, test coverage gap | Track for future improvement. |

@@ -1,5 +1,22 @@
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(for:*)",
+      "Bash(mvn:*)",
+      "Bash(grep:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/baljeetsingh/IdeaProjects"
+    ]
   }
 }
