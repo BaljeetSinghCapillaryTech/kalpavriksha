@@ -1,7 +1,7 @@
 # Session Memory -- subscription-program-revamp
 > Ticket: aidlc/subscription_v1
 > Started: 2026-04-14
-> Last updated: 2026-04-14 (Phase 7 — Designer)
+> Last updated: 2026-04-15 (Phase 9 rework — SDET: 55 new test cases written for BT-R-01 through BT-R-35 across 12 new test classes; 36/55 new tests RED; 23/23 existing tests PASS)
 
 ## Domain Terminology
 | Term | Definition | Source |
@@ -119,6 +119,20 @@
 | KD-44 | Subscriber count (RF-4): dedicated listing API reads MongoDB for subscription list + calls emf-parent Thrift/service for subscriber counts per program. Separate API from CRUD. Both data sources coordinated in one listing response. Subscriber count NOT included in CRUD API responses. | User decision. | Phase 5 (Cross-Repo Q&A) | 2026-04-14 |
 | KD-45 | Reminder dispatch: PEB already has a running scheduler that dispatches subscription reminders and reads from MongoDB. No new dispatch code needed in E3. intouch-api-v3 writes reminders[] to MongoDB only. PEB scheduler handles notification delivery automatically. OQ-13 closed. | User clarification. Supersedes "reminder dispatch deferred to future" framing — it works as-is once data is in MongoDB. | Phase 6 (Architect Q&A) | 2026-04-14 |
 | KD-46 | Subscriber count Thrift method is IN SCOPE for E3 (Option A confirmed). Final IDL signature: `map<i32, i64> getSupplementaryEnrollmentCountsByProgramIds(1: list<i32> partnerProgramIds, 2: i32 orgId, 3: i32 programId, 4: string serverReqId)`. Implementation chain: (1) pointsengine_rules.thrift add method to PointsEngineRuleService, (2) emf-parent PointsEngineRuleConfigThriftImpl implement with DAO query on supplementary_partner_program_enrollment grouped by partner_program_id, (3) intouch-api-v3 expose via Thrift client wrapper. NEW-OQ-01 closed. | User decision ("yes Option A.., include, org_id, program_id, partner_program_id"). | Phase 7 (Designer Q&A) | 2026-04-14 |
+| KD-47 | `name` validation tightened: max 50 chars + regex `^[a-zA-Z0-9_\\-: ]*$` at API layer (was max 255, no regex). Source: UI schema `createOrUpdatePartnerProgram.schema.js`. ADR-08 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-48 | `description` validation changed: now REQUIRED (was optional), max 100 chars (was 1000), regex `^[a-zA-Z0-9_\\-: ,.\\s]*$`. MySQL `partner_programs.description` is NOT NULL — making description optional in API was a SAGA failure risk on approval. ADR-09 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-49 | YEARS cycle type REJECTED at API boundary. ADR-07 (YEARS stored in MongoDB, converted to MONTHS×12 on publish) is SUPERSEDED by ADR-10. Only DAYS and MONTHS valid at API layer. Rationale: UI schema confirms no YEARS option; no downstream system understands YEARS; ADR-07 workaround was unnecessary complexity. MongoDB now stores DAYS or MONTHS directly. No YEARS→MONTHS conversion in SubscriptionPublishService. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-50 | Name uniqueness check upgraded to case-insensitive. `findActiveByOrgIdAndName` query uses MongoDB `$regex` with `$options: 'i'`. Prevents MySQL UNIQUE constraint violation from case-variant names (MySQL UNIQUE KEY is case-insensitive by default). `name` parameter must be escaped with `Pattern.quote()` before passing to regex. ADR-11 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-51 | `pointsExchangeRatio` is a required field on SubscriptionProgram and SubscriptionRequest. The hardcoded `DEFAULT_POINTS_RATIO = 1.0` in SubscriptionPublishService is REMOVED. Wired to Thrift field 6 `programToPartnerProgramPointsRatio`. OQ-18 (hardcoded 1.0 default) is superseded. ADR-12 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-52 | `syncWithLoyaltyTierOnDowngrade` is a direct user-set field on SubscriptionProgram (not derived). Previous derivation `TIER_BASED && tierDowngradeOnExit==true` was WRONG. New field wired directly to Thrift field 10 `isSyncWithLoyaltyTierOnDowngrade`. OQ-19 (derivation logic) is superseded. ADR-13 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-53 | `programType` (SUPPLEMENTARY / EXTERNAL) is a required API field. Was hardcoded as SUPPLEMENTARY in SubscriptionPublishService. Both types supported. Duration is conditional: required for SUPPLEMENTARY, forbidden for EXTERNAL. Wired to Thrift field 8 `partnerProgramType`. New `ProgramType` enum added. ADR-14 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-54 | Cross-field validation added: when `migrateOnExpiry != NONE` AND `programExpiryDate != null`, then `migrationTargetProgramId` must be > 0. Validated in `SubscriptionApprovalHandler.validateForSubmission()` at SUBMIT_FOR_APPROVAL time. ADR-15 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-55 | `partnerProgramTiers` (Thrift field 5) is now wired. Added `List<ProgramTier> tiers` to `SubscriptionProgram.TierConfig` embedded class. ProgramTier has `{tierNumber: int, tierName: String}`. Wired in `SubscriptionPublishService.buildPartnerProgramInfo()` when TIER_BASED; empty list when NON_TIER. Cross-field validation: TIER_BASED requires non-empty tiers. ADR-16 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-56 | `loyaltySyncTiers` (Thrift field 11) is now wired. Added `Map<String, String> loyaltySyncTiers` to `SubscriptionProgram.TierConfig`. Wired when `syncWithLoyaltyTierOnDowngrade=true`; null/empty otherwise. Cross-field validation: sync=true requires non-empty map. ADR-17 accepted. | Phase 6 rework (UI validation gap analysis) | 2026-04-15 |
+| KD-57 | SubscriptionController.java is confirmed as a skeleton (all 8 endpoints throw UnsupportedOperationException). No new ADR required. Full controller implementation is a Developer phase deliverable (TDD GREEN phase). This is the expected RED-phase starting state. | Phase 6 rework (verification) | 2026-04-15 |
+| KD-58 | `subscriptionProgramId` lifecycle: generated on CREATE (new UUID), COPIED on all edits and ACTIVE forks (edit-of-DRAFT keeps existing ID; edit-of-ACTIVE copies from ACTIVE parent), NEW UUID only for DUPLICATE action. Mirrors UnifiedPromotion.unifiedPromotionId pattern (C7). Fixes incorrect comment in `SubscriptionProgram.java` lines 44-47 (was: "Edits-of-ACTIVE produce a new UUID"; must be: "Immutable business identifier — generated at creation, copied to all subsequent versions"). Developer must implement `SubscriptionFacade.updateSubscription()` (edit of DRAFT, no ID regen) and `SubscriptionFacade.editActiveSubscription()` (fork from ACTIVE, copy ID). ADR-18 accepted. | Phase 6 rework (ADR-18) | 2026-04-15 |
+| KD-59 | Phase 8 QA rework complete. 45 new test scenarios (TS-NEW-01 through TS-NEW-45) added to 04-qa.md covering 12 critical gaps. Coverage matrix updated (12 ACs extended). 2 new open questions (QA-OQ-06, QA-OQ-07) added. Total scenarios: 132 (87 original + 45 rework). New test classes identified: SubscriptionApprovalHandlerTest (TS-NEW-20, TS-NEW-21, TS-NEW-23, TS-NEW-28 through TS-NEW-31), SubscriptionPublishServiceTest (TS-NEW-19, TS-NEW-22, TS-NEW-24, TS-NEW-26, TS-NEW-30). | Phase 8 rework (QA) | 2026-04-15 |
+| KD-60 | Phase 8b rework complete. 35 new business test cases added to 04b-business-tests.md: BT-R-01 through BT-R-30 (UT, 30 cases) and BT-R-31 through BT-R-35 (IT, 5 cases). All 12 gaps covered: ADR-08 (name validation: BT-R-01–03), ADR-09 (description validation: BT-R-04–06), ADR-10 (YEARS rejected: BT-R-07), ADR-11 (case-insensitive name: BT-R-24, BT-R-25, BT-R-35), ADR-12 (pointsExchangeRatio: BT-R-12, BT-R-13), ADR-13 (syncFlag direct field: BT-R-14, BT-R-15), ADR-14 (programType + duration conditional: BT-R-08–11, BT-R-33, BT-R-34), ADR-15 (migration validation: BT-R-21–23), ADR-16 (tiers list: BT-R-16–18), ADR-17 (loyaltySyncTiers map: BT-R-19, BT-R-20), ADR-18 (subscriptionProgramId lifecycle: BT-R-26–31). Grand total: 137 test cases (102 original + 35 rework). 12 new test classes added. Coverage summary updated. | Phase 8b rework (Business Test Gen) | 2026-04-15 |
 
 ## Constraints
 | # | Constraint | Source |
@@ -300,6 +314,34 @@ _(Added 2026-04-14 — Phase 9 SDET)_
 - 1 IT file in intouch-api-v3 (SubscriptionFacadeIT)
 - 1 UT file in emf-parent (PartnerProgramIsActiveConditionalTest)
 
+## SDET Phase 9 Rework Summary
+_(Added 2026-04-15 — Phase 9 SDET Rework for 12 critical gaps)_
+
+**RED State: CONFIRMED**
+- intouch-api-v3 compile (skeleton additions): PASS
+- intouch-api-v3 test-compile (12 new test files): PASS
+- New test run: 55 tests, 34 failures + 2 errors = 36 RED (expected ✓)
+- Existing test run: 23 tests, 0 failures (all GREEN ✓)
+
+**Skeleton additions:**
+- `SubscriptionProgram`: 3 new fields (programType, pointsExchangeRatio, syncWithLoyaltyTierOnDowngrade), TierConfig.tiers + TierConfig.loyaltySyncTiers, inner class ProgramTier
+- `enums/PartnerProgramType.java`: new enum (SUPPLEMENTARY, EXTERNAL)
+- `SubscriptionFacade`: 2 stub methods (updateSubscription, editActiveSubscription), new fields wired in createSubscription
+
+**New test files (12 classes, 55 test cases):**
+- SubscriptionNameValidationTest (BT-R-01,02,03)
+- SubscriptionDescriptionValidationTest (BT-R-04,05,06)
+- CycleTypeValidationTest (BT-R-07)
+- SubscriptionProgramTypeValidationTest (BT-R-08,09,10,11)
+- PointsExchangeRatioValidationTest (BT-R-12)
+- SubscriptionPublishServiceReworkTest (BT-R-13,14,17,18,19,20)
+- SyncFlagValidationTest (BT-R-15)
+- TierConfigValidationTest (BT-R-16)
+- MigrationValidationTest (BT-R-21,22,23)
+- NameUniquenessTest (BT-R-24,25)
+- SubscriptionProgramIdLifecycleTest (BT-R-26,27,28,29,30)
+- SubscriptionReworkIntegrationTest (BT-R-31,32,33,34,35)
+
 ## Constraints (added by SDET Phase 9)
 - Java version must match: intouch-api-v3 requires Java 17 (`setjava 17`); emf-parent requires Java 8 (`setjava 8` + same shell command) _(SDET)_
 - `JAVA_HOME` must be set in the same shell command as `mvn` — the `java8`/`java17` alias in a previous Bash call does not persist to the next call _(SDET)_
@@ -349,3 +391,41 @@ _(Updated 2026-04-15 — Phase 10 Developer continued)_
 - [x] `NEW-OQ-04` — `@Version` on edit-of-ACTIVE: Spring Data `@Version` does override on save. In `duplicateSubscription` and `createSubscription`, objectId is null so version resets to 0. Works correctly. _(resolved by Developer via implementation)_
 - [x] `SDET-OQ-01` — `PartnerProgramInfo.isActive` (field 15, optional bool): IDL updated in Thrift 1.83, `isActive` conditional added to `getSupplementaryPartnerProgramEntity`, BT-24–26 GREEN. _(resolved by Developer Phase 10 cont.)_
 - [x] `SDET-OQ-02` — `getSupplementaryEnrollmentCountsByProgramIds`: added to Thrift IDL 1.83, implemented in `PointsEngineRuleConfigThriftImpl` (delegates to editor stub), BT-75–77 GREEN. _(resolved by Developer Phase 10 cont.)_
+
+## Designer Phase 7 Rework Summary
+_(Added 2026-04-15 — Phase 7 rework: 12 critical gaps from UI validation document gap analysis)_
+
+**Phase 7 rework complete — all 12 gaps addressed in 03-designer.md interface contracts (section "Phase 7 Rework — 12 Critical Gaps").**
+
+### What Changed
+
+| Gap | ADR | File(s) | Change |
+|-----|-----|---------|--------|
+| GAP-1 | ADR-08 | SubscriptionProgram.java, SubscriptionRequest.java | `name` constraint: max 50 + regex `^[a-zA-Z0-9_\-: ]*$` (was max 255, no regex) |
+| GAP-2 | ADR-09 | SubscriptionProgram.java, SubscriptionRequest.java | `description` now required, max 100, regex (was optional, max 1000). MySQL NOT NULL risk eliminated. |
+| GAP-3 | ADR-10 | CycleType.java | Remove `YEARS` — only DAYS and MONTHS. `convertCycle()` and `MONTHS_PER_YEAR` removed from PublishService. |
+| GAP-4 | ADR-11 | SubscriptionProgramRepository.java, callers | `findActiveByOrgIdAndName` uses `$regex/$options:'i'`; all callers use `Pattern.quote(name)` |
+| GAP-5 | ADR-12 | SubscriptionProgram.java, SubscriptionPublishService.java, SubscriptionRequest.java, SubscriptionResponse.java | `pointsExchangeRatio` new required field; hardcoded 1.0 default removed |
+| GAP-6 | ADR-13 | SubscriptionProgram.java, SubscriptionPublishService.java, SubscriptionRequest.java, SubscriptionResponse.java | `syncWithLoyaltyTierOnDowngrade` new required direct field; wrong derivation removed |
+| GAP-7 | ADR-14 | SubscriptionProgram.java, SubscriptionPublishService.java, PartnerProgramType.java (NEW), SubscriptionRequest.java, SubscriptionResponse.java | `programType` new required field; hardcoded SUPPLEMENTARY removed |
+| GAP-8 | ADR-14,15,16,17,12 | SubscriptionApprovalHandler.java | 6 new cross-field validations in `validateForSubmission()` |
+| GAP-9 | ADR-16 | SubscriptionProgram.java, SubscriptionPublishService.java, SubscriptionRequest.java | `TierConfig.tiers` new field; `ProgramTier` new inner class; wired to Thrift field 5 |
+| GAP-10 | ADR-17 | SubscriptionProgram.java, SubscriptionPublishService.java, SubscriptionRequest.java | `TierConfig.loyaltySyncTiers` new field; wired to Thrift field 11 |
+| GAP-11 | ADR-18 | SubscriptionFacade.java | `updateSubscription()`, `editActiveSubscription()`, `updateOrForkSubscription()` methods fully specified |
+| ADR-18 comment | ADR-18 | SubscriptionProgram.java | `subscriptionProgramId` Javadoc corrected: "Edits-of-ACTIVE produce new UUID" → "Copied to all subsequent versions; only DUPLICATE generates new UUID" |
+
+### New Enum Added
+- `PartnerProgramType.java` (SUPPLEMENTARY | EXTERNAL) — `unified.subscription.enums` package
+
+### Superseded Decisions (Phase 7 Rework overrides Phase 7 original)
+- OQ-18 decision "default 1.0" — **SUPERSEDED**: `pointsExchangeRatio` is now a required user-set field (ADR-12). No default.
+- OQ-19 decision "derived from tierDowngradeOnExit" — **SUPERSEDED**: `syncWithLoyaltyTierOnDowngrade` is now a direct user-set field (ADR-13). Not derived.
+- CycleType.YEARS acceptance — **SUPERSEDED**: YEARS removed from enum entirely (ADR-10 enforcement at API boundary level, not just conversion layer).
+- Phase 7 (original) Designer constraint "YEARS→MONTHS×12 in convertCycle()" — **REMOVED**: no YEARS at API layer, no conversion needed.
+
+### Phase 7 Rework Constraints (additions to Phase 7 Designer Constraints above)
+- `PartnerProgramType` enum must be added to `unified.subscription.enums` package and imported in SubscriptionProgram, SubscriptionRequest, SubscriptionResponse, SubscriptionFacade, SubscriptionApprovalHandler, SubscriptionPublishService
+- All callers of `findActiveByOrgIdAndName` must wrap the name argument with `Pattern.quote()` to prevent regex injection
+- `SubscriptionPublishService.buildPartnerProgramInfo()` must NOT set `partnerProgramMembershipCycle` for EXTERNAL programs (ADR-14 conditional)
+- `validateForSubmission()` must clear `duration` for EXTERNAL programs (not reject — be tolerant on input, defensive clearing)
+- Developer must remove `SubscriptionPublishService.convertCycle()` method and `MONTHS_PER_YEAR` constant after removing YEARS support

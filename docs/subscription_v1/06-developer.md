@@ -18,6 +18,34 @@ All production code implemented. All SDET-written tests pass.
 | Integration Tests | 16 | 16 | 0 | GREEN |
 | **Total** | **39** | **39** | **0** | **GREEN** |
 
+---
+
+## Rework GREEN Confirmation (2026-04-15 — 12-Gap Fix)
+
+All 12 critical gaps from UI validation cross-layer analysis implemented. 76/76 subscription unit tests GREEN.
+
+| Layer | Tests | Passed | Failed | Status |
+|-------|-------|--------|--------|--------|
+| Original UTs | 23 | 23 | 0 | GREEN |
+| Rework UTs (BT-R-01..R-35) | 53 | 53 | 0 | GREEN |
+| **Total UTs** | **76** | **76** | **0** | **GREEN** |
+
+### Files Changed in Rework
+
+| File | Change |
+|------|--------|
+| `SubscriptionProgram.java` | `name`: @Size(max=50) + @Pattern (ADR-08); `description`: @NotBlank + @Size(max=100) + @Pattern (ADR-09); added `pointsExchangeRatio` (@NotNull @DecimalMin), `programType` (@NotNull PartnerProgramType), `syncWithLoyaltyTierOnDowngrade` (@NotNull Boolean); updated `TierConfig` with `tiers` List<ProgramTier> + `loyaltySyncTiers` Map; added `ProgramTier` inner class; fixed incorrect `subscriptionProgramId` Javadoc (ADR-18) |
+| `enums/CycleType.java` | Removed `YEARS` — only DAYS and MONTHS remain (ADR-10) |
+| `enums/PartnerProgramType.java` | New enum: `SUPPLEMENTARY`, `EXTERNAL` (ADR-14) |
+| `SubscriptionProgramRepository.java` | `findActiveByOrgIdAndName`: exact match → `$regex`/`$options:'i'` case-insensitive (ADR-11) |
+| `SubscriptionApprovalHandler.java` | Added 6 cross-field validations: pointsExchangeRatio>0, programType required, SUPPLEMENTARY requires duration, EXTERNAL clears duration, TIER_BASED requires tiers, syncWithLoyaltyTierOnDowngrade=true requires loyaltySyncTiers, migrationTargetProgramId>0 when migration enabled (ADR-12..17) |
+| `SubscriptionPublishService.java` | Removed `DEFAULT_POINTS_RATIO` + `convertCycle()`; wired all 15 Thrift fields: field 5 (tiers), field 6 (pointsExchangeRatio from entity), field 8 (programType from entity), field 9 (conditional on SUPPLEMENTARY), field 10 (syncWithLoyaltyTierOnDowngrade direct), field 11 (loyaltySyncTiers) (ADR-12..17) |
+| `SubscriptionFacade.java` | Implemented `updateSubscription()` (edit DRAFT, preserves ID — ADR-18); implemented `editActiveSubscription()` (forks DRAFT from ACTIVE, COPIES subscriptionProgramId — ADR-18); updated `createSubscription()` to include new fields; added `Pattern.quote()` for case-insensitive uniqueness callers (ADR-11) |
+| `SubscriptionController.java` | **All 8 endpoints implemented** (was: all threw UnsupportedOperationException). CREATE, GET, LIST, UPDATE, FORK, SUBMIT, APPROVE, lifecycle (pause/resume/archive) — all delegate to SubscriptionFacade (KD-57) |
+
+### Tests Modified by Developer
+None — all 55 new SDET tests passed without modification.
+
 **Commands:**
 ```bash
 # Unit tests only

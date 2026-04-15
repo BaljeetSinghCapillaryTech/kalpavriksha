@@ -103,5 +103,21 @@
   "dashboard_enabled": true,
   "lsp_enabled": false,
   "rework_cycles": [],
-  "git_tags": []
+  "git_tags": [],
+  "confluence": {
+    "cloud_id": "69031ea7-8347-4ec3-a63d-9c7289f8dc4f",
+    "space_id": "1264386327",
+    "parent_folder_id": "5434343427",
+    "run_page_id": "5464522753",
+    "artifact_pages": {
+      "api-handoff.md": "5462392871",
+      "06-developer.md": "5463998466",
+      "05-sdet.md": "5462196238",
+      "00-ba.md": "5464391682",
+      "04-qa.md": "5464227847",
+      "04b-business-tests.md": "5462622229",
+      "01-architect.md": "5464457218",
+      "03-designer.md": "5463932954"
+    }
+  }
 }
