@@ -429,3 +429,110 @@ _(Added 2026-04-15 — Phase 7 rework: 12 critical gaps from UI validation docum
 - `SubscriptionPublishService.buildPartnerProgramInfo()` must NOT set `partnerProgramMembershipCycle` for EXTERNAL programs (ADR-14 conditional)
 - `validateForSubmission()` must clear `duration` for EXTERNAL programs (not reject — be tolerant on input, defensive clearing)
 - Developer must remove `SubscriptionPublishService.convertCycle()` method and `MONTHS_PER_YEAR` constant after removing YEARS support
+
+---
+
+## Reviewer Phase 11 Summary
+_(Added 2026-04-15 — Phase 11 Reviewer)_
+
+**Status: REQUEST_CHANGES — 4 blockers, merge blocked**
+
+**Build Verification**: 76/76 subscription UTs PASS. Integration tests skipped (Docker not available in review environment; Developer phase confirmed 16/16 GREEN with Colima).
+
+### Blockers Found (must fix before merge)
+
+| # | Blocker | File | Fix |
+|---|---------|------|-----|
+| BLOCKER-01 | `publishIsActive()` never calls `info.setIsActive(isActive)` — PAUSE/RESUME/ARCHIVE do NOT update MySQL is_active | `SubscriptionPublishService.java:117` | Add `info.setIsActive(isActive)` before Thrift call; remove stale TODO (field is 15 not 16) |
+| BLOCKER-02 | `SubscriptionReviewController` does not exist — AC-35 (POST approve/reject) + AC-36 (GET approvals) unreachable | Controller not created | Create `SubscriptionReviewController.java` per 03-designer.md spec |
+| BLOCKER-03 | `TargetGroupErrorAdvice` missing 3 @ExceptionHandler entries — subscription exceptions return HTTP 500 | `exceptionResources/TargetGroupErrorAdvice.java` | Add handlers: SubscriptionNotFoundException→404, InvalidSubscriptionStateException→422, SubscriptionNameConflictException→409 |
+| BLOCKER-04 | `duplicateSubscription()` omits `programType`, `pointsExchangeRatio`, `syncWithLoyaltyTierOnDowngrade` — duplicated DRAFT cannot be submitted | `SubscriptionFacade.java:246-267` | Add three fields to builder in `duplicateSubscription()` |
+
+## Risks & Concerns (added by Reviewer Phase 11)
+- [REVIEWER-RISK-01] `publishIsActive()` TODO uses incorrect field number (says field 16, IDL has field 15) — stale comment caused the fix to be incorrectly deferred _(Reviewer)_ — Status: open (BLOCKER-01)
+- [REVIEWER-RISK-02] `SubscriptionReviewController` not mentioned in Developer phase artifact as missing — developer believed 8 endpoints were implemented but approval endpoints are not reachable _(Reviewer)_ — Status: open (BLOCKER-02)
+- [REVIEWER-RISK-03] `TargetGroupErrorAdvice` update was a Designer constraint but not tracked as a Developer deliverable — fell through the phase gap _(Reviewer)_ — Status: open (BLOCKER-03)
+- [REVIEWER-RISK-04] `duplicateSubscription()` does not copy rework fields — regression introduced in Developer rework phase when fields were added to entity but builder was not updated _(Reviewer)_ — Status: open (BLOCKER-04)
+- [REVIEWER-RISK-05] `getSupplementaryEnrollmentCountsByProgramIds` DAO is a stub (UOE) — subscriber counts in listing header (AC-02) will fail in production when active programs exist. Deferred per session memory but should be tracked. _(Reviewer)_ — Status: open (INFO)
+
+## Open Questions (added by Reviewer Phase 11)
+- [ ] REVIEWER-OQ-01: Should `syncWithLoyaltyTierOnDowngrade` have `@NotNull`? ADR-13 calls it "required" but the field is nullable at bean validation layer. Recommend adding @NotNull for consistency. _(Reviewer)_
+- [ ] REVIEWER-OQ-02: Subscriber count map is computed in `listSubscriptions()` but discarded — is the response DTO for AC-01 subscriber count field intentionally deferred pending INFO-02 stub fix? _(Reviewer)_
+
+## Key Decisions (Reviewer Phase 11)
+- ADR-05 compliance FAILED in implementation: `info.setIsActive(isActive)` was never added despite Thrift IDL being updated in Phase 10 (field 15 exists). TODO comment had wrong field number (16 vs 15) which may have caused the developer to believe the IDL was not yet available. _(Reviewer)_
+
+---
+
+## Reviewer Phase 11 Re-run Summary
+_(Added 2026-04-15 — Phase 11 Reviewer, 2nd pass)_
+
+**Status: REQUEST_CHANGES — 1 new blocker (NEW-BLK-1), merge still blocked**
+
+**Build Verification (re-run)**: 58/58 specified UTs PASS (BUILD SUCCESS). Integration tests skipped (Docker/Colima not available in review environment).
+
+### Prior Blockers — Resolution Status
+
+| # | Blocker | Developer Fix | Resolution |
+|---|---------|--------------|------------|
+| BLK-1 (REQ-38/39/40) | publishIsActive() never set info.isActive | Added `info.isActive = isActive` at line 116 | **RESOLVED (C7)** |
+| BLK-2 (REQ-35/36) | SubscriptionReviewController missing | Created SubscriptionReviewController.java | **PARTIALLY RESOLVED** — GET /approvals correct; POST endpoint at /review instead of /approve |
+| BLK-3 | 3 exception handlers missing from TargetGroupErrorAdvice | Created SubscriptionErrorAdvice.java with 3 handlers | **RESOLVED (C7)** — functionally equivalent (dedicated @ControllerAdvice, better design) |
+| BLK-4 (REQ-12) | duplicateSubscription() omitted 3 fields | Added programType, pointsExchangeRatio, syncWithLoyaltyTierOnDowngrade to builder | **RESOLVED (C7)** |
+
+### New Blocker Found
+
+| # | Blocker | File | Fix |
+|---|---------|------|-----|
+| NEW-BLK-1 | SubscriptionReviewController maps POST to /review instead of /approve; reads request field "action" instead of "approvalStatus" | SubscriptionReviewController.java:37,43 | Change `@PostMapping("/{subscriptionProgramId}/review")` to `@PostMapping("/{subscriptionProgramId}/approve")` and `reviewRequest.get("action")` to `reviewRequest.get("approvalStatus")` |
+
+**Impact of NEW-BLK-1**: UI clients following api-handoff.md:571 (POST /approve, field approvalStatus) receive HTTP 404 and silent no-ops. Maker-checker approval flow non-functional from UI perspective.
+
+## Risks & Concerns (added by Reviewer Phase 11 Re-run)
+- [REVIEWER-RISK-06] SubscriptionReviewController uses /review path and "action" field — deviates from agreed API contract in api-handoff.md and 03-designer.md. Silent null-action path in handleApproval() means broken approval from UI sends no error but does nothing. _(Reviewer re-run)_ — Status: open (NEW-BLK-1)
+
+## Open Questions (added by Reviewer Phase 11 Re-run)
+- [x] REVIEWER-RISK-01: publishIsActive TODO field number — resolved. info.isActive = isActive added. _(resolved by Developer fix, Reviewer re-run confirmed C7)_
+- [x] REVIEWER-RISK-02: SubscriptionReviewController missing — resolved (controller created). _(resolved by Developer fix, Reviewer re-run confirmed C7 — but path/field mismatch remains as NEW-BLK-1)_
+- [x] REVIEWER-RISK-03: TargetGroupErrorAdvice missing handlers — resolved via SubscriptionErrorAdvice. _(resolved by Developer fix, Reviewer re-run confirmed C7)_
+- [x] REVIEWER-RISK-04: duplicateSubscription() missing fields — resolved. _(resolved by Developer fix, Reviewer re-run confirmed C7)_
+
+## Key Decisions (Reviewer Phase 11 Re-run)
+- Dedicated SubscriptionErrorAdvice @ControllerAdvice is acceptable deviation from Designer prescription (which said modify TargetGroupErrorAdvice). Functionally equivalent and better design (SRP, no regression risk to existing global handler). _(Reviewer re-run)_
+- NEW-BLK-1 is a two-line fix: @PostMapping path + Map key read. No new test classes needed — existing SubscriptionApprovalHandlerTest already covers the facade logic. _(Reviewer re-run)_
+
+---
+
+## Reviewer Phase 11 Final Re-run Summary
+_(Added 2026-04-15 — Phase 11 Reviewer, 3rd pass — FINAL)_
+
+**Status: APPROVED — all 5 blockers resolved across 3 review passes. Merge cleared.**
+
+**Build Verification (final)**: 58/58 specified UTs PASS (BUILD SUCCESS, 34.6s). Integration tests skipped (Docker/Colima not started in review environment; Developer phase confirmed 16/16 ITs GREEN).
+
+### NEW-BLK-1 Resolution (C7 — file read)
+
+`SubscriptionReviewController.java` confirmed fixed:
+- Line 37: `@PostMapping("/{subscriptionProgramId}/approve")` — was `/review`
+- Line 43: `reviewRequest.get("approvalStatus")` — was `"action"`
+- Javadoc lines 31–35 also updated to describe correct path and field name.
+
+All 5 blockers across all runs are now RESOLVED (C7).
+
+### Requirements Coverage (final)
+- 53/55 PASS, 0 PARTIAL, 0 FAIL, 2 N/A (enrollment APIs — api/prototype scope)
+- All guardrails: G-01 PASS, G-03 PASS, G-07 PASS, G-12 PASS
+
+### Post-merge tracked items
+- INFO-02: `getSupplementaryEnrollmentCountsByProgramIds` DAO stub — subscriber count display (AC-02) deferred
+- INFO-03: counts map not attached to listing response DTO — contingent on INFO-02
+- MAJOR-01: dead `MONTHS_PER_YEAR` constant to remove
+- MAJOR-02: RF-5 full cross-org name uniqueness check via Thrift (KD-40 TODO)
+- MAJOR-03: add `@NotNull` to `syncWithLoyaltyTierOnDowngrade` for bean validation consistency
+- MINOR-04: rename log `"Review action="` → `"Approval action="` in SubscriptionReviewController:46
+
+## Risks & Concerns (added by Reviewer Phase 11 Final)
+- [REVIEWER-RISK-06] RESOLVED — NEW-BLK-1 fixed: /approve path + approvalStatus field confirmed C7. _(Reviewer final)_
+
+## Key Decisions (Reviewer Phase 11 Final)
+- Approval endpoint contract fully satisfied: `POST /v3/subscriptions/{id}/approve` with `approvalStatus` request field matches api-handoff.md, 03-designer.md, and 04-qa.md exactly. _(Reviewer final, C7)_

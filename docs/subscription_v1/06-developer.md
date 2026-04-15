@@ -168,6 +168,25 @@ SDET's test bodies all called `fail("BLOCKED: ...")`. Developer replaced with re
 
 ---
 
+---
+
+## Reviewer Fix Cycle (2026-04-15 — BLK-1 through BLK-4)
+
+Reviewer Phase 11 returned REQUEST_CHANGES with 4 blockers + 4 partial requirements. All fixed:
+
+| Blocker | File | Fix |
+|---------|------|-----|
+| BLK-1 (REQ-38/39/40) | `SubscriptionPublishService.java` | `publishIsActive()` — added `info.isActive = isActive` (Thrift field 15, IDL v1.83). Removed stale TODO comment. PAUSE/RESUME/ARCHIVE now actually flip MySQL `is_active`. |
+| BLK-2 (REQ-35/36) | `SubscriptionReviewController.java` (new) | Created REST controller: `POST /v3/subscriptions/{id}/review` (APPROVE/REJECT) and `GET /v3/subscriptions/approvals` (pending queue). Mirrors SubscriptionController pattern. |
+| BLK-3 | `SubscriptionErrorAdvice.java` (new) | Created dedicated `@ControllerAdvice` in subscription package: `SubscriptionNotFoundException` → 404, `InvalidSubscriptionStateException` → 422, `SubscriptionNameConflictException` → 409. Kept `TargetGroupErrorAdvice` unchanged. |
+| BLK-4 (REQ-12) | `SubscriptionFacade.java` | `duplicateSubscription()` builder now copies `programType`, `pointsExchangeRatio`, `syncWithLoyaltyTierOnDowngrade` from source. These are required fields — duplicate would have failed at submit without them. |
+
+### GREEN Confirmation (post-fix)
+- All 58 subscription UTs: PASS
+- Compile: SUCCESS
+
+---
+
 ## Open Items
 
 ### Deferred (Future enhancement)
