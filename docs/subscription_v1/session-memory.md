@@ -310,20 +310,20 @@ _(Added 2026-04-14 — Phase 9 SDET)_
 ## Open Questions (added by SDET Phase 9)
 | # | Question | Source | Status |
 |---|----------|--------|--------|
-| SDET-OQ-01 | `PartnerProgramInfo.isActive` field (Thrift IDL field 16): BT-24–26 tests in `PartnerProgramIsActiveConditionalTest` are BLOCKED until Developer adds this field to the IDL and regenerates stubs. Developer must fill in test bodies after IDL update. | BT-24–26 | OPEN |
-| SDET-OQ-02 | `getSupplementaryEnrollmentCountsByProgramIds` Thrift method: BT-75–77 tests blocked until Developer adds this method to the Thrift IDL. After IDL + codegen, Developer fills in test body in `PartnerProgramIsActiveConditionalTest`. | BT-75–77 | OPEN |
+| SDET-OQ-01 | `PartnerProgramInfo.isActive` field (Thrift IDL field 16): BT-24–26 tests in `PartnerProgramIsActiveConditionalTest` are BLOCKED until Developer adds this field to the IDL and regenerates stubs. Developer must fill in test bodies after IDL update. | BT-24–26 | **CLOSED** — IDL updated (field 15), production code and tests GREEN. _(Developer Phase 10 cont.)_ |
+| SDET-OQ-02 | `getSupplementaryEnrollmentCountsByProgramIds` Thrift method: BT-75–77 tests blocked until Developer adds this method to the Thrift IDL. After IDL + codegen, Developer fills in test body in `PartnerProgramIsActiveConditionalTest`. | BT-75–77 | **CLOSED** — IDL updated, impl added, tests GREEN. _(Developer Phase 10 cont.)_ |
 | SDET-OQ-03 | `SubscriptionFacadeIT` ITs depend on `AbstractContainerTest` starting MongoDB/MySQL containers. These are heavy ITs that will only run in `mvn verify` (not `mvn test`). Developer should verify Testcontainers work in CI environment. | BT-37–89 | **CLOSED** — ITs confirmed GREEN with Colima (local Docker). _(Developer)_ |
 
 ## Developer Phase 10 Summary
-_(Added 2026-04-14 — Phase 10 Developer)_
+_(Updated 2026-04-15 — Phase 10 Developer continued)_
 
-**GREEN State: CONFIRMED**
+**GREEN State: CONFIRMED (all repos)**
 - intouch-api-v3 UTs: 23/23 PASS (GREEN)
 - intouch-api-v3 ITs: 16/16 PASS (GREEN — Docker via Colima)
-- emf-parent: Blocked on Thrift IDL update (SDET-OQ-01, SDET-OQ-02)
+- emf-parent UTs: 6/6 PASS (GREEN — PartnerProgramIsActiveConditionalTest, BT-24–26, BT-75–77)
 
-**Skeleton classes replaced:** 9 files
-**Tests modified by Developer:** 6 (all RED-phase scaffolding — no logic changes)
+**Skeleton classes replaced:** 9 files (intouch-api-v3)
+**Tests modified by Developer:** 12 total (6 intouch-api-v3 RED markers + 6 emf-parent BLOCKED markers)
 
 ## Codebase Behaviour (added by Developer Phase 10)
 - `MakerCheckerService<T>` uses `entity.transitionToPending()` / `entity.transitionToRejected(comment)` for generic status transitions — avoids coupling to concrete enum. Implemented as abstract methods on `ApprovableEntity` interface _(Developer)_
@@ -340,9 +340,12 @@ _(Added 2026-04-14 — Phase 10 Developer)_
 ## Constraints (added by Developer Phase 10)
 - ITs require Colima (or Docker) running. Run `colima start` before `mvn verify`. `DOCKER_HOST=unix:///Users/baljeetsingh/.colima/default/docker.sock` must be set. _(Developer)_
 - `publishIsActive` throws `IllegalStateException` if called on a subscription without `mysqlPartnerProgramId` — guards against calling Thrift for un-approved subscriptions _(Developer)_
-- emf-parent GREEN phase blocked on Thrift IDL: `optional bool isActive = 16` not yet added to `PartnerProgramInfo`. BT-24–26 and BT-75–77 remain RED. _(Developer)_
+- Thrift IDL `thrift-ifaces-pointsengine-rules` 1.83 installed locally to `.m2`. Remote repo not updated. _(Developer Phase 10 cont.)_
+- `PointsEngineRuleEditorImpl.getSupplementaryEnrollmentCountsByProgramIds` is a stub (throws UnsupportedOperationException) — full DAO query implementation is future work outside BRD scope. _(Developer Phase 10 cont.)_
 
 ## Resolved Open Questions (Developer Phase 10)
 - [x] `SDET-OQ-03` — ITs work with Colima, confirmed GREEN _(resolved by Developer)_
 - [x] `NEW-OQ-02` — `PartnerProgramInactiveException` — intouch-api-v3 scope only (not emf-parent UT scope in this phase). Deferred. _(Developer: out of scope for intouch-api-v3 GREEN phase)_
 - [x] `NEW-OQ-04` — `@Version` on edit-of-ACTIVE: Spring Data `@Version` does override on save. In `duplicateSubscription` and `createSubscription`, objectId is null so version resets to 0. Works correctly. _(resolved by Developer via implementation)_
+- [x] `SDET-OQ-01` — `PartnerProgramInfo.isActive` (field 15, optional bool): IDL updated in Thrift 1.83, `isActive` conditional added to `getSupplementaryPartnerProgramEntity`, BT-24–26 GREEN. _(resolved by Developer Phase 10 cont.)_
+- [x] `SDET-OQ-02` — `getSupplementaryEnrollmentCountsByProgramIds`: added to Thrift IDL 1.83, implemented in `PointsEngineRuleConfigThriftImpl` (delegates to editor stub), BT-75–77 GREEN. _(resolved by Developer Phase 10 cont.)_

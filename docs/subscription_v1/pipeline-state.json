@@ -63,15 +63,18 @@
     },
     "10": {
       "status": "complete",
-      "completed_at": "2026-04-14T23:22:00Z",
+      "completed_at": "2026-04-15T12:30:00Z",
       "artifacts": ["06-developer.md"],
       "green_confirmation": {
         "intouch_api_v3_ut": "23/23 PASS (GREEN)",
         "intouch_api_v3_it": "16/16 PASS (GREEN — Docker via Colima)",
-        "emf_parent": "BLOCKED — Thrift IDL update required (isActive field, BT-24–26)"
+        "emf_parent_bt24_26": "3/3 PASS (GREEN — isActive conditional)",
+        "emf_parent_bt75_77": "3/3 PASS (GREEN — getSupplementaryEnrollmentCountsByProgramIds)",
+        "emf_parent_total": "6/6 PASS (GREEN — PartnerProgramIsActiveConditionalTest)"
       },
       "skeleton_classes_replaced": 9,
-      "tests_modified_by_developer": 6
+      "tests_modified_by_developer": 6,
+      "thrift_build": "thrift-ifaces-pointsengine-rules 1.83 built locally and installed to .m2"
     },
     "10b": {"status": "pending"},
     "10c": {"status": "pending"},

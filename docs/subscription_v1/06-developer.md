@@ -95,20 +95,64 @@ preApprove → publish (Thrift) → postApprove (setACTIVE + mysqlId) → save
 
 ---
 
-## Open Items
+---
 
-### Blocked (Thrift IDL update required)
-- **BT-24–26, BT-75–77**: `PartnerProgramInfo` has no `isActive` field yet. `publishIsActive` calls `createOrUpdatePartnerProgram` without setting `isActive` (tracked as BT-24, ADR-05). Tests for this behaviour remain blocked until Thrift IDL adds `optional bool isActive = 16`.
+## emf-parent GREEN Confirmation (Phase 10 continued — 2026-04-15)
+
+### Thrift IDL Changes (thrift-ifaces-pointsengine-rules v1.83)
+
+| Change | Purpose |
+|--------|---------|
+| `PartnerProgramInfo.isActive` (field 15, optional bool) | Enables PAUSE/ARCHIVE/RESUME flows (BT-24–26) |
+| `LoyaltyConfigMetaData.optInStartDate/optInEndDate` (fields 14–15, i64) | Matches published 1.83 artifact to fix emf-parent compile |
+| `getSupplementaryEnrollmentCountsByProgramIds` method | New Thrift service method for subscriber count queries (BT-75–77) |
+
+### Production Code Changes (emf-parent)
+
+| File | Change | BT |
+|------|--------|----|
+| `PointsEngineRuleConfigThriftImpl` | `deactivateSlab` stub (IDL compliance) | — |
+| `PointsEngineRuleConfigThriftImpl` | `getMemberCountPerSlab` stub (IDL compliance) | — |
+| `PointsEngineRuleConfigThriftImpl` | `getSupplementaryEnrollmentCountsByProgramIds` impl (delegates to editor) | BT-75–77 |
+| `PointsEngineRuleConfigThriftImpl.getSupplementaryPartnerProgramEntity` | `isActive` conditional: only sets `entity.setActive()` when `isSetIsActive()=true` | BT-24–26 |
+| `PointsEngineRuleEditor` | Added `getSupplementaryEnrollmentCountsByProgramIds` method to interface | BT-75–77 |
+| `PointsEngineRuleEditorImpl` | Added stub `getSupplementaryEnrollmentCountsByProgramIds` (throws UOE) | BT-75–77 |
+
+### GREEN Confirmation
+
+- **PartnerProgramIsActiveConditionalTest**: 6/6 PASS (GREEN)
+  - BT-24: `shouldSetPartnerProgramEntityInactiveWhenIsActiveFalse` ✓
+  - BT-25: `shouldSetPartnerProgramEntityActiveWhenIsActiveTrue` ✓
+  - BT-26: `shouldNotModifyIsActiveWhenFieldNotSetInRequest` ✓
+  - BT-75: `shouldReturnEnrollmentCountsForEachPartnerProgramId` ✓
+  - BT-76: `shouldReturnEmptyMapForEmptyPartnerProgramIdList` ✓
+  - BT-77: `shouldWrapDaoExceptionAsPointsEngineRuleServiceException` ✓
+
+### Test Modifications (emf-parent BT-24–26)
+
+SDET's test bodies all called `fail("BLOCKED: ...")`. Developer replaced with real assertions using `ArgumentCaptor<PartnerProgram>` to verify entity `isActive` state passed to the editor.
+
+| Test | Change | Reason | BT |
+|------|--------|--------|----|
+| All 6 `PartnerProgramIsActiveConditionalTest` tests | Replaced `fail("BLOCKED...")` with real mock setup + assertions | RED markers: SDET couldn't write tests until Thrift IDL was updated. Now IDL is updated and production code implements the conditional | BT-24–26, BT-75–77 |
+
+**Cumulative tests modified by Developer: 12** (6 original + 6 emf-parent BT-24–77 RED markers)
+
+---
+
+## Open Items
 
 ### Deferred (Future enhancement)
 - **KD-40 full**: `preApprove` does the MongoDB name uniqueness check. Full Thrift `getAllPartnerPrograms` check (RF-5) is a TODO comment in `SubscriptionApprovalHandler.preApprove()`.
 - **BT-21 save-not-called verify**: `shouldRejectSubmitIfHandlerValidationFails` has no `verify(save, never())` assertion. Requires a proper mock (not a lambda) for `EntitySaveCallback`. Deferred per SDET comment.
+- **`getSupplementaryEnrollmentCountsByProgramIds` DAO**: `PointsEngineRuleEditorImpl` stub throws `UnsupportedOperationException`. The actual DB query implementation is future work outside BRD scope.
 
 ---
 
 ## Session Memory Updates
 
 - Added to **Codebase Behaviour**: production code entry points, SAGA flow, EmfMongo routing
-- Added to **Key Decisions**: `transitionToPending()`/`transitionToRejected()` pattern on entity interface
-- Added to **Constraints**: Thrift IDL update (isActive field) required for BT-24–26
+- Added to **Key Decisions**: `transitionToPending()`/`transitionToRejected()` pattern on entity interface; `isActive` conditional backward-compatibility pattern
+- Added to **Constraints**: Thrift IDL 1.83 installed locally to `.m2`; `PointsEngineRuleEditorImpl.getSupplementaryEnrollmentCountsByProgramIds` is a stub
 - Resolved Open Questions about status transition mechanism in generic `MakerCheckerService`
+- Resolved: BT-24–26 and BT-75–77 all GREEN after Thrift IDL update and production code implementation
