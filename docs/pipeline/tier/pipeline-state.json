@@ -198,7 +198,12 @@
         "session-memory.md"
       ],
       "cascade_phases": ["2", "4", "6", "6a", "6b", "7", "8", "8b", "9", "10", "11", "12"],
-      "resolved": false
+      "resolved": true,
+      "code_changes": {
+        "TierStatus.java": "Removed STOPPED enum value",
+        "TierFacade.java": "Rewrote deleteTier() to DRAFT-only soft-delete (DELETED status), removed STOPPED from updateTier() switch, cleaned unused imports",
+        "TierFacadeTest.java": "shouldRejectEditOnStoppedTier → shouldRejectEditOnDeletedTier, shouldDeleteDraftImmediatelyWithoutMC → shouldDeleteDraftBySettingStatusToDeleted (soft-delete), shouldCreatePendingChangeWhenDeletingActiveWithMC → shouldReturn409WhenDeletingActiveTier, shouldRejectDeleteOfBaseTierWithMembers → shouldReturn409WhenDeletingPendingApprovalTier, cleaned unused imports"
+      }
     }
   ]
 }
