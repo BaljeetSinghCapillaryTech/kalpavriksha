@@ -352,25 +352,14 @@ public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
 
 ## 7. emf-parent Changes
 
-### ProgramSlab.java -- add status field
+> **Rework #3**: ProgramSlab status field and findActiveByProgram() REMOVED from scope.
+> Rationale: SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier
+> can be deleted (DRAFT-only deletion). No PAUSED/STOPPED states exist. Therefore every row
+> in program_slabs is always active — a status column has zero use.
+> SlabInfo Thrift struct also has no status field.
+> Deferred to future tier retirement epic when ACTIVE tier stopping is implemented.
 
-```java
-// Add to ProgramSlab entity:
-@Basic
-@Column(name = "status", nullable = false)
-private String status = "ACTIVE";
-
-public String getStatus() { return status; }
-public void setStatus(String status) { this.status = status; }
-```
-
-### PeProgramSlabDao.java -- add filtered query
-
-```java
-// Add new method (existing methods UNCHANGED):
-@Query("SELECT s FROM ProgramSlab s WHERE s.pk.orgId = ?1 AND s.program.pk.id = ?2 AND s.status = 'ACTIVE'")
-List<ProgramSlab> findActiveByProgram(int orgId, int programId);
-```
+**No changes to ProgramSlab.java or PeProgramSlabDao.java in current scope.**
 
 ---
 

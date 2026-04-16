@@ -1,8 +1,14 @@
-# Migration Planning -- Tiers CRUD
+# ~~Migration Planning -- Tiers CRUD~~ NOT NEEDED (Rework #3)
 
 > Phase 6b: Schema migration analysis
 > Date: 2026-04-11
 > Source: 01-architect.md (ADR-03), 02-analyst.md (R4)
+>
+> **Rework #3 (2026-04-16)**: M-1 (status column) and M-2 (status index) REMOVED from scope.
+> SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted.
+> No PAUSED/STOPPED states exist. SlabInfo Thrift has no status field. Every row in program_slabs
+> is always active. Deferred to future tier retirement epic.
+> M-3 (customer_enrollment index) may still be needed for member count cache — evaluate when implementing.
 
 ---
 

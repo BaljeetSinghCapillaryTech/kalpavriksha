@@ -204,6 +204,30 @@
         "TierFacade.java": "Rewrote deleteTier() to DRAFT-only soft-delete (DELETED status), removed STOPPED from updateTier() switch, cleaned unused imports",
         "TierFacadeTest.java": "shouldRejectEditOnStoppedTier → shouldRejectEditOnDeletedTier, shouldDeleteDraftImmediatelyWithoutMC → shouldDeleteDraftBySettingStatusToDeleted (soft-delete), shouldCreatePendingChangeWhenDeletingActiveWithMC → shouldReturn409WhenDeletingActiveTier, shouldRejectDeleteOfBaseTierWithMembers → shouldReturn409WhenDeletingPendingApprovalTier, cleaned unused imports"
       }
+    },
+    {
+      "id": 3,
+      "date": "2026-04-16",
+      "trigger": "manual",
+      "reason": "Timezone alignment (Instant→Date+@JsonFormat XXX), rejection→DRAFT (promotion pattern), ProgramSlab status column removed from scope",
+      "scope": "Model classes, MakerCheckerServiceImpl, TierChangeApplier, design artifacts",
+      "severity": "MODERATE",
+      "changes": [
+        "SC-1: All date/time fields changed from Instant to Date with @JsonFormat(XXX) — matches promotion pattern",
+        "SC-2: MC rejection now reverts entity to DRAFT via ChangeApplier.revert()",
+        "SC-3: MakerCheckerServiceImpl refactored to constructor injection with ChangeApplier registry",
+        "SC-4: TierChangeApplier.revert() implemented — sets tier back to DRAFT on rejection",
+        "SC-5: ProgramSlab status column, findActiveByProgram(), Flyway migration ALL removed from scope",
+        "SC-6: 01b-migrator.md M-1 and M-2 marked NOT NEEDED"
+      ],
+      "affected_files": [
+        "BasicDetails.java", "TierMetadata.java", "PendingChange.java",
+        "TierFacade.java", "MakerCheckerServiceImpl.java", "TierChangeApplier.java",
+        "TierFacadeTest.java", "MakerCheckerServiceImplTest.java",
+        "03-designer.md", "01-architect.md", "01b-migrator.md",
+        "blocker-decisions.md", "session-memory.md"
+      ],
+      "resolved": true
     }
   ]
 }

@@ -22,18 +22,16 @@
 **Deferred To**: Future tier retirement epic (when ACTIVE tier stopping is implemented, this guard will be needed).
 **Handoff Note**: When tier retirement is built, add: (1) block stop if PartnerProgramSlabs reference the slab (409), or (2) cascade stop to partner slabs.
 
-## HIGH #2: PeProgramSlabDao blast radius
+## ~~HIGH #2: PeProgramSlabDao blast radius~~ → NOT NEEDED (Rework #3)
 
 **Source**: Critic C-3
-**Severity**: HIGH
-**Decision**: Expand-then-contract migration
-**Details**:
-  1. Flyway migration: ADD COLUMN status DEFAULT 'ACTIVE' -- zero impact on existing queries
-  2. Add NEW DAO method findActiveByProgram() with status filter
-  3. New tier listing API uses findActiveByProgram()
-  4. Existing engine callers use unchanged findByProgram() -- they see all slabs (correct for serial number ordering in upgrade/downgrade)
-  5. Future phase audits and migrates existing callers one by one
-**Rationale**: Eliminates blast radius entirely. No regression risk on core engine code.
+**Severity**: ~~HIGH~~ → N/A (Rework #3)
+**Original Decision**: Expand-then-contract migration with status column and findActiveByProgram()
+**Updated Decision (Rework #3)**: **No changes to ProgramSlab or PeProgramSlabDao needed.**
+SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted
+(DRAFT-only deletion). No PAUSED/STOPPED states exist. SlabInfo Thrift has no status field.
+Every row in program_slabs is always active — a status column has zero use.
+**Deferred To**: Future tier retirement epic (when ACTIVE tier stopping is implemented, this migration will be needed).
 
 ## SCOPE #1: Tier Duration missing from BA/PRD
 

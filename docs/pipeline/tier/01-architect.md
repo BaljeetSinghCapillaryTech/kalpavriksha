@@ -138,12 +138,15 @@ graph TB
 
 ### 4.3 emf-parent Changes (minimal)
 
+> **Rework #3**: ProgramSlab status field, findActiveByProgram(), and Flyway migration REMOVED.
+> SQL only contains ACTIVE tiers. No status column needed. Deferred to future tier retirement epic.
+
 | Component | Change |
 |-----------|--------|
-| `ProgramSlab` | Add `status` field (String, default "ACTIVE") |
-| `PeProgramSlabDao` | Add `findActiveByProgram(orgId, programId)` with `WHERE status = 'ACTIVE'` |
+| ~~`ProgramSlab`~~ | ~~Add `status` field~~ — NOT NEEDED (Rework #3) |
+| ~~`PeProgramSlabDao`~~ | ~~Add `findActiveByProgram()`~~ — NOT NEEDED (Rework #3) |
 | `PointsEngineRulesThriftService` | Add wrapper methods for `createSlabAndUpdateStrategies`, `getAllSlabs`, `createOrUpdateSlab` |
-| Flyway migration | `ALTER TABLE program_slabs ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'` + index |
+| ~~Flyway migration~~ | ~~ALTER TABLE program_slabs~~ — NOT NEEDED (Rework #3) |
 
 ---
 
