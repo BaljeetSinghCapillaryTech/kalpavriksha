@@ -27,23 +27,18 @@ com.capillary.intouchapiv3/
       TierListResponse.java                -- GET response wrapper
       KpiSummary.java                      -- KPI stats in listing response
     model/
-      BasicDetails.java                    -- name, desc, color, serial, duration
-      EligibilityCriteria.java             -- criteria type, activities, AND/OR
-      Activity.java                        -- single activity condition
-      RenewalConfig.java                   -- renewal criteria, condition, schedule
-      DowngradeConfig.java                 -- downgrade-to, schedule, reminders
-      DowngradeTo.java                     -- tier reference + type
+      BasicDetails.java                    -- name, desc, color, serial, startDate, endDate
+      TierEligibilityConfig.java           -- kpiType (String), threshold, upgradeType, conditions
+      TierCondition.java                   -- type (String), value, trackerName
+      TierValidityConfig.java              -- periodType (String), periodValue, startDate, endDate, renewal
+      TierRenewalConfig.java               -- criteriaType (String), expressionRelation, conditions, schedule
+      TierDowngradeConfig.java             -- target (String), reevaluateOnReturn, dailyEnabled, conditions
+      TierNudgesConfig.java                -- upgradeNotification, renewalReminder, expiryWarning, downgradeConfirmation
       MemberStats.java                     -- cached member count
       EngineConfig.java                    -- hidden engine configs for round-trip
-      PeriodConfig.java                    -- tier period configuration
-      NotificationConfig.java             -- per-channel notification config
       TierMetadata.java                    -- created/updated by, sqlSlabId
     enums/
-      TierStatus.java                      -- DRAFT, PENDING_APPROVAL, ACTIVE, etc.
-      CriteriaType.java                    -- CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.
-      ActivityRelation.java                -- AND, OR
-      DowngradeSchedule.java               -- MONTH_END, DAILY
-      DowngradeTargetType.java             -- SINGLE, THRESHOLD, LOWEST
+      TierStatus.java                      -- DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT
   makerchecker/
     MakerCheckerService.java               -- Generic interface
     MakerCheckerServiceImpl.java           -- Implementation
@@ -232,9 +227,10 @@ public class UnifiedTierConfig {
     private Integer version;
 
     @Valid @NotNull private BasicDetails basicDetails;
-    @Valid private EligibilityCriteria eligibilityCriteria;
-    @Valid private RenewalConfig renewalConfig;
-    @Valid private DowngradeConfig downgradeConfig;
+    @Valid private TierEligibilityConfig eligibility;
+    @Valid private TierValidityConfig validity;
+    @Valid private TierDowngradeConfig downgrade;
+    @Valid private TierNudgesConfig nudges;
 
     private List<String> benefitIds;
     private MemberStats memberStats;
@@ -292,15 +288,10 @@ public enum ChangeStatus {
     PENDING_APPROVAL, APPROVED, REJECTED
 }
 
-public enum CriteriaType {
-    CUMULATIVE_PURCHASES, CURRENT_POINTS, LIFETIME_POINTS, LIFETIME_PURCHASES, TRACKER_VALUE
-}
-
-public enum ActivityRelation { AND, OR }
-
-public enum DowngradeSchedule { MONTH_END, DAILY }
-
-public enum DowngradeTargetType { SINGLE, THRESHOLD, LOWEST }
+// NOTE (Rework #4 — engine realignment): CriteriaType, ActivityRelation,
+// DowngradeSchedule, DowngradeTargetType enums REMOVED.
+// Replaced by String fields in TierEligibilityConfig, TierDowngradeConfig, etc.
+// to match the prototype pattern (flexible for UI, validated at request level).
 ```
 
 ---

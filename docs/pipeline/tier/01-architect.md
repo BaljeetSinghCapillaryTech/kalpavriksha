@@ -173,41 +173,45 @@ graph TB
     "endDate": "date | null (null = Indefinite)"
   },
 
-  "eligibilityCriteria": {
-    "criteriaType": "CUMULATIVE_PURCHASES | CURRENT_POINTS | LIFETIME_POINTS | LIFETIME_PURCHASES | TRACKER_VALUE",
-    "activities": [
+  "eligibility": {
+    "kpiType": "string (PURCHASE, VISITS, POINTS, TRACKER, etc. — String, not enum)",
+    "threshold": "number | null",
+    "upgradeType": "string (IMMEDIATE, SCHEDULED, etc.)",
+    "expressionRelation": "string | null (AND, OR)",
+    "conditions": [
       {
-        "type": "string (Spending, Transactions, Any Purchase, etc.)",
-        "operator": "GTE | LTE | EQ | ANY",
-        "value": "number | null",
-        "unit": "string | null (RM, transactions, etc.)"
+        "type": "string (PURCHASE, VISITS, POINTS, TRACKER)",
+        "value": "string",
+        "trackerName": "string | null"
       }
-    ],
-    "activityRelation": "AND | OR",
-    "membershipDuration": "string (12 months, Indefinite, etc.)",
-    "upgradeSchedule": "string (Immediately when eligibility is met, etc.)",
-    "nudges": "string (human-readable description)",
-    "secondaryCriteriaEnabled": "boolean"
+    ]
   },
 
-  "renewalConfig": {
-    "renewalCriteriaType": "string (Same as eligibility, Custom, etc.)",
-    "renewalCondition": {
-      "activities": "[same model as eligibility]",
-      "activityRelation": "AND | OR"
-    },
-    "renewalSchedule": "string | null",
-    "nudges": "string | null"
+  "validity": {
+    "periodType": "string (FIXED, ROLLING, etc.)",
+    "periodValue": "int | null",
+    "startDate": "date | null",
+    "endDate": "date | null",
+    "renewal": {
+      "criteriaType": "string (SAME_AS_ELIGIBILITY, CUSTOM, etc.)",
+      "expressionRelation": "string | null (AND, OR)",
+      "conditions": "[same model as eligibility.conditions]",
+      "schedule": "string | null"
+    }
   },
 
-  "downgradeConfig": {
-    "downgradeTo": {
-      "tierName": "string",
-      "type": "SINGLE | THRESHOLD | LOWEST"
-    },
-    "downgradeSchedule": "MONTH_END | DAILY",
-    "expiryReminders": "string | null",
-    "shouldDowngrade": "boolean"
+  "downgrade": {
+    "target": "string (PREVIOUS, LOWEST, SPECIFIC, etc.)",
+    "reevaluateOnReturn": "boolean",
+    "dailyEnabled": "boolean",
+    "conditions": "[same model as eligibility.conditions]"
+  },
+
+  "nudges": {
+    "upgradeNotification": "string | null",
+    "renewalReminder": "string | null",
+    "expiryWarning": "string | null",
+    "downgradeConfirmation": "string | null"
   },
 
   "benefitIds": ["string (benefit ObjectIds)"],
@@ -368,12 +372,12 @@ TierChangeApplier.applyCreate(UnifiedTierConfig doc):
 TierChangeApplier.applyUpdate(UnifiedTierConfig newDoc, UnifiedTierConfig activeDoc):
   1. Build SlabInfo with changes (name, description, color)
   
-  2. If eligibility changed:
+  2. If eligibility config changed:
      - Fetch SLAB_UPGRADE strategy
      - Replace threshold at CSV position (serialNumber - 2)
      - Build updated StrategyInfo
   
-  3. If downgrade changed:
+  3. If downgrade config changed:
      - Fetch SLAB_DOWNGRADE strategy (TierConfiguration JSON)
      - Find slab entry by slabNumber, update it
      - Build updated StrategyInfo

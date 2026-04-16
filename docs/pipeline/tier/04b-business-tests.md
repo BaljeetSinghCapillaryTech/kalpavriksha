@@ -44,7 +44,7 @@
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
 | BT-01 | shouldReturnAllTiersForProgramOrderedBySerialNumber | US1-AC1, US1-AC10 | orgId=100, programId=977, statusFilter=null | TierListResponse with tiers sorted by serialNumber ASC | TS-L01, TS-L10 | TierFacade.listTiers(orgId, programId, statusFilter) | UT |
 | BT-02 | shouldReturnEmptyListWhenNoTiersExist | US1-AC1 | orgId=100, programId=99999 | TierListResponse with empty tiers list, KPI summary all zeros | TS-L02 | TierFacade.listTiers | UT |
-| BT-03 | shouldIncludeAllConfigSectionsPerTier | US1-AC2, US1-AC3, US1-AC4, US1-AC5 | orgId=100, programId=977 | Each tier has non-null basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig | TS-L03 | TierFacade.listTiers | UT |
+| BT-03 | shouldIncludeAllConfigSectionsPerTier | US1-AC2, US1-AC3, US1-AC4, US1-AC5 | orgId=100, programId=977 | Each tier has non-null basicDetails, eligibility, validity, downgrade, nudges | TS-L03 | TierFacade.listTiers | UT |
 | BT-04 | shouldReturnBenefitIdsNotFullBenefitObjects | US1-AC6 | orgId=100, programId=977 (tiers with benefitIds) | benefitIds is List of String ObjectIds, not full benefit documents | TS-L04 | TierFacade.listTiers | UT |
 | BT-05 | shouldComputeAccurateKpiSummary | US1-AC7 | orgId=100, programId=977 (3 ACTIVE, 1 DRAFT, 1 PENDING_APPROVAL) | summary: totalTiers=5, activeTiers=3, pendingApprovalTiers=1, totalMembers=sum of cached counts | TS-L05 | TierFacade.listTiers | UT |
 | BT-06 | shouldReturnCachedMemberCountWithLastRefreshed | US1-AC8 | Tier doc with memberStats.memberCount=1245, lastRefreshed=2026-04-12T10:00:00Z | memberStats present with both fields, no live DB query | TS-L06, TS-L07 | TierFacade.listTiers | UT |
@@ -58,12 +58,12 @@
 | BT-09 | shouldCreateDraftTierWhenMCEnabled | US2-AC1, US2-AC5 | Valid TierCreateRequest, MC enabled | UnifiedTierConfig with status=DRAFT, objectId generated, serialNumber auto-assigned | TS-C01 | TierFacade.createTier(orgId, request, userId) | UT |
 | BT-10 | shouldCreateActiveTierAndSyncWhenMCDisabled | US2-AC1, US2-AC6 | Valid TierCreateRequest, MC disabled | UnifiedTierConfig with status=ACTIVE, sqlSlabId populated | TS-C02 | TierFacade.createTier | UT |
 | BT-11 | shouldAutoAssignSerialNumberAsMaxPlusOne | US2-AC7 | Program with 3 existing tiers (serialNumbers 1,2,3) | New tier gets serialNumber=4 | TS-C08 | TierFacade.createTier | UT |
-| BT-12 | shouldCreateTierWithOnlyRequiredFields | US2-AC2, US2-AC3 | name + programId + eligibilityCriteriaType + eligibilityThreshold, all optional fields null | 201, optional fields null/default, no error | TS-C05 | TierFacade.createTier | UT |
+| BT-12 | shouldCreateTierWithOnlyRequiredFields | US2-AC2, US2-AC3 | name + programId, eligibility/validity/downgrade/nudges all null | 201, optional fields null/default, no error | TS-C05 | TierFacade.createTier | UT |
 | BT-13 | shouldRejectCreationWhenRequiredFieldMissing | US2-AC2, US2-AC8 | TierCreateRequest without basicDetails.name | Validation error: "basicDetails.name is required" | TS-C03 | TierFacade.createTier | UT |
 | BT-14 | shouldRejectCreationWhenProgramIdMissing | US2-AC2, US2-AC8 | TierCreateRequest without programId | Validation error: "programId is required" | TS-C04 | TierFacade.createTier | UT |
 | BT-15 | shouldRejectDuplicateNameWithinProgram | US2-AC4 | name="Gold" in program that already has "Gold" | 409 Conflict: "A tier with name 'Gold' already exists" | TS-C06 | TierFacade.createTier (delegates to TierValidationService) | UT |
 | BT-16 | shouldAllowDuplicateNameAcrossPrograms | US2-AC4 | name="Gold" in programId=978, "Gold" exists in programId=977 | 201 created successfully | TS-C07 | TierFacade.createTier | UT |
-| BT-17 | shouldStoreMongoDocWithUIFieldNames | US2-AC9 | Valid TierCreateRequest with eligibilityCriteria | MongoDB doc fields use UI names: "eligibilityCriteria", "renewalConfig", "downgradeConfig" | TS-C09 | TierFacade.createTier | UT |
+| BT-17 | shouldStoreMongoDocWithEngineAlignedFieldNames | US2-AC9 | Valid TierCreateRequest with eligibility config | MongoDB doc fields use engine-aligned names: "eligibility", "validity", "downgrade", "nudges" | TS-C09 | TierFacade.createTier | UT |
 | BT-18 | shouldReturnOriginalResponseOnDuplicateIdempotencyKey | US2-AC1 | Same Idempotency-Key sent twice | Second call returns original response, no duplicate tier created | TS-C09 | TierFacade.createTier | UT |
 
 ### 2.3 TierFacade -- Update
@@ -75,7 +75,7 @@
 | BT-21 | shouldUpdatePendingApprovalTierInPlace | US3-AC4 | PUT tierId=pendingId, updated color | Same objectId, updated in place | TS-E03 | TierFacade.updateTier | UT |
 | BT-22 | shouldRejectEditOnDeletedTier | US3-AC5 | PUT tierId=deletedId | 400: "Cannot edit a tier in DELETED status" | TS-E04 | TierFacade.updateTier | UT |
 | BT-23 | shouldPreserveSerialNumberOnEdit | US3-AC6 | PUT with serialNumber=1 on tier with serialNumber=3 | serialNumber remains 3 in response (field ignored) | TS-E05 | TierFacade.updateTier | UT |
-| BT-24 | shouldReturnValidationErrorsOnInvalidEdit | US3-AC7 | PUT with invalid eligibilityCriteria | 400, field-level validation errors | TS-E06 | TierFacade.updateTier | UT |
+| BT-24 | shouldReturnValidationErrorsOnInvalidEdit | US3-AC7 | PUT with invalid eligibility config | 400, field-level validation errors | TS-E06 | TierFacade.updateTier | UT |
 | BT-25 | shouldEnforceOneDraftPerActiveTier | US3-AC3 | Edit same ACTIVE tier twice | Second edit updates existing DRAFT, does not create another | TS-E09 | TierFacade.updateTier | UT |
 | BT-26 | shouldPreserveEngineConfigOnRoundTrip | US3-AC5 | PUT with full body including engineConfig | engineConfig values preserved unchanged in saved doc | TS-E10 | TierFacade.updateTier | UT |
 | BT-27 | shouldRejectEditOnSnapshotTier | US3-AC5 | PUT tierId=snapshotId | 400: "Cannot edit a tier in SNAPSHOT status" | EC-33 | TierFacade.updateTier | UT |
@@ -137,15 +137,15 @@
 | BT-56 | shouldRejectEmptyTierName | US2-AC2 | name="" | Validation error: "name is required, non-blank" | EC-01 | TierValidationService | UT |
 | BT-57 | shouldRejectTierNameExceedingMaxLength | US2-AC2 | name=256 chars | Validation error: "name exceeds max length" | EC-02 | TierValidationService | UT |
 | BT-58 | shouldSanitizeSpecialCharactersInName | US2-AC4 | name contains `<script>`, SQL injection attempt | Safely accepted/sanitized, no injection | EC-03 | TierValidationService | UT |
-| BT-59 | shouldRejectNegativeThreshold | US2-AC4 | eligibilityThreshold = -100 | Validation error: "threshold must be positive" | EC-05 | TierValidationService | UT |
-| BT-60 | shouldAcceptZeroThresholdForBaseTier | US2-AC4 | eligibilityThreshold = 0 for base tier (serialNumber=1) | Accepted (base tier has no threshold requirement) | EC-04 | TierValidationService | UT |
-| BT-61 | shouldAcceptDecimalThreshold | US2-AC4 | eligibilityThreshold = 550.5 | Accepted (RM amounts support decimals) | EC-06 | TierValidationService | UT |
+| BT-59 | shouldRejectNegativeThreshold | US2-AC4 | eligibility.threshold = -100 | Validation error: "threshold must be positive" | EC-05 | TierValidationService | UT |
+| BT-60 | shouldAcceptZeroThresholdForBaseTier | US2-AC4 | eligibility.threshold = 0 for base tier (serialNumber=1) | Accepted (base tier has no threshold requirement) | EC-04 | TierValidationService | UT |
+| BT-61 | shouldAcceptDecimalThreshold | US2-AC4 | eligibility.threshold = 550.5 | Accepted (RM amounts support decimals) | EC-06 | TierValidationService | UT |
 | BT-62 | shouldRejectEndDateBeforeStartDate | US2-AC2 | endDate < startDate | Validation error: "endDate must be after startDate" | EC-07 | TierValidationService | UT |
 | BT-63 | shouldRejectInvalidColorHex | US2-AC2 | color="red" | Validation error: "color must be a valid hex code" | TS-C10 | TierValidationService | UT |
 | BT-64 | shouldRejectColorHexWithoutHashPrefix | US2-AC2 | color="FF5733" | Validation error: "color must be a valid hex code" | EC-11 | TierValidationService | UT |
 | BT-65 | shouldRejectProgramIdZero | US2-AC2 | programId=0 | Validation error: "invalid programId" | EC-12 | TierValidationService | UT |
 | BT-66 | shouldRejectCreationBeyond50TierCap | US2-AC4 | Program already has 50 tiers | 400: "Maximum 50 tiers per program" | TS-L15, EC-13 | TierValidationService | UT |
-| BT-67 | shouldRejectEmptyActivitiesArray | US2-AC2 | eligibilityCriteria.activities = [] | Validation error: "at least one activity required" | EC-10 | TierValidationService | UT |
+| BT-67 | shouldRejectEmptyConditionsArray | US2-AC2 | eligibility.conditions = [] | Validation error: "at least one condition required" | EC-10 | TierValidationService | UT |
 | BT-68 | shouldEnforceNameUniquenessWithinProgram | US2-AC4 | name="Gold", program already has "Gold" | 409: duplicate name | TS-C06 | TierValidationService | UT |
 | BT-69 | shouldValidateSerialNumberImmutabilityOnEdit | US3-AC6 | Edit attempt changing serialNumber | serialNumber field ignored or rejected | TS-E05 | TierValidationService | UT |
 
@@ -154,13 +154,13 @@
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
 | BT-70 | shouldBuildSlabInfoFromBasicDetails | US6-AC3 | UnifiedTierConfig with basicDetails | SlabInfo with name, description, colorCode, serialNumber, updatedViaNewUI=true | TS-A04 | TierChangeApplier.apply(PendingChange, orgId) | UT |
-| BT-71 | shouldBuildUpgradeStrategyInfoWithThresholdCSV | US6-AC3 | UnifiedTierConfig with eligibilityCriteria (threshold=5000) | StrategyInfo type=2 (SLAB_UPGRADE), threshold appended to CSV | TS-A05 | TierChangeApplier.apply | UT |
-| BT-72 | shouldBuildDowngradeStrategyInfoFromConfig | US6-AC3 | UnifiedTierConfig with downgradeConfig | StrategyInfo type=5 (SLAB_DOWNGRADE), TierConfiguration JSON updated | TS-A05 | TierChangeApplier.apply | UT |
+| BT-71 | shouldBuildUpgradeStrategyInfoWithThresholdCSV | US6-AC3 | UnifiedTierConfig with eligibility (threshold=5000) | StrategyInfo type=2 (SLAB_UPGRADE), threshold appended to CSV | TS-A05 | TierChangeApplier.apply | UT |
+| BT-72 | shouldBuildDowngradeStrategyInfoFromConfig | US6-AC3 | UnifiedTierConfig with downgrade config | StrategyInfo type=5 (SLAB_DOWNGRADE), TierConfiguration JSON updated | TS-A05 | TierChangeApplier.apply | UT |
 | BT-73 | shouldMapCSVIndexCorrectlyForSerialNumber | US6-AC3 | Tier with serialNumber=4 in 4-tier program | CSV index = serialNumber - 2 = 2 (0-indexed in CSV, base tier has no entry) | TS-A05 | TierChangeApplier.apply | UT |
 | BT-74 | shouldPassOnlyUpgradeAndDowngradeStrategiesToThrift | US6-AC3, US6-AC4 | Full UnifiedTierConfig | Thrift call receives exactly [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies, NOT allocation/expiry | TS-A05 | TierChangeApplier.apply | UT |
 | BT-75 | shouldUpdateSqlSlabIdInMongoAfterSync | US6-AC4 | Approved tier, Thrift returns SlabInfo with id=42 | MongoDB doc metadata.sqlSlabId = 42 | TS-A01 | TierChangeApplier.apply | UT |
 | BT-76 | shouldSwapVersionsOnEditApproval | US3-AC8, US6-AC4 | PendingChange for UPDATE with parentId | New doc -> ACTIVE, old ACTIVE doc -> SNAPSHOT | TS-A08 | TierChangeApplier.apply | UT |
-| BT-77 | shouldPassCriteriaTypeDirectlyToThrift | US6-AC3 | criteriaType=CUMULATIVE_PURCHASES | Thrift current_value_type=CUMULATIVE_PURCHASES (same value, no conversion) | TS-A05 | TierChangeApplier.apply | UT |
+| BT-77 | shouldPassKpiTypeDirectlyToThrift | US6-AC3 | eligibility.kpiType="PURCHASE" | Thrift current_value_type mapped from kpiType String (no enum conversion) | TS-A05 | TierChangeApplier.apply | UT |
 | BT-78 | shouldSetUpdatedViaNewUIFlagTrue | US6-AC3 | Any tier sync | SlabInfo.updatedViaNewUI = true, StrategyInfo.updatedViaNewUI = true | TS-A05 | TierChangeApplier.apply | UT |
 | BT-79 | ~~shouldApplyDeleteBySettingStatusToStopped~~ | ~~US4-AC2, US4-AC3~~ | ~~PendingChange with changeType=DELETE~~ | ~~MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED~~ | ~~TS-A09~~ | ~~TierChangeApplier.apply~~ | **OBSOLETE** — no MC-gated delete flow; deletion sets DELETED directly on DRAFT with no SQL change (Rework #2) |
 
