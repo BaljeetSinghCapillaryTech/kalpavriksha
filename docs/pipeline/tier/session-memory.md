@@ -53,6 +53,9 @@
 - Version lifecycle: CREATE -> DRAFT. SUBMIT -> PENDING_APPROVAL. APPROVE -> ACTIVE (old -> SNAPSHOT). REJECT -> back to DRAFT (promotion pattern, via ChangeApplier.revert()). EDIT ACTIVE -> new DRAFT with parentId. _(BA — Q6, updated Rework #3)_
 - API hosting: intouch-api-v3 serves tier CRUD REST APIs + MongoDB draft storage + maker-checker. On approval, syncs to emf-parent via Thrift (same as unified promotions). emf-parent owns core business logic, JPA entities, strategy configs. _(BA — Q7)_
 - Call chain on approval: intouch-api-v3 REST -> MakerCheckerService.approve() -> TierChangeApplier -> Thrift call -> emf-parent PointsEngineRuleService.createSlabAndUpdateStrategies() -> SQL write. _(BA — Q7)_
+- Exception types: InvalidInputException(400), NotFoundException(404), ConflictException(409), EMFThriftException(500) — all caught by TargetGroupErrorAdvice @ControllerAdvice. Never use IllegalArgumentException/IllegalStateException in REST-facing code. _(Developer — Rework #4)_
+- Two-layer validation: Jakarta annotations on DTOs (field-level) + dedicated validator classes with error codes (9001-9009) + @Service business-rule validators (need DB access). Controllers are try-catch-free. _(Developer — Rework #4)_
+- Error code range 9001-9009 for tier validation (aligned with api/prototype). Range 9010-9019 reserved for maker-checker. _(Developer — Rework #4)_
 - Maker-checker toggle: per-program + per-entity-type granularity. isMakerCheckerEnabled(orgId, programId, entityType). When disabled: Create -> ACTIVE immediately, Edit -> applied immediately (no DRAFT/PENDING states). Config stored in org-level settings. _(BA — Q8)_
 
 ## UI Findings (Phase 3)
@@ -211,6 +214,20 @@ _Tracks re-run cycles to detect unresolved loops._
 - Tier retirement (stopping ACTIVE tiers) explicitly out of scope — future epic.
 - US-2 (Tier Creation) stays IN SCOPE — this is the main goal.
 **What stayed the same**: US-1 (Listing), US-2 (Creation), US-3 (Editing), US-5/6/7 (MC), dual-storage, architecture, all other field structures, communications (MongoDB hooks, no change).
+
+### Rework #4 — Production-quality exception handling & validation standardization (2026-04-16)
+**Trigger**: User review — code used IllegalArgumentException/IllegalStateException instead of codebase exception types, controllers had manual try-catch, no validator classes, no error codes.
+**Scope**: All tier + maker-checker production and test files in intouch-api-v3.
+**What changed**:
+- **Exception types**: All `IllegalArgumentException` → `NotFoundException` (404) or `InvalidInputException` (400). All `IllegalStateException` → `ConflictException` (409, new class) or `InvalidInputException`. All `RuntimeException("Thrift...")` → `EMFThriftException`.
+- **New class: ConflictException** — follows same pattern as InvalidInputException/NotFoundException. Added to TargetGroupErrorAdvice @ControllerAdvice mapping CONFLICT (409).
+- **Controllers cleaned**: Removed ALL try-catch from TierController and MakerCheckerController. Clean delegation to facades. @ControllerAdvice handles all HTTP mapping.
+- **Two-layer validation**: Jakarta annotations (@NotBlank, @Size, @Pattern) on BasicDetails DTO for field-level. New TierCreateRequestValidator + TierUpdateRequestValidator with error codes 9001-9009. TierValidationService slimmed to business-rule-only methods (name uniqueness, serial number, tier cap).
+- **Error codes**: 9001=name required, 9002=name too long, 9003=desc too long, 9004=invalid color hex, 9005=end before start, 9006=programId required, 9007=invalid kpiType, 9008=negative threshold, 9009=invalid upgradeType.
+- **Test files updated**: TierValidationServiceTest, TierFacadeTest, MakerCheckerFacadeTest — all assertions changed to match new exception types.
+- **GUARDRAILS updated**: New G-13 (Exception Handling & Error Codes) with 4 sub-rules. Designer, Developer, Reviewer skills updated.
+**What stayed the same**: Business logic, architecture, state machine, all other code.
+**Impact**: Code now follows same exception/validation pattern as all other controllers in intouch-api-v3. 56 tests pass.
 
 ### Rework #3 — Timezone alignment, rejection→DRAFT, remove ProgramSlab status (2026-04-16)
 **Trigger**: User review — three corrections identified.

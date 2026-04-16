@@ -72,7 +72,16 @@ Developer CAN modify SDET's test code, but MUST document every change:
 
 ## Guardrails
 
-**Read `.claude/skills/GUARDRAILS.md` at phase start.** All code must comply with every applicable guardrail. Comment `// GUARDRAIL: G-XX` when a pattern exists specifically because of a guardrail. Pay special attention to: G-01 (UTC storage, java.time), G-02 (null checks, fail-fast), G-03 (parameterized queries, no secrets in code), G-07 (tenant filter on every query), G-12 (read existing code first, follow project patterns, verify APIs exist).
+**Read `.claude/skills/GUARDRAILS.md` at phase start.** All code must comply with every applicable guardrail. Comment `// GUARDRAIL: G-XX` when a pattern exists specifically because of a guardrail. Pay special attention to: G-01 (UTC storage, java.time), G-02 (null checks, fail-fast), G-03 (parameterized queries, no secrets in code), G-07 (tenant filter on every query), G-12 (read existing code first, follow project patterns, verify APIs exist), G-13 (use codebase exception types, no try-catch in controllers, two-layer validation, error codes).
+
+### Exception Handling Rules (G-13)
+
+**Before writing any exception-throwing code**, check the module's existing exception hierarchy:
+1. **Find the `@ControllerAdvice`** — identify which exception types it handles and what HTTP status they map to.
+2. **Use those exception types** — never use `IllegalArgumentException`, `IllegalStateException`, or generic `RuntimeException` in REST-facing code. They bypass the global error handler.
+3. **Controllers must be try-catch-free** — clean delegation to facade/service. The `@ControllerAdvice` handles all exception-to-HTTP mapping.
+4. **Two-layer validation**: Jakarta annotations + validator classes for field-level; `@Service` classes for business rules needing DB access.
+5. **Include error codes** in exception messages: `throw new InvalidInputException("[9001] Tier name is required")`
 
 ## Mindset
 - Classical/Chicago/Detroit TDD: unit = group of classes delivering a business outcome. Write tests that define behavior; implement to pass.

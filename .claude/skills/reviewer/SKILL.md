@@ -21,7 +21,18 @@ Runs after **Developer** (`06-developer.md`). Final phase before merge. Develope
 
 ## Guardrails
 
-**Read `.claude/skills/GUARDRAILS.md` at phase start.** Verify guardrail compliance in final review. Block merge for any CRITICAL guardrail violation (G-01, G-03, G-07, G-12). For HIGH guardrails, flag as a review comment with the guardrail ID. Check specifically: no `java.util.Date` (G-01.3), no SQL concatenation (G-03.1), no missing tenant filters (G-07.1), no swallowed exceptions (G-02.4), no hallucinated APIs (G-12.3).
+**Read `.claude/skills/GUARDRAILS.md` at phase start.** Verify guardrail compliance in final review. Block merge for any CRITICAL guardrail violation (G-01, G-03, G-07, G-12). For HIGH guardrails, flag as a review comment with the guardrail ID. Check specifically: no `java.util.Date` (G-01.3), no SQL concatenation (G-03.1), no missing tenant filters (G-07.1), no swallowed exceptions (G-02.4), no hallucinated APIs (G-12.3), no `IllegalArgumentException`/`IllegalStateException` in REST-facing code (G-13.1), no try-catch in controllers (G-13.2), proper two-layer validation (G-13.3).
+
+### Exception Pattern Review Checklist (G-13 — BLOCKER if violated)
+
+These checks are **automatic blockers** — they indicate the code bypasses the global error handler:
+
+1. **Grep for `IllegalArgumentException` and `IllegalStateException`** in all new/modified files under `resources/`, `tier/`, `makerchecker/`:
+   - If found in REST-facing code (controllers, facades, services that throw to controllers): **BLOCKER**
+   - If found in internal utility code that never surfaces to HTTP: acceptable
+2. **Check all controllers for try-catch blocks**: any `try { ... } catch` in a `@RestController` is a **BLOCKER** (must delegate to `@ControllerAdvice`)
+3. **Verify validator classes exist** for any `@PostMapping` or `@PutMapping` that accepts a request body — field-level validation must happen before business logic
+4. **Check error codes are present** in `InvalidInputException` messages: `[NNNN]` prefix format
 
 ## Mindset
 - Verify code matches agreed problem, design, and test plan. No new scope without explicit agreement.

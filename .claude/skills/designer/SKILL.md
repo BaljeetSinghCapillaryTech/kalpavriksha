@@ -96,6 +96,17 @@ For **every** new type you are about to define in `03-designer.md`, run this sea
    - Determine: Test framework (JUnit 4/5, TestNG), assertion library, mock framework, base test class, test naming convention
    - Prescribe: The exact test structure for QA and Developer to follow
 
+7. **Exception Types & Error Handling**
+   - Search for: `*Exception.java` in the target module, `@ControllerAdvice` / `@ExceptionHandler` classes
+   - Determine: What exception hierarchy exists? Which exceptions map to which HTTP status codes? Is there a global error handler?
+   - Prescribe: The exact exception types for each error case (e.g., `NotFoundException` for 404, `ConflictException` for 409). **Never prescribe `IllegalArgumentException` or `IllegalStateException` for REST-facing code** — these are not caught by `@ControllerAdvice` and force manual try-catch in controllers.
+   - See GUARDRAILS G-13 for the full pattern.
+
+8. **Validators**
+   - Search for: `*Validator*.java`, Jakarta Bean Validation annotations on existing DTOs
+   - Determine: Does the module use validator classes? What pattern — `@Service` with direct throws, or `ValidatorV2<T>` base class? Are error codes used?
+   - Prescribe: The exact validator pattern, error code range, and two-layer validation architecture (field-level on DTOs + business-rule in services). See GUARDRAILS G-13.3.
+
 ### When Multiple Patterns Exist
 
 If the codebase has more than one pattern for the same thing (e.g., old DAO pattern + new Repository pattern):

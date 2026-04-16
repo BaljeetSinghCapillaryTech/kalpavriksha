@@ -18,7 +18,7 @@
 | **QA** | Generates test scenarios for guardrail edge cases (timezone, NPE, concurrency, tenant isolation). |
 | **Developer** | Writes code that follows every applicable guardrail. Comments `// GUARDRAIL: G-XX` when a pattern is specifically because of a guardrail. |
 | **SDET** | Includes guardrail-specific test automation (e.g., multi-timezone tests, concurrent access tests). |
-| **Reviewer** | Verifies guardrail compliance in final review. Blocks merge for violations. |
+| **Reviewer** | Verifies guardrail compliance in final review. Blocks merge for violations. Specifically checks G-13: no `IllegalArgumentException`/`IllegalStateException` in REST code, no try-catch in controllers, validator classes exist. |
 
 ---
 
@@ -718,6 +718,99 @@ If the project uses exceptions, don't introduce `Either<L,R>`. If the project us
 
 ---
 
+## G-13: Exception Handling & Error Codes (intouch-api-v3)
+
+**Priority**: HIGH — Using wrong exception types bypasses the global error handler, forcing manual try-catch in controllers and breaking consistency.
+
+### G-13.1: Use codebase exception types — never Java built-ins for HTTP-facing code
+
+intouch-api-v3 has a global `@ControllerAdvice` (`TargetGroupErrorAdvice`) that maps specific exception types to HTTP status codes. Use these — NOT `IllegalArgumentException`, `IllegalStateException`, or generic `RuntimeException`:
+
+| Exception Class | HTTP Status | When to Use |
+|---|---|---|
+| `InvalidInputException` | 400 Bad Request | Validation failures (field-level or business-rule) |
+| `NotFoundException` | 404 Not Found | Entity not found by ID |
+| `ConflictException` | 409 Conflict | State conflict (duplicate name, wrong status for operation) |
+| `EMFThriftException` | 500 Internal | Thrift sync failures |
+| `OperationFailedException` | 500 Internal | Other internal failures |
+
+```java
+// BAD — not caught by @ControllerAdvice, forces manual try-catch
+throw new IllegalArgumentException("Tier not found: " + tierId);
+throw new IllegalStateException("Cannot delete ACTIVE tier");
+
+// GOOD — caught by TargetGroupErrorAdvice, mapped to correct HTTP status
+throw new NotFoundException("Tier not found: " + tierId);
+throw new ConflictException("Cannot delete ACTIVE tier — only DRAFT tiers can be deleted");
+```
+
+### G-13.2: Controllers must NOT contain try-catch blocks
+
+Controllers delegate to facades/services. Exception-to-HTTP mapping is handled by `TargetGroupErrorAdvice`. Manual try-catch in controllers breaks this pattern and leads to inconsistent error responses.
+
+```java
+// BAD — manual exception handling in controller
+@PostMapping
+public ResponseEntity<?> createTier(@RequestBody TierCreateRequest request, ...) {
+    try {
+        return ResponseEntity.ok(tierFacade.createTier(...));
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(e.getMessage());
+    }
+}
+
+// GOOD — clean delegation, @ControllerAdvice handles exceptions
+@PostMapping
+public ResponseEntity<ResponseWrapper<UnifiedTierConfig>> createTier(
+        @Valid @RequestBody TierCreateRequest request, ...) {
+    UnifiedTierConfig created = tierFacade.createTier(...);
+    return new ResponseEntity<>(new ResponseWrapper<>(created, null, null), HttpStatus.CREATED);
+}
+```
+
+### G-13.3: Two-layer validation pattern
+
+Validation has two layers — both are required:
+
+**Layer 1 — Field-level (Controller entry):** Jakarta Bean Validation annotations on DTOs + dedicated validator classes that throw `InvalidInputException` with error codes.
+```java
+// On DTO fields:
+@NotBlank(message = "TIER.NAME_REQUIRED")
+@Size(max = 100, message = "TIER.NAME_TOO_LONG")
+private String name;
+
+// In validator class:
+public void validate(TierCreateRequest request) {
+    if (name == null || name.isBlank()) throw new InvalidInputException("[9001] Tier name is required");
+}
+```
+
+**Layer 2 — Business-rule (Facade/Service):** Rules that need DB access (uniqueness, caps, status checks) live in `@Service` classes that throw `ConflictException` or `InvalidInputException`.
+```java
+// In TierValidationService:
+public void validateNameUniqueness(String name, int programId, long orgId) {
+    if (tierRepository.existsByName(orgId, programId, name, LIVE_STATUSES))
+        throw new ConflictException("A tier with name '" + name + "' already exists");
+}
+```
+
+### G-13.4: Use error code ranges per domain
+
+Assign numeric error code ranges to each domain module. Codes are included in the exception message for programmatic client parsing.
+
+| Range | Domain |
+|-------|--------|
+| 9001-9009 | Tier validation |
+| 9010-9019 | Maker-checker |
+| 9020-9029 | (reserved for benefits) |
+
+```java
+throw new InvalidInputException("[9001] Tier name is required");
+throw new InvalidInputException("[9005] End date must be after start date");
+```
+
+---
+
 ## Quick Reference — Guardrail IDs
 
 | ID | Name | Priority |
@@ -734,6 +827,7 @@ If the project uses exceptions, don't introduce `Either<L,R>`. If the project us
 | G-10 | Concurrency & Thread Safety | HIGH |
 | G-11 | Testing Requirements | HIGH |
 | G-12 | AI-Specific (AIDLC) | CRITICAL |
+| G-13 | Exception Handling & Error Codes | HIGH |
 
 **CRITICAL** = Violation is an automatic blocker — cannot proceed without fixing.
 **HIGH** = Violation is flagged in review — must justify if deviating.
