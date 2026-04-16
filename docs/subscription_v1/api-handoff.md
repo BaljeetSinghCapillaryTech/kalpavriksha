@@ -3,14 +3,21 @@
 > **Artifacts path**: `docs/subscription_v1/`
 > **Source phases read**: `00-ba.md`, `01-architect.md`, `03-designer.md`, `06-developer.md`, `session-memory.md`
 > **Code-verified**: `SubscriptionFacade.java`, `SubscriptionProgram.java`, `SubscriptionController.java` (skeleton), `ResponseWrapper.java`, all enums
-> **Date**: 2026-04-15
+> **Date**: 2026-04-16 (Rework 2 — PUBLISH_FAILED + Pattern A idempotency)
 >
 > **Implementation status**:
-> - ✅ `SubscriptionFacade` — fully implemented, 39/39 tests GREEN
+> - ✅ `SubscriptionFacade` — fully implemented, all tests GREEN
 > - ✅ `SubscriptionProgram` (MongoDB document), all enums, all DTOs — implemented
+> - ✅ `MakerCheckerService` — SAGA catch block transitions to `PUBLISH_FAILED` + best-effort persist
+> - ✅ `PartnerProgramIdempotencyService` (emf-parent) — Redis-backed idempotency for Thrift re-triggers (Pattern A)
 > - ⚠️ `SubscriptionController` / `SubscriptionReviewController` — **controller wiring pending** (facade logic complete, HTTP routing not yet wired). Endpoint shapes are from designer spec and are final — a one-session task to wire.
 >
 > **Note for UI team**: You can start building mocks and integration tests against this contract now. The facade business logic is complete and battle-tested.
+>
+> **Rework 2 changes (2026-04-16)**:
+> - New status `PUBLISH_FAILED` — Thrift publish failure now surfaces to the UI instead of silently retaining `PENDING_APPROVAL`
+> - Re-approval is allowed from `PUBLISH_FAILED` (same as `PENDING_APPROVAL`)
+> - Pattern A idempotency: stable `serverReqId = "sub-approve-" + subscriptionProgramId` prevents duplicate MySQL records on retry
 
 ---
 
@@ -341,6 +348,7 @@ Same shape as the POST 201 response body above. All fields returned.
       "totalSubscriptions": 15,
       "activeCount": 8,
       "pendingApprovalCount": 2,
+      "publishFailedCount": 1,
       "draftCount": 3,
       "pausedCount": 1,
       "archivedCount": 1,
@@ -530,7 +538,7 @@ Benefits are separate entities created elsewhere. Subscription endpoints handle 
 
 #### GET `/v3/subscriptions/approvals`
 
-**Purpose**: List subscriptions that are in `PENDING_APPROVAL` status — the approver's review queue.
+**Purpose**: List subscriptions awaiting action in the approver's review queue. Returns subscriptions in `PENDING_APPROVAL` **and** `PUBLISH_FAILED` status — both require approver intervention.
 
 **Maps to**: AC-36
 
@@ -554,6 +562,17 @@ Benefits are separate entities created elsewhere. Subscription endpoints handle 
         "updatedAt": "2026-04-15T09:00:00Z",
         "updatedBy": "creator-user-id",
         "version": 1
+      },
+      {
+        "subscriptionProgramId": "a1b2c3d4-58cc-4372-a567-1234abcd5678",
+        "name": "Silver Membership",
+        "status": "PUBLISH_FAILED",
+        "benefitsCount": 1,
+        "subscriberCount": null,
+        "comments": "MySQL write failed: connection timeout",
+        "updatedAt": "2026-04-16T08:45:00Z",
+        "updatedBy": "approver-user-id",
+        "version": 1
       }
     ],
     "totalElements": 2,
@@ -566,22 +585,26 @@ Benefits are separate entities created elsewhere. Subscription endpoints handle 
 }
 ```
 
+**Notes**:
+- `PUBLISH_FAILED` subscriptions appear here because they can be re-approved. The `comments` field contains the failure reason from the Thrift call.
+- UI recommendation: visually differentiate `PUBLISH_FAILED` entries (e.g., amber badge labelled "Publish Failed — Retry") so the approver understands a re-approval is a retry, not a fresh approval.
+
 ---
 
 #### POST `/v3/subscriptions/{subscriptionProgramId}/approve`
 
-**Purpose**: Approve or reject a subscription that is in `PENDING_APPROVAL`.
+**Purpose**: Approve or reject a subscription that is in `PENDING_APPROVAL` or `PUBLISH_FAILED`.
 
-- **APPROVE**: triggers a SAGA — Thrift call writes the subscription to MySQL (`partner_programs` + `supplementary_membership_cycle_details` + tier config), then MongoDB status becomes `ACTIVE`.
+- **APPROVE**: triggers a SAGA — Thrift call writes the subscription to MySQL (`partner_programs` + `supplementary_membership_cycle_details` + tier config), then MongoDB status becomes `ACTIVE`. The Thrift call is **idempotent** — a stable key (`"sub-approve-" + subscriptionProgramId`) prevents duplicate MySQL records on retry from `PUBLISH_FAILED`.
 - **REJECT**: subscription returns to `DRAFT`. Rejection comment stored. No MySQL write.
 
-**Maps to**: AC-35, WP-4 (approve), WP-5 (reject)
+**Maps to**: AC-35, WP-4 (approve), WP-5 (reject), R-14–R-21 (Rework 2)
 
 | Parameter | Location | Required | Description |
 |-----------|----------|----------|-------------|
 | `subscriptionProgramId` | path | yes | Business UUID of the subscription |
 | `approvalStatus` | body | yes | `"APPROVE"` or `"REJECT"` |
-| `comment` | body | no | Approval/rejection comment. Max 150 chars. Stored in `comments` field on the subscription. |
+| `comment` | body | no | Approval/rejection comment. Max 150 chars. Stored in `comments` field on the subscription. For `PUBLISH_FAILED` re-approvals, previous failure reason in `comments` is overwritten on success. |
 
 **Request Body**:
 ```json
@@ -621,14 +644,24 @@ After **REJECT** — key fields that change:
 | HTTP Status | When |
 |-------------|------|
 | 404 | Subscription not found |
-| 422 | Subscription is not in `PENDING_APPROVAL` status |
+| 422 | Subscription is not in `PENDING_APPROVAL` or `PUBLISH_FAILED` status |
 | 400 | `approvalStatus` is missing or not `APPROVE`/`REJECT` |
-| 502 | Thrift/MySQL write failed during APPROVE (subscription remains `PENDING_APPROVAL` — retry-safe) |
+| 502 | Thrift/MySQL write failed during APPROVE — subscription transitions to **`PUBLISH_FAILED`** (not retained as `PENDING_APPROVAL`). The failure reason is stored in `comments`. The approver can retry by calling APPROVE again from `PUBLISH_FAILED`. |
+
+**`PUBLISH_FAILED` — what it means for the UI**:
+
+| Scenario | Status | `comments` | UI action |
+|----------|--------|------------|-----------|
+| Thrift call timed out | `PUBLISH_FAILED` | `"Read timed out"` (or similar) | Show "Publish Failed" badge. Approver can retry APPROVE. |
+| Thrift call returned error | `PUBLISH_FAILED` | Error message from Thrift | Same — allow retry |
+| Retry APPROVE succeeds | `ACTIVE` | Approval comment (from retry) | Normal ACTIVE flow |
+| Retry APPROVE fails again | `PUBLISH_FAILED` | New failure reason | Repeat retry or escalate |
 
 **Notes**:
 - **Backend does not enforce approver identity.** Any authenticated user can call this endpoint. Access control is a UI responsibility (KD-09, KD-29).
-- The approval SAGA is best-effort: Thrift write first → MongoDB update. If Thrift succeeds but MongoDB update fails (extremely rare), a retry of the same APPROVE call will detect `mysqlPartnerProgramId` is already set and skip the Thrift re-write (RF-6 idempotency).
+- The approval SAGA is best-effort: Thrift write first → MongoDB update. If Thrift succeeds but the caller times out (split-brain), the subscription transitions to `PUBLISH_FAILED`. On retry, the **Pattern A idempotency key** (`"sub-approve-" + subscriptionProgramId`, Redis cache 1h TTL) ensures the MySQL record is returned from cache rather than created again — preventing duplicate partner programs.
 - If the subscription being approved has a `parentId` (edit-of-ACTIVE), the old ACTIVE document becomes ARCHIVED and the new DRAFT becomes ACTIVE.
+- A `PUBLISH_FAILED` subscription that is **rejected** transitions to `DRAFT` (same as from `PENDING_APPROVAL`).
 
 ---
 
@@ -662,7 +695,9 @@ Global exception handler (`TargetGroupErrorAdvice`) maps exceptions to HTTP stat
 ### Idempotency
 
 - **Create** is not idempotent (generates a new UUID each call)
-- **Approve** is idempotent — if `mysqlPartnerProgramId` is already set, the Thrift call is skipped and the existing MySQL record is reused (RF-6)
+- **Approve** — two-layer idempotency:
+  - **Pattern A (emf-parent, Thrift layer)**: A stable key `"sub-approve-" + subscriptionProgramId` is cached in Redis (1h TTL) after a successful MySQL write. If the same Thrift call is retried (e.g., from `PUBLISH_FAILED`), the cached `partnerProgramId` is returned immediately — no duplicate MySQL record is created.
+  - **Pattern B (intouch-api-v3 layer)**: If `mysqlPartnerProgramId` is already set on the MongoDB document (rare split-brain where MySQL succeeded and MongoDB update also succeeded), the Thrift call is skipped entirely.
 - **Pause / Resume / Archive** — if the Thrift call fails, the MongoDB status is NOT updated, making these safe to retry
 
 ### Optimistic Locking
@@ -675,7 +710,7 @@ Global exception handler (`TargetGroupErrorAdvice`) maps exceptions to HTTP stat
 
 | Enum | Values | Used In |
 |------|--------|---------|
-| `SubscriptionStatus` | `DRAFT`, `PENDING_APPROVAL`, `ACTIVE`, `PAUSED`, `ARCHIVED` | `status` field on all responses; `status` query param on list |
+| `SubscriptionStatus` | `DRAFT`, `PENDING_APPROVAL`, `PUBLISH_FAILED`, `ACTIVE`, `PAUSED`, `ARCHIVED` | `status` field on all responses; `status` query param on list. `PUBLISH_FAILED` means the Thrift publish call failed — approver can retry. |
 | `SubscriptionType` | `TIER_BASED`, `NON_TIER` | `subscriptionType` on create/update request and response |
 | `CycleType` | `DAYS`, `MONTHS`, `YEARS` | `duration.cycleType`. Note: `YEARS` is stored in MongoDB; converted to `MONTHS × 12` internally before MySQL write. UI may display YEARS as-is. |
 | `MigrateOnExpiry` | `NONE`, `MIGRATE_TO_PROGRAM` | `expiry.migrateOnExpiry` |
@@ -688,33 +723,48 @@ Global exception handler (`TargetGroupErrorAdvice`) maps exceptions to HTTP stat
 ## Subscription Lifecycle State Machine
 
 ```
-                 ┌──────────────────────────┐
-                 │                          │
+                   ┌────────────────────────────────────────┐
+                   │                                        │
 CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAUSED
-                 │                    ▲      │          │
-               REJECT                 │      │          │
-               (→ DRAFT)           (APPROVE) │     RESUME
-                                            │      (→ ACTIVE)
-                                        ARCHIVE        │
-                                       (terminal)   ARCHIVE
-                                            │      (terminal)
-                                            ▼
-                                         ARCHIVED
+                   │         │       ▲      │          │
+                 REJECT   Approve    │   PAUSE      RESUME
+                 (→ DRAFT)  fails    │  (→ PAUSED)  (→ ACTIVE)
+                             │    (APPROVE)     │          │
+                             ▼    succeeds   ARCHIVE   ARCHIVE
+                        PUBLISH_              (terminal) (terminal)
+                          FAILED ────────────────────────► ARCHIVED
+                             │                              ▲
+                             │ Re-APPROVE                   │
+                             │  (succeed ──► ACTIVE)        │
+                             │  (fail    ──► PUBLISH_FAILED)│
+                             │                              │
+                           REJECT ──────────────────► DRAFT │
+                                                      │─────┘
 ```
 
 **State transition rules**:
 
-| From | Via | To |
-|------|-----|-----|
-| DRAFT | Submit for approval | PENDING_APPROVAL |
-| PENDING_APPROVAL | Approve | ACTIVE |
-| PENDING_APPROVAL | Reject | DRAFT |
-| ACTIVE | Pause | PAUSED |
-| ACTIVE | Archive | ARCHIVED |
-| PAUSED | Resume | ACTIVE |
-| PAUSED | Archive | ARCHIVED |
-| DRAFT | Archive | ARCHIVED |
-| ARCHIVED | *any* | ❌ terminal — no transitions out |
+| From | Via | To | MySQL write? |
+|------|-----|----|---|
+| DRAFT | Submit for approval | PENDING_APPROVAL | No |
+| PENDING_APPROVAL | Approve (Thrift success) | ACTIVE | Yes |
+| PENDING_APPROVAL | Approve (Thrift failure) | **PUBLISH_FAILED** | Attempted, failed |
+| PENDING_APPROVAL | Reject | DRAFT | No |
+| **PUBLISH_FAILED** | Approve (Thrift success) | ACTIVE | Yes (idempotent — Pattern A) |
+| **PUBLISH_FAILED** | Approve (Thrift failure) | PUBLISH_FAILED | Attempted, failed |
+| **PUBLISH_FAILED** | Reject | DRAFT | No |
+| ACTIVE | Pause | PAUSED | Yes |
+| ACTIVE | Archive | ARCHIVED | Yes |
+| PAUSED | Resume | ACTIVE | Yes |
+| PAUSED | Archive | ARCHIVED | Yes |
+| DRAFT | Archive | ARCHIVED | No |
+| ARCHIVED | *any* | ❌ terminal — no transitions out | — |
+
+> **`PUBLISH_FAILED` — key behavioural notes for UI**:
+> - Appears in the approvals queue alongside `PENDING_APPROVAL`
+> - `comments` field contains the failure reason (set by backend)
+> - Re-approval is safe to retry — Pattern A idempotency prevents duplicate MySQL records
+> - Can also be rejected (→ `DRAFT`) if the creator needs to revise the subscription before re-submitting
 
 ---
 
@@ -752,7 +802,7 @@ CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAU
 | Pause an active subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "PAUSE"}` | ACTIVE → PAUSED + MySQL deactivated |
 | Resume a paused subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "RESUME"}` | PAUSED → ACTIVE + MySQL activated |
 | Archive a subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "ARCHIVE"}` | ACTIVE/PAUSED/DRAFT → ARCHIVED |
-| Approver: view pending queue | `GET /v3/subscriptions/approvals?programId=1` | PENDING_APPROVAL docs only |
+| Approver: view pending queue | `GET /v3/subscriptions/approvals?programId=1` | `PENDING_APPROVAL` and `PUBLISH_FAILED` docs |
 | Approver: approve subscription | `POST /v3/subscriptions/{id}/approve` body: `{approvalStatus: "APPROVE"}` | Triggers MySQL write SAGA |
 | Approver: reject submission | `POST /v3/subscriptions/{id}/approve` body: `{approvalStatus: "REJECT"}` | Returns to DRAFT |
 | Link benefit to subscription | `POST /v3/subscriptions/{id}/benefits` | MongoDB only |
