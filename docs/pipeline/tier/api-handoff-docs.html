@@ -546,7 +546,7 @@
     <div class="icon">&#9854;</div>
     <h1>Tiers API</h1>
   </div>
-  <div class="sidebar-meta">v1.1 &middot; 11 endpoints &middot; 2026-04-12</div>
+  <div class="sidebar-meta">v1.2 &middot; 11 endpoints &middot; 2026-04-16 (Rework #3: timezone offsets)</div>
 
   <div class="sidebar-section">
     <h3>Overview</h3>
@@ -706,24 +706,23 @@
       <span class="status-badge draft">DRAFT</span>
       <span class="status-badge pending">PENDING_APPROVAL</span>
       <span class="status-badge active">ACTIVE</span>
-      <span class="status-badge stopped">STOPPED</span>
+      <span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">DELETED</span>
       <span class="status-badge snapshot">SNAPSHOT</span>
     </div>
 
     <div class="diagram-container">
-      <h4>State Machine</h4>
+      <h4>State Machine (Rework #2 + #3)</h4>
       <div class="mermaid">
 stateDiagram-v2
     [*] --> DRAFT : Create (MC on)
     [*] --> ACTIVE : Create (MC off)
     DRAFT --> PENDING_APPROVAL : Submit
-    DRAFT --> [*] : Delete (immediate)
+    DRAFT --> DELETED : Delete (DRAFT only, immediate)
     PENDING_APPROVAL --> ACTIVE : Approve
     PENDING_APPROVAL --> DRAFT : Reject
-    ACTIVE --> STOPPED : Stop (MC off)
     ACTIVE --> DRAFT : Edit (new version)
     ACTIVE --> SNAPSHOT : Version replaced
-    STOPPED --> [*] : Terminal
+    DELETED --> [*] : Terminal
     SNAPSHOT --> [*] : Terminal
       </div>
     </div>
@@ -734,8 +733,8 @@ stateDiagram-v2
         <tr><th>Status</th><th>Badge</th><th>User Can...</th></tr>
         <tr><td><code>DRAFT</code></td><td><span class="status-badge draft">DRAFT</span></td><td>Edit, Submit for Approval, Delete</td></tr>
         <tr><td><code>PENDING_APPROVAL</code></td><td><span class="status-badge pending">PENDING</span></td><td>View only (approver: Approve / Reject)</td></tr>
-        <tr><td><code>ACTIVE</code></td><td><span class="status-badge active">ACTIVE</span></td><td>Edit (creates new version), Stop</td></tr>
-        <tr><td><code>STOPPED</code></td><td><span class="status-badge stopped">STOPPED</span></td><td>View only (terminal)</td></tr>
+        <tr><td><code>ACTIVE</code></td><td><span class="status-badge active">ACTIVE</span></td><td>Edit (creates new version). Cannot delete &mdash; tier retirement deferred.</td></tr>
+        <tr><td><code>DELETED</code></td><td><span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">DELETED</span></td><td>View only (terminal). Only reachable from DRAFT.</td></tr>
         <tr><td><code>SNAPSHOT</code></td><td><span class="status-badge snapshot">SNAPSHOT</span></td><td>View only (archived version)</td></tr>
       </table>
     </div>
@@ -775,7 +774,7 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"activeTiers"</span>: <span class="json-num">3</span>,
       <span class="json-key">"pendingApprovalTiers"</span>: <span class="json-num">1</span>,
       <span class="json-key">"totalMembers"</span>: <span class="json-num">2135</span>,
-      <span class="json-key">"lastMemberCountRefresh"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+      <span class="json-key">"lastMemberCountRefresh"</span>: <span class="json-str">"2026-04-11T12:00:00+05:30"</span>
     },
     <span class="json-key">"tiers"</span>: [
       {
@@ -790,7 +789,7 @@ Authorization: Bearer eyJhbGci...</pre>
           <span class="json-key">"description"</span>: <span class="json-str">"Entry level tier with basic benefits"</span>,
           <span class="json-key">"color"</span>: <span class="json-str">"#CD7F32"</span>,
           <span class="json-key">"serialNumber"</span>: <span class="json-num">1</span>,
-          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
           <span class="json-key">"endDate"</span>: <span class="json-null">null</span>
         },
         <span class="json-key">"eligibilityCriteria"</span>: {
@@ -819,13 +818,13 @@ Authorization: Bearer eyJhbGci...</pre>
         <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-001"</span>, <span class="json-str">"bf-007"</span>, <span class="json-str">"bf-012"</span>],
         <span class="json-key">"memberStats"</span>: {
           <span class="json-key">"memberCount"</span>: <span class="json-num">1245</span>,
-          <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+          <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00+05:30"</span>
         },
         <span class="json-key">"metadata"</span>: {
           <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-01"</span>,
-          <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
           <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-01"</span>,
-          <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+          <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
           <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
           <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3848</span>
         }
@@ -842,8 +841,8 @@ Authorization: Bearer eyJhbGci...</pre>
           <span class="json-key">"description"</span>: <span class="json-str">"Mid-level tier with enhanced benefits"</span>,
           <span class="json-key">"color"</span>: <span class="json-str">"#C0C0C0"</span>,
           <span class="json-key">"serialNumber"</span>: <span class="json-num">2</span>,
-          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
-          <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+          <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
+          <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59+05:30"</span>
         },
         <span class="json-key">"eligibilityCriteria"</span>: {
           <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -876,7 +875,7 @@ Authorization: Bearer eyJhbGci...</pre>
           <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
         },
         <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-002"</span>, <span class="json-str">"bf-005"</span>, <span class="json-str">"bf-008"</span>],
-        <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">667</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span> },
+        <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">667</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00+05:30"</span> },
         <span class="json-key">"metadata"</span>: { <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3849</span>, <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span> }
       }
     ]
@@ -925,8 +924,8 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"description"</span>: <span class="json-str">"Premium tier with exclusive benefits"</span>,
       <span class="json-key">"color"</span>: <span class="json-str">"#FFD700"</span>,
       <span class="json-key">"serialNumber"</span>: <span class="json-num">3</span>,
-      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
-      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59+05:30"</span>
     },
     <span class="json-key">"eligibilityCriteria"</span>: {
       <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -961,7 +960,7 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-003"</span>, <span class="json-str">"bf-006"</span>, <span class="json-str">"bf-009"</span>, <span class="json-str">"bf-011"</span>, <span class="json-str">"bf-014"</span>],
     <span class="json-key">"memberStats"</span>: {
       <span class="json-key">"memberCount"</span>: <span class="json-num">234</span>,
-      <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span>
+      <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00+05:30"</span>
     },
     <span class="json-key">"engineConfig"</span>: {
       <span class="json-key">"retainPoints"</span>: <span class="json-bool">true</span>,
@@ -995,9 +994,9 @@ Authorization: Bearer eyJhbGci...</pre>
     },
     <span class="json-key">"metadata"</span>: {
       <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-01"</span>,
-      <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
       <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-09-20T14:45:00Z"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2025-09-20T14:45:00+05:30"</span>,
       <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
       <span class="json-key">"sqlSlabId"</span>: <span class="json-num">3850</span>
     }
@@ -1045,8 +1044,8 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"name"</span>: <span class="json-str">"Platinum"</span>,
     <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
     <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
-    <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
-    <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+    <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00+05:30"</span>,
+    <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59+05:30"</span>
   },
   <span class="json-key">"eligibilityCriteria"</span>: {
     <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -1096,8 +1095,8 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
       <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
       <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>,
-      <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
-      <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00+05:30"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59+05:30"</span>
     },
     <span class="json-key">"eligibilityCriteria"</span>: {
       <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -1116,9 +1115,9 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">0</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-null">null</span> },
     <span class="json-key">"metadata"</span>: {
       <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00+05:30"</span>,
       <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T10:00:00+05:30"</span>,
       <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
       <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
     }
@@ -1156,7 +1155,7 @@ Authorization: Bearer eyJhbGci...</pre>
         <tr><td><span class="status-badge draft">DRAFT</span></td><td>Updates in place (same objectId)</td><td>Updated DRAFT</td></tr>
         <tr><td><span class="status-badge active">ACTIVE</span></td><td>Creates NEW DRAFT with <code>parentId</code> &rarr; ACTIVE</td><td>New DRAFT doc</td></tr>
         <tr><td><span class="status-badge pending">PENDING</span></td><td>Updates in place</td><td>Updated PENDING doc</td></tr>
-        <tr><td><span class="status-badge stopped">STOPPED</span></td><td>Not allowed</td><td><code>400</code> error</td></tr>
+        <tr><td><span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">DELETED</span></td><td>Not allowed (terminal)</td><td><code>409</code> error</td></tr>
       </table>
     </div>
 
@@ -1188,8 +1187,8 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"description"</span>: <span class="json-str">"Enhanced premium tier"</span>,
       <span class="json-key">"color"</span>: <span class="json-str">"#DAA520"</span>,
       <span class="json-key">"serialNumber"</span>: <span class="json-num">3</span>,
-      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00Z"</span>,
-      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59Z"</span>
+      <span class="json-key">"startDate"</span>: <span class="json-str">"2025-01-01T00:00:00+05:30"</span>,
+      <span class="json-key">"endDate"</span>: <span class="json-str">"2025-12-31T23:59:59+05:30"</span>
     },
     <span class="json-key">"eligibilityCriteria"</span>: {
       <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -1220,12 +1219,12 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"shouldDowngrade"</span>: <span class="json-bool">true</span>
     },
     <span class="json-key">"benefitIds"</span>: [<span class="json-str">"bf-003"</span>, <span class="json-str">"bf-006"</span>, <span class="json-str">"bf-009"</span>, <span class="json-str">"bf-011"</span>, <span class="json-str">"bf-014"</span>],
-    <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">234</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00Z"</span> },
+    <span class="json-key">"memberStats"</span>: { <span class="json-key">"memberCount"</span>: <span class="json-num">234</span>, <span class="json-key">"lastRefreshed"</span>: <span class="json-str">"2026-04-11T12:00:00+05:30"</span> },
     <span class="json-key">"metadata"</span>: {
       <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T14:00:00Z"</span>,
+      <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T14:00:00+05:30"</span>,
       <span class="json-key">"updatedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T14:00:00Z"</span>,
+      <span class="json-key">"updatedAt"</span>: <span class="json-str">"2026-04-11T14:00:00+05:30"</span>,
       <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
       <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
     }
@@ -1255,16 +1254,17 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="method-badge delete">DELETE</span>
       <span class="endpoint-path">/v3/tiers/{tierId}</span>
     </div>
-    <p class="endpoint-desc">Soft-deletes a tier. Behavior depends on the tier's current status and the MC toggle.</p>
+    <p class="endpoint-desc">Deletes a tier. <strong>Only DRAFT tiers can be deleted</strong> (Rework #2). Sets status to DELETED (terminal). No MC gate. Tier retirement (stopping ACTIVE tiers) is deferred to a future epic.</p>
 
     <div class="card">
-      <h4>Behavior Matrix</h4>
+      <h4>Behavior by Status (Rework #2)</h4>
       <table>
-        <tr><th>Current Status</th><th>MC Enabled</th><th>MC Disabled</th></tr>
-        <tr><td><span class="status-badge draft">DRAFT</span></td><td>Immediate removal (no MC gate)</td><td>Immediate removal</td></tr>
-        <tr><td><span class="status-badge active">ACTIVE</span></td><td>Creates PendingChange; stays ACTIVE until approved</td><td>Immediate STOPPED + SQL sync</td></tr>
-        <tr><td><span class="status-badge pending">PENDING</span></td><td colspan="2">Not allowed (reject the pending change first)</td></tr>
-        <tr><td><span class="status-badge stopped">STOPPED</span></td><td colspan="2">Not allowed (terminal state)</td></tr>
+        <tr><th>Current Status</th><th>Result</th></tr>
+        <tr><td><span class="status-badge draft">DRAFT</span></td><td>Immediate &rarr; DELETED (terminal). No MC gate regardless of toggle.</td></tr>
+        <tr><td><span class="status-badge active">ACTIVE</span></td><td><code>409</code> &mdash; Only DRAFT tiers can be deleted.</td></tr>
+        <tr><td><span class="status-badge pending">PENDING</span></td><td><code>409</code> &mdash; Only DRAFT tiers can be deleted.</td></tr>
+        <tr><td><span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">DELETED</span></td><td><code>409</code> &mdash; Already deleted (terminal).</td></tr>
+        <tr><td><span class="status-badge snapshot">SNAPSHOT</span></td><td><code>409</code> &mdash; Only DRAFT tiers can be deleted.</td></tr>
       </table>
     </div>
 
@@ -1272,8 +1272,7 @@ Authorization: Bearer eyJhbGci...</pre>
       <h4>Error Responses</h4>
       <table>
         <tr><th>Status</th><th>Condition</th><th>Message</th></tr>
-        <tr><td><code>409</code></td><td>Has partner program refs</td><td><code>Cannot stop tier 'Gold' -- 2 active partner program slab mappings</code></td></tr>
-        <tr><td><code>409</code></td><td>Base tier with members</td><td><code>Cannot stop base tier 'Bronze' -- 1245 members assigned</code></td></tr>
+        <tr><td><code>409</code></td><td>Not a DRAFT tier</td><td><code>Only DRAFT tiers can be deleted. Tier 'Gold' is in ACTIVE status.</code></td></tr>
       </table>
     </div>
   </section>
@@ -1326,8 +1325,8 @@ Authorization: Bearer eyJhbGci...</pre>
       <h4>UI Behavior</h4>
       <table>
         <tr><th>MC State</th><th>Create</th><th>Edit</th><th>Delete</th></tr>
-        <tr><td><code>true</code></td><td>Save as DRAFT + "Submit for Approval"</td><td>Versioned DRAFT + "Submit"</td><td>PendingChange created</td></tr>
-        <tr><td><code>false</code></td><td>Save &amp; activate immediately</td><td>Applied immediately</td><td>STOPPED immediately</td></tr>
+        <tr><td><code>true</code></td><td>Save as DRAFT + "Submit for Approval"</td><td>Versioned DRAFT + "Submit"</td><td>DRAFT &rarr; DELETED (no MC gate)</td></tr>
+        <tr><td><code>false</code></td><td>Save &amp; activate immediately</td><td>Applied immediately</td><td>DRAFT &rarr; DELETED (no MC gate)</td></tr>
       </table>
     </div>
   </section>
@@ -1358,7 +1357,7 @@ Authorization: Bearer eyJhbGci...</pre>
     <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
     <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
     <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00+05:30"</span>
   }
 }</pre>
   </section>
@@ -1445,7 +1444,7 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="json-key">"changeType"</span>: <span class="json-str">"CREATE"</span>,
       <span class="json-key">"status"</span>: <span class="json-str">"PENDING_APPROVAL"</span>,
       <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-      <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+      <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00+05:30"</span>
     }
   ]
 }</pre>
@@ -1483,8 +1482,8 @@ Authorization: Bearer eyJhbGci...</pre>
         <span class="json-key">"description"</span>: <span class="json-str">"Elite tier for top customers"</span>,
         <span class="json-key">"color"</span>: <span class="json-str">"#E5E4E2"</span>,
         <span class="json-key">"serialNumber"</span>: <span class="json-num">4</span>,
-        <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00Z"</span>,
-        <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59Z"</span>
+        <span class="json-key">"startDate"</span>: <span class="json-str">"2026-01-01T00:00:00+05:30"</span>,
+        <span class="json-key">"endDate"</span>: <span class="json-str">"2026-12-31T23:59:59+05:30"</span>
       },
       <span class="json-key">"eligibilityCriteria"</span>: {
         <span class="json-key">"criteriaType"</span>: <span class="json-str">"CUMULATIVE_PURCHASES"</span>,
@@ -1524,13 +1523,13 @@ Authorization: Bearer eyJhbGci...</pre>
       },
       <span class="json-key">"metadata"</span>: {
         <span class="json-key">"createdBy"</span>: <span class="json-str">"user-admin-02"</span>,
-        <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00Z"</span>,
+        <span class="json-key">"createdAt"</span>: <span class="json-str">"2026-04-11T10:00:00+05:30"</span>,
         <span class="json-key">"updatedViaNewUI"</span>: <span class="json-bool">true</span>,
         <span class="json-key">"sqlSlabId"</span>: <span class="json-null">null</span>
       }
     },
     <span class="json-key">"requestedBy"</span>: <span class="json-str">"user-admin-02"</span>,
-    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00Z"</span>
+    <span class="json-key">"requestedAt"</span>: <span class="json-str">"2026-04-11T11:00:00+05:30"</span>
   }
 }</pre>
 
@@ -1634,13 +1633,14 @@ sequenceDiagram
         <h4>Deleting a DRAFT</h4>
         <pre>DELETE /v3/tiers/661b5a...
 <span class="comment">→ 204 No Content (immediate)</span></pre>
-        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">No MC gate. The tier was never live. Document removed from MongoDB.</p>
+        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">No MC gate. DRAFT &rarr; DELETED (terminal). The tier was never live.</p>
       </div>
       <div class="card">
-        <h4>Deleting an ACTIVE (MC on)</h4>
-        <pre>DELETE /v3/tiers/661a3f...
-<span class="comment">→ 200 OK (PendingChange created)</span></pre>
-        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">Tier stays ACTIVE until approver approves the stop. Then: STOPPED + SQL sync.</p>
+        <h4>Deleting a non-DRAFT tier</h4>
+        <pre>DELETE /v3/tiers/661a3f... <span class="comment">(an ACTIVE tier)</span>
+<span class="comment">→ 409 Conflict</span>
+<span class="comment">"Only DRAFT tiers can be deleted. Tier 'Gold' is in ACTIVE status."</span></pre>
+        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">Tier retirement (stopping ACTIVE tiers) is deferred to a future epic. Only DRAFT tiers can be deleted.</p>
       </div>
     </div>
   </section>
@@ -1787,7 +1787,7 @@ sequenceDiagram
   <hr class="section-divider">
 
   <footer style="text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 12px;">
-    Tiers CRUD API Reference v1.1 &middot; Generated 2026-04-12 &middot; For Garuda UI Team<br>
+    Tiers CRUD API Reference v1.2 &middot; Updated 2026-04-16 (Rework #3: timezone offsets) &middot; For Garuda UI Team<br>
     Pipeline: feature-pipeline &middot; Ticket: raidlc/ai_tier
   </footer>
 

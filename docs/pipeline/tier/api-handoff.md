@@ -1,7 +1,7 @@
 # API Handoff -- Tiers CRUD + Maker-Checker
 
 > For: UI Development Team (Garuda)
-> Version: 1.3 (v1.2 + Rework #2: DELETED status added, PAUSED/STOPPED removed, DELETE is DRAFT-only)
+> Version: 1.4 (v1.3 + Rework #3: timestamps use timezone offset (+05:30) not UTC Z, rejection→DRAFT, ProgramSlab status removed)
 > Base URL: `https://{host}/v3`
 > Auth: Bearer token in `Authorization` header
 > Content-Type: `application/json`
@@ -75,7 +75,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
       "activeTiers": 3,
       "pendingApprovalTiers": 1,
       "totalMembers": 2135,
-      "lastMemberCountRefresh": "2026-04-11T12:00:00Z"
+      "lastMemberCountRefresh": "2026-04-11T12:00:00+05:30"
     },
     "tiers": [
       {
@@ -90,7 +90,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "description": "Entry level tier with basic benefits",
           "color": "#CD7F32",
           "serialNumber": 1,
-          "startDate": "2025-01-01T00:00:00Z",
+          "startDate": "2025-01-01T00:00:00+05:30",
           "endDate": null
         },
         "eligibilityCriteria": {
@@ -127,13 +127,13 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "benefitIds": ["bf-001", "bf-007", "bf-012"],
         "memberStats": {
           "memberCount": 1245,
-          "lastRefreshed": "2026-04-11T12:00:00Z"
+          "lastRefreshed": "2026-04-11T12:00:00+05:30"
         },
         "metadata": {
           "createdBy": "user-admin-01",
-          "createdAt": "2025-01-01T00:00:00Z",
+          "createdAt": "2025-01-01T00:00:00+05:30",
           "updatedBy": "user-admin-01",
-          "updatedAt": "2025-01-01T00:00:00Z",
+          "updatedAt": "2025-01-01T00:00:00+05:30",
           "updatedViaNewUI": true,
           "sqlSlabId": 3848
         }
@@ -150,8 +150,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "description": "Mid-level tier with enhanced benefits",
           "color": "#C0C0C0",
           "serialNumber": 2,
-          "startDate": "2025-01-01T00:00:00Z",
-          "endDate": "2025-12-31T23:59:59Z"
+          "startDate": "2025-01-01T00:00:00+05:30",
+          "endDate": "2025-12-31T23:59:59+05:30"
         },
         "eligibilityCriteria": {
           "criteriaType": "CUMULATIVE_PURCHASES",
@@ -209,13 +209,13 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "benefitIds": ["bf-002", "bf-005", "bf-008", "bf-013"],
         "memberStats": {
           "memberCount": 667,
-          "lastRefreshed": "2026-04-11T12:00:00Z"
+          "lastRefreshed": "2026-04-11T12:00:00+05:30"
         },
         "metadata": {
           "createdBy": "user-admin-01",
-          "createdAt": "2025-01-01T00:00:00Z",
+          "createdAt": "2025-01-01T00:00:00+05:30",
           "updatedBy": "user-admin-01",
-          "updatedAt": "2025-06-15T10:30:00Z",
+          "updatedAt": "2025-06-15T10:30:00+05:30",
           "updatedViaNewUI": true,
           "sqlSlabId": 3849
         }
@@ -232,8 +232,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "description": "Premium tier with exclusive benefits",
           "color": "#FFD700",
           "serialNumber": 3,
-          "startDate": "2025-01-01T00:00:00Z",
-          "endDate": "2025-12-31T23:59:59Z"
+          "startDate": "2025-01-01T00:00:00+05:30",
+          "endDate": "2025-12-31T23:59:59+05:30"
         },
         "eligibilityCriteria": {
           "criteriaType": "CUMULATIVE_PURCHASES",
@@ -291,13 +291,13 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
         "memberStats": {
           "memberCount": 234,
-          "lastRefreshed": "2026-04-11T12:00:00Z"
+          "lastRefreshed": "2026-04-11T12:00:00+05:30"
         },
         "metadata": {
           "createdBy": "user-admin-01",
-          "createdAt": "2025-01-01T00:00:00Z",
+          "createdAt": "2025-01-01T00:00:00+05:30",
           "updatedBy": "user-admin-02",
-          "updatedAt": "2025-09-20T14:45:00Z",
+          "updatedAt": "2025-09-20T14:45:00+05:30",
           "updatedViaNewUI": true,
           "sqlSlabId": 3850
         }
@@ -314,8 +314,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
           "description": "Elite tier for top customers",
           "color": "#E5E4E2",
           "serialNumber": 4,
-          "startDate": "2026-01-01T00:00:00Z",
-          "endDate": "2026-12-31T23:59:59Z"
+          "startDate": "2026-01-01T00:00:00+05:30",
+          "endDate": "2026-12-31T23:59:59+05:30"
         },
         "eligibilityCriteria": {
           "criteriaType": "CUMULATIVE_PURCHASES",
@@ -365,9 +365,9 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         },
         "metadata": {
           "createdBy": "user-admin-02",
-          "createdAt": "2026-04-11T10:00:00Z",
+          "createdAt": "2026-04-11T10:00:00+05:30",
           "updatedBy": "user-admin-02",
-          "updatedAt": "2026-04-11T10:00:00Z",
+          "updatedAt": "2026-04-11T10:00:00+05:30",
           "updatedViaNewUI": true,
           "sqlSlabId": null
         }
@@ -439,8 +439,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
       "description": "Premium tier with exclusive benefits",
       "color": "#FFD700",
       "serialNumber": 3,
-      "startDate": "2025-01-01T00:00:00Z",
-      "endDate": "2025-12-31T23:59:59Z"
+      "startDate": "2025-01-01T00:00:00+05:30",
+      "endDate": "2025-12-31T23:59:59+05:30"
     },
     "eligibilityCriteria": {
       "criteriaType": "CUMULATIVE_PURCHASES",
@@ -498,7 +498,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
     "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
     "memberStats": {
       "memberCount": 234,
-      "lastRefreshed": "2026-04-11T12:00:00Z"
+      "lastRefreshed": "2026-04-11T12:00:00+05:30"
     },
     "engineConfig": {
       "retainPoints": true,
@@ -545,9 +545,9 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
     },
     "metadata": {
       "createdBy": "user-admin-01",
-      "createdAt": "2025-01-01T00:00:00Z",
+      "createdAt": "2025-01-01T00:00:00+05:30",
       "updatedBy": "user-admin-02",
-      "updatedAt": "2025-09-20T14:45:00Z",
+      "updatedAt": "2025-09-20T14:45:00+05:30",
       "updatedViaNewUI": true,
       "sqlSlabId": 3850
     }
@@ -602,8 +602,8 @@ Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, sa
     "name": "Platinum",
     "description": "Elite tier for top customers",
     "color": "#E5E4E2",
-    "startDate": "2026-01-01T00:00:00Z",
-    "endDate": "2026-12-31T23:59:59Z"
+    "startDate": "2026-01-01T00:00:00+05:30",
+    "endDate": "2026-12-31T23:59:59+05:30"
   },
   "eligibilityCriteria": {
     "criteriaType": "CUMULATIVE_PURCHASES",
@@ -674,8 +674,8 @@ Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, sa
       "description": "Elite tier for top customers",
       "color": "#E5E4E2",
       "serialNumber": 4,
-      "startDate": "2026-01-01T00:00:00Z",
-      "endDate": "2026-12-31T23:59:59Z"
+      "startDate": "2026-01-01T00:00:00+05:30",
+      "endDate": "2026-12-31T23:59:59+05:30"
     },
     "eligibilityCriteria": { "..." : "same as request" },
     "renewalConfig": { "..." : "same as request" },
@@ -684,9 +684,9 @@ Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, sa
     "memberStats": { "memberCount": 0, "lastRefreshed": null },
     "metadata": {
       "createdBy": "user-admin-02",
-      "createdAt": "2026-04-11T10:00:00Z",
+      "createdAt": "2026-04-11T10:00:00+05:30",
       "updatedBy": "user-admin-02",
-      "updatedAt": "2026-04-11T10:00:00Z",
+      "updatedAt": "2026-04-11T10:00:00+05:30",
       "updatedViaNewUI": true,
       "sqlSlabId": null
     }
@@ -773,8 +773,8 @@ Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (th
       "description": "Enhanced premium tier",
       "color": "#DAA520",
       "serialNumber": 3,
-      "startDate": "2025-01-01T00:00:00Z",
-      "endDate": "2025-12-31T23:59:59Z"
+      "startDate": "2025-01-01T00:00:00+05:30",
+      "endDate": "2025-12-31T23:59:59+05:30"
     },
     "eligibilityCriteria": {
       "criteriaType": "CUMULATIVE_PURCHASES",
@@ -795,12 +795,12 @@ Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (th
     "renewalConfig": { "..." : "inherited from ACTIVE version" },
     "downgradeConfig": { "..." : "inherited from ACTIVE version" },
     "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
-    "memberStats": { "memberCount": 234, "lastRefreshed": "2026-04-11T12:00:00Z" },
+    "memberStats": { "memberCount": 234, "lastRefreshed": "2026-04-11T12:00:00+05:30" },
     "metadata": {
       "createdBy": "user-admin-02",
-      "createdAt": "2026-04-11T14:00:00Z",
+      "createdAt": "2026-04-11T14:00:00+05:30",
       "updatedBy": "user-admin-02",
-      "updatedAt": "2026-04-11T14:00:00Z",
+      "updatedAt": "2026-04-11T14:00:00+05:30",
       "updatedViaNewUI": true,
       "sqlSlabId": null
     }
@@ -884,7 +884,7 @@ Submits a DRAFT tier (or other entity) for maker-checker approval.
     "changeType": "CREATE",
     "status": "PENDING_APPROVAL",
     "requestedBy": "user-admin-02",
-    "requestedAt": "2026-04-11T11:00:00Z",
+    "requestedAt": "2026-04-11T11:00:00+05:30",
     "reviewedBy": null,
     "reviewedAt": null,
     "comment": null
@@ -934,9 +934,9 @@ Approves a pending change. Triggers TierChangeApplier to sync MongoDB to SQL via
     "changeType": "CREATE",
     "status": "APPROVED",
     "requestedBy": "user-admin-02",
-    "requestedAt": "2026-04-11T11:00:00Z",
+    "requestedAt": "2026-04-11T11:00:00+05:30",
     "reviewedBy": "user-admin-01",
-    "reviewedAt": "2026-04-11T13:30:00Z",
+    "reviewedAt": "2026-04-11T13:30:00+05:30",
     "comment": "Approved. Platinum tier config looks good."
   },
   "errors": null,
@@ -986,9 +986,9 @@ Rejects a pending change. Comment is required.
     "changeType": "UPDATE",
     "status": "REJECTED",
     "requestedBy": "user-admin-02",
-    "requestedAt": "2026-04-11T14:00:00Z",
+    "requestedAt": "2026-04-11T14:00:00+05:30",
     "reviewedBy": "user-admin-01",
-    "reviewedAt": "2026-04-11T15:00:00Z",
+    "reviewedAt": "2026-04-11T15:00:00+05:30",
     "comment": "Gold threshold too low -- 1200 RM would overlap with Silver at 550 RM. Please increase to at least 1500 RM."
   },
   "errors": null,
@@ -1040,7 +1040,7 @@ GET /v3/maker-checker/pending?entityType=TIER&programId=977
       "changeType": "CREATE",
       "status": "PENDING_APPROVAL",
       "requestedBy": "user-admin-02",
-      "requestedAt": "2026-04-11T11:00:00Z",
+      "requestedAt": "2026-04-11T11:00:00+05:30",
       "reviewedBy": null,
       "reviewedAt": null,
       "comment": null
@@ -1099,8 +1099,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "description": "Elite tier for top customers",
         "color": "#E5E4E2",
         "serialNumber": 4,
-        "startDate": "2026-01-01T00:00:00Z",
-        "endDate": "2026-12-31T23:59:59Z"
+        "startDate": "2026-01-01T00:00:00+05:30",
+        "endDate": "2026-12-31T23:59:59+05:30"
       },
       "eligibilityCriteria": {
         "criteriaType": "CUMULATIVE_PURCHASES",
@@ -1119,15 +1119,15 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
       "engineConfig": { "..." : "full engine config for round-trip" },
       "metadata": {
         "createdBy": "user-admin-02",
-        "createdAt": "2026-04-11T10:00:00Z",
+        "createdAt": "2026-04-11T10:00:00+05:30",
         "updatedBy": "user-admin-02",
-        "updatedAt": "2026-04-11T10:00:00Z",
+        "updatedAt": "2026-04-11T10:00:00+05:30",
         "updatedViaNewUI": true,
         "sqlSlabId": null
       }
     },
     "requestedBy": "user-admin-02",
-    "requestedAt": "2026-04-11T11:00:00Z",
+    "requestedAt": "2026-04-11T11:00:00+05:30",
     "reviewedBy": null,
     "reviewedAt": null,
     "comment": null
@@ -1525,7 +1525,7 @@ The production response includes `pointsSaveData` (allocations, redemptions, exp
 4. **`sqlSlabId` is null for DRAFT tiers.** It is populated only after MC approval syncs to SQL. Use it to link to legacy systems if needed.
 5. **Member counts are cached.** `memberStats.lastRefreshed` shows when the count was last updated (every ~10 minutes). Display it to set expectations.
 6. **`engineConfig` is NOT returned in the listing response.** It is hidden engine config for round-trip fidelity. Only visible in the full tier detail endpoint (if needed later).
-7. **All dates are ISO-8601 UTC.** Convert to user's timezone for display.
+7. **All dates are ISO-8601 with timezone offset** (e.g., `+05:30`). The server returns the offset based on the org's configured timezone via `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")`. Display as-is or convert to the user's local timezone.
 8. **The `benefitIds` array contains benefit ObjectIds.** Fetch benefit details via a separate `GET /v3/benefits/{benefitId}` endpoint (out of scope for this pipeline).
 9. **Call `GET /v3/maker-checker/config` on page load** to determine whether to show MC flow (Submit for Approval) or direct-save flow.
 10. **For version comparison (edit review):** Fetch DRAFT via `GET /v3/tiers/{draftId}` and ACTIVE via `GET /v3/tiers/{draft.parentId}`. Compute diff client-side.
