@@ -43,7 +43,9 @@
 - DUAL-STORAGE PATTERN: MongoDB for draft/pending tier configs, SQL for live tiers. Follows the exact same pattern as UnifiedPromotion in intouch-api-v3. Create/Edit saves to MongoDB. Maker-checker approval triggers sync to SQL (ProgramSlab + strategy configs). Listing API reads from MongoDB (all states) + SQL (live state). _(BA — Q3)_
 - MongoDB tier document must use UI field names (Eligibility Criteria, Membership Duration, Upgrade Schedule, Downgrade Schedule, etc.) because AI simulation mode (E1-US6) will reference them later. _(BA — Q3)_
 - VERIFIED PATTERN: UnifiedPromotion uses @Document(collection="unified_promotions"), PromotionStatus enum (DRAFT/PENDING_APPROVAL/ACTIVE/PAUSED/STOPPED/etc.), EntityOrchestrator with Transformer pattern to sync MongoDB->SQL on approval. EmfMongoDataSourceManager for sharded MongoDB access. _(BA — Q3)_
-- Tier config status lifecycle: DRAFT -> PENDING_APPROVAL -> ACTIVE -> STOPPED. DELETED is a soft-delete terminal state. No PAUSED/RESUME status for tiers (user decision, Phase 7.5). _(BA — Q2+Q3, updated Phase 7.5)_
+- Tier config status lifecycle: DRAFT -> PENDING_APPROVAL -> ACTIVE. DRAFT -> DELETED (terminal, soft-delete). No PAUSED, no STOPPED, no RESUME status for tiers. Only DRAFT tiers can be deleted. Tier retirement (stopping ACTIVE tiers) deferred to future epic. _(BA — Q2+Q3, updated Rework #2)_
+- Tier reordering NOT supported. serialNumber is immutable and auto-assigned. Any attempt to change serialNumber returns 400. _(Rework #2)_
+- Tier deletion is DRAFT-only: DELETE /v3/tiers/{tierId} → sets status to DELETED. Returns 409 if not DRAFT. No MC flow needed (DRAFT is pre-approval). No member reassessment (DRAFT tiers have no members). _(Rework #2)_
 - Member counts in tier listing: cached approach (option c). customer_enrollment table has current_slab_id but no GROUP BY count query exists. Table is hot (millions of evaluations/day). Use a periodic summary (refreshed every 5-15 min) stored in MongoDB tier doc or a small stats table. GET /tiers response includes cached counts. _(BA — Q4)_
 - Maker-checker: FULL GENERIC FRAMEWORK (option a). Build PendingChange entity/service, MakerCheckerService interface (submit/approve/reject), domain-specific ChangeApplier strategy. Tiers = first consumer. Benefits, subscriptions, other entities plug in later. This is Layer 1 shared module per registry. _(BA — Q5)_
 - Generic MC framework components: PendingChange MongoDB doc (entityType, payload, requestedBy, status, reviewedBy, comment, timestamps), MakerCheckerService (submit/approve/reject/list), ChangeApplier<T> strategy interface (per entity type — TierChangeApplier is the first impl). _(BA — Q5)_
@@ -62,6 +64,22 @@
 - 21 per-tier fields identified; 3 missing from BA/PRD (duration, activityRelation, membershipDuration). _(Phase 3)_
 - 4 KPI summary fields (totalTiers, activeTiers, scheduledTiers, totalMembers). "Scheduled" undefined. _(Phase 3)_
 - 8 screens analyzed: 4 in scope (tier listing), 4 reference-only (benefits). _(Phase 3)_
+
+## Figma Design Analysis (2026-04-14 -- replaces v0.app screenshots)
+- Source: Figma file "AMJ - Loyalty Revamp" (node 1508:20810, "Tiers" section). 10 frames downloaded to UI/figma-tiers/. _(Figma)_
+- 6 sections: Create tier Steps 1-5 + Tier homepage. Step 4 (Impact & Transition) NOT DESIGNED (duplicate of Step 3). _(Figma)_
+- **Create wizard is 4-step**: 1. General, 2. Eligibility, 3. Validity & renewal, 4. Impact & Transition. _(Figma)_
+- **Step 1 (General)**: Tier name, Tier number (user input -- OVERRIDDEN: keep auto-assigned serialNumber per our design), Description (optional), Tier colour (optional). _(Figma)_
+- **Step 2 (Eligibility)**: Eligibility threshold (criteria dropdown + operator dropdown + value). Qualifying conditions (optional, group-based: Group condition N with + Add criteria / + Add group condition). _(Figma)_
+- **Step 3 (Validity & renewal)**: Renewal conditions (criteria + operator + value), "If renewal criteria not met" dropdown, "Downgrade to" dropdown ("One tier below"). _(Figma)_
+- **Step 5 (Tier program settings modal)**: Program-level config opened via "Configure >" link. Fields: Upgrade type (dropdown), Validity period (dropdown), Fixed duration (value + unit), 3 toggles (return transaction downgrade, daily expiry, extend points). _(Figma)_
+- DECISION: Tier number stays auto-assigned (ignore Figma user input). _(Figma — user override)_
+- DECISION: New `GET/PUT /v3/tier-settings` endpoint added for program-level config. _(Figma)_
+- DECISION: startDate/endDate kept in API (confirmed by Figma homepage Duration column). _(Figma)_
+- DECISION: Step 4 (Impact & Transition) skipped -- not designed. _(Figma)_
+- DECISION: Partial saves (wizard steps) deferred. _(Figma)_
+- Homepage shows cross-tier comparison table with tabs: Basic details, Eligibility criteria, Renewal criteria, Downgrade criteria, Benefits. Matches our TierListResponse structure. _(Figma)_
+- API handoff updated to 13 endpoints (was 11): + GET /v3/tier-settings + PUT /v3/tier-settings. _(Figma)_
 
 ## Three-Way Gap Analysis (Phase 4 -- Codebase vs UI vs BRD)
 **Category A -- In codebase but NOT in BA/PRD:**
@@ -113,10 +131,10 @@
 - Scope limited to "Tiers CRUD" — subset of the full Tiers & Benefits BRD (Epic E1 primarily) _(Phase 0)_
 - Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito _(Phase 0)_
 - Four repos involved: emf-parent (entities/strategies), intouch-api-v3 (REST/maker-checker), peb (tier downgrade), Thrift (IDL definitions) _(Phase 0)_
-- UI screenshots provided (8 files). _(Phase 0 -- updated)_
+- UI: Figma designs (AMJ - Loyalty Revamp, node 1508:20810) + 8 v0.app screenshots. 10 Figma frames downloaded to UI/figma-tiers/. _(Phase 0, updated 2026-04-14)_
 - 7 ADRs documented: ADR-01 (dual-storage), ADR-02 (generic MC), ADR-03 (expand-then-contract), ADR-04 (versioned edits), ADR-05 (existing Thrift), ADR-06 (new programs only), ADR-07 (atomic Thrift call) _(Architect)_
 - 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
-- API handoff v1.1: 11 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail). No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5 — API handoff enhancement)_
+- API handoff v1.2: 13 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail + 2 tier-settings GET/PUT). No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5, updated Figma review)_
 - Production payload validation (program 977): 5 missing engineConfig fields discovered. Added: slabUpgradeMode (program-level, from upgrade.slab_upgrade_mode), downgradeEngineConfig.isActive (from downgrade.is_active), downgradeEngineConfig.conditionAlways (from downgrade.condition_always), downgradeEngineConfig.conditionValues (purchase/numVisits/points/trackerCount), downgradeEngineConfig.renewalOrderString. Full legacy-to-new mapping table added to api-handoff Section 16. _(Phase 7.5 — production validation)_
 - criteriaType: new API uses SAME production enum values (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No conversion needed in TierChangeApplier -- values pass through directly. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values -- TierChangeApplier joins/splits during sync. _(Phase 7.5, updated Phase 7-rework)_
 - MongoDB document schema: UnifiedTierConfig with 8 top-level sections (basicDetails, eligibilityCriteria, renewalConfig, downgradeConfig, benefitIds, memberStats, engineConfig, metadata) _(Architect)_
@@ -181,3 +199,15 @@ _Tracks re-run cycles to detect unresolved loops._
 - Downgrade UI/engineConfig split KEPT (helps UI team)
 **What stayed the same**: Architecture, dual-storage, maker-checker, all other field structures.
 **Impact**: Simpler code (less conversion logic), closer alignment with emf-parent patterns.
+
+### Rework #2 — Lifecycle simplification + DRAFT-only deletion + no-reorder (2026-04-16)
+**Trigger**: User clarification — PAUSED status not needed, deletion only for DRAFT tiers, reordering not allowed, tier retirement deferred.
+**Decision**: Simplified status lifecycle. DELETED as terminal state for discarded DRAFTs (not STOPPED — different semantics from promotion pattern).
+**Scope**: Phase 1 (BA+PRD) delta edits + forward cascade to downstream phases.
+**What changed**:
+- Status lifecycle: removed PAUSED, removed STOPPED, added DELETED (terminal, reachable from DRAFT only)
+- US-4 (Deletion): DRAFT-only → DELETED. No MC flow. No member reassessment. 409 if not DRAFT.
+- Explicit no-reorder business rule added. serialNumber immutable, 400 on change attempt.
+- Tier retirement (stopping ACTIVE tiers) explicitly out of scope — future epic.
+- US-2 (Tier Creation) stays IN SCOPE — this is the main goal.
+**What stayed the same**: US-1 (Listing), US-2 (Creation), US-3 (Editing), US-5/6/7 (MC), dual-storage, architecture, all other field structures, communications (MongoDB hooks, no change).

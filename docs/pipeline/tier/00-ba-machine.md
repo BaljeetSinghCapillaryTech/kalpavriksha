@@ -70,9 +70,9 @@ key_decisions:
     rationale: "Focused delivery with extensible architecture for future epics"
     source: "BA Q1"
   - id: KD-02
-    decision: "Soft-delete via status column on program_slabs"
-    rationale: "Enables tier lifecycle (DRAFT/ACTIVE/STOPPED) and maker-checker flow"
-    source: "BA Q2"
+    decision: "Soft-delete via status column on program_slabs. Lifecycle: DRAFT -> PENDING_APPROVAL -> ACTIVE. DRAFT -> DELETED (terminal). No PAUSED or STOPPED."
+    rationale: "Simplified lifecycle. Only DRAFT tiers can be deleted. Tier retirement (ACTIVE -> STOPPED) deferred to future epic."
+    source: "BA Q2, Rework #2"
   - id: KD-03
     decision: "Dual-storage: MongoDB for draft/pending, SQL for live"
     rationale: "Follows unified promotion pattern. MongoDB stores full config doc, SQL stores engine-readable entities"

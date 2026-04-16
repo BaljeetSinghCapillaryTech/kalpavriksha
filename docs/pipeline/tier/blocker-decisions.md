@@ -13,14 +13,14 @@
 **Rationale**: Preserves service boundary between intouch-api-v3 and emf-parent. SQL write logic stays in emf-parent. Consistent with existing Thrift-based architecture. The existing ManualSlabAdjustmentData struct shows slab-related Thrift types already exist.
 **Impact**: Requires Thrift IDL change + code generation + handler implementation in emf-parent.
 
-## HIGH #1: PartnerProgramSlab cascade on tier stop
+## ~~HIGH #1: PartnerProgramSlab cascade on tier stop~~ → REDUCED (Rework #2)
 
 **Source**: Critic C-2
-**Severity**: HIGH
-**Decision**: Block stop (409 Conflict) if active PartnerProgramSlabs reference the tier
-**Rationale**: Prevents silent data corruption in partner programs. Safest option.
-**Known Limitation**: Cascade/management logic deferred to Anuj's supplementary-partner-program epic.
-**Handoff Note**: When Anuj's SPP epic runs, it should add: (1) cascade stop to partner slabs, or (2) a migration path for partner slabs when a program slab is stopped.
+**Severity**: ~~HIGH~~ → LOW (Rework #2: only DRAFT tiers can be deleted; DRAFTs have no SQL record / no PartnerProgramSlab refs)
+**Original Decision**: Block stop (409 Conflict) if active PartnerProgramSlabs reference the tier
+**Updated Decision (Rework #2)**: No action needed for current scope. DRAFT tiers exist only in MongoDB — they have no ProgramSlab SQL record and therefore no PartnerProgramSlab references. The 409 guard is not needed because the precondition (SQL record with partner refs) cannot exist for DRAFT tiers.
+**Deferred To**: Future tier retirement epic (when ACTIVE tier stopping is implemented, this guard will be needed).
+**Handoff Note**: When tier retirement is built, add: (1) block stop if PartnerProgramSlabs reference the slab (409), or (2) cascade stop to partner slabs.
 
 ## HIGH #2: PeProgramSlabDao blast radius
 
@@ -77,7 +77,7 @@
 | # | Question | Status | Resolution |
 |---|---------|--------|------------|
 | Blocker #1 | Thrift sync method | RESOLVED | New configureTier() Thrift method |
-| C-2 | PartnerProgramSlab cascade | RESOLVED | Block (409) + document for Anuj |
+| C-2 | PartnerProgramSlab cascade | REDUCED (Rework #2) | Not needed for DRAFT-only deletion. Deferred to future tier retirement epic. |
 | C-3 | DAO blast radius | RESOLVED | Expand-then-contract, new findActiveByProgram() |
 | C-4 | Threshold validation | DEFERRED | To HLD (Phase 6) |
 | C-5 | "Scheduled" KPI | RESOLVED | Replace with "Pending Approval" |

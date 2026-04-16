@@ -29,7 +29,7 @@ The core tier management APIs -- listing, creation, editing, and deletion. All A
 | AC-6 | Each tier includes: linked benefits summary (benefitName, value per tier) |
 | AC-7 | Response includes KPI summary: totalTiers, activeTiers, scheduledTiers, totalMembers |
 | AC-8 | Per-tier memberCount is cached (refreshed every 5-15 min), not a live query |
-| AC-9 | Supports status filter: `?status=ACTIVE,DRAFT,PENDING_APPROVAL,STOPPED` |
+| AC-9 | Supports status filter: `?status=ACTIVE,DRAFT,PENDING_APPROVAL`. Deleted tiers excluded by default (unless `?includeDeleted=true`) |
 | AC-10 | Draft/Pending tiers sourced from MongoDB; Active tiers sourced from MongoDB mirror |
 | AC-11 | Returns 200 with empty array if program has no tiers |
 | AC-12 | Returns 400 if programId missing; 404 if program not found |
@@ -73,21 +73,23 @@ The core tier management APIs -- listing, creation, editing, and deletion. All A
 
 **Estimated complexity**: High. Versioning logic, parent-child document management.
 
-#### E1-US4: Tier Deletion (Soft-Delete)
+#### E1-US4: Tier Deletion (DRAFT Only — Soft-Delete to DELETED)
 
-**As** a loyalty program manager, **I want** to deactivate a tier.
+**As** a loyalty program manager, **I want** to delete a DRAFT tier I no longer need.
 
 | # | Acceptance Criterion |
 |---|---------------------|
-| AC-1 | `DELETE /v3/tiers/{tierId}` soft-deletes (sets status to STOPPED) |
-| AC-2 | MC enabled: creates PendingChange, requires approval to stop |
-| AC-3 | MC disabled: immediately sets status to STOPPED |
-| AC-4 | Cannot stop base tier (serialNumber=1) if members assigned to it |
-| AC-5 | Stopped tiers excluded from default listing (unless ?includeInactive=true) |
-| AC-6 | On stop: members in that tier flagged for reassessment |
-| AC-7 | On approval sync: sets SQL status to STOPPED, triggers PEB tier reassessment |
+| AC-1 | `DELETE /v3/tiers/{tierId}` soft-deletes a DRAFT tier (sets status to DELETED) |
+| AC-2 | Returns 409 Conflict if tier is not in DRAFT status ("Only DRAFT tiers can be deleted") |
+| AC-3 | Returns 409 Conflict if tier is ACTIVE or PENDING_APPROVAL ("Tier retirement not supported in this version") |
+| AC-4 | No maker-checker flow — DRAFT tiers are pre-approval, deletion is immediate |
+| AC-5 | Deleted tiers excluded from default listing (unless `?includeDeleted=true`) |
+| AC-6 | No member reassessment needed — DRAFT tiers have no members |
+| AC-7 | Audit trail preserved: DELETED document stays in MongoDB |
 
-**Estimated complexity**: Medium. Conditional validation + downstream triggering.
+**Business Rules:** Only DRAFT tiers can be deleted. No PAUSED or STOPPED states. Tier retirement deferred to future epic. Tier reordering NOT supported (serialNumber immutable).
+
+**Estimated complexity**: Low. Simple status guard + status update.
 
 ---
 
@@ -172,7 +174,7 @@ graph TB
 | GET | `/v3/tiers?programId={id}` | List all tiers with full config | None (read-only) |
 | POST | `/v3/tiers` | Create tier | DRAFT or ACTIVE (based on MC toggle) |
 | PUT | `/v3/tiers/{tierId}` | Edit tier | Versioned DRAFT or immediate (based on MC toggle) |
-| DELETE | `/v3/tiers/{tierId}` | Soft-delete tier | PendingChange or immediate (based on MC toggle) |
+| DELETE | `/v3/tiers/{tierId}` | Delete DRAFT tier (→ DELETED) | Immediate — no MC (DRAFT only, 409 if not DRAFT) |
 | POST | `/v3/maker-checker/submit` | Submit change for approval | Creates PendingChange |
 | POST | `/v3/maker-checker/{changeId}/approve` | Approve pending change | Triggers ChangeApplier |
 | POST | `/v3/maker-checker/{changeId}/reject` | Reject pending change | Reverts to DRAFT |
@@ -211,6 +213,8 @@ These are NOT asked during BA. They are surfaced to the pod during Phase 4.
 
 | Feature | Rationale |
 |---------|-----------|
+| Tier Retirement (ACTIVE → STOPPED) | No PAUSED or STOPPED states. Stopping ACTIVE tiers deferred to future epic. |
+| Tier Reordering | serialNumber is immutable and auto-assigned. No API to reorder tiers. |
 | E1-US5: Change Log | Architecture supports it. Audit trail framework (Anuj) will provide. |
 | E1-US6: Simulation Mode | Requires member distribution forecasting. Deferred to Layer 3. |
 | E2: Benefits CRUD | Separate epic (Baljeet). Will consume MC framework. |

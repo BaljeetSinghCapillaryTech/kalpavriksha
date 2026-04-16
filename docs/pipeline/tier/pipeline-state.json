@@ -23,6 +23,8 @@
       "/Users/ritwikranjan/Desktop/Artificial Intelligence/UI/Screenshot 2026-04-11 at 12.43.09 PM.png"
     ],
     "ui_url": "https://v0.app/chat/benefits-and-tiers-brainstorming-4lEe2941qm1?ref=8CQ1DC&b=v0-preview-b_beJe0cNTjk4&f=1&path=%2Fprogram%2Ftiers",
+    "figma_url": "https://www.figma.com/design/7MSAuPaZtML0cR82ZrNsg0/AMJ---Loyalty-Revamp?node-id=1508-20810",
+    "figma_frames_path": "/Users/ritwikranjan/Desktop/Artificial Intelligence/UI/figma-tiers/",
     "prior_artifacts": {}
   },
   "phases": {
@@ -171,6 +173,32 @@
         "04b-business-tests.md",
         "session-memory.md"
       ]
+    },
+    {
+      "id": 2,
+      "date": "2026-04-16",
+      "trigger": "manual",
+      "reason": "Lifecycle simplification: remove PAUSED/STOPPED, DRAFT-only deletion to DELETED, explicit no-reorder rule, tier retirement deferred",
+      "scope": "Phase 1 (BA+PRD) delta + forward cascade",
+      "severity": "MODERATE",
+      "changes": [
+        "SC-1: Remove PAUSED status entirely",
+        "SC-2: Remove STOPPED status (no path — ACTIVE can't be retired)",
+        "SC-3: Add DELETED status (terminal, reachable from DRAFT only)",
+        "SC-4: US-4 deletion: DRAFT-only, no MC, no member reassessment",
+        "SC-5: Explicit no-reorder rule (serialNumber immutable)",
+        "SC-6: Tier retirement = out of scope (future epic)",
+        "SC-7: Communications = no change (MongoDB hooks)"
+      ],
+      "affected_files": [
+        "00-ba.md",
+        "00-ba-machine.md",
+        "00-prd.md",
+        "00-prd-machine.md",
+        "session-memory.md"
+      ],
+      "cascade_phases": ["2", "4", "6", "6a", "6b", "7", "8", "8b", "9", "10", "11", "12"],
+      "resolved": false
     }
   ]
 }

@@ -32,8 +32,8 @@
 | Module | How Affected | Severity | Risk |
 |--------|-------------|----------|------|
 | customer_enrollment | FK to program_slabs.id via current_slab_id | LOW | Adding status column does not break FK. Existing slab IDs unchanged. |
-| PartnerProgramSlab | FK to program_slabs | MEDIUM | Stopping a slab is BLOCKED if PartnerProgramSlabs reference it (D-17). |
-| PEB TierDowngradeBatch | Reads program_slabs for downgrade evaluation | LOW | Uses findByProgram() which is UNCHANGED (expand-then-contract). Sees all slabs including STOPPED. |
+| PartnerProgramSlab | FK to program_slabs | LOW | No blocking concern for deletion: only DRAFT tiers can be deleted, and DRAFT tiers have no members or active partner references. |
+| PEB TierDowngradeBatch | Reads program_slabs for downgrade evaluation | LOW | Uses findByProgram() which is UNCHANGED (expand-then-contract). Sees all slabs including DELETED (terminal, no members). |
 | PEB TierReassessment | Reads program_slabs for tier reassessment | LOW | Same as above -- unchanged query, sees all slabs. |
 | InfoLookupService | Reads program_slabs for config lookups (4 call sites) | LOW | Uses findByProgram() which is UNCHANGED. |
 | UnifiedPromotion (existing) | No changes. Separate module. | NONE | Pattern is followed, not modified. |
@@ -54,7 +54,7 @@ mindmap
           PointsEngineServiceManager (SAFE - unchanged)
           BulkOrgConfigImportValidator (SAFE - unchanged)
         customer_enrollment FK (SAFE - IDs unchanged)
-        PartnerProgramSlab (BLOCKED on stop)
+        PartnerProgramSlab (SAFE -- deletion gated to DRAFT only)
       PointsEngineRulesThriftService +wrappers
         TierChangeApplier (new code)
     New Code (no blast radius)
@@ -159,7 +159,7 @@ mindmap
 | **G-04: Performance** | YES | NEEDS ATTENTION | Member count cache needs index on customer_enrollment. Tier listing is fine (<200ms). |
 | **G-05: Data Integrity** | YES | COMPLIANT | Expand-then-contract migration. @Lockable for concurrent access. Thrift call is transactional within emf-parent. |
 | **G-05.4: Migration** | YES | COMPLIANT | Status column added with DEFAULT, existing data unchanged. |
-| **G-05.5: Soft Delete** | YES | COMPLIANT | Tier deletion is soft-delete (STOPPED status). |
+| **G-05.5: Soft Delete** | YES | COMPLIANT | Tier deletion is soft-delete (DELETED status). Only DRAFT tiers may be deleted. No MC flow. No member reassessment. 409 if not DRAFT. |
 | **G-06: API Design** | YES | MOSTLY COMPLIANT | Structured error responses via ResponseWrapper. Correct HTTP status codes. ISO-8601 dates. Idempotency key needed for POST /v3/tiers (G-06.1). |
 | **G-07: Multi-Tenancy** | YES | COMPLIANT | All queries scoped by orgId. MongoDB queries include orgId filter. Thrift calls pass orgId. |
 | **G-07.3: Background Jobs** | YES | NEEDS ATTENTION | Member count cron job must carry tenant context. Need to iterate per-org or use tenant-aware scheduler. |

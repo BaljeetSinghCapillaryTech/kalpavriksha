@@ -36,13 +36,18 @@ epics:
           - "On approval: new -> ACTIVE, old -> SNAPSHOT"
           - "One pending draft per ACTIVE tier"
       - id: US-4
-        name: "Tier Deletion (Soft-Delete)"
-        complexity: medium
+        name: "Tier Deletion (DRAFT Only — Soft-Delete to DELETED)"
+        complexity: low
         acceptance_criteria:
-          - "DELETE /v3/tiers/{tierId} sets status=STOPPED"
-          - "MC enabled: PendingChange required. MC disabled: immediate"
-          - "Base tier protection (cannot stop if members assigned)"
-          - "Triggers member reassessment on stop"
+          - "DELETE /v3/tiers/{tierId} sets status=DELETED (DRAFT only)"
+          - "409 Conflict if tier not in DRAFT status"
+          - "No MC flow — DRAFT deletion is immediate"
+          - "No member reassessment — DRAFT tiers have no members"
+          - "Audit trail preserved in MongoDB"
+        business_rules:
+          - "Only DRAFT tiers can be deleted. No PAUSED or STOPPED states."
+          - "Tier reordering NOT supported (serialNumber immutable)"
+          - "Tier retirement (ACTIVE → STOPPED) deferred to future epic"
 
   - id: MC-FRAMEWORK
     name: "Generic Maker-Checker Framework"
@@ -99,7 +104,7 @@ api_endpoints:
     response: "TierConfig"
   - method: DELETE
     path: "/v3/tiers/{tierId}"
-    response: "void (204)"
+    response: "void (204) — DRAFT only. 409 if not DRAFT. Soft-delete to DELETED."
   - method: POST
     path: "/v3/maker-checker/submit"
     body: "SubmitChangeRequest {entityType, entityId, payload}"

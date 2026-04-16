@@ -119,7 +119,7 @@ graph TB
 | `TierRepository` | Spring Data MongoRepository + custom impl for sharded access. |
 | `TierValidationService` | Field-level validation: name uniqueness, threshold ordering, required fields. |
 | `TierChangeApplier` | Converts MongoDB tier config -> SlabInfo + StrategyInfo. Calls Thrift to sync SQL. |
-| `TierStatus` | Enum: DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, DELETED, SNAPSHOT. |
+| `TierStatus` | Enum: DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT. No PAUSED or STOPPED (Rework #2). |
 
 ### 4.2 Maker-Checker Module (intouch-api-v3 -- generic, shared)
 
@@ -157,7 +157,7 @@ graph TB
   "unifiedTierId": "string (immutable, survives versions)",
   "orgId": "long",
   "programId": "int",
-  "status": "DRAFT | PENDING_APPROVAL | ACTIVE | PAUSED | STOPPED | DELETED | SNAPSHOT",
+  "status": "DRAFT | PENDING_APPROVAL | ACTIVE | DELETED | SNAPSHOT",
   "parentId": "string | null (ObjectId of ACTIVE version when editing)",
   "version": "int (auto-increment per unifiedTierId)",
 
@@ -299,7 +299,7 @@ graph TB
 | GET | `/v3/tiers?programId={id}&status={filter}` | List tiers with config + KPIs | IntouchUser | Read-only |
 | POST | `/v3/tiers` | Create tier | IntouchUser | MC on: DRAFT. MC off: ACTIVE + Thrift sync. |
 | PUT | `/v3/tiers/{tierId}` | Edit tier | IntouchUser | MC on: versioned DRAFT. MC off: immediate + Thrift sync. |
-| DELETE | `/v3/tiers/{tierId}` | Soft-delete | IntouchUser | MC on: PendingChange. MC off: immediate STOPPED. |
+| DELETE | `/v3/tiers/{tierId}` | Delete DRAFT tier (→ DELETED) | IntouchUser | DRAFT only. Immediate. No MC. 409 if not DRAFT. |
 
 ### 6.2 Maker-Checker (Generic)
 
@@ -380,20 +380,26 @@ TierChangeApplier.applyUpdate(UnifiedTierConfig newDoc, UnifiedTierConfig active
   5. Version swap: newDoc -> ACTIVE, activeDoc -> SNAPSHOT
 ```
 
-### 7.3 DELETE (STOP) Flow
+### 7.3 DELETE (DRAFT Only → DELETED) Flow
 
 ```
-TierChangeApplier.applyStop(UnifiedTierConfig doc):
-  1. Validate: no PartnerProgramSlabs reference this slab (409 if exist)
+TierFacade.deleteTier(tierId):
+  1. Load UnifiedTierConfig from MongoDB
   
-  2. Update ProgramSlab status to STOPPED via Thrift:
-     - Call createOrUpdateSlab with status field
-     - OR: may need new Thrift method for status-only update (TBD)
+  2. Guard: if status != DRAFT → 409 Conflict
+     "Only DRAFT tiers can be deleted"
+     (ACTIVE/PENDING_APPROVAL → 409 "Tier retirement not supported in this version")
   
-  3. Update MongoDB doc status to STOPPED
+  3. Set status to DELETED in MongoDB doc
+     (soft-delete — document stays for audit trail)
   
-  4. Flag members in stopped tier for reassessment
-     (trigger PEB via existing mechanisms)
+  4. No Thrift call needed — DRAFT tiers have no SQL record
+  
+  5. No member reassessment — DRAFT tiers have no members
+  
+  NOTE: This does NOT go through TierChangeApplier or MC.
+  DRAFT deletion is a simple MongoDB status update.
+  Tier retirement (stopping ACTIVE tiers) is deferred to a future epic.
 ```
 
 ---
@@ -405,16 +411,17 @@ stateDiagram-v2
     [*] --> DRAFT : Create (MC on)
     [*] --> ACTIVE : Create (MC off)
     DRAFT --> PENDING_APPROVAL : Submit
+    DRAFT --> DELETED : Delete (immediate)
     PENDING_APPROVAL --> ACTIVE : Approve
     PENDING_APPROVAL --> DRAFT : Reject
-    ACTIVE --> STOPPED : Stop (MC off)
     ACTIVE --> DRAFT : Edit (creates new version)
     ACTIVE --> SNAPSHOT : Version replaced on approval
-    STOPPED --> [*] : Terminal
+    DELETED --> [*] : Terminal (audit trail preserved)
     SNAPSHOT --> [*] : Terminal (archived)
     
     note right of ACTIVE : Stays live until\nnew version approved
     note left of DRAFT : Can have parentId\npointing to ACTIVE
+    note right of DELETED : Only reachable from DRAFT.\nNo PAUSED or STOPPED states.
 ```
 
 ---
@@ -522,11 +529,12 @@ stateDiagram-v2
 - [ ] `GET /v3/tiers?programId={id}` returns all tiers with full config and KPIs
 - [ ] `POST /v3/tiers` creates a tier (DRAFT with MC, ACTIVE without MC)
 - [ ] `PUT /v3/tiers/{tierId}` edits with versioning (ACTIVE -> new DRAFT)
-- [ ] `DELETE /v3/tiers/{tierId}` soft-deletes (STOPPED)
+- [ ] `DELETE /v3/tiers/{tierId}` deletes DRAFT tier (→ DELETED). 409 if not DRAFT.
 - [ ] Generic MC framework: submit, approve, reject, list pending
 - [ ] MC toggle per-program + per-entity-type
 - [ ] TierChangeApplier syncs MongoDB -> SQL via Thrift
 - [ ] Flyway migration adds status column (expand-then-contract)
 - [ ] All tests pass (unit + integration)
-- [ ] PartnerProgramSlab block validation on stop
+- [ ] serialNumber immutability enforced (400 on change attempt)
 - [ ] Member count cache refreshes every 10 min
+- [ ] ~~PartnerProgramSlab block validation~~ Deferred to future tier retirement epic (Rework #2)

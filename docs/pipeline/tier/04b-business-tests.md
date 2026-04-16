@@ -48,8 +48,8 @@
 | BT-04 | shouldReturnBenefitIdsNotFullBenefitObjects | US1-AC6 | orgId=100, programId=977 (tiers with benefitIds) | benefitIds is List of String ObjectIds, not full benefit documents | TS-L04 | TierFacade.listTiers | UT |
 | BT-05 | shouldComputeAccurateKpiSummary | US1-AC7 | orgId=100, programId=977 (3 ACTIVE, 1 DRAFT, 1 PENDING_APPROVAL) | summary: totalTiers=5, activeTiers=3, pendingApprovalTiers=1, totalMembers=sum of cached counts | TS-L05 | TierFacade.listTiers | UT |
 | BT-06 | shouldReturnCachedMemberCountWithLastRefreshed | US1-AC8 | Tier doc with memberStats.memberCount=1245, lastRefreshed=2026-04-12T10:00:00Z | memberStats present with both fields, no live DB query | TS-L06, TS-L07 | TierFacade.listTiers | UT |
-| BT-07 | shouldFilterTiersByStatus | US1-AC9 | statusFilter=[ACTIVE] | Only ACTIVE tiers returned; DRAFT, PENDING_APPROVAL, STOPPED excluded | TS-L08 | TierFacade.listTiers | UT |
-| BT-08 | shouldFilterByMultipleStatuses | US1-AC9 | statusFilter=[ACTIVE, DRAFT] | Both ACTIVE and DRAFT returned; STOPPED excluded | TS-L09 | TierFacade.listTiers | UT |
+| BT-07 | shouldFilterTiersByStatus | US1-AC9 | statusFilter=[ACTIVE] | Only ACTIVE tiers returned; DRAFT, PENDING_APPROVAL, DELETED excluded | TS-L08 | TierFacade.listTiers | UT |
+| BT-08 | shouldFilterByMultipleStatuses | US1-AC9 | statusFilter=[ACTIVE, DRAFT] | Both ACTIVE and DRAFT returned; DELETED excluded | TS-L09 | TierFacade.listTiers | UT |
 
 ### 2.2 TierFacade -- Creation
 
@@ -73,7 +73,7 @@
 | BT-19 | shouldUpdateDraftTierInPlace | US3-AC1, US3-AC2 | PUT tierId=draftId, updated name | Same objectId returned, name updated | TS-E01 | TierFacade.updateTier(orgId, tierId, request, userId) | UT |
 | BT-20 | shouldCreateVersionedDraftWhenEditingActiveTier | US3-AC3 | PUT tierId=activeId, updated description | NEW objectId, status=DRAFT, parentId=activeId, version=2 | TS-E02 | TierFacade.updateTier | UT |
 | BT-21 | shouldUpdatePendingApprovalTierInPlace | US3-AC4 | PUT tierId=pendingId, updated color | Same objectId, updated in place | TS-E03 | TierFacade.updateTier | UT |
-| BT-22 | shouldRejectEditOnStoppedTier | US3-AC5 | PUT tierId=stoppedId | 400: "Cannot edit a tier in STOPPED status" | TS-E04 | TierFacade.updateTier | UT |
+| BT-22 | shouldRejectEditOnDeletedTier | US3-AC5 | PUT tierId=deletedId | 400: "Cannot edit a tier in DELETED status" | TS-E04 | TierFacade.updateTier | UT |
 | BT-23 | shouldPreserveSerialNumberOnEdit | US3-AC6 | PUT with serialNumber=1 on tier with serialNumber=3 | serialNumber remains 3 in response (field ignored) | TS-E05 | TierFacade.updateTier | UT |
 | BT-24 | shouldReturnValidationErrorsOnInvalidEdit | US3-AC7 | PUT with invalid eligibilityCriteria | 400, field-level validation errors | TS-E06 | TierFacade.updateTier | UT |
 | BT-25 | shouldEnforceOneDraftPerActiveTier | US3-AC3 | Edit same ACTIVE tier twice | Second edit updates existing DRAFT, does not create another | TS-E09 | TierFacade.updateTier | UT |
@@ -83,15 +83,17 @@
 
 ### 2.4 TierFacade -- Deletion
 
+> **Rework #2**: Deletion is DRAFT-only → DELETED. No MC flow. No STOPPED status. No member reassessment. BT-29/30/31/33/34 are OBSOLETE. BT-32 is the primary happy path (updated). BT-35 updated to cover all non-DRAFT statuses with 409.
+
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-29 | shouldSoftDeleteActiveTierWhenMCDisabled | US4-AC1, US4-AC2, US4-AC4 | DELETE tierId=activeId, MC disabled | Status set to STOPPED in MongoDB + SQL | TS-D01 | TierFacade.deleteTier(orgId, tierId, userId) | UT |
-| BT-30 | shouldCreatePendingChangeForDeleteWhenMCEnabled | US4-AC1, US4-AC3 | DELETE tierId=activeId, MC enabled | PendingChange created with changeType=DELETE | TS-D02 | TierFacade.deleteTier | UT |
-| BT-31 | shouldBlockDeleteOfBaseTierWithMembers | US4-AC5 | DELETE tier with serialNumber=1, memberCount>0 | 409: "Cannot stop base tier 'Bronze' -- N members assigned" | TS-D03 | TierFacade.deleteTier | UT |
-| BT-32 | shouldImmediatelyRemoveDraftTier | US4-AC1 | DELETE tierId=draftId | 204 No Content, doc removed from MongoDB | TS-D04 | TierFacade.deleteTier | UT |
-| BT-33 | shouldFlagMembersForReassessmentOnDelete | US4-AC7 | DELETE ACTIVE tier, MC disabled | Members in that tier flagged for PEB reassessment | TS-D05 | TierFacade.deleteTier | UT |
-| BT-34 | shouldBlockDeleteWhenPartnerProgramSlabsExist | US4-AC1 | DELETE tier referenced by PartnerProgramSlabs | 409: "Cannot stop tier -- has active partner program slab mappings" | TS-D06 | TierFacade.deleteTier | UT |
-| BT-35 | shouldBlockDeleteOnPendingApprovalTier | US4-AC1 | DELETE tierId=pendingApprovalId | 400: "Cannot delete. Reject the pending change first." | TS-D07 | TierFacade.deleteTier | UT |
+| BT-29 | ~~shouldSoftDeleteActiveTierWhenMCDisabled~~ | ~~US4-AC1, US4-AC2, US4-AC4~~ | ~~DELETE tierId=activeId, MC disabled~~ | ~~Status set to STOPPED in MongoDB + SQL~~ | ~~TS-D01~~ | ~~TierFacade.deleteTier~~ | **OBSOLETE** — ACTIVE deletion out of scope (Rework #2) |
+| BT-30 | ~~shouldCreatePendingChangeForDeleteWhenMCEnabled~~ | ~~US4-AC1, US4-AC3~~ | ~~DELETE tierId=activeId, MC enabled~~ | ~~PendingChange created with changeType=DELETE~~ | ~~TS-D02~~ | ~~TierFacade.deleteTier~~ | **OBSOLETE** — no MC flow for deletion (Rework #2) |
+| BT-31 | ~~shouldBlockDeleteOfBaseTierWithMembers~~ | ~~US4-AC5~~ | ~~DELETE tier with serialNumber=1, memberCount>0~~ | ~~409: "Cannot stop base tier 'Bronze' -- N members assigned"~~ | ~~TS-D03~~ | ~~TierFacade.deleteTier~~ | **OBSOLETE** — no member reassessment on DRAFT delete (Rework #2) |
+| BT-32 | shouldTransitionDraftTierToDeleted | US4-AC1 | DELETE tierId=draftId | 204 No Content, tier status set to DELETED in MongoDB. No SQL change. No MC gate. | TS-D04 | TierFacade.deleteTier(orgId, tierId, userId) | UT |
+| BT-33 | ~~shouldFlagMembersForReassessmentOnDelete~~ | ~~US4-AC7~~ | ~~DELETE ACTIVE tier, MC disabled~~ | ~~Members in that tier flagged for PEB reassessment~~ | ~~TS-D05~~ | ~~TierFacade.deleteTier~~ | **OBSOLETE** — no reassessment on DRAFT-only deletion (Rework #2) |
+| BT-34 | ~~shouldBlockDeleteWhenPartnerProgramSlabsExist~~ | ~~US4-AC1~~ | ~~DELETE tier referenced by PartnerProgramSlabs~~ | ~~409: "Cannot stop tier -- has active partner program slab mappings"~~ | ~~TS-D06~~ | ~~TierFacade.deleteTier~~ | **OBSOLETE** — only DRAFT tiers deleted; DRAFT has no partner slab references (Rework #2) |
+| BT-35 | shouldReturn409WhenDeletingNonDraftTier | US4-AC4 | DELETE tierId=activeId (or PENDING_APPROVAL, SNAPSHOT) | 409: "Tier cannot be deleted. Only DRAFT tiers can be deleted." | TS-D07 | TierFacade.deleteTier | UT |
 
 ### 2.5 MakerCheckerService -- Submit
 
@@ -115,7 +117,7 @@
 | BT-46 | shouldRecordReviewerDetailsOnApproval | US6-AC6 | Approve with reviewedBy="admin-1" | PendingChange has reviewedBy, reviewedAt, comment populated | TS-A06 | MakerCheckerService.approve | UT |
 | BT-47 | shouldListPendingChangesForEntityType | US6-AC7 | entityType=TIER, programId=977 | Returns all PENDING_APPROVAL PendingChanges for TIER in program 977 | TS-A07 | MakerCheckerService.listPending(orgId, entityType, programId) | UT |
 | BT-48 | shouldApproveVersionedEditAndSwapDocuments | US3-AC8, US6-AC4 | Approve DRAFT with parentId | New doc -> ACTIVE, old doc -> SNAPSHOT | TS-A08, TS-E07 | MakerCheckerService.approve | UT |
-| BT-49 | shouldApproveDeleteChangeAndSetStopped | US4-AC3, US6-AC1 | Approve DELETE PendingChange | Tier -> STOPPED, SQL status updated | TS-A09 | MakerCheckerService.approve | UT |
+| BT-49 | ~~shouldApproveDeleteChangeAndSetStopped~~ | ~~US4-AC3, US6-AC1~~ | ~~Approve DELETE PendingChange~~ | ~~Tier -> STOPPED, SQL status updated~~ | ~~TS-A09~~ | ~~MakerCheckerService.approve~~ | **OBSOLETE** — no MC flow for deletion; TS-A09 removed in Rework #2 |
 | BT-50 | shouldRejectApprovalOnNonExistentChangeId | US6-AC1 | Non-existent changeId | 404: "Change not found" | TS-A11 | MakerCheckerService.approve | UT |
 | BT-51 | shouldRejectApprovalOnAlreadyProcessedChange | US6-AC1 | changeId already APPROVED | 400: "Change already processed" | TS-A12 | MakerCheckerService.approve | UT |
 
@@ -160,7 +162,7 @@
 | BT-76 | shouldSwapVersionsOnEditApproval | US3-AC8, US6-AC4 | PendingChange for UPDATE with parentId | New doc -> ACTIVE, old ACTIVE doc -> SNAPSHOT | TS-A08 | TierChangeApplier.apply | UT |
 | BT-77 | shouldPassCriteriaTypeDirectlyToThrift | US6-AC3 | criteriaType=CUMULATIVE_PURCHASES | Thrift current_value_type=CUMULATIVE_PURCHASES (same value, no conversion) | TS-A05 | TierChangeApplier.apply | UT |
 | BT-78 | shouldSetUpdatedViaNewUIFlagTrue | US6-AC3 | Any tier sync | SlabInfo.updatedViaNewUI = true, StrategyInfo.updatedViaNewUI = true | TS-A05 | TierChangeApplier.apply | UT |
-| BT-79 | shouldApplyDeleteBySettingStatusToStopped | US4-AC2, US4-AC3 | PendingChange with changeType=DELETE | MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED | TS-A09 | TierChangeApplier.apply | UT |
+| BT-79 | ~~shouldApplyDeleteBySettingStatusToStopped~~ | ~~US4-AC2, US4-AC3~~ | ~~PendingChange with changeType=DELETE~~ | ~~MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED~~ | ~~TS-A09~~ | ~~TierChangeApplier.apply~~ | **OBSOLETE** — no MC-gated delete flow; deletion sets DELETED directly on DRAFT with no SQL change (Rework #2) |
 
 ---
 
@@ -178,7 +180,7 @@
 | BT-85 | shouldReturn404OnNonExistentTierDelete | US4-AC1 | DELETE /v3/tiers/nonexistent | 404 Not Found | TS-D08 | TierController -> TierFacade.deleteTier | IT |
 | BT-86 | shouldReturn200WithTierDetailIncludingEngineConfig | P75-1 | GET /v3/tiers/{objectId} | 200 OK with full doc including engineConfig section | TS-GD01, TS-GD03 | TierController -> TierFacade | IT |
 | BT-87 | shouldReturn404ForNonExistentTierDetail | P75-1 | GET /v3/tiers/nonexistent | 404: "Tier not found" | TS-GD04 | TierController | IT |
-| BT-88 | shouldReturnStoppedTiersOnlyWhenIncludeInactiveTrue | US4-AC6 | GET /v3/tiers?programId=977&includeInactive=true | STOPPED tiers included; without flag, STOPPED excluded | TS-L13, TS-L14, TS-D04 | TierController -> TierFacade.listTiers | IT |
+| BT-88 | ~~shouldReturnStoppedTiersOnlyWhenIncludeInactiveTrue~~ | ~~US4-AC6~~ | ~~GET /v3/tiers?programId=977&includeInactive=true~~ | ~~STOPPED tiers included; without flag, STOPPED excluded~~ | ~~TS-L13, TS-L14~~ | ~~TierController -> TierFacade.listTiers~~ | **OBSOLETE** — STOPPED status removed; DELETED is terminal and never surfaced in listings (Rework #2) |
 | BT-89 | shouldExcludeEngineConfigFromListingResponse | US1-AC2 | GET /v3/tiers?programId=977 | engineConfig field absent or null on each tier in listing | TS-L11 | TierController -> TierFacade.listTiers | IT |
 
 ### 3.2 API Endpoint Tests (MakerCheckerController)
@@ -217,7 +219,7 @@
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
 | BT-105 | shouldCompleteFullCreateSubmitApproveFlow | US2-AC1, US5-AC1, US6-AC1 | POST /tiers -> POST /submit -> POST /approve | Tier goes DRAFT -> PENDING_APPROVAL -> ACTIVE, SQL slab created | TS-C01, TS-S01, TS-A01 | TierFacade + MakerCheckerService + TierChangeApplier | IT |
 | BT-106 | shouldCompleteFullEditSubmitApproveSwapFlow | US3-AC3, US3-AC8, US6-AC4 | PUT /tiers/{activeId} -> POST /submit -> POST /approve | New doc ACTIVE, old doc SNAPSHOT | TS-E02, TS-E07, TS-A08 | TierFacade + MakerCheckerService + TierChangeApplier | IT |
-| BT-107 | shouldCompleteFullDeleteSubmitApproveFlow | US4-AC3, US6-AC1 | DELETE /tiers/{activeId} -> POST /submit -> POST /approve | Tier -> STOPPED, SQL status -> STOPPED | TS-D02, TS-A09 | TierFacade + MakerCheckerService + TierChangeApplier | IT |
+| BT-107 | ~~shouldCompleteFullDeleteSubmitApproveFlow~~ | ~~US4-AC3, US6-AC1~~ | ~~DELETE /tiers/{activeId} -> POST /submit -> POST /approve~~ | ~~Tier -> STOPPED, SQL status -> STOPPED~~ | ~~TS-D02, TS-A09~~ | ~~TierFacade + MakerCheckerService + TierChangeApplier~~ | **OBSOLETE** — no MC-gated delete flow; replaced by BT-32/BT-84 direct DRAFT→DELETED path (Rework #2) |
 | BT-108 | shouldCompleteCreateWithMCDisabledDirectToActive | US2-AC6, US7-AC3 | POST /tiers (MC disabled) | Tier immediately ACTIVE, sqlSlabId populated, Thrift called | TS-C02, TS-MC03 | TierFacade + TierChangeApplier | IT |
 
 ---
@@ -232,8 +234,8 @@
 | BT-110 | shouldSyncBothMongoAndSQLOnApproval | ADR-01 | Dual-storage: both stores consistent after approval | Approve tier | MongoDB doc ACTIVE, SQL ProgramSlab created | TS-ADR02 | IT |
 | BT-111 | shouldAcceptAnyEntityTypeThroughMCFramework | ADR-02 | Generic MC: entity-agnostic | Submit BENEFIT entity type | PendingChange created for BENEFIT | TS-ADR03 | IT |
 | BT-112 | shouldDispatchToCorrectChangeApplierPerEntityType | ADR-02 | Generic MC: strategy dispatch | Approve TIER change | TierChangeApplier invoked (not a generic applier) | TS-ADR04 | UT |
-| BT-113 | shouldNotBreakExistingFindByProgramQuery | ADR-03 | Expand-then-contract: existing DAO unchanged | Call findByProgram() after adding status column | Returns ALL slabs including STOPPED (same as before migration) | TS-ADR05 | IT |
-| BT-114 | shouldFilterStoppedInNewFindActiveByProgram | ADR-03 | Expand-then-contract: new filtered query | Call findActiveByProgram() | Returns only ACTIVE slabs, excludes STOPPED | TS-ADR06 | IT |
+| BT-113 | shouldNotBreakExistingFindByProgramQuery | ADR-03 | Expand-then-contract: existing DAO unchanged | Call findByProgram() after adding status column | Returns ALL slabs regardless of status (same as before migration) | TS-ADR05 | IT |
+| BT-114 | shouldFilterNonActiveInNewFindActiveByProgram | ADR-03 | Expand-then-contract: new filtered query | Call findActiveByProgram() | Returns only ACTIVE slabs, excludes non-ACTIVE (DELETED, SNAPSHOT) | TS-ADR06 | IT |
 | BT-115 | shouldDefaultExistingRowsToActiveOnMigration | ADR-03 | Flyway migration default value | Run migration on table with existing rows | All pre-existing rows have status='ACTIVE' | TS-ADR07 | IT |
 | BT-116 | shouldKeepActiveLiveWhileDraftPending | ADR-04 | Versioned edits: zero downtime | Edit ACTIVE tier | ACTIVE stays in listing, DRAFT is separate doc | TS-ADR08 | UT |
 | BT-117 | shouldRevertDraftAndPreserveActiveOnReject | ADR-04 | Versioned edits: rollback | Reject versioned DRAFT | DRAFT reverts, ACTIVE unchanged | TS-ADR09 | UT |
@@ -320,13 +322,13 @@
 | US3-AC6 | TS-E05 | BT-23, BT-69 |
 | US3-AC7 | TS-E06 | BT-24 |
 | US3-AC8 | TS-E07 | BT-48, BT-76 |
-| US4-AC1 | TS-D01, TS-D02 | BT-29, BT-30, BT-84, BT-85 |
-| US4-AC2 | TS-D01 | BT-29 |
-| US4-AC3 | TS-D02 | BT-30 |
-| US4-AC4 | TS-D01 | BT-29 |
-| US4-AC5 | TS-D03 | BT-31 |
-| US4-AC6 | TS-D04 | BT-88 |
-| US4-AC7 | TS-D05 | BT-33 |
+| US4-AC1 | TS-D04 | BT-32, BT-84, BT-85 |
+| US4-AC2 | ~~TS-D01~~ | ~~BT-29~~ (OBSOLETE — Rework #2) |
+| US4-AC3 | ~~TS-D02~~ | ~~BT-30~~ (OBSOLETE — Rework #2) |
+| US4-AC4 | TS-D07 | BT-35 |
+| US4-AC5 | ~~TS-D03~~ | ~~BT-31~~ (OBSOLETE — Rework #2) |
+| US4-AC6 | ~~TS-D04~~ | ~~BT-88~~ (OBSOLETE — Rework #2) |
+| US4-AC7 | ~~TS-D05~~ | ~~BT-33~~ (OBSOLETE — Rework #2) |
 | US5-AC1 | TS-S01 | BT-36, BT-90 |
 | US5-AC2 | TS-S02 | BT-37 |
 | US5-AC3 | TS-S01 | BT-36, BT-40, BT-42 |
@@ -366,8 +368,8 @@
 | TS-L10 | BT-01 |
 | TS-L11 | BT-89 |
 | TS-L12 | BT-81 |
-| TS-L13 | BT-88 |
-| TS-L14 | BT-88 |
+| TS-L13 | ~~BT-88~~ (OBSOLETE — Rework #2) |
+| TS-L14 | ~~BT-88~~ (OBSOLETE — Rework #2) |
 | TS-L15 | BT-66 |
 | TS-GD01 | BT-86 |
 | TS-GD02 | BT-86 |
@@ -397,12 +399,12 @@
 | TS-E08 | BT-28 |
 | TS-E09 | BT-25 |
 | TS-E10 | BT-26 |
-| TS-D01 | BT-29 |
-| TS-D02 | BT-30, BT-107 |
-| TS-D03 | BT-31 |
+| TS-D01 | ~~BT-29~~ (OBSOLETE — Rework #2) |
+| TS-D02 | ~~BT-30, BT-107~~ (OBSOLETE — Rework #2) |
+| TS-D03 | ~~BT-31~~ (OBSOLETE — Rework #2) |
 | TS-D04 | BT-32, BT-84 |
-| TS-D05 | BT-33 |
-| TS-D06 | BT-34 |
+| TS-D05 | ~~BT-33~~ (OBSOLETE — Rework #2) |
+| TS-D06 | ~~BT-34~~ (OBSOLETE — Rework #2) |
 | TS-D07 | BT-35 |
 | TS-D08 | BT-85 |
 | TS-S01 | BT-36, BT-90, BT-105 |
@@ -420,7 +422,7 @@
 | TS-A06 | BT-46 |
 | TS-A07 | BT-47, BT-93 |
 | TS-A08 | BT-48, BT-106 |
-| TS-A09 | BT-49, BT-107 |
+| TS-A09 | ~~BT-49, BT-107~~ (OBSOLETE — Rework #2) |
 | TS-A10 | BT-103 |
 | TS-A11 | BT-50 |
 | TS-A12 | BT-51 |
@@ -457,7 +459,7 @@
 | EC-32 | BT-51 |
 | EC-33 | BT-27 |
 | EC-34 | BT-27 (sub-case for SNAPSHOT delete) |
-| EC-35 | BT-40 (STOPPED submit blocked) |
+| EC-35 | BT-40 (DELETED submit blocked) |
 | EC-40 | BT-128 |
 | EC-41 | BT-129 |
 | EC-42 | BT-128 |

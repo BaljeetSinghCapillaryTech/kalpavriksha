@@ -28,13 +28,13 @@ This means `createSlabAndUpdateStrategies` is an **internal** method within emf-
 
 **Source**: BA Scope, PRD Data Model
 **Claim**: BA focuses on `ProgramSlab` entity and proposes adding a status column to `program_slabs` table.
-**Challenge**: The codebase also has `PartnerProgramSlab` (table: `partner_program_slabs`) which maps partner program tiers to loyalty program tiers. The BA mentions it in Domain Terminology but the PRD has **no user story or acceptance criterion** addressing what happens to partner program slabs when a program slab is stopped or its status changes.
+**Challenge**: The codebase also has `PartnerProgramSlab` (table: `partner_program_slabs`) which maps partner program tiers to loyalty program tiers. The BA mentions it in Domain Terminology but the PRD has **no user story or acceptance criterion** addressing what happens to partner program slabs when a program slab's status changes.
 
 **Evidence**: `PartnerProgramSlab` has `loyaltyProgramId` and `partnerProgramId` fields, and is used by `PePartnerProgramSlabDao` and `PointsEngineRuleService`.
 
-**Impact**: Stopping a ProgramSlab could break PartnerProgramSlab references. The CRUD APIs may need to validate or cascade status changes.
+**Impact**: ~~Stopping a ProgramSlab could break PartnerProgramSlab references.~~ **REDUCED (Rework #2)**: Only DRAFT tiers can be deleted, and DRAFT tiers have no SQL record yet — so they cannot have PartnerProgramSlab references. This concern now only applies to future tier retirement (out of scope). For creation (US-2), new tiers start as DRAFT and won't have partner slab mappings until approved and synced to SQL.
 
-**Recommendation**: Add an acceptance criterion to US-4 (Tier Deletion): "If the tier has linked PartnerProgramSlabs, warn or block deletion." Surface in Phase 4 (Blockers).
+**Recommendation**: ~~Add acceptance criterion to US-4.~~ **Updated**: No action needed for current scope. Document as a concern for future tier retirement epic. PartnerProgramSlab validation will be needed when ACTIVE tier stopping is implemented.
 
 ---
 
@@ -78,7 +78,7 @@ Modifying ALL these call sites to add status filters is a significant change wit
 
 **Source**: PRD E1-US1 AC-7
 **Claim**: "Response includes KPI summary: totalTiers, activeTiers, scheduledTiers, totalMembers"
-**Challenge**: The PRD defines tier statuses as DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, DELETED, SNAPSHOT. None of these is "Scheduled." The UI prototype shows "Scheduled: 0" in the KPI cards, but the BA/PRD do not define when a tier is "scheduled" vs "draft."
+**Challenge**: The PRD defines tier statuses as DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT (Rework #2 removed PAUSED and STOPPED). None of these is "Scheduled." The UI prototype shows "Scheduled: 0" in the KPI cards, but the BA/PRD do not define when a tier is "scheduled" vs "draft."
 
 **Evidence**: The PromotionStatus enum has UPCOMING as a derived status ("State for UI: [ACTIVE] -> [LIVE, UPCOMING, COMPLETED]"). For tiers, there's no concept of "start date" that would make a tier "scheduled."
 
@@ -107,7 +107,7 @@ Modifying ALL these call sites to add status filters is a significant change wit
 | # | Severity | Contradiction | Status |
 |---|----------|--------------|--------|
 | C-1 | BLOCKER | Thrift method for tier sync may not exist | Open -- needs resolution |
-| C-2 | HIGH | PartnerProgramSlab impact not addressed | Open -- needs AC addition |
+| C-2 | ~~HIGH~~ LOW | PartnerProgramSlab impact — reduced (DRAFT-only deletion, no SQL refs) | Deferred to future tier retirement epic |
 | C-3 | HIGH | PeProgramSlabDao blast radius understated | Open -- needs migration strategy |
 | C-4 | MEDIUM | Threshold validation oversimplified | Open -- refine in HLD |
 | C-5 | LOW | "Scheduled" KPI undefined | Open -- clarify naming |

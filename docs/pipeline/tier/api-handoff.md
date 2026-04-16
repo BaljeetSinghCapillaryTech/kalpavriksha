@@ -1,7 +1,7 @@
 # API Handoff -- Tiers CRUD + Maker-Checker
 
 > For: UI Development Team (Garuda)
-> Version: 1.1 (added: Get Tier Detail, MC Config, Change Detail, per-status Delete, Idempotency)
+> Version: 1.3 (v1.2 + Rework #2: DELETED status added, PAUSED/STOPPED removed, DELETE is DRAFT-only)
 > Base URL: `https://{host}/v3`
 > Auth: Bearer token in `Authorization` header
 > Content-Type: `application/json`
@@ -817,87 +817,41 @@ Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (th
 - `serialNumber` cannot be changed (immutable)
 - If a DRAFT already exists for this ACTIVE tier, the existing DRAFT is updated (one DRAFT per ACTIVE)
 
-**Error: editing a STOPPED tier:**
-```
-PUT /v3/tiers/661a... (STOPPED tier)
-→ 400 Bad Request
-```
-```json
-{
-  "data": null,
-  "errors": [{ "code": 400, "message": "Cannot edit a tier in STOPPED status. Allowed transitions: none." }],
-  "warnings": null
-}
-```
-
 ---
 
 ## 5. Delete Tier
 
 ### `DELETE /v3/tiers/{tierId}`
 
-Soft-deletes a tier. Behavior depends on the tier's **current status** and the **MC toggle**:
+Permanently deletes a tier. Only **DRAFT** tiers can be deleted. Returns 409 if the tier is in any other status. No maker-checker gate -- deletion is immediate and does not create a PendingChange. No member reassessment is triggered (DRAFT tiers have no live members).
 
-| Current Status | MC Enabled | MC Disabled |
-|----------------|-----------|-------------|
-| **DRAFT** | Immediate removal (no MC gate -- tier was never live) | Immediate removal |
-| **ACTIVE** | Creates PendingChange. Tier stays ACTIVE until approved. | Immediate STOPPED + SQL sync. |
-| **PENDING_APPROVAL** | Not allowed (reject the pending change first) | Not allowed |
-| **STOPPED / SNAPSHOT** | Not allowed (terminal states) | Not allowed |
+| Current Status | Result |
+|----------------|--------|
+| **DRAFT** | Tier document removed. Status transitions to DELETED (terminal). |
+| **ACTIVE / PENDING_APPROVAL / SNAPSHOT** | 409 Conflict -- cannot delete a non-DRAFT tier. |
+
+> **Tier retirement (stopping ACTIVE tiers):** Out of scope for this release. Planned as a future epic.
 
 **Example Request:**
 ```
-DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
+DELETE /v3/tiers/661b5a1f9c2d3e4f5a6b7c8d
 Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
 ```
 
-**Example Response (204 No Content, MC disabled):**
+**Example Response (204 No Content -- DRAFT deleted):**
 ```
 HTTP/1.1 204 No Content
 ```
 
-**Example Response (200 OK, MC enabled -- PendingChange created):**
-```json
-{
-  "data": {
-    "objectId": "661d8c4b1e5f6a7b8c9d0e1f",
-    "entityType": "TIER",
-    "entityId": "ut-977-003",
-    "changeType": "DELETE",
-    "status": "PENDING_APPROVAL",
-    "requestedBy": "user-admin-02",
-    "requestedAt": "2026-04-11T15:00:00Z",
-    "reviewedBy": null,
-    "reviewedAt": null,
-    "comment": null
-  },
-  "errors": null,
-  "warnings": null
-}
+**Error: tier is not in DRAFT status:**
 ```
-
-**Error: tier has PartnerProgramSlabs:**
-```
-DELETE /v3/tiers/661a... (has partner program refs)
+DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e (ACTIVE tier)
 → 409 Conflict
 ```
 ```json
 {
   "data": null,
-  "errors": [{ "code": 409, "message": "Cannot stop tier 'Gold' -- it has 2 active partner program slab mappings. Remove them first." }],
-  "warnings": null
-}
-```
-
-**Error: cannot delete base tier with members:**
-```
-DELETE /v3/tiers/661a... (base tier, serialNumber=1, members=1245)
-→ 409 Conflict
-```
-```json
-{
-  "data": null,
-  "errors": [{ "code": 409, "message": "Cannot stop base tier 'Bronze' -- 1245 members are currently assigned to it." }],
+  "errors": [{ "code": 409, "message": "Cannot delete tier 'Gold' -- only DRAFT tiers can be deleted." }],
   "warnings": null
 }
 ```
@@ -1185,7 +1139,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
 
 **For UPDATE changes:** The `payload` contains the full NEW state of the tier. To show a diff, also fetch the current ACTIVE version via `GET /v3/tiers/{payload.parentId}` and compare client-side.
 
-**For DELETE changes:** The `payload` contains the tier that will be stopped. The `changeType` is `"DELETE"`.
+**For DELETE changes:** DELETE no longer goes through maker-checker. DRAFT tiers are deleted immediately (204). This change type is retained in the schema for historical records only.
 
 **Error Responses:**
 
@@ -1252,12 +1206,133 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
 
 | `makerCheckerEnabled` | Create Flow | Edit Flow | Delete Flow |
 |-----------------------|------------|-----------|-------------|
-| `true` | Saves as DRAFT. Show "Submit for Approval" button. | Creates versioned DRAFT. Show "Submit for Approval". | Creates PendingChange. Approver must confirm. |
-| `false` | Saves as ACTIVE immediately. Syncs to SQL. No approval step. | Applies edit immediately. Syncs to SQL. | Sets STOPPED immediately. No approval step. |
+| `true` | Saves as DRAFT. Show "Submit for Approval" button. | Creates versioned DRAFT. Show "Submit for Approval". | DRAFT-only. Immediate removal. No MC gate. |
+| `false` | Saves as ACTIVE immediately. Syncs to SQL. No approval step. | Applies edit immediately. Syncs to SQL. | DRAFT-only. Immediate removal. No approval step. |
 
 ---
 
-## 12. Complete Flow Example: Create + Submit + Approve
+## 12. Tier Program Settings
+
+### `GET /v3/tier-settings`
+
+Returns program-level tier configuration. These settings apply to **all tiers** in the program. The UI opens this via the "Configure >" link in the create/edit wizard.
+
+**Query Parameters:**
+
+| Param | Type | Required | Example |
+|-------|------|----------|---------|
+| programId | int | YES | `977` |
+
+**Example Request:**
+```
+GET /v3/tier-settings?programId=977
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "programId": 977,
+    "upgradeType": "LAZY",
+    "validityPeriod": "SLAB_UPGRADE",
+    "fixedDuration": {
+      "value": null,
+      "unit": "MONTHS"
+    },
+    "isDowngradeOnReturnEnabled": true,
+    "dailyDowngradeEnabled": true,
+    "retainPoints": true
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Field Reference:**
+
+| Field | Type | Values | Figma Label | Production Mapping |
+|-------|------|--------|-------------|-------------------|
+| `upgradeType` | enum | `LAZY`, `EAGER`, `DYNAMIC` | "Upgrade type" dropdown | `upgrade.slab_upgrade_mode` |
+| `validityPeriod` | enum | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` | "Validity period" dropdown | `PeriodType` in downgrade strategy |
+| `fixedDuration.value` | int/null | e.g. `12` | "Fixed duration" input | `downgrade.time_period` |
+| `fixedDuration.unit` | enum | `MONTHS`, `DAYS`, `YEARS` | "Fixed duration" unit dropdown | Derived from `time_period` context |
+| `isDowngradeOnReturnEnabled` | boolean | | "Validate downgrade condition for a return transaction" toggle | `downgrade.isDowngradeOnReturnEnabled` (strategy property) |
+| `dailyDowngradeEnabled` | boolean | | "Check tier expiry on a daily basis" toggle | `downgrade.daily_downgrade_enabled` (strategy property) |
+| `retainPoints` | boolean | | "Extend available points to the new cycle" toggle | `retainPoints` in TierConfiguration |
+
+**Upgrade type labels for UI:**
+
+| API Value | UI Display Label |
+|-----------|-----------------|
+| `LAZY` | Issue points and then upgrade to next tier |
+| `EAGER` | Upgrade then issue points |
+| `DYNAMIC` | Issue points, upgrade, then issue remaining |
+
+**Validity period labels for UI:**
+
+| API Value | UI Display Label |
+|-----------|-----------------|
+| `SLAB_UPGRADE` | Until tier upgrade or fixed duration |
+| `FIXED` | Fixed duration only |
+| `FIXED_CUSTOMER_REGISTRATION` | Fixed from customer registration date |
+| `SLAB_UPGRADE_CYCLIC` | Cyclic from tier upgrade date |
+
+### `PUT /v3/tier-settings`
+
+Updates program-level tier configuration. Changes affect all tiers in the program.
+
+**Request Body:**
+```json
+{
+  "programId": 977,
+  "upgradeType": "LAZY",
+  "validityPeriod": "FIXED",
+  "fixedDuration": {
+    "value": 12,
+    "unit": "MONTHS"
+  },
+  "isDowngradeOnReturnEnabled": true,
+  "dailyDowngradeEnabled": false,
+  "retainPoints": true
+}
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "data": {
+    "programId": 977,
+    "upgradeType": "LAZY",
+    "validityPeriod": "FIXED",
+    "fixedDuration": {
+      "value": 12,
+      "unit": "MONTHS"
+    },
+    "isDowngradeOnReturnEnabled": true,
+    "dailyDowngradeEnabled": false,
+    "retainPoints": true
+  },
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Error Responses:**
+
+| Code | Scenario |
+|------|----------|
+| 400 | `validityPeriod` is `FIXED` but `fixedDuration.value` is null |
+| 400 | Invalid enum value for `upgradeType` or `validityPeriod` |
+| 404 | Program not found |
+
+**Storage:** Stored in MongoDB (`tier_program_settings` collection, one doc per orgId+programId). On read, if no doc exists, return defaults derived from existing SQL strategy properties (backward compatible for existing programs).
+
+**Sync to SQL:** When settings are updated, `TierSettingsChangeApplier` writes to SLAB_UPGRADE (strategy type 2) and SLAB_DOWNGRADE (strategy type 5) properties via Thrift.
+
+---
+
+## 13. Complete Flow Example: Create + Submit + Approve
 
 ### Step 1: Create Platinum tier (MC enabled -- becomes DRAFT)
 ```
@@ -1290,7 +1365,7 @@ GET /v3/tiers?programId=977
 
 ---
 
-## 13. Complete Flow Example: Edit ACTIVE Tier (Versioned)
+## 14. Complete Flow Example: Edit ACTIVE Tier (Versioned)
 
 ### Step 1: Edit Gold tier (ACTIVE, objectId: "661a...9e")
 ```
@@ -1314,32 +1389,32 @@ Result: Gold Plus -> ACTIVE. Original Gold -> SNAPSHOT.
 
 ---
 
-## 14. Complete Flow Example: Delete (Draft vs Active)
+## 15. Complete Flow Example: Delete (DRAFT only)
 
 ### Deleting a DRAFT tier (immediate -- no MC gate)
 ```
 DELETE /v3/tiers/661b5a1f9c2d3e4f5a6b7c8d
 → 204 No Content
 ```
-The DRAFT document is removed from MongoDB. No PendingChange is created because the tier was never live.
+The DRAFT document is removed from MongoDB. No PendingChange is created. Tier transitions to DELETED (terminal). MC toggle has no effect on this operation.
 
-### Deleting an ACTIVE tier (MC enabled -- requires approval)
+### Attempting to delete a non-DRAFT tier (rejected)
 ```
-DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
-→ 200 OK, PendingChange with changeType: "DELETE"
+DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e  (ACTIVE tier)
+→ 409 Conflict
 ```
-A PendingChange is created. The tier stays ACTIVE until the approver approves the stop.
-
-### Deleting an ACTIVE tier (MC disabled -- immediate)
+```json
+{
+  "data": null,
+  "errors": [{ "code": 409, "message": "Cannot delete tier 'Gold' -- only DRAFT tiers can be deleted." }],
+  "warnings": null
+}
 ```
-DELETE /v3/tiers/661a3f2e8b1c4d5e6f7a8b9e
-→ 204 No Content
-```
-Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
+ACTIVE, PENDING_APPROVAL, and SNAPSHOT tiers cannot be deleted. Tier retirement (stopping live tiers) is out of scope for this release.
 
 ---
 
-## 15. Field Reference
+## 16. Field Reference
 
 ### Activity Operators
 | Operator | Meaning | Example |
@@ -1354,8 +1429,8 @@ Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
 |--------|------------|-------------|
 | `DRAFT` | Grey | Edit, Submit, Delete |
 | `PENDING_APPROVAL` | Amber | View (approver can Approve/Reject) |
-| `ACTIVE` | Green | Edit (creates new version), Stop |
-| `STOPPED` | Red | View only |
+| `ACTIVE` | Green | Edit (creates new version) |
+| `DELETED` | Red | View only (terminal -- reached from DRAFT only) |
 | `SNAPSHOT` | Dark grey | View only (archived version) |
 
 ### Downgrade Schedules
@@ -1366,7 +1441,7 @@ Status set to STOPPED immediately. SQL sync marks the slab as STOPPED.
 
 ---
 
-## 16. Legacy API Mapping Reference
+## 17. Legacy API Mapping Reference
 
 The production legacy API (`/loyalty/api/v1/strategy/tier-strategy/{programId}`) uses a different data format. This table maps legacy fields to the new `/v3/tiers` API.
 
@@ -1442,7 +1517,7 @@ The production response includes `pointsSaveData` (allocations, redemptions, exp
 
 ---
 
-## 17. Important Notes for UI Team
+## 18. Important Notes for UI Team
 
 1. **`serialNumber` is auto-assigned and immutable.** Never send it in create/update. It determines tier ordering.
 2. **`unifiedTierId` persists across versions.** When an ACTIVE tier is edited, the new DRAFT has the same `unifiedTierId` but a different `objectId`. Use `unifiedTierId` to track a tier's identity across versions.
@@ -1454,11 +1529,12 @@ The production response includes `pointsSaveData` (allocations, redemptions, exp
 8. **The `benefitIds` array contains benefit ObjectIds.** Fetch benefit details via a separate `GET /v3/benefits/{benefitId}` endpoint (out of scope for this pipeline).
 9. **Call `GET /v3/maker-checker/config` on page load** to determine whether to show MC flow (Submit for Approval) or direct-save flow.
 10. **For version comparison (edit review):** Fetch DRAFT via `GET /v3/tiers/{draftId}` and ACTIVE via `GET /v3/tiers/{draft.parentId}`. Compute diff client-side.
-11. **Deleting a DRAFT does NOT require MC approval.** It is removed immediately since it was never live.
+11. **Only DRAFT tiers can be deleted.** Deletion is immediate (no MC gate) and transitions the tier to DELETED (terminal). ACTIVE, PENDING_APPROVAL, and SNAPSHOT tiers return 409. Tier retirement (stopping live tiers) is not supported in this release.
+12. **`serialNumber` is immutable.** Tier reordering is not supported. Do not expose any reorder UI.
 
 ---
 
-## 18. Not In Scope (This Release)
+## 19. Not In Scope (This Release)
 
 These features are **not available** in the current API. Do not build UI for them.
 

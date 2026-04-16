@@ -150,7 +150,7 @@ public class TierFacade {
     /** Edit a tier. DRAFT: in-place. ACTIVE: versioned (new DRAFT with parentId). */
     public UnifiedTierConfig updateTier(long orgId, String tierId, TierUpdateRequest request, String userId);
 
-    /** Soft-delete a tier (set STOPPED). MC enabled: PendingChange. MC disabled: immediate. */
+    /** Delete a DRAFT tier (set DELETED). DRAFT only — 409 if not DRAFT. No MC flow. */
     public void deleteTier(long orgId, String tierId, String userId);
 }
 ```
@@ -277,7 +277,7 @@ public class PendingChange {
 
 ```java
 public enum TierStatus {
-    DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, DELETED, SNAPSHOT
+    DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT  // No PAUSED or STOPPED (Rework #2)
 }
 
 public enum EntityType {
@@ -309,14 +309,13 @@ public enum DowngradeTargetType { SINGLE, THRESHOLD, LOWEST }
 
 ```java
 // Extend or reuse StatusTransitionValidator
+// Rework #2: Removed PAUSED, STOPPED, PAUSE, RESUME, STOP actions
 private static final Map<TierStatus, Set<TierAction>> VALID_TRANSITIONS = Map.of(
     TierStatus.DRAFT,              Set.of(TierAction.SUBMIT_FOR_APPROVAL, TierAction.DELETE),
     TierStatus.PENDING_APPROVAL,   Set.of(TierAction.APPROVE, TierAction.REJECT),
-    TierStatus.ACTIVE,             Set.of(TierAction.EDIT, TierAction.STOP, TierAction.PAUSE),
-    TierStatus.PAUSED,             Set.of(TierAction.RESUME, TierAction.STOP),
-    TierStatus.STOPPED,            Set.of(),  // terminal
-    TierStatus.SNAPSHOT,           Set.of(),  // terminal
-    TierStatus.DELETED,            Set.of()   // terminal
+    TierStatus.ACTIVE,             Set.of(TierAction.EDIT),  // No STOP or PAUSE — tier retirement deferred
+    TierStatus.SNAPSHOT,           Set.of(),  // terminal (archived)
+    TierStatus.DELETED,            Set.of()   // terminal (DRAFT soft-delete, audit trail preserved)
 );
 ```
 

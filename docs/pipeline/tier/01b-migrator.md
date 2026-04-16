@@ -50,7 +50,7 @@ ALTER TABLE program_slabs DROP COLUMN status;
 ```
 
 ### Risk Assessment
-- **Data loss on rollback**: None. The `status` column only contains default values ('ACTIVE') until the new tier CRUD APIs start writing other values (DRAFT, STOPPED, etc.).
+- **Data loss on rollback**: None. The `status` column only contains default values ('ACTIVE') until the new tier CRUD APIs start writing other values (DRAFT, DELETED, etc.).
 - **Table lock duration**: `ALTER TABLE ADD COLUMN` with a DEFAULT value is typically fast in MySQL 8.0+ (instant DDL). In MySQL 5.7, it may require a table copy for large tables.
 - **Table size check**: `program_slabs` is a small table (typically 3-10 rows per program, total rows in the low thousands across all orgs). ALTER is safe.
 
