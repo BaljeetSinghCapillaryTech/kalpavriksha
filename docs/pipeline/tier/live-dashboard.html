@@ -508,7 +508,7 @@
         <tr><td>Q2</td><td>Tier deletion strategy</td><td>Soft-delete via status column (ACTIVE/DRAFT/STOPPED/DELETED)</td></tr>
         <tr><td>Q3</td><td>Data storage pattern</td><td>Dual-storage: MongoDB drafts + SQL live (unified promotions pattern)</td></tr>
         <tr><td>Q4</td><td>Member counts in listing</td><td>Cached counts (5-15 min refresh), included in response</td></tr>
-        <tr><td>Q5</td><td>MC framework design</td><td>Full generic framework (PendingChange, MakerCheckerService, ChangeApplier)</td></tr>
+        <tr><td>Q5</td><td>MC framework design</td><td>Full generic framework (ApprovableEntity, MakerCheckerService<T>, ApprovableEntityHandler<T>)</td></tr>
         <tr><td>Q6</td><td>Tier editing approach</td><td>Versioned edits with parentId (same as UnifiedPromotion)</td></tr>
         <tr><td>Q7</td><td>API hosting</td><td>intouch-api-v3 (REST+MongoDB) -> Thrift -> emf-parent (SQL)</td></tr>
         <tr><td>Q8</td><td>MC toggle granularity</td><td>Per-program + per-entity-type</td></tr>
@@ -521,8 +521,8 @@ graph TB
     subgraph "intouch-api-v3"
         TC[TierController] --> TF[TierFacade]
         TF --> TR[TierRepository<br/>MongoDB]
-        TF --> MCS[MakerCheckerService]
-        MCS --> TCA[TierChangeApplier]
+        TF --> MCS[MakerCheckerService<T>]
+        MCS --> TCA[TierApprovalHandler]
     end
     subgraph "emf-parent"
         TCA -->|Thrift| PERS[PointsEngineRuleService]
@@ -540,10 +540,10 @@ graph TB
         <tr><td>POST</td><td>/v3/tiers</td><td>Create tier (DRAFT or ACTIVE based on MC)</td></tr>
         <tr><td>PUT</td><td>/v3/tiers/{tierId}</td><td>Edit tier (versioned if ACTIVE)</td></tr>
         <tr><td>DELETE</td><td>/v3/tiers/{tierId}</td><td>Soft-delete (STOPPED)</td></tr>
-        <tr><td>POST</td><td>/v3/maker-checker/submit</td><td>Submit change for approval</td></tr>
-        <tr><td>POST</td><td>/v3/maker-checker/{id}/approve</td><td>Approve pending change</td></tr>
-        <tr><td>POST</td><td>/v3/maker-checker/{id}/reject</td><td>Reject pending change</td></tr>
-        <tr><td>GET</td><td>/v3/maker-checker/pending</td><td>List pending changes</td></tr>
+        <tr><td>POST</td><td>/v3/tiers/approvals/submit</td><td>Submit change for approval</td></tr>
+        <tr><td>POST</td><td>/v3/tiers/approvals/{id}/approve</td><td>Approve pending change</td></tr>
+        <tr><td>POST</td><td>/v3/tiers/approvals/{id}/reject</td><td>Reject pending change</td></tr>
+        <tr><td>GET</td><td>/v3/tiers/approvals/pending</td><td>List pending changes</td></tr>
       </tbody>
     </table>
 
@@ -715,7 +715,7 @@ graph LR
     <h2>Phase 5: Codebase Research + Cross-Repo Tracing <span class="phase-badge complete">Complete</span></h2>
     <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/cross-repo-tracer</span> <span class="skill-tag">jdtls LSP</span>
-    <p>Deep dive into all 4 repos. CRITICAL finding: Thrift slab methods already exist. Full pattern study of UnifiedPromotion. Production payload analysis. TierChangeApplier conversion design validated.</p>
+    <p>Deep dive into all 4 repos. CRITICAL finding: Thrift slab methods already exist. Full pattern study of UnifiedPromotion. Production payload analysis. TierApprovalHandler conversion design validated.</p>
 
     <div class="key-numbers">
       <div class="key-number"><div class="value">~25</div><div class="label">New Files</div></div>
@@ -757,7 +757,7 @@ graph LR
       </thead>
       <tbody>
         <tr><td>P-1</td><td>Points strategy layer (allocations, redemptions, expirys) -- NOT managed by tier CRUD</td><td>Separate concern. Engine auto-extends CSV on slab creation.</td></tr>
-        <tr><td>P-2</td><td>CSV-per-slab pattern pervasive (allocation_values, threshold_values, etc.)</td><td>TierChangeApplier must pass correct strategy list.</td></tr>
+        <tr><td>P-2</td><td>CSV-per-slab pattern pervasive (allocation_values, threshold_values, etc.)</td><td>TierApprovalHandler must pass correct strategy list.</td></tr>
         <tr><td>P-3</td><td>Upgrade section confirmed (CUMULATIVE_PURCHASES, threshold array)</td><td>Our model matches production.</td></tr>
         <tr><td>P-4</td><td>Downgrade: isFixedTypeWithoutYear, renewalWindowType -- new fields</td><td>Preserved in MongoDB doc.</td></tr>
         <tr><td>P-5</td><td>isAdvanceSetting, addDefaultCommunication -- UI flags</td><td>Stored in MongoDB doc.</td></tr>
@@ -765,7 +765,7 @@ graph LR
       </tbody>
     </table>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierChangeApplier -- Conversion Design</h3>
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierApprovalHandler -- Conversion Design</h3>
     <div class="mermaid">
 flowchart TB
     subgraph "Flow 1: CREATE New Tier"
@@ -809,7 +809,7 @@ flowchart TB
       </thead>
       <tbody>
         <tr><td>R1</td><td>CSV index mapping (off-by-one = data corruption)</td><td>serialNumber-2 = CSV index. Unit test with 3,4,5+ slabs.</td></tr>
-        <tr><td>R2</td><td>Downgrade strategy monolith (read-modify-write concurrency)</td><td>@Lockable annotation on TierChangeApplier methods.</td></tr>
+        <tr><td>R2</td><td>Downgrade strategy monolith (read-modify-write concurrency)</td><td>@Lockable annotation on TierApprovalHandler methods.</td></tr>
         <tr><td>R3</td><td>Strategy IDs must be preserved on update</td><td>Always fetch existing strategy ID before updating.</td></tr>
         <tr><td>R4</td><td>CSV positions preserved on soft-delete</td><td>Never remove CSV position. Soft-delete only.</td></tr>
         <tr><td>R5</td><td>Production tier-strategy API in separate service</td><td>Our listing reads from MongoDB, not the legacy API.</td></tr>
@@ -845,7 +845,7 @@ flowchart TB
     <h2>Phase 6: HLD (Architect) <span class="phase-badge complete">Complete</span></h2>
     <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/architect</span>
-    <p>Full architecture with 7 ADRs, system diagram (12 components), MongoDB schema (~50 fields), 8 API endpoints, TierChangeApplier conversion design, status state machine, and 4-layer implementation plan.</p>
+    <p>Full architecture with 7 ADRs, system diagram (12 components), MongoDB schema (~50 fields), 8 API endpoints, TierApprovalHandler conversion design, status state machine, and 4-layer implementation plan.</p>
 
     <div class="key-numbers">
       <div class="key-number"><div class="value">7</div><div class="label">ADRs</div></div>
@@ -864,15 +864,15 @@ graph TB
 
     subgraph "intouch-api-v3 (REST + MongoDB)"
         TC[TierController<br/>@RestController /v3/tiers]
-        MCC[MakerCheckerController<br/>@RestController /v3/maker-checker]
+        MCC[TierReviewController<br/>@RestController /v3/tiers/approvals]
         TF[TierFacade<br/>@Component]
-        MCF[MakerCheckerFacade<br/>@Component]
-        MCS[MakerCheckerService<br/>Generic Interface]
-        MCSI[MakerCheckerServiceImpl]
-        TCA[TierChangeApplier<br/>implements ChangeApplier]
+        MCF[MakerCheckerService<T><br/>@Component]
+        MCS[MakerCheckerService<T><br/>Generic Interface]
+        MCSI[MakerCheckerService<T>Impl]
+        TCA[TierApprovalHandler<br/>implements ApprovableEntityHandler<T>]
         TR[TierRepository<br/>Spring Data Mongo]
         TRI[TierRepositoryImpl<br/>Sharded via EmfMongo]
-        PCR[PendingChangeRepo]
+        PCR[ApprovableEntityRepo]
         TVS[TierValidationService]
         STV[StatusTransitionValidator]
         PERTS[PointsEngineRules<br/>ThriftService]
@@ -947,13 +947,13 @@ sequenceDiagram
     participant TF as TierFacade
     participant TVS as TierValidation
     participant TR as TierRepo (MongoDB)
-    participant MCS as MakerCheckerService
+    participant MCS as MakerCheckerService<T>
 
     UI->>TC: POST /v3/tiers {name, eligibility, ...}
     TC->>TF: createTier(orgId, request)
     TF->>TVS: validate(request)
     TVS-->>TF: OK (or 400 errors)
-    TF->>TF: isMakerCheckerEnabled(orgId, programId, TIER)?
+    TF->>TF: MC always on(orgId, programId, TIER)?
     TF->>TR: save(UnifiedTierConfig, status=DRAFT)
     TR-->>TF: saved doc {_id, unifiedTierId}
     TF-->>TC: ResponseWrapper(tierConfig, status=DRAFT)
@@ -968,19 +968,19 @@ sequenceDiagram
     participant UI as Approver
     participant MCC as MC Controller
     participant MCS as MC Service
-    participant TCA as TierChangeApplier
+    participant TCA as TierApprovalHandler
     participant TR as TierRepo
     participant PERTS as Thrift Client
     participant EMF as emf-parent
     participant SQL as MySQL
 
-    UI->>MCC: POST /v3/maker-checker/{id}/approve
+    UI->>MCC: POST /v3/tiers/approvals/{id}/approve
     MCC->>MCS: approve(changeId, userId)
     MCS->>MCS: validate PENDING -> ACTIVE
     MCS->>TCA: apply(pendingChange)
 
     rect rgb(30, 42, 69)
-        Note over TCA,SQL: TierChangeApplier Conversion
+        Note over TCA,SQL: TierApprovalHandler Conversion
         TCA->>PERTS: getAllConfiguredStrategies(programId)
         PERTS-->>TCA: list of Strategy objects
         TCA->>TCA: Build SlabInfo (name, desc, color, serial)
@@ -999,8 +999,8 @@ sequenceDiagram
     TCA->>TR: update status DRAFT -> ACTIVE
     TCA->>TR: store sqlSlabId in metadata
     TCA-->>MCS: success
-    MCS->>MCS: update PendingChange -> APPROVED
-    MCS-->>MCC: PendingChange{APPROVED}
+    MCS->>MCS: update ApprovableEntity -> APPROVED
+    MCS-->>MCC: ApprovableEntity{APPROVED}
     MCC-->>UI: 200 OK
     </div>
 
@@ -1138,7 +1138,7 @@ classDiagram
     </div>
 
     <!-- TIERCHANGEAPPLIER CONVERSION -->
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierChangeApplier: MongoDB to SQL Conversion</h3>
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">TierApprovalHandler: MongoDB to SQL Conversion</h3>
     <div class="mermaid">
 flowchart LR
     subgraph "MongoDB Document"
@@ -1192,11 +1192,11 @@ flowchart LR
         <tr><td style="color: var(--success); font-weight:600;">GET</td><td>/v3/tiers</td><td>List tiers + KPIs</td><td>?programId, ?status</td><td>TierListResponse</td><td>-</td></tr>
         <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/tiers</td><td>Create tier</td><td>TierCreateRequest</td><td>UnifiedTierConfig</td><td>DRAFT / ACTIVE</td></tr>
         <tr><td style="color: var(--accent); font-weight:600;">PUT</td><td>/v3/tiers/{tierId}</td><td>Edit tier</td><td>TierUpdateRequest</td><td>UnifiedTierConfig</td><td>Versioned DRAFT</td></tr>
-        <tr><td style="color: var(--danger); font-weight:600;">DELETE</td><td>/v3/tiers/{tierId}</td><td>Soft-delete (STOPPED)</td><td>-</td><td>204</td><td>PendingChange</td></tr>
-        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/submit</td><td>Submit for approval</td><td>{entityType, entityId}</td><td>PendingChange</td><td>-</td></tr>
-        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/{id}/approve</td><td>Approve change</td><td>{comment}</td><td>PendingChange</td><td>Triggers sync</td></tr>
-        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/maker-checker/{id}/reject</td><td>Reject change</td><td>{comment (req)}</td><td>PendingChange</td><td>Reverts</td></tr>
-        <tr><td style="color: var(--success); font-weight:600;">GET</td><td>/v3/maker-checker/pending</td><td>List pending</td><td>?entityType, ?programId</td><td>List&lt;PendingChange&gt;</td><td>-</td></tr>
+        <tr><td style="color: var(--danger); font-weight:600;">DELETE</td><td>/v3/tiers/{tierId}</td><td>Soft-delete (STOPPED)</td><td>-</td><td>204</td><td>ApprovableEntity</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/tiers/approvals/submit</td><td>Submit for approval</td><td>{entityType, entityId}</td><td>ApprovableEntity</td><td>-</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/tiers/approvals/{id}/approve</td><td>Approve change</td><td>{comment}</td><td>ApprovableEntity</td><td>Triggers sync</td></tr>
+        <tr><td style="color: var(--warning); font-weight:600;">POST</td><td>/v3/tiers/approvals/{id}/reject</td><td>Reject change</td><td>{comment (req)}</td><td>ApprovableEntity</td><td>Reverts</td></tr>
+        <tr><td style="color: var(--success); font-weight:600;">GET</td><td>/v3/tiers/approvals/pending</td><td>List pending</td><td>?entityType, ?programId</td><td>List&lt;ApprovableEntity&gt;</td><td>-</td></tr>
       </tbody>
     </table>
 
@@ -1208,7 +1208,7 @@ flowchart LR
       </thead>
       <tbody>
         <tr><td>ADR-01</td><td>Dual-storage: MongoDB draft + SQL live</td><td>SQL-only draft table, MongoDB-only, CQRS/event sourcing</td><td>Follows UnifiedPromotion. Flexible drafts, stable engine reads.</td></tr>
-        <tr><td>ADR-02</td><td>Generic MC framework (ChangeApplier strategy)</td><td>Tier-specific MC, copy promotion MC</td><td>Layer 1 shared module. Benefits/subscriptions plug in later.</td></tr>
+        <tr><td>ADR-02</td><td>Generic MC framework (ApprovableEntityHandler<T> strategy)</td><td>Tier-specific MC, copy promotion MC</td><td>Layer 1 shared module. Benefits/subscriptions plug in later.</td></tr>
         <tr><td>ADR-03</td><td>Expand-then-contract (status column)</td><td>Modify all 7+ callers, database view</td><td>Zero regression. Existing findByProgram() unchanged. G-05.4.</td></tr>
         <tr><td>ADR-04</td><td>Versioned edits (parentId)</td><td>In-place edit + MC, hybrid by field type</td><td>Zero downtime. Full rollback. ACTIVE stays live.</td></tr>
         <tr><td>ADR-05</td><td>Existing Thrift methods (no IDL change)</td><td>New Thrift method, direct DB, REST</td><td>createSlabAndUpdateStrategies exists. Add Java wrappers only.</td></tr>
@@ -1223,11 +1223,11 @@ flowchart LR
 flowchart TB
     subgraph "Layer 1: MC Framework (no dependencies)"
         L1A[EntityType + ChangeStatus enums]
-        L1B[PendingChange MongoDB doc]
-        L1C[ChangeApplier interface]
-        L1D[MakerCheckerService + Impl]
+        L1B[ApprovableEntity MongoDB doc]
+        L1C[ApprovableEntityHandler<T> interface]
+        L1D[MakerCheckerService<T> + Impl]
         L1E[NotificationHandler hook]
-        L1F[MakerCheckerController]
+        L1F[TierReviewController]
         L1A --> L1B --> L1C --> L1D --> L1E --> L1F
     end
     subgraph "Layer 2: Tier CRUD (uses MC interfaces)"
@@ -1245,7 +1245,7 @@ flowchart TB
         L3N -.-> L3D
     end
     subgraph "Layer 4: Integration"
-        L4A[TierChangeApplier]
+        L4A[TierApprovalHandler]
         L4B[Member count cron job]
         L4C[End-to-end testing]
         L4A --> L4C
@@ -1369,16 +1369,16 @@ flowchart LR
     <div class="mermaid">
 graph TD
     TC[TierController] --> TF[TierFacade]
-    MCC[MakerCheckerController] --> MCF[MakerCheckerFacade]
+    MCC[TierReviewController] --> MCF[MakerCheckerService<T>]
     TF --> TVS[TierValidationService]
     TF --> TR[TierRepository]
-    TF --> MCS["MakerCheckerService (interface)"]
+    TF --> MCS["MakerCheckerService<T> (interface)"]
     MCF --> MCS
-    MCS --> MCSI[MakerCheckerServiceImpl]
-    MCSI --> PCR[PendingChangeRepo]
-    MCSI --> CA["ChangeApplier (interface)"]
+    MCS --> MCSI[MakerCheckerService<T>Impl]
+    MCSI --> PCR[ApprovableEntityRepo]
+    MCSI --> CA["ApprovableEntityHandler<T> (interface)"]
     MCSI --> NH["NotificationHandler (hook)"]
-    CA -.->|"implements"| TCA[TierChangeApplier]
+    CA -.->|"implements"| TCA[TierApprovalHandler]
     TCA --> PERTS[ThriftService]
     TCA --> TR
     TR --> TRI[TierRepositoryImpl]
@@ -1394,8 +1394,8 @@ graph TD
         <tr><th>Interface</th><th>Methods</th><th>First Impl</th></tr>
       </thead>
       <tbody>
-        <tr><td style="color: var(--accent);">ChangeApplier&lt;T&gt;</td><td>apply(), revert(), getEntityType()</td><td>TierChangeApplier</td></tr>
-        <tr><td style="color: var(--accent);">MakerCheckerService</td><td>submit(), approve(), reject(), listPending(), isMCEnabled()</td><td>MakerCheckerServiceImpl</td></tr>
+        <tr><td style="color: var(--accent);">ApprovableEntityHandler<T>&lt;T&gt;</td><td>apply(), revert(), getEntityType()</td><td>TierApprovalHandler</td></tr>
+        <tr><td style="color: var(--accent);">MakerCheckerService<T></td><td>submit(), approve(), reject(), listPending()</td><td>MakerCheckerService<T></td></tr>
         <tr><td style="color: var(--accent);">NotificationHandler</td><td>onSubmit(), onApprove(), onReject()</td><td>NoOpNotificationHandler</td></tr>
       </tbody>
     </table>
@@ -1482,7 +1482,7 @@ graph TD
   <section class="phase-section" id="phase-10">
     <h2>Phase 10: Developer -- GREEN Phase <span class="phase-badge complete">Complete</span></h2>
     <span class="skill-tag">/developer</span>
-    <p><strong>GREEN: 28/28 tests pass.</strong> Implemented: TierValidationService (validation logic), TierFacade (CRUD orchestration with MC toggle, versioned edits), MakerCheckerServiceImpl (submit/approve/reject lifecycle), TierChangeApplier (version swap). 3 test modifications documented.</p>
+    <p><strong>GREEN: 28/28 tests pass.</strong> Implemented: TierValidationService (validation logic), TierFacade (CRUD orchestration with MC toggle, versioned edits), MakerCheckerService<T>Impl (submit/approve/reject lifecycle), TierApprovalHandler (version swap). 3 test modifications documented.</p>
   </section>
 
   <!-- Phase 10b: Backend Readiness -->
@@ -1536,8 +1536,8 @@ graph TD
       <tr><th>Class</th><th>Tests</th><th>Key Logic</th></tr>
       <tr><td style="color:var(--accent);">TierValidationService</td><td>6</td><td>Name/color/date validation, uniqueness, serial auto-assign, 50-cap</td></tr>
       <tr><td style="color:var(--accent);">TierFacade</td><td>12</td><td>List + KPI, create (MC toggle), versioned edit, delete per-status</td></tr>
-      <tr><td style="color:var(--accent);">MakerCheckerServiceImpl</td><td>7</td><td>Submit/approve/reject lifecycle, notification hooks</td></tr>
-      <tr><td style="color:var(--accent);">TierChangeApplier</td><td>3</td><td>Version swap (new&rarr;ACTIVE, old&rarr;SNAPSHOT)</td></tr>
+      <tr><td style="color:var(--accent);">MakerCheckerService<T>Impl</td><td>7</td><td>Submit/approve/reject lifecycle, notification hooks</td></tr>
+      <tr><td style="color:var(--accent);">TierApprovalHandler</td><td>3</td><td>Version swap (new&rarr;ACTIVE, old&rarr;SNAPSHOT)</td></tr>
     </table>
 
     <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Package Structure</h3>
@@ -1546,9 +1546,9 @@ graph TD
       <tr><td><code>tier/enums/</code></td><td>5</td><td>TierStatus, CriteriaType, ActivityRelation, DowngradeSchedule, DowngradeTargetType</td></tr>
       <tr><td><code>tier/model/</code></td><td>9</td><td>Domain models (BasicDetails, EligibilityCriteria, Activity, etc.)</td></tr>
       <tr><td><code>tier/dto/</code></td><td>4</td><td>REST DTOs (TierCreateRequest, TierUpdateRequest, TierListResponse, KpiSummary)</td></tr>
-      <tr><td><code>tier/</code></td><td>5</td><td>Core (UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierChangeApplier)</td></tr>
-      <tr><td><code>makerchecker/</code></td><td>12</td><td>Generic MC framework (service, facade, repos, enums, DTOs, notification)</td></tr>
-      <tr><td><code>resources/</code></td><td>2</td><td>TierController, MakerCheckerController (skeleton &mdash; needs wiring)</td></tr>
+      <tr><td><code>tier/</code></td><td>5</td><td>Core (UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierApprovalHandler)</td></tr>
+      <tr><td><code>makechecker/</code></td><td>12</td><td>Generic MC framework (service, facade, repos, enums, DTOs, notification)</td></tr>
+      <tr><td><code>resources/</code></td><td>2</td><td>TierController, TierReviewController (skeleton &mdash; needs wiring)</td></tr>
     </table>
 
     <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Remaining Work (Layer 3-4)</h3>
@@ -1557,7 +1557,7 @@ graph TD
       <tr><td><s>L3</s></td><td><s>emf-parent</s></td><td><s>Flyway migration: program_slabs.status column</s> &mdash; NOT NEEDED (Rework #3)</td></tr>
       <tr><td><s>L3</s></td><td><s>emf-parent</s></td><td><s>ProgramSlab.java status field + PeProgramSlabDao.findActiveByProgram()</s> &mdash; NOT NEEDED (Rework #3)</td></tr>
       <tr><td>L3</td><td>intouch-api-v3</td><td>PointsEngineRulesThriftService wrapper methods</td></tr>
-      <tr><td>L3</td><td>intouch-api-v3</td><td>TierChangeApplier: wire Thrift, add @Lockable, CREATE/DELETE sync</td></tr>
+      <tr><td>L3</td><td>intouch-api-v3</td><td>TierApprovalHandler: wire Thrift, add @Lockable, CREATE/DELETE sync</td></tr>
       <tr><td>L4</td><td>intouch-api-v3</td><td>Controller &rarr; Facade wiring + @ExceptionHandler</td></tr>
       <tr><td>L4</td><td>intouch-api-v3</td><td>MC config integration with OrgConfigService</td></tr>
       <tr><td>L4</td><td>intouch-api-v3</td><td>Member count cron job (every 10 min)</td></tr>
@@ -1585,7 +1585,7 @@ graph TD
       <tr><td>G-01 UTC (Timezone)</td><td><span class="status-ok">COMPLIANT</span></td><td>All timestamps use java.time.Instant</td></tr>
       <tr><td>G-03 Security</td><td><span class="status-ok">COMPLIANT</span></td><td>No raw SQL, parameterized queries</td></tr>
       <tr><td>G-07 Multi-tenancy</td><td><span class="status-ok">COMPLIANT</span></td><td>orgId on every repository method</td></tr>
-      <tr><td>ADR-02 Generic MC</td><td><span class="status-ok">COMPLIANT</span></td><td>ChangeApplier&lt;T&gt;, EntityType dispatch</td></tr>
+      <tr><td>ADR-02 Generic MC</td><td><span class="status-ok">COMPLIANT</span></td><td>ApprovableEntityHandler<T>&lt;T&gt;, EntityType dispatch</td></tr>
       <tr><td>ADR-04 Versioned Edits</td><td><span class="status-ok">COMPLIANT</span></td><td>parentId + version swap implemented</td></tr>
       <tr><td>ADR-01 Dual-Storage</td><td><span class="status-warn">PARTIAL</span></td><td>MongoDB done, SQL sync pending (Layer 3)</td></tr>
       <tr><td>ADR-03 Migration</td><td><span class="status-warn">NOT STARTED</span></td><td>Layer 3 emf-parent work</td></tr>
@@ -1597,7 +1597,7 @@ graph TD
       <tr><td>NB-01</td><td>Remove unused UUID import</td><td>TierFacade.java</td></tr>
       <tr><td>NB-02</td><td>Consider constructor injection over @Autowired</td><td>TierFacade.java</td></tr>
       <tr><td>NB-03</td><td>Add @Slf4j logging</td><td>TierFacade.java</td></tr>
-      <tr><td>NB-04</td><td>Integrate isMCEnabled with OrgConfig</td><td>MakerCheckerServiceImpl.java</td></tr>
+      <tr><td>NB-04</td><td>MC always on — no config toggle needed</td><td>MakerCheckerService<T>.java</td></tr>
       <tr><td>NB-05</td><td>Add @CompoundIndex for MongoDB</td><td>UnifiedTierConfig.java</td></tr>
     </table>
   </section>

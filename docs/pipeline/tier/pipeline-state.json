@@ -160,11 +160,11 @@
       "id": 1,
       "date": "2026-04-13",
       "trigger": "User feedback: ACTIVITY_BASED enum rename is unnecessary deviation from emf-parent",
-      "scope": "Phases 7-12 + Java source (CriteriaType.java, TierChangeApplierTest.java)",
+      "scope": "Phases 7-12 + Java source (CriteriaType.java, TierApprovalHandlerTest.java)",
       "change": "Use production enum values (CUMULATIVE_PURCHASES etc.), remove criteriaType conversion logic",
       "affected_files": [
         "CriteriaType.java",
-        "TierChangeApplierTest.java",
+        "TierApprovalHandlerTest.java",
         "03-designer.md",
         "01-architect.md",
         "ui-requirements.md",
@@ -210,22 +210,50 @@
       "date": "2026-04-16",
       "trigger": "manual",
       "reason": "Timezone alignment (Instant→Date+@JsonFormat XXX), rejection→DRAFT (promotion pattern), ProgramSlab status column removed from scope",
-      "scope": "Model classes, MakerCheckerServiceImpl, TierChangeApplier, design artifacts",
+      "scope": "Model classes, MakerCheckerService<T>, TierApprovalHandler, design artifacts",
       "severity": "MODERATE",
       "changes": [
         "SC-1: All date/time fields changed from Instant to Date with @JsonFormat(XXX) — matches promotion pattern",
-        "SC-2: MC rejection now reverts entity to DRAFT via ChangeApplier.revert()",
-        "SC-3: MakerCheckerServiceImpl refactored to constructor injection with ChangeApplier registry",
-        "SC-4: TierChangeApplier.revert() implemented — sets tier back to DRAFT on rejection",
+        "SC-2: MC rejection now reverts entity to DRAFT via ApprovableEntityHandler.postReject()",
+        "SC-3: MakerCheckerService<T> uses generic state machine with ApprovableEntityHandler registry",
+        "SC-4: TierApprovalHandler.postReject() implemented — sets tier back to DRAFT on rejection",
         "SC-5: ProgramSlab status column, findActiveByProgram(), Flyway migration ALL removed from scope",
         "SC-6: 01b-migrator.md M-1 and M-2 marked NOT NEEDED"
       ],
       "affected_files": [
-        "BasicDetails.java", "TierMetadata.java", "PendingChange.java",
-        "TierFacade.java", "MakerCheckerServiceImpl.java", "TierChangeApplier.java",
-        "TierFacadeTest.java", "MakerCheckerServiceImplTest.java",
+        "BasicDetails.java", "TierMetadata.java",
+        "TierFacade.java", "TierApprovalHandler.java",
+        "TierFacadeTest.java", "TierApprovalHandlerTest.java",
         "03-designer.md", "01-architect.md", "01b-migrator.md",
         "blocker-decisions.md", "session-memory.md"
+      ],
+      "resolved": true
+    },
+    {
+      "id": 4,
+      "date": "2026-04-16",
+      "trigger": "manual",
+      "reason": "Migration: Delete custom makerchecker/ package (17 files), adopt Baljeet's generic makechecker/ framework (ApprovableEntity, ApprovableEntityHandler, MakerCheckerService<T>)",
+      "scope": "All tier MC code + all pipeline artifacts (HLD, LLD, api-handoff, session-memory, tests, QA, etc.)",
+      "severity": "DEEP",
+      "changes": [
+        "SC-1: Delete entire makerchecker/ package (17 files: MakerCheckerService, MakerCheckerServiceImpl, MakerCheckerFacade, MakerCheckerController, TierChangeApplier, ChangeApplier, PendingChange, MakerCheckerConfig, enums, DTOs)",
+        "SC-2: UnifiedTierConfig implements ApprovableEntity (status transitions on entity)",
+        "SC-3: TierApprovalHandler implements ApprovableEntityHandler<UnifiedTierConfig> (replaces TierChangeApplier)",
+        "SC-4: TierFacade.createTier() always DRAFT (no MC toggle), add submitForApproval/handleApproval/listPendingApprovals",
+        "SC-5: TierReviewController (POST /v3/tiers/{tierId}/submit, /approve, GET /approvals) replaces MakerCheckerController",
+        "SC-6: EmfMongoConfig cleaned (removed PendingChangeRepository, MakerCheckerConfigRepository)",
+        "SC-7: Tests rewritten: 38 pass (23 TierFacade + 15 TierApprovalHandler)",
+        "SC-8: All 25 pipeline artifacts updated to reflect new architecture"
+      ],
+      "affected_files": [
+        "UnifiedTierConfig.java", "TierApprovalHandler.java (new)", "TierFacade.java",
+        "TierReviewController.java (new)", "EmfMongoConfig.java",
+        "TierFacadeTest.java", "TierApprovalHandlerTest.java (new)",
+        "01-architect.md", "03-designer.md", "api-handoff.md", "session-memory.md",
+        "04b-business-tests.md", "05-sdet.md", "04-qa.md", "00-prd.md", "00-prd-machine.md",
+        "cross-repo-trace.md", "backend-readiness.md", "07-reviewer.md",
+        "api-handoff-docs.html", "live-dashboard.html", "tiers-crud-blueprint.html"
       ],
       "resolved": true
     }

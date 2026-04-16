@@ -9,9 +9,9 @@
 
 | # | Source | Question | Classification | Resolution |
 |---|--------|---------|---------------|------------|
-| C-1 | Critic | No Thrift method for tier sync | BLOCKER | New Thrift method configureTier() |
-| C-2 | Critic | PartnerProgramSlab cascade on stop | SCOPE | Block (409) if references exist |
-| C-3 | Critic | PeProgramSlabDao blast radius | FEASIBILITY | Expand-then-contract migration |
+| C-1 | Critic | No Thrift method for tier sync | BLOCKER | Use existing createSlabAndUpdateStrategies. No IDL change. |
+| C-2 | Critic | PartnerProgramSlab cascade on deletion | SCOPE | Deferred to future tier retirement epic. Not applicable for DRAFT-only deletion. |
+| C-3 | Critic | PeProgramSlabDao blast radius | FEASIBILITY | No SQL changes needed. (Rework #3) |
 | C-4 | Critic | Threshold validation oversimplified | FEASIBILITY | Deferred to HLD |
 | C-5 | Critic | "Scheduled" KPI undefined | SCOPE | Replace with "Pending Approval" |
 | C-6 | Critic | MC framework scope vs registry | SCOPE | Accepted -- same developer |
@@ -43,14 +43,14 @@
 | GQ-2 | Bootstrap sync for existing programs? | SCOPE | NO. New programs only. User override. |
 | GQ-3 | Multiple drafts per ACTIVE tier? | SCOPE | One DRAFT per ACTIVE. Flow A (ACTIVE stays live). |
 | GQ-4 | Benefits linkage format? | SCOPE | benefitIds only. User override. |
-| GQ-5 | MC notification mechanism? | FEASIBILITY | Hook interface only. |
-| GQ-6 | PendingChange snapshot or diff? | FEASIBILITY | Full snapshot. |
+| GQ-5 | Approval notification mechanism? | FEASIBILITY | Hook interface only. |
+| GQ-6 | ApprovalRecord snapshot or diff? | FEASIBILITY | Full snapshot. |
 
 ## Open Questions from BA
 
 | # | Question | Classification | Resolution |
 |---|---------|---------------|------------|
-| BA-1 | Thrift method signature | FEASIBILITY | Deferred to HLD. Method name: configureTier() |
+| BA-1 | Thrift method signature | FEASIBILITY | RESOLVED — Use existing createSlabAndUpdateStrategies. Wrapper methods only. |
 | BA-2 | Member count cache refresh | FEASIBILITY | Cron job every 10 min. GROUP BY query. |
 | BA-3 | MC notification | FEASIBILITY | Hook interface (resolved by GQ-5) |
 | BA-4 | Benefits linkage | SCOPE | benefitIds only (resolved by GQ-4) |

@@ -129,18 +129,15 @@ graph TB
     end
     subgraph "intouch-api-v3"
         TC[TierController<br/>/v3/tiers]
-        MCC[MakerCheckerController<br/>/v3/maker-checker]
+        TRC[TierReviewController<br/>/v3/tiers/{tierId}/approve]
         TF[TierFacade]
-        MCF[MakerCheckerFacade]
-        MCS[MakerCheckerService]
-        TCA[TierChangeApplier]
+        MCS["MakerCheckerService&lt;T&gt;<br/>(generic)"]
+        TAH[TierApprovalHandler]
         TR[TierRepository]
-        PCR[PendingChangeRepository]
         TVS[TierValidationService]
     end
     subgraph "MongoDB"
         UTC[(unified_tier_configs)]
-        PC[(pending_changes)]
     end
     subgraph "emf-parent via Thrift"
         PERS[PointsEngineRuleService]
@@ -148,18 +145,15 @@ graph TB
         ST[(strategies)]
     end
     UI --> TC
-    UI --> MCC
+    UI --> TRC
     TC --> TF
-    MCC --> MCF
+    TRC --> MCS
     TF --> TR
     TF --> TVS
     TF --> MCS
-    MCF --> MCS
-    MCS --> TCA
-    MCS --> PCR
+    MCS --> TAH
     TR --> UTC
-    PCR --> PC
-    TCA -.->|Thrift - Layer 3| PERS
+    TAH -.->|Thrift - Layer 3| PERS
     PERS --> PS
     PERS --> ST
 </div>
@@ -193,12 +187,11 @@ stateDiagram-v2
   <tr><td><code>POST</code></td><td>/v3/tiers</td><td>Create tier</td><td><span class="badge pass">Logic done</span></td></tr>
   <tr><td><code>PUT</code></td><td>/v3/tiers/{id}</td><td>Edit (versioned)</td><td><span class="badge pass">Logic done</span></td></tr>
   <tr><td><code>DELETE</code></td><td>/v3/tiers/{id}</td><td>Soft-delete</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>GET</code></td><td>/v3/maker-checker/config</td><td>MC toggle status</td><td><span class="badge partial">Stub</span></td></tr>
-  <tr><td><code>POST</code></td><td>/v3/maker-checker/submit</td><td>Submit for approval</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>POST</code></td><td>/v3/maker-checker/{id}/approve</td><td>Approve change</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>POST</code></td><td>/v3/maker-checker/{id}/reject</td><td>Reject change</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>GET</code></td><td>/v3/maker-checker/pending</td><td>List pending changes</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>GET</code></td><td>/v3/maker-checker/{id}</td><td>Change detail</td><td><span class="badge partial">Stub</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/tiers/{tierId}/submit</td><td>Submit for approval</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/tiers/{tierId}/approve</td><td>Approve change</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>POST</code></td><td>/v3/tiers/{tierId}/reject</td><td>Reject change</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/tiers/approvals</td><td>List pending approvals</td><td><span class="badge pass">Logic done</span></td></tr>
+  <tr><td><code>GET</code></td><td>/v3/tiers/{tierId}/approval</td><td>Approval detail</td><td><span class="badge pass">Logic done</span></td></tr>
 </table>
 <p style="color:var(--muted); font-size:12px;">Full API reference: <a href="api-handoff-docs.html" style="color:var(--accent);">api-handoff-docs.html</a></p>
 </section>
@@ -211,9 +204,9 @@ stateDiagram-v2
   <tr><td><code>tier/enums/</code></td><td>5</td><td>TierStatus, CriteriaType, ActivityRelation, DowngradeSchedule, DowngradeTargetType</td></tr>
   <tr><td><code>tier/model/</code></td><td>9</td><td>BasicDetails, EligibilityCriteria, Activity, RenewalConfig, DowngradeConfig, DowngradeTo, MemberStats, EngineConfig, TierMetadata</td></tr>
   <tr><td><code>tier/dto/</code></td><td>4</td><td>TierCreateRequest, TierUpdateRequest, TierListResponse, KpiSummary</td></tr>
-  <tr><td><code>tier/</code></td><td>5</td><td>UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierChangeApplier</td></tr>
-  <tr><td><code>makerchecker/</code></td><td>12</td><td>Generic MC framework (service, facade, repos, enums, DTOs, notification)</td></tr>
-  <tr><td><code>resources/</code></td><td>2</td><td>TierController, MakerCheckerController (skeleton - needs wiring)</td></tr>
+  <tr><td><code>tier/</code></td><td>5</td><td>UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierApprovalHandler</td></tr>
+  <tr><td><code>makechecker/</code></td><td>12</td><td>Generic approval framework (service, facade, repos, enums, DTOs, notification)</td></tr>
+  <tr><td><code>resources/</code></td><td>2</td><td>TierController, TierReviewController (fully wired)</td></tr>
 </table>
 
 <h3>Test Classes (4 files, 28 tests)</h3>
@@ -221,8 +214,8 @@ stateDiagram-v2
   <tr><th>Test</th><th>Methods</th><th>Covers</th></tr>
   <tr><td>TierFacadeTest</td><td>12</td><td>Listing, create, edit (versioned), delete</td></tr>
   <tr><td>TierValidationServiceTest</td><td>6</td><td>Name, color, date, uniqueness, serial, cap</td></tr>
-  <tr><td>MakerCheckerServiceImplTest</td><td>7</td><td>Submit, approve, reject, list, notification</td></tr>
-  <tr><td>TierChangeApplierTest</td><td>3</td><td>Entity type, apply, version swap</td></tr>
+  <tr><td>MakerCheckerServiceTest</td><td>7</td><td>Submit, approve, reject, list, notification</td></tr>
+  <tr><td>TierApprovalHandlerTest</td><td>3</td><td>Entity type, apply, version swap</td></tr>
 </table>
 </section>
 
@@ -245,7 +238,7 @@ stateDiagram-v2
 <table>
   <tr><th>Risk</th><th>Severity</th><th>Mitigation</th><th>Status</th></tr>
   <tr><td>R1: CSV index off-by-one</td><td>HIGH</td><td>Unit test with 3,4,5+ slabs. serialNumber-2 = CSV index.</td><td>Test planned (BT-81)</td></tr>
-  <tr><td>R2: Downgrade race condition</td><td>MEDIUM</td><td>@Lockable on TierChangeApplier</td><td>Pending (Layer 3)</td></tr>
+  <tr><td>R2: Downgrade race condition</td><td>MEDIUM</td><td>@Lockable on TierApprovalHandler</td><td>Pending (Layer 3)</td></tr>
   <tr><td>R3: Strategy ID preservation</td><td>MEDIUM</td><td>Fetch existing ID before update</td><td>Test planned (BT-87)</td></tr>
   <tr><td>R4: Member count index</td><td>MEDIUM</td><td>INDEX on customer_enrollment</td><td>Pending (Layer 4)</td></tr>
   <tr><td>R5: Timezone drift</td><td>MEDIUM</td><td>java.util.Date + @JsonFormat(XXX) &mdash; promotion pattern (Rework #3)</td><td><span class="badge pass">Mitigated</span></td></tr>
@@ -261,16 +254,16 @@ stateDiagram-v2
   <li><s>ProgramSlab.java: add status field</s> &mdash; NOT NEEDED (Rework #3)</li>
   <li><s>PeProgramSlabDao: add findActiveByProgram()</s> &mdash; NOT NEEDED (Rework #3)</li>
   <li>PointsEngineRulesThriftService: add wrapper methods</li>
-  <li>TierChangeApplier: wire Thrift, add @Lockable, implement CREATE/DELETE sync</li>
+  <li>TierApprovalHandler: wire Thrift, add @Lockable, implement CREATE/DELETE sync</li>
 </ul>
 </div>
 <div class="card">
 <h3>Layer 4: Integration + Cache</h3>
 <ul style="color:var(--muted); font-size:13px; padding-left:20px;">
   <li>Wire TierController &rarr; TierFacade (REST endpoints functional)</li>
-  <li>Wire MakerCheckerController &rarr; MakerCheckerFacade</li>
+  <li>Wire TierReviewController &rarr; MakerCheckerService&lt;T&gt;</li>
   <li>Add @ExceptionHandler for validation/state/not-found errors</li>
-  <li>Integrate isMakerCheckerEnabled with OrgConfigService</li>
+  <li>MC always on — no config toggle</li>
   <li>Member count cron job (every 10 min)</li>
   <li>MongoDB compound indexes (@CompoundIndex or startup initializer)</li>
   <li>Integration tests (TierIntegrationTest, MakerCheckerIntegrationTest)</li>

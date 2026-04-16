@@ -32,7 +32,7 @@
 | D-09 | Tier deletion strategy | (a) Soft-delete with status (b) Hide from UI only (c) True delete | ~~(a) Soft-delete with status column on program_slabs~~ **SUPERSEDED (Rework #3)**: DRAFT-only deletion in MongoDB (set DELETED). No SQL status column — SQL only has ACTIVE tiers. | ~~Enables tier lifecycle (DRAFT/ACTIVE/STOPPED).~~ MongoDB owns lifecycle. SQL unaffected. |
 | D-10 | Data storage for tier config | (a) Aggregate from existing (b) Normalize new tables (c) Hybrid | Dual-storage: MongoDB draft + SQL live (same as unified promotions) | Follows existing UnifiedPromotion pattern. MongoDB for draft/pending, SQL for engine-readable entities. Thrift sync on approval. |
 | D-11 | Member counts in listing | (a) Include live (b) Exclude (c) Include cached | (c) Cached counts, included in response | customer_enrollment is hot table, no existing count-by-slab query. 5-15 min refresh sufficient for UI. |
-| D-12 | Maker-checker framework design | (a) Full generic framework (b) Tier-specific with extension points | (a) Full generic framework | Layer 1 shared module. PendingChange entity, MakerCheckerService interface, ChangeApplier strategy. Tiers first consumer. |
+| D-12 | Approval framework design | (a) Full generic framework (b) Tier-specific with extension points | (a) Full generic framework | Layer 1 shared module. ApprovalRecord entity, MakerCheckerService interface, ApprovableEntityHandler strategy. Tiers first consumer. |
 | D-13 | Tier editing approach | (a) Versioned edits (b) In-place with MC (c) Hybrid by field type | (a) Versioned edits with parentId (same as unified promotions) | Full rollback capability. Consistent with existing codebase pattern. ACTIVE stays live until new version approved. |
 | D-14 | API hosting | intouch-api-v3 vs emf-parent vs other | intouch-api-v3 (REST + MongoDB) -> Thrift -> emf-parent (SQL) | Same architecture as unified promotions. intouch-api-v3 has MongoDB access and existing approval patterns. |
 | D-15 | MC toggle granularity | (a) Per-program (b) Per-program + per-entity-type (c) Per-program + per-role | (b) Per-program + per-entity-type | Generic framework needs entity-type granularity. Different entities may have different risk profiles. |
@@ -40,9 +40,9 @@
 ## Decisions Made During Phase 4 (Blocker Resolution)
 | # | Question | Options Presented | Chosen | Reasoning |
 |---|----------|-------------------|--------|-----------|
-| D-16 | BLOCKER: Thrift sync method missing | (a) New Thrift method (b) Direct DB (c) REST (d) Shared lib | (a) New Thrift method configureTier() | Preserves service boundary. SQL write stays in emf-parent. Consistent with architecture. |
-| D-17 | PartnerProgramSlab cascade on stop | (a) Block (b) Cascade (c) Warn (d) Defer | (a) Block (409 Conflict) | Safest. Prevents silent corruption. Cascade deferred to Anuj's SPP epic. |
-| D-18 | PeProgramSlabDao blast radius | Expand-then-contract (recommended) | ~~Accepted. New findActiveByProgram() + unchanged findByProgram().~~ **SUPERSEDED (Rework #3)**: No SQL changes needed. No findActiveByProgram(). No Flyway migration. | ~~Zero regression risk.~~ Risk eliminated entirely — no emf-parent entity/DAO changes. |
+| D-16 | BLOCKER: Thrift sync method missing | (a) New Thrift method (b) Direct DB (c) REST (d) Shared lib | (a) Use existing createSlabAndUpdateStrategies | Thrift methods already exist in pointsengine_rules.thrift. Just add wrapper methods. No IDL change needed. |
+| D-17 | PartnerProgramSlab cascade on deletion | (a) Block (b) Cascade (c) Warn (d) Defer | (d) Defer | Not applicable for DRAFT-only deletion (DRAFTs have no SQL record). Deferred to future tier retirement epic. |
+| D-18 | PeProgramSlabDao impact | No changes needed | ~~Expand-then-contract.~~ **SUPERSEDED (Rework #3)**: No SQL changes. SQL only has ACTIVE tiers. No findActiveByProgram(). No Flyway migration. | Risk eliminated entirely — no emf-parent entity/DAO changes. |
 | D-19 | Tier Duration field | (a) Add to MongoDB (b) Derive from strategy (c) Defer | (a) Add startDate/endDate to MongoDB doc | UI requires it. Maps to membership validity period. |
 | D-20 | isDowngradeOnReturnEnabled | (a) Preserve hidden (b) Surface (c) Deprecate | (a) Preserve hidden, pass through | Existing toggle. Product decision to surface/deprecate is out of scope. |
 | D-21 | Notification templates | (a) Store both (b) Detail only (c) Text only | (a) Store both nudges text + notificationConfig | UI needs text. Engine needs config. Coexist independently. |
@@ -50,7 +50,7 @@
 | D-23 | Bootstrap sync for existing programs | (a) Auto-bootstrap (b) New programs only | (b) New programs only (user override) | No migration. Old programs keep current system. |
 | D-24 | Edit flow (ACTIVE stays live?) | Flow A (ACTIVE stays live) vs Flow B (ACTIVE -> SNAPSHOT immediately) | Flow A (ACTIVE stays live until approval) | Zero downtime. Same as unified promotions. Live traffic always served. |
 | D-25 | Benefits in listing | (a) Summary (b) Full config (c) IDs only | (c) benefitIds only (user override) | Keeps tier API decoupled from benefits. UI fetches separately. |
-| D-26 | MC notification | Hook interface only (NotificationHandler) | Accepted | Keeps framework focused. Real notifications are separate concern. |
-| D-27 | PendingChange format | (a) Full snapshot (b) Diff | (a) Full snapshot | Simpler. Approver sees full state. ChangeApplier needs full config. |
+| D-26 | Approval notification | Hook interface only (NotificationHandler) | Accepted | Keeps framework focused. Real notifications are separate concern. |
+| D-27 | ApprovalRecord format | (a) Full snapshot (b) Diff | (a) Full snapshot | Simpler. Approver sees full state. TierApprovalHandler needs full config. |
 | D-28 | "Scheduled" KPI | (a) Replace with "Pending Approval" (b) Add goLiveDate (c) Return 0 | (a) Replace with pendingApprovalTiers | No scheduled concept for tiers. Pending Approval is meaningful. |
 | D-29 | Member count cache | Cron every 10 min | Accepted | Predictable load. GROUP BY query on customer_enrollment. |

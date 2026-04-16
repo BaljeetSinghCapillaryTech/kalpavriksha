@@ -15,9 +15,9 @@
 - **Errors**: 23 (skeleton methods throw `UnsupportedOperationException`)
 - **Failures**: 0
 - **Skipped**: 0
-- **Sample failures**: `TierFacade.listTiers()` → UnsupportedOperationException, `MakerCheckerServiceImpl.submit()` → UnsupportedOperationException, `TierValidationService.validateCreate()` → UnsupportedOperationException
+- **Sample failures**: `TierFacade.listTiers()` → UnsupportedOperationException, `MakerCheckerService<T>.submitForApproval()` → UnsupportedOperationException, `TierValidationService.validateCreate()` → UnsupportedOperationException
 
-**Command**: `mvn test -pl . -Dtest="com.capillary.intouchapiv3.tier.*Test,com.capillary.intouchapiv3.makerchecker.*Test" -am`
+**Command**: `mvn test -pl . -Dtest="com.capillary.intouchapiv3.tier.*Test,com.capillary.intouchapiv3.makechecker.*Test" -am`
 
 ---
 
@@ -46,11 +46,10 @@
 | `tier/enums/` | TierStatus, CriteriaType, ActivityRelation, DowngradeSchedule, DowngradeTargetType (5) | Status & config enums |
 | `tier/model/` | BasicDetails, EligibilityCriteria, Activity, RenewalConfig, DowngradeConfig, DowngradeTo, MemberStats, EngineConfig, TierMetadata (9) | Domain model POJOs |
 | `tier/dto/` | TierCreateRequest, TierUpdateRequest, TierListResponse, KpiSummary (4) | REST DTOs |
-| `tier/` | UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierChangeApplier (5) | Core tier module |
-| `makerchecker/enums/` | EntityType, ChangeType, ChangeStatus (3) | MC enums |
-| `makerchecker/dto/` | SubmitChangeRequest, ApprovalRequest, RejectionRequest (3) | MC DTOs |
-| `makerchecker/` | PendingChange, PendingChangeRepository, ChangeApplier, MakerCheckerService, MakerCheckerServiceImpl, MakerCheckerFacade, NotificationHandler, NoOpNotificationHandler (8) | Generic MC framework |
-| `resources/` | TierController, MakerCheckerController (2) | REST controllers |
+| `tier/` | UnifiedTierConfig, TierRepository, TierFacade, TierValidationService, TierApprovalHandler (5) | Core tier module |
+| `makechecker/` (imported) | MakerCheckerService<T>, ApprovableEntity, ApprovableEntityHandler<T>, PendingChange, NotificationHandler (5) | Generic MC framework (from Baljeet's makechecker package) |
+| `tier/approvals/` | TierApprovalHandler (extends ApprovableEntityHandler<UnifiedTierConfig>) (1) | Tier-specific approval handler |
+| `resources/` | TierController, TierReviewController (2) | REST controllers |
 
 **All methods throw `UnsupportedOperationException("Not implemented — skeleton for RED phase")`** except enums, models (Lombok), and interfaces.
 
@@ -60,8 +59,8 @@
 |------|-------|-----------------------------|
 | `TierFacadeTest.java` | 12 | BT-01..BT-05 (listing), BT-10..BT-14 (create), BT-20..BT-25 (edit), BT-30..BT-34 (delete) |
 | `TierValidationServiceTest.java` | 6 | BT-40..BT-51 (validation: names, colors, dates, uniqueness, serial, cap) |
-| `MakerCheckerServiceImplTest.java` | 7 | BT-60..BT-70 (submit, approve, reject, list, notification) |
-| `TierChangeApplierTest.java` | 3 | BT-80..BT-87 (entity type, apply create, version swap) |
+| `TierApprovalHandlerTest.java` | 7 | BT-60..BT-70 (submit via facade, approve, reject, list, notification) |
+| `TierFacadeApprovalTest.java` | 3 | BT-80..BT-87 (approval flow, apply, version swap) |
 
 ### Integration Tests (deferred to Developer)
 
@@ -69,6 +68,7 @@ ITs extend `AbstractContainerTest` which requires the full Spring Boot context +
 1. MongoDB test config for `unified_tier_configs` and `pending_changes` collections (extend `EmfMongoConfigTest`)
 2. Thrift service mocks (`@MockBean` for `PointsEngineRulesThriftService`)
 3. Auth setup (SecurityContext with IntouchUser)
+4. REST endpoint tests for `TierController` and `TierReviewController` (new endpoints: `/v3/tiers/{tierId}/submit`, `/approve`, `/reject`, `/approvals`)
 
 These are planned but deferred to Developer phase when production code exists and can be wired.
 
@@ -92,7 +92,7 @@ These are planned but deferred to Developer phase when production code exists an
 ```bash
 # RED phase (current — tests FAIL)
 export JAVA_HOME=/Users/ritwikranjan/.sdkman/candidates/java/17.0.17-amzn
-mvn test -pl . -Dtest="com.capillary.intouchapiv3.tier.*Test,com.capillary.intouchapiv3.makerchecker.*Test" -am
+mvn test -pl . -Dtest="com.capillary.intouchapiv3.tier.*Test,com.capillary.intouchapiv3.approval.*Test" -am
 
 # GREEN phase (after Developer writes production code — tests should PASS)
 mvn test -pl . -am
@@ -111,7 +111,7 @@ Replace skeleton methods in these files with real business logic:
 |----------|---------------|-------------------|-----------|
 | 1 | `TierValidationService` | 6 tests | Name/color/date validation, uniqueness check, serial assignment, 50-cap |
 | 2 | `TierFacade` | 12 tests | MC toggle check, CRUD orchestration, versioned edit, KPI summary |
-| 3 | `MakerCheckerServiceImpl` | 7 tests | Submit/approve/reject lifecycle, notification hooks |
-| 4 | `TierChangeApplier` | 3 tests | MongoDB→Thrift conversion, version swap |
-| 5 | `TierController` | (IT) | REST endpoints wiring |
-| 6 | `MakerCheckerController` | (IT) | MC REST endpoints wiring |
+| 3 | `TierApprovalHandler` (implements `ApprovableEntityHandler<UnifiedTierConfig>`) | 7 tests | Apply approval: MongoDB→Thrift conversion, version swap, strategy building |
+| 4 | `TierFacade.submitForApproval`, `handleApproval`, `handleRejection`, `listPendingApprovals` | 3 tests | MC lifecycle integration via generic `MakerCheckerService<T>` |
+| 5 | `TierController` | (IT) | REST endpoints wiring (CRUD) |
+| 6 | `TierReviewController` | (IT) | Approval endpoints wiring (`/submit`, `/approve`, `/reject`, `/approvals`, `/config`) |

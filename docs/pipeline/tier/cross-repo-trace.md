@@ -13,7 +13,7 @@ sequenceDiagram
     participant TC as TierController<br/>(intouch-api-v3)
     participant TF as TierFacade<br/>(intouch-api-v3)
     participant TR as TierRepository<br/>(MongoDB)
-    participant MCS as MakerCheckerService<br/>(intouch-api-v3)
+    participant MCS as MakerCheckerService<br/>(makechecker package)
     
     UI->>TC: POST /v3/tiers {tierConfig}
     TC->>TF: createTier(orgId, tierConfig)
@@ -26,7 +26,7 @@ sequenceDiagram
     else MC disabled
         TF->>TR: save(UnifiedTierConfig{status=ACTIVE})
         TF->>TF: syncToSQL(tierConfig)
-        Note over TF: calls TierChangeApplier
+        Note over TF: calls TierApprovalHandler
         TF-->>TC: TierConfig{status=ACTIVE}
     end
     TC-->>UI: ResponseWrapper<TierConfig>
@@ -37,9 +37,9 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant UI as Garuda UI
-    participant MCC as MakerCheckerController<br/>(intouch-api-v3)
-    participant MCS as MakerCheckerService<br/>(intouch-api-v3)
-    participant TCA as TierChangeApplier<br/>(intouch-api-v3)
+    participant TRC as TierReviewController<br/>(intouch-api-v3)
+    participant MCS as MakerCheckerService<br/>(makechecker package)
+    participant TAH as TierApprovalHandler<br/>(intouch-api-v3)
     participant PERTS as PointsEngineRules<br/>ThriftService
     participant EMF as PointsEngineRule<br/>Service (emf-parent)
     participant DB as MySQL<br/>(program_slabs + strategies)
@@ -47,17 +47,17 @@ sequenceDiagram
     UI->>MCC: POST /v3/maker-checker/{id}/approve
     MCC->>MCS: approve(changeId, reviewedBy)
     MCS->>MCS: validate status transition (PENDING_APPROVAL->ACTIVE)
-    MCS->>TCA: apply(pendingChange)
-    TCA->>TCA: extract SlabInfo + StrategyInfo from MongoDB doc
-    TCA->>PERTS: createSlabAndUpdateStrategies(programId, orgId, slabInfo, strategyInfos)
+    MCS->>TAH: publish(pendingChange)
+    TAH->>TAH: extract SlabInfo + StrategyInfo from MongoDB doc
+    TAH->>PERTS: createSlabAndUpdateStrategies(programId, orgId, slabInfo, strategyInfos)
     PERTS->>EMF: Thrift RPC (port 9199)
     EMF->>DB: INSERT/UPDATE program_slabs
     EMF->>DB: INSERT/UPDATE strategies
     EMF-->>PERTS: SlabInfo (created)
-    PERTS-->>TCA: SlabInfo
-    TCA->>TCA: update MongoDB doc status PENDING->ACTIVE
-    TCA->>TCA: if versioned edit: old doc -> SNAPSHOT
-    TCA-->>MCS: success
+    PERTS-->>TAH: SlabInfo
+    TAH->>TAH: update MongoDB doc status PENDING->ACTIVE
+    TAH->>TAH: if versioned edit: old doc -> SNAPSHOT
+    TAH-->>MCS: success
     MCS-->>MCC: PendingChange{status=APPROVED}
     MCC-->>UI: ResponseWrapper<PendingChange>
 ```
@@ -105,29 +105,29 @@ sequenceDiagram
 | Type | File | Why |
 |------|------|-----|
 | NEW | resources/TierController.java | REST endpoints for tier CRUD |
-| NEW | resources/MakerCheckerController.java | REST endpoints for MC submit/approve/reject |
-| NEW | tier/TierFacade.java | Tier business logic + MC integration |
+| NEW | resources/TierReviewController.java | REST endpoints for tier approval workflow |
+| NEW | tier/TierFacade.java | Tier business logic + approval integration |
 | NEW | tier/UnifiedTierConfig.java | MongoDB @Document for tier config |
 | NEW | tier/TierRepository.java | MongoRepository interface |
 | NEW | tier/TierRepositoryImpl.java | Custom MongoDB queries + sharded access |
 | NEW | tier/TierRepositoryCustom.java | Custom query interface |
-| NEW | tier/TierChangeApplier.java | ChangeApplier impl: MongoDB -> Thrift -> SQL |
+| NEW | tier/TierApprovalHandler.java | ApprovableEntityHandler<Tier> impl: MongoDB -> Thrift -> SQL |
 | NEW | tier/TierValidationService.java | Field-level validation |
 | NEW | tier/model/*.java | BasicDetails, EligibilityCriteria, RenewalConfig, DowngradeConfig, etc. |
-| NEW | tier/enums/TierStatus.java | DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, STOPPED, DELETED, SNAPSHOT |
+| NEW | tier/enums/TierStatus.java | DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT |
 | NEW | tier/dto/TierCreateRequest.java | Create request DTO |
 | NEW | tier/dto/TierUpdateRequest.java | Update request DTO |
 | NEW | tier/dto/TierListResponse.java | List response with KPI summary |
-| NEW | makerchecker/MakerCheckerService.java | Generic MC service interface |
-| NEW | makerchecker/MakerCheckerServiceImpl.java | MC implementation |
-| NEW | makerchecker/ChangeApplier.java | Strategy interface for domain-specific sync |
-| NEW | makerchecker/PendingChange.java | MongoDB @Document for pending changes |
-| NEW | makerchecker/PendingChangeRepository.java | MongoRepository for pending changes |
-| NEW | makerchecker/enums/EntityType.java | TIER, BENEFIT, SUBSCRIPTION, etc. |
-| NEW | makerchecker/enums/ChangeStatus.java | PENDING_APPROVAL, APPROVED, REJECTED |
-| NEW | makerchecker/dto/SubmitChangeRequest.java | Submit request |
-| NEW | makerchecker/dto/ApprovalRequest.java | Approve/reject request |
-| NEW | makerchecker/NotificationHandler.java | Hook interface for notifications |
+| NEW | makechecker/MakerCheckerService.java | Generic approval service interface |
+| NEW | makechecker/MakerCheckerServiceImpl.java | Approval implementation |
+| NEW | makechecker/ApprovableEntityHandler.java | Strategy interface for domain-specific sync |
+| NEW | makechecker/ApprovalRecord.java | MongoDB @Document for approval tracking |
+| NEW | makechecker/ApprovalRepository.java | MongoRepository for approvals |
+| NEW | makechecker/enums/EntityType.java | TIER, BENEFIT, SUBSCRIPTION, etc. |
+| NEW | makechecker/enums/ApprovalStatus.java | PENDING, APPROVED, REJECTED |
+| NEW | makechecker/dto/ApprovalRequest.java | Approval request DTO |
+| NEW | makechecker/dto/ApprovalDecision.java | Approval/rejection decision DTO |
+| NEW | makechecker/NotificationHandler.java | Hook interface for notifications |
 | MODIFIED | services/thrift/PointsEngineRulesThriftService.java | Add wrapper methods for slab Thrift calls |
 
 **Total: ~25 new files, 1 modified file**
@@ -140,7 +140,7 @@ sequenceDiagram
 | ~~MODIFIED~~ | ~~points/dao/PeProgramSlabDao.java~~ | ~~Add findActiveByProgram() method~~ — NOT NEEDED (Rework #3) |
 | ~~NEW~~ | ~~Flyway migration V__add_program_slab_status.sql~~ | ~~ALTER TABLE + INDEX~~ — NOT NEEDED (Rework #3) |
 
-**Total: ~~1 new file, 2 modified files~~ 0 files — Rework #3 removed all emf-parent entity/DAO changes. SQL only contains ACTIVE tiers.**
+**Total: 0 files — No emf-parent entity/DAO changes needed. SQL only contains ACTIVE tiers, no status column.**
 
 ### Thrift (NO changes needed)
 
@@ -165,12 +165,12 @@ graph LR
         TC[TierController] --> TF[TierFacade]
         TF --> TR[TierRepo<br/>MongoDB]
         TF --> MCS[MakerCheckerService]
-        MCS --> TCA[TierChangeApplier]
-        MC2[MakerCheckerController] --> MCS
+        MCS --> TAH[TierApprovalHandler]
+        TRC[TierReviewController] --> MCS
     end
     
     subgraph "emf-parent"
-        TCA -->|"Thrift: createSlabAndUpdateStrategies<br/>port 9199"| PERS[PointsEngineRuleService]
+        TAH[TierApprovalHandler] -->|"Thrift: createSlabAndUpdateStrategies<br/>port 9199"| PERS[PointsEngineRuleService]
         PERS --> PSD[PeProgramSlabDao]
         PERS --> STR[Strategy]
         PSD --> SQL[(MySQL<br/>program_slabs)]

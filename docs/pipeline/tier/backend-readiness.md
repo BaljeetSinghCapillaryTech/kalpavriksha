@@ -36,6 +36,7 @@ All repository methods include `orgId` as the first parameter — multi-tenancy 
 | `findByOrgIdAndUnifiedTierId` | YES | orgId + unifiedTierId | WARN — needs index |
 | `findByOrgIdAndProgramIdAndParentId` | YES | orgId + programId + parentId | WARN — needs index |
 | `existsByOrgIdAndProgramIdAndBasicDetailsName` | YES | orgId + programId + nested field | WARN — needs compound index |
+| `findByOrgIdAndStatus` | YES | orgId + status | WARN — needs index on ApprovalRepository |
 | `countByOrgIdAndProgramId` | YES | orgId + programId | PASS (same as findBy) |
 
 **W-01: Missing MongoDB indexes (WARNING, C5)**
@@ -49,10 +50,10 @@ db.unified_tier_configs.createIndex({ orgId: 1, programId: 1, "basicDetails.name
 ```
 **Fix**: Add `@CompoundIndex` annotations on `UnifiedTierConfig` or a manual index creation in a startup initializer.
 
-Similarly for `pending_changes`:
+Similarly for `pending_approvals`:
 ```javascript
-db.pending_changes.createIndex({ orgId: 1, status: 1, entityType: 1 })
-db.pending_changes.createIndex({ orgId: 1, status: 1, entityType: 1, programId: 1 })
+db.pending_approvals.createIndex({ orgId: 1, status: 1, entityType: 1 })
+db.pending_approvals.createIndex({ orgId: 1, status: 1, entityType: 1, programId: 1 })
 ```
 
 **1b: N+1 Detection (C7)**: No N+1 patterns found. No DAO calls inside loops.
@@ -65,7 +66,7 @@ db.pending_changes.createIndex({ orgId: 1, status: 1, entityType: 1, programId: 
 
 ### Step 2: Thrift Compatibility (C7)
 
-**PASS** — No `.thrift` IDL files were modified. Existing Thrift methods are used via wrapper (ADR-05). TierChangeApplier currently throws `UnsupportedOperationException` for CREATE/DELETE flows — Thrift integration deferred until wrapper methods are added to `PointsEngineRulesThriftService`.
+**PASS** — No `.thrift` IDL files were modified. Existing Thrift methods are used via wrapper (ADR-05). TierApprovalHandler currently throws `UnsupportedOperationException` for CREATE/DELETE flows — Thrift integration deferred until wrapper methods are added to `PointsEngineRulesThriftService`.
 
 ---
 
@@ -87,9 +88,9 @@ db.pending_changes.createIndex({ orgId: 1, status: 1, entityType: 1, programId: 
 
 ### Step 5: Error Handling at Boundaries
 
-**W-02: TierChangeApplier Thrift call has no error handling (WARNING, C5)**
+**W-02: TierApprovalHandler Thrift call has no error handling (WARNING, C5)**
 
-File: `TierChangeApplier.java`
+File: `TierApprovalHandler.java`
 - The Thrift service is commented out (`// @Autowired private PointsEngineRulesThriftService thriftService`)
 - When implemented, needs: `TTransportException` handling, `TApplicationException` handling, timeout configuration
 - The `@Lockable` annotation (per architect ADR-07) is not yet on the `apply()` method
@@ -97,7 +98,7 @@ File: `TierChangeApplier.java`
 
 **W-03: Controller skeleton throws UnsupportedOperationException to callers (WARNING, C5)**
 
-Files: `TierController.java`, `MakerCheckerController.java`
+Files: `TierController.java`, `TierReviewController.java`
 - All controller methods still throw `UnsupportedOperationException` — they haven't been wired to the Facade yet
 - When wired, need: `@ExceptionHandler` for validation exceptions → 400, state exceptions → 409, not-found → 404
 - **Fix**: Wire controllers to facades. Add global `@ControllerAdvice` exception handler or per-controller `@ExceptionHandler`.
@@ -120,8 +121,8 @@ None.
 | # | Finding | File | Fix | Priority |
 |---|---------|------|-----|----------|
 | W-01 | Missing MongoDB compound indexes | `UnifiedTierConfig.java`, `PendingChange.java` | Add `@CompoundIndex` annotations or startup index initializer | Before production |
-| W-02 | Thrift call has no error handling / no @Lockable | `TierChangeApplier.java:20` | Add when Thrift wrapper is wired | Before Thrift integration |
-| W-03 | Controllers not wired to facades | `TierController.java`, `MakerCheckerController.java` | Wire REST endpoints to facades, add exception handlers | Before API testing |
+| W-02 | Thrift call has no error handling / no @Lockable | `TierApprovalHandler.java:20` | Add when Thrift wrapper is wired | Before Thrift integration |
+| W-03 | Controllers not wired to facades | `TierController.java`, `TierReviewController.java` | Wire REST endpoints to facades, add exception handlers | Before API testing |
 
 ### INFO (1)
 

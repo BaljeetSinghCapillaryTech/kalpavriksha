@@ -67,8 +67,8 @@
 | AC | Requirement | Architect | Designer | QA | BizTest | SDET | Developer | Status |
 |----|------------|-----------|----------|----|---------|------|-----------|--------|
 | US4-AC1 | DELETE soft-deletes | Yes | Yes | TS-D01 | BT-30 | Yes | Yes | PASS |
-| US4-AC2 | Sets STOPPED | Yes | Yes | TS-D01 | BT-30 | Yes | Yes | PASS |
-| US4-AC3 | MC: PendingChange | Yes | Yes | TS-D02 | BT-31 | Yes | Yes | PASS |
+| US4-AC2 | Sets DELETED | Yes | Yes | TS-D01 | BT-30 | Yes | Yes | PASS |
+| US4-AC3 | MC: approval request | Yes | Yes | TS-D02 | BT-31 | Yes | Yes | PASS |
 | US4-AC4 | MC off: immediate | Yes | Yes | TS-D01 | BT-30 | Yes | Yes | PASS |
 | US4-AC5 | Block base tier | Yes | Yes | TS-D03 | BT-33 | Yes | Yes | PASS |
 | US4-AC6 | Stopped excluded | Yes | Yes | TS-D04 | BT-34 | — | — | PARTIAL |
@@ -78,7 +78,7 @@
 
 | AC | Requirement | Architect | Designer | QA | BizTest | SDET | Developer | Status |
 |----|------------|-----------|----------|----|---------|------|-----------|--------|
-| US5-AC1 | POST submit | Yes | Yes | TS-S01 | BT-60 | Yes | Yes | PASS |
+| US5-AC1 | POST /v3/tiers/{tierId}/submit | Yes | Yes | TS-S01 | BT-60 | Yes | Yes | PASS |
 | US5-AC2 | Generic (TIER/BENEFIT) | Yes | Yes | TS-S02 | BT-61 | Yes | Yes | PASS |
 | US5-AC3 | DRAFT->PENDING_APPROVAL | Yes | Yes | TS-S01 | BT-60 | Yes | Yes | PASS |
 | US5-AC4 | Records requestedBy | Yes | Yes | TS-S03 | BT-62 | Yes | Yes | PASS |
@@ -88,9 +88,9 @@
 
 | AC | Requirement | Architect | Designer | QA | BizTest | SDET | Developer | Status |
 |----|------------|-----------|----------|----|---------|------|-----------|--------|
-| US6-AC1 | POST approve | Yes | Yes | TS-A01 | BT-62 | Yes | Yes | PASS |
-| US6-AC2 | POST reject (comment) | Yes | Yes | TS-A02 | BT-63 | Yes | Yes | PASS |
-| US6-AC3 | Calls ChangeApplier | Yes | Yes | TS-A04 | BT-62 | — | Partial | PARTIAL |
+| US6-AC1 | POST /v3/tiers/{tierId}/approve | Yes | Yes | TS-A01 | BT-62 | Yes | Yes | PASS |
+| US6-AC2 | POST /v3/tiers/{tierId}/approvals (reject) | Yes | Yes | TS-A02 | BT-63 | Yes | Yes | PASS |
+| US6-AC3 | Calls TierApprovalHandler | Yes | Yes | TS-A04 | BT-62 | — | Partial | PARTIAL |
 | US6-AC4 | Thrift sync | Yes | Yes | TS-A05 | BT-83 | — | Not yet | PARTIAL |
 | US6-AC5 | Reject: DRAFT revert | Yes | Yes | TS-A02 | BT-65 | Yes | Yes | PASS |
 | US6-AC6 | Records reviewedBy | Yes | Yes | TS-A06 | BT-66 | Yes | Yes | PASS |
@@ -137,13 +137,13 @@ All PARTIAL items are tracked as known remaining work for Layer 3 (emf-parent) a
 | Key Decision | Code Compliance |
 |-------------|-----------------|
 | Dual-storage (MongoDB + SQL) | MongoDB done. SQL deferred. |
-| Generic MC framework | Fully generic: ChangeApplier<T>, EntityType dispatch |
+| Generic approval framework | Fully generic: ApprovableEntityHandler<T>, EntityType dispatch |
 | Versioned edits with parentId | Implemented in TierFacade.createVersionedDraft |
 | One DRAFT per ACTIVE | Checked in createVersionedDraft (findByParentId) |
 | 50-tier cap | Enforced in TierValidationService.assignNextSerialNumber |
 | serialNumber immutable | Preserved in mergeBasicDetails (always from existing) |
-| No PAUSED status | TierStatus enum: no PAUSED value. Confirmed. |
-| PENDING_APPROVAL on ChangeStatus | ChangeStatus enum uses PENDING_APPROVAL. Confirmed. |
+| No PAUSED/STOPPED status | TierStatus enum: only DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT. Confirmed. |
+| PENDING_APPROVAL on approval status | ApprovalStatus enum uses PENDING, APPROVED, REJECTED. Confirmed. |
 
 ### Security Verification (C6)
 

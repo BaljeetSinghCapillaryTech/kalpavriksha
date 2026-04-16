@@ -65,7 +65,7 @@ STOPPED -> (terminal, no transitions)
 | UnifiedPromotionRepository.java | MongoRepository | TierRepository.java |
 | UnifiedPromotionRepositoryImpl.java | Custom MongoDB ops | TierRepositoryImpl.java |
 | UnifiedPromotionRepositoryCustom.java | Custom interface | TierRepositoryCustom.java |
-| EntityOrchestrator.java | SQL sync on approval | TierChangeApplier.java |
+| EntityOrchestrator.java | SQL sync on approval | TierApprovalHandler.java |
 | UnifiedPromotionEditOrchestrator.java | Edit flow | (simpler for tiers) |
 | StatusTransitionValidator.java | State machine | Reuse or extend |
 | PromotionStatus.java | Status enum | TierStatus.java |

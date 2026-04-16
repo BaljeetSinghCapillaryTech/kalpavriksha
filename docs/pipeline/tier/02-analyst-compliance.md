@@ -11,13 +11,13 @@
 
 | # | Architectural Decision / Contract | Compliance | Severity | Evidence |
 |---|-----------------------------------|------------|----------|----------|
-| ADR-01 | Dual-Storage (MongoDB + SQL) | PARTIAL | MEDIUM | MongoDB done (UnifiedTierConfig, PendingChange). SQL sync not yet wired (TierChangeApplier throws for CREATE/DELETE). |
-| ADR-02 | Generic MC Framework | COMPLIANT | — | ChangeApplier<T> interface, MakerCheckerService, PendingChange, EntityType enum all generic. |
+| ADR-01 | Dual-Storage (MongoDB + SQL) | PARTIAL | MEDIUM | MongoDB done (UnifiedTierConfig, PendingChange). SQL sync not yet wired (TierApprovalHandler throws for CREATE/DELETE). |
+| ADR-02 | Generic MC Framework | COMPLIANT | — | ApprovableEntityHandler<T> interface, MakerCheckerService, PendingChange, EntityType enum all generic. |
 | ~~ADR-03~~ | ~~Expand-Then-Contract Migration~~ | ~~NOT STARTED~~ — NOT NEEDED (Rework #3) | ~~HIGH~~ | ~~No Flyway migration script yet. ProgramSlab.status field not added to emf-parent.~~ Removed from scope — SQL only contains ACTIVE tiers. |
-| ADR-04 | Versioned Edits with parentId | COMPLIANT | — | TierFacade.createVersionedDraft sets parentId, version+1. Version swap in TierChangeApplier (new→ACTIVE, old→SNAPSHOT). |
-| ADR-05 | Existing Thrift (No IDL Change) | PARTIAL | MEDIUM | TierChangeApplier has comment for Thrift service but not wired. Wrapper methods not added to PointsEngineRulesThriftService. |
+| ADR-04 | Versioned Edits with parentId | COMPLIANT | — | TierFacade.createVersionedDraft sets parentId, version+1. Version swap in TierApprovalHandler (new→ACTIVE, old→SNAPSHOT). |
+| ADR-05 | Existing Thrift (No IDL Change) | PARTIAL | MEDIUM | TierApprovalHandler has comment for Thrift service but not wired. Wrapper methods not added to PointsEngineRulesThriftService. |
 | ADR-06 | New Programs Only | COMPLIANT | — | No bootstrap sync code. New tier CRUD operates on MongoDB only. |
-| ADR-07 | Atomic Thrift Call | NOT STARTED | MEDIUM | TierChangeApplier doesn't call Thrift yet. When wired, must use single createSlabAndUpdateStrategies call. |
+| ADR-07 | Atomic Thrift Call | NOT STARTED | MEDIUM | TierApprovalHandler doesn't call Thrift yet. When wired, must use single createSlabAndUpdateStrategies call. |
 
 ---
 
@@ -26,11 +26,11 @@
 ### ADR-01: Dual-Storage — PARTIAL (C6)
 - **MongoDB**: `UnifiedTierConfig` @Document(collection="unified_tier_configs") — COMPLIANT
 - **MongoDB**: `PendingChange` @Document(collection="pending_changes") — COMPLIANT
-- **SQL sync**: `TierChangeApplier.apply()` throws `UnsupportedOperationException` for CREATE/DELETE — NOT YET IMPLEMENTED
-- **Evidence**: `TierChangeApplier.java:45` — `"Thrift sync not implemented — requires PointsEngineRulesThriftService wrapper (ADR-05)"`
+- **SQL sync**: `TierApprovalHandler.publish()` throws `UnsupportedOperationException` for CREATE/DELETE — NOT YET IMPLEMENTED
+- **Evidence**: `TierApprovalHandler.java:45` — `"Thrift sync not implemented — requires PointsEngineRulesThriftService wrapper (ADR-05)"`
 
 ### ADR-02: Generic MC — COMPLIANT (C7)
-- `ChangeApplier<T>` generic interface with `EntityType getEntityType()` dispatch
+- `ApprovableEntityHandler<T>` generic interface with `EntityType getEntityType()` dispatch
 - `MakerCheckerService` interface accepts any `EntityType`
 - `PendingChange` stores `entityType` and `payload` (Object)
 - `EntityType` enum: TIER, BENEFIT, SUBSCRIPTION — extensible
@@ -44,10 +44,10 @@
 ### ADR-04: Versioned Edits — COMPLIANT (C7)
 - `TierFacade.updateTier()` — ACTIVE → `createVersionedDraft()` with parentId and version+1
 - `TierFacade.createVersionedDraft()` — checks for existing DRAFT (one DRAFT per ACTIVE)
-- `TierChangeApplier.apply()` — UPDATE with parentId → old=SNAPSHOT, new=ACTIVE
+- `TierApprovalHandler.publish()` — UPDATE with parentId → old=SNAPSHOT, new=ACTIVE
 
 ### ADR-05: Existing Thrift — PARTIAL (C6)
-- Comment in `TierChangeApplier.java:18`: `// @Autowired private PointsEngineRulesThriftService thriftService;`
+- Comment in `TierApprovalHandler.java:18`: `// @Autowired private PointsEngineRulesThriftService thriftService;`
 - Wrapper methods not yet added to `PointsEngineRulesThriftService` in intouch-api-v3
 - **Expected** — Thrift wiring is Layer 3/4 work
 
@@ -55,7 +55,7 @@
 - No bootstrap/sync code for existing programs. Clean separation.
 
 ### ADR-07: Atomic Thrift — NOT STARTED (C7)
-- `@Lockable` not on `TierChangeApplier.apply()` — flagged in backend-readiness W-02
+- `@Lockable` not on `TierApprovalHandler.publish()` — flagged in backend-readiness W-02
 
 ---
 
@@ -73,8 +73,8 @@
 | `MakerCheckerService.reject(...)` | Implemented | EXACT | — |
 | `MakerCheckerService.listPending(...)` | Implemented | EXACT | — |
 | `MakerCheckerService.isMakerCheckerEnabled(...)` | Implemented (stub: returns false) | PARTIAL | Hardcoded false. Needs OrgConfig integration. |
-| `ChangeApplier<T>.apply(change, orgId)` | Implemented (UPDATE only) | PARTIAL | CREATE/DELETE throw UnsupportedOperationException |
-| `ChangeApplier<T>.getEntityType()` | Implemented | EXACT | — |
+| `ApprovableEntityHandler<T>.publish(change, orgId)` | Implemented (UPDATE only) | PARTIAL | CREATE/DELETE throw UnsupportedOperationException |
+| `ApprovableEntityHandler<T>.getEntityType()` | Implemented | EXACT | — |
 | `NotificationHandler` | Implemented (NoOp) | EXACT | — |
 | `TierValidationService` | Implemented | EXACT | — |
 | `TierRepository` (MongoRepository) | Implemented | EXACT | — |
@@ -112,7 +112,7 @@
 
 | # | Finding | Severity | Category | Action |
 |---|---------|----------|----------|--------|
-| F-01 | TierChangeApplier: Thrift sync not wired (CREATE/DELETE) | MEDIUM | ADR-01, ADR-05, ADR-07 | Developer Layer 3: add wrapper methods, wire Thrift, add @Lockable |
+| F-01 | TierApprovalHandler: Thrift sync not wired (CREATE/DELETE) | MEDIUM | ADR-01, ADR-05, ADR-07 | Developer Layer 3: add wrapper methods, wire Thrift, add @Lockable |
 | ~~F-02~~ | ~~Flyway migration not created (program_slabs.status)~~ | ~~HIGH~~ | ~~ADR-03~~ | ~~Developer Layer 3: create V*.sql in emf-parent~~ — NOT NEEDED (Rework #3) |
 | F-03 | isMakerCheckerEnabled hardcoded false | MEDIUM | Interface contract | Developer: integrate with OrgConfig service |
 | F-04 | StatusTransitionValidator not used | LOW | Interface contract | Code uses switch instead. Behavior correct. Refactor optional. |

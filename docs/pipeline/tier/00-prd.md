@@ -95,7 +95,7 @@ The core tier management APIs -- listing, creation, editing, and deletion. All A
 
 ### Epic 2: Generic Maker-Checker Framework (Confidence: C5)
 
-A shared, extensible approval workflow framework. Entity-agnostic by design -- tiers are the first consumer. Benefits, subscriptions, and other entities plug in via the ChangeApplier strategy interface.
+A shared, extensible approval workflow framework. Entity-agnostic by design -- tiers are the first consumer. Benefits, subscriptions, and other entities plug in via the ApprovableEntityHandler strategy interface.
 
 **Dependency**: None -- can be built first (Layer 1 in registry decomposition).
 
@@ -105,13 +105,13 @@ A shared, extensible approval workflow framework. Entity-agnostic by design -- t
 
 | # | Acceptance Criterion |
 |---|---------------------|
-| AC-1 | `POST /v3/maker-checker/submit` accepts entityType, entityId, payload |
-| AC-2 | Generic: works for TIER, BENEFIT, SUBSCRIPTION (via entityType enum) |
-| AC-3 | Creates PendingChange document in MongoDB |
+| AC-1 | `POST /v3/tiers/{tierId}/submit` accepts tier changes for approval |
+| AC-2 | Generic framework works for TIER, BENEFIT, SUBSCRIPTION (via entityType enum) |
+| AC-3 | Creates approval request in MongoDB |
 | AC-4 | Changes entity status to PENDING_APPROVAL |
 | AC-5 | Records requestedBy, timestamp, change summary |
 | AC-6 | Notification hook interface (implementable per entity type) |
-| AC-7 | Returns the PendingChange document with changeId |
+| AC-7 | Returns the approval request with changeId |
 
 #### E2-US6: Approve/Reject
 
@@ -119,14 +119,14 @@ A shared, extensible approval workflow framework. Entity-agnostic by design -- t
 
 | # | Acceptance Criterion |
 |---|---------------------|
-| AC-1 | `POST /v3/maker-checker/{changeId}/approve` approves |
-| AC-2 | `POST /v3/maker-checker/{changeId}/reject` rejects (comment required) |
-| AC-3 | Approve: calls ChangeApplier.apply(payload) for the entity type |
-| AC-4 | TierChangeApplier: syncs MongoDB -> SQL via Thrift on approve |
+| AC-1 | `POST /v3/tiers/{tierId}/approve` approves tier changes |
+| AC-2 | `POST /v3/tiers/{tierId}/approvals` rejects (comment required) |
+| AC-3 | Approve: calls TierApprovalHandler to sync MongoDB -> SQL via Thrift |
+| AC-4 | TierApprovalHandler: syncs MongoDB -> SQL via Thrift on approve |
 | AC-5 | Reject: reverts entity status PENDING_APPROVAL -> DRAFT |
 | AC-6 | Records reviewedBy, timestamp, comment, decision |
-| AC-7 | `GET /v3/maker-checker/pending?entityType=TIER` lists pending changes |
-| AC-8 | `GET /v3/maker-checker/pending` lists ALL pending changes (cross-entity) |
+| AC-7 | `GET /v3/tiers/{tierId}/approvals` lists approval history for tier |
+| AC-8 | `GET /v3/approvals` lists ALL pending approvals (cross-entity) |
 
 #### E2-US7: Maker-Checker Toggle
 
@@ -151,8 +151,8 @@ graph TB
         TC --> TF[TierFacade]
         TF --> TR[TierRepository<br/>MongoDB: unified_tier_configs]
         TF --> MCS[MakerCheckerService]
-        MCS --> PCR[PendingChangeRepository<br/>MongoDB: pending_changes]
-        MCS --> TCA[TierChangeApplier<br/>implements ChangeApplier]
+        MCS --> PCR[ApprovalRepository<br/>MongoDB: pending_approvals]
+        MCS --> TAH[TierApprovalHandler<br/>implements ApprovableEntityHandler]
     end
     
     subgraph "emf-parent (Core + SQL)"
@@ -175,10 +175,10 @@ graph TB
 | POST | `/v3/tiers` | Create tier | DRAFT or ACTIVE (based on MC toggle) |
 | PUT | `/v3/tiers/{tierId}` | Edit tier | Versioned DRAFT or immediate (based on MC toggle) |
 | DELETE | `/v3/tiers/{tierId}` | Delete DRAFT tier (→ DELETED) | Immediate — no MC (DRAFT only, 409 if not DRAFT) |
-| POST | `/v3/maker-checker/submit` | Submit change for approval | Creates PendingChange |
-| POST | `/v3/maker-checker/{changeId}/approve` | Approve pending change | Triggers ChangeApplier |
-| POST | `/v3/maker-checker/{changeId}/reject` | Reject pending change | Reverts to DRAFT |
-| GET | `/v3/maker-checker/pending` | List pending changes | Query PendingChange collection |
+| POST | `/v3/tiers/{tierId}/submit` | Submit tier changes for approval | Creates approval request |
+| POST | `/v3/tiers/{tierId}/approve` | Approve pending tier changes | Triggers TierApprovalHandler |
+| POST | `/v3/tiers/{tierId}/approvals` | Reject pending tier changes | Reverts to DRAFT |
+| GET | `/v3/approvals` | List pending approvals | Query approval collection |
 
 ## Data Model Changes
 
@@ -189,7 +189,7 @@ graph TB
 
 ### MongoDB (new collections)
 - **`unified_tier_configs`**: Full tier configuration documents. Fields: orgId, programId, tierId, unifiedTierId, status, parentId, version, basicDetails{}, eligibilityCriteria{}, renewalConfig{}, downgradeConfig{}, benefits[], memberStats{}, metadata{}, createdBy, createdAt, updatedAt
-- **`pending_changes`**: Generic MC pending changes. Fields: orgId, programId, entityType, entityId, changeType (CREATE/UPDATE/DELETE), payload, status (PENDING/APPROVED/REJECTED), requestedBy, reviewedBy, comment, createdAt, reviewedAt
+- **`pending_approvals`**: Generic framework pending approvals. Fields: orgId, programId, entityType, entityId, changeType (CREATE/UPDATE/DELETE), payload, status (PENDING/APPROVED/REJECTED), requestedBy, reviewedBy, comment, createdAt, reviewedAt
 
 ## Non-Functional Requirements
 

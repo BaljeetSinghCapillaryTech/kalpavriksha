@@ -13,7 +13,7 @@
 |----------|-------|---------------------------|----------|
 | BA Acceptance Criteria | 52 | 52 | 100% |
 | QA Test Scenarios | 89 | 89 | 100% |
-| Designer Interface Methods | 16 (4 TierFacade + 5 MakerCheckerService + 2 TierChangeApplier + 5 TierValidationService) | 16 | 100% |
+| Designer Interface Methods | 16 (4 TierFacade + 5 MakerCheckerService<T> + 2 TierApprovalHandler + 5 TierValidationService) | 16 | 100% |
 | ADRs | 7 (ADR-01 through ADR-07) | 7 | 100% |
 | Risks | 8 (R1-R8) | 8 | 100% |
 | Guardrail Areas | 8 (G-01.7, G-02.3, G-02.7, G-03.1, G-06.1, G-07.4, G-10, G-05.4) | 8 | 100% |
@@ -26,9 +26,9 @@
 | TierFacade -- Creation | 10 | 5 | 15 |
 | TierFacade -- Update | 10 | 4 | 14 |
 | TierFacade -- Deletion | 7 | 3 | 10 |
-| MakerCheckerService | 12 | 4 | 16 |
+| MakerCheckerService<T> | 12 | 4 | 16 |
 | TierValidationService | 14 | 0 | 14 |
-| TierChangeApplier | 10 | 4 | 14 |
+| TierApprovalHandler | 10 | 4 | 14 |
 | ADR Compliance | 4 | 8 | 12 |
 | Guardrail Compliance | 5 | 7 | 12 |
 | Risk Mitigation | 4 | 5 | 9 |
@@ -99,36 +99,36 @@
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-36 | shouldSubmitDraftTierForApproval | US5-AC1, US5-AC3 | entityType=TIER, entityId=draftId | PendingChange created, tier status -> PENDING_APPROVAL | TS-S01 | MakerCheckerService.submit(orgId, entityType, entityId, changeType, payload, requestedBy) | UT |
-| BT-37 | shouldAcceptNonTierEntityType | US5-AC2 | entityType=BENEFIT, entityId=benefitId | PendingChange created (generic framework accepts any EntityType) | TS-S02 | MakerCheckerService.submit | UT |
-| BT-38 | shouldRecordRequestedByAndTimestampAndPayload | US5-AC4 | Submit with userId="user-123" | PendingChange has requestedBy="user-123", requestedAt=now, payload=full snapshot | TS-S03 | MakerCheckerService.submit | UT |
-| BT-39 | shouldInvokeNotificationHandlerOnSubmit | US5-AC5 | Submit a tier | NotificationHandler.onSubmit invoked (no-op default, no error) | TS-S04 | MakerCheckerService.submit (via NotificationHandler) | UT |
-| BT-40 | shouldRejectSubmitOnActiveTier | US5-AC3 | Submit an ACTIVE tier | 400: "Tier is in ACTIVE status. Only DRAFT tiers can be submitted." | TS-S05 | MakerCheckerService.submit | UT |
-| BT-41 | shouldRejectSubmitOnNonExistentEntity | US5-AC1 | Submit with invalid entityId | 404: entity not found | TS-S06 | MakerCheckerService.submit | UT |
-| BT-42 | shouldRejectSubmitOnAlreadyPendingTier | US5-AC3 | Submit on PENDING_APPROVAL tier | 400: "Tier is already pending approval" | TS-S07 | MakerCheckerService.submit | UT |
+| BT-36 | shouldSubmitDraftTierForApproval | US5-AC1, US5-AC3 | entityType=TIER, entityId=draftId | PendingChange created, tier status -> PENDING_APPROVAL | TS-S01 | MakerCheckerService<T>.submitForApproval(orgId, entity, changeType, payload, requestedBy) | UT |
+| BT-37 | shouldAcceptNonTierEntityType | US5-AC2 | entityType=BENEFIT, entityId=benefitId | PendingChange created (generic framework accepts any ApprovableEntity) | TS-S02 | MakerCheckerService<T>.submitForApproval | UT |
+| BT-38 | shouldRecordRequestedByAndTimestampAndPayload | US5-AC4 | Submit with userId="user-123" | PendingChange has requestedBy="user-123", requestedAt=now, payload=full snapshot | TS-S03 | MakerCheckerService<T>.submitForApproval | UT |
+| BT-39 | shouldInvokeNotificationHandlerOnSubmit | US5-AC5 | Submit a tier | NotificationHandler.onSubmit invoked (no-op default, no error) | TS-S04 | MakerCheckerService<T>.submitForApproval (via NotificationHandler) | UT |
+| BT-40 | shouldRejectSubmitOnActiveTier | US5-AC3 | Submit an ACTIVE tier | 400: "Tier is in ACTIVE status. Only DRAFT tiers can be submitted." | TS-S05 | MakerCheckerService<T>.submitForApproval | UT |
+| BT-41 | shouldRejectSubmitOnNonExistentEntity | US5-AC1 | Submit with invalid entityId | 404: entity not found | TS-S06 | MakerCheckerService<T>.submitForApproval | UT |
+| BT-42 | shouldRejectSubmitOnAlreadyPendingTier | US5-AC3 | Submit on PENDING_APPROVAL tier | 400: "Tier is already pending approval" | TS-S07 | MakerCheckerService<T>.submitForApproval | UT |
 
 ### 2.6 MakerCheckerService -- Approve/Reject
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-43 | shouldApproveCreateChangeAndTransitionToActive | US6-AC1, US6-AC4 | changeId for CREATE change | Tier: PENDING_APPROVAL -> ACTIVE, ChangeApplier.apply invoked | TS-A01, TS-A04 | MakerCheckerService.approve(orgId, changeId, reviewedBy, comment) | UT |
-| BT-44 | shouldRejectChangeWithRequiredComment | US6-AC2, US6-AC5 | changeId, comment="Too low" | Tier: PENDING_APPROVAL -> DRAFT, PendingChange: REJECTED | TS-A02 | MakerCheckerService.reject(orgId, changeId, reviewedBy, comment) | UT |
-| BT-45 | shouldRejectWithoutCommentFails | US6-AC2 | changeId, comment=null | 400: "Comment is required when rejecting" | TS-A03 | MakerCheckerService.reject | UT |
-| BT-46 | shouldRecordReviewerDetailsOnApproval | US6-AC6 | Approve with reviewedBy="admin-1" | PendingChange has reviewedBy, reviewedAt, comment populated | TS-A06 | MakerCheckerService.approve | UT |
-| BT-47 | shouldListPendingChangesForEntityType | US6-AC7 | entityType=TIER, programId=977 | Returns all PENDING_APPROVAL PendingChanges for TIER in program 977 | TS-A07 | MakerCheckerService.listPending(orgId, entityType, programId) | UT |
-| BT-48 | shouldApproveVersionedEditAndSwapDocuments | US3-AC8, US6-AC4 | Approve DRAFT with parentId | New doc -> ACTIVE, old doc -> SNAPSHOT | TS-A08, TS-E07 | MakerCheckerService.approve | UT |
-| BT-49 | ~~shouldApproveDeleteChangeAndSetStopped~~ | ~~US4-AC3, US6-AC1~~ | ~~Approve DELETE PendingChange~~ | ~~Tier -> STOPPED, SQL status updated~~ | ~~TS-A09~~ | ~~MakerCheckerService.approve~~ | **OBSOLETE** — no MC flow for deletion; TS-A09 removed in Rework #2 |
-| BT-50 | shouldRejectApprovalOnNonExistentChangeId | US6-AC1 | Non-existent changeId | 404: "Change not found" | TS-A11 | MakerCheckerService.approve | UT |
-| BT-51 | shouldRejectApprovalOnAlreadyProcessedChange | US6-AC1 | changeId already APPROVED | 400: "Change already processed" | TS-A12 | MakerCheckerService.approve | UT |
+| BT-43 | shouldApproveCreateChangeAndTransitionToActive | US6-AC1, US6-AC4 | changeId for CREATE change | Tier: PENDING_APPROVAL -> ACTIVE, ApprovableEntityHandler.apply invoked | TS-A01, TS-A04 | MakerCheckerService<T>.handleApproval(orgId, changeId, reviewedBy, comment) | UT |
+| BT-44 | shouldRejectChangeWithRequiredComment | US6-AC2, US6-AC5 | changeId, comment="Too low" | Tier: PENDING_APPROVAL -> DRAFT, PendingChange: REJECTED | TS-A02 | MakerCheckerService<T>.handleRejection(orgId, changeId, reviewedBy, comment) | UT |
+| BT-45 | shouldRejectWithoutCommentFails | US6-AC2 | changeId, comment=null | 400: "Comment is required when rejecting" | TS-A03 | MakerCheckerService<T>.handleRejection | UT |
+| BT-46 | shouldRecordReviewerDetailsOnApproval | US6-AC6 | Approve with reviewedBy="admin-1" | PendingChange has reviewedBy, reviewedAt, comment populated | TS-A06 | MakerCheckerService<T>.handleApproval | UT |
+| BT-47 | shouldListPendingChangesForEntityType | US6-AC7 | entityType=TIER, programId=977 | Returns all PENDING_APPROVAL PendingChanges for TIER in program 977 | TS-A07 | MakerCheckerService<T>.listPendingApprovals(orgId, entityType, programId) | UT |
+| BT-48 | shouldApproveVersionedEditAndSwapDocuments | US3-AC8, US6-AC4 | Approve DRAFT with parentId | New doc -> ACTIVE, old doc -> SNAPSHOT | TS-A08, TS-E07 | MakerCheckerService<T>.handleApproval | UT |
+| BT-49 | ~~shouldApproveDeleteChangeAndSetStopped~~ | ~~US4-AC3, US6-AC1~~ | ~~Approve DELETE PendingChange~~ | ~~Tier -> STOPPED, SQL status updated~~ | ~~TS-A09~~ | ~~MakerCheckerService<T>.handleApproval~~ | **OBSOLETE** — no MC flow for deletion; TS-A09 removed in Rework #2 |
+| BT-50 | shouldRejectApprovalOnNonExistentChangeId | US6-AC1 | Non-existent changeId | 404: "Change not found" | TS-A11 | MakerCheckerService<T>.handleApproval | UT |
+| BT-51 | shouldRejectApprovalOnAlreadyProcessedChange | US6-AC1 | changeId already APPROVED | 400: "Change already processed" | TS-A12 | MakerCheckerService<T>.handleApproval | UT |
 
 ### 2.7 MakerCheckerService -- Toggle
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-52 | shouldReturnMCEnabledStatus | US7-AC1 | orgId=100, programId=977, entityType=TIER | boolean: true or false | TS-MC01 | MakerCheckerService.isMakerCheckerEnabled(orgId, programId, entityType) | UT |
-| BT-53 | shouldCreateActiveTierDirectlyWhenMCDisabled | US7-AC3 | Create tier, MC disabled | status=ACTIVE, SQL synced immediately | TS-MC03 | TierFacade.createTier (calls isMakerCheckerEnabled) | UT |
-| BT-54 | shouldCreateDraftTierWhenMCEnabled | US7-AC4 | Create tier, MC enabled | status=DRAFT, no SQL sync | TS-MC04 | TierFacade.createTier (calls isMakerCheckerEnabled) | UT |
-| BT-55 | shouldNotAutoActivateExistingDraftsWhenMCToggledOff | US7-AC5 | Toggle MC off, DRAFT tier exists | DRAFT tier stays DRAFT (not auto-activated) | TS-MC05 | MakerCheckerService.isMakerCheckerEnabled | UT |
+| BT-52 | shouldReturnMCEnabledStatus | US7-AC1 | orgId=100, programId=977, entityType=TIER | boolean: true or false | TS-MC01 | TierFacade.isMCEnabled(orgId, programId) | UT |
+| BT-53 | shouldCreateActiveTierDirectlyWhenMCDisabled | US7-AC3 | Create tier, MC disabled | status=ACTIVE, SQL synced immediately | TS-MC03 | TierFacade.createTier (calls isMCEnabled) | UT |
+| BT-54 | shouldCreateDraftTierWhenMCEnabled | US7-AC4 | Create tier, MC enabled | status=DRAFT, no SQL sync | TS-MC04 | TierFacade.createTier (calls isMCEnabled) | UT |
+| BT-55 | shouldNotAutoActivateExistingDraftsWhenMCToggledOff | US7-AC5 | Toggle MC off, DRAFT tier exists | DRAFT tier stays DRAFT (not auto-activated) | TS-MC05 | TierFacade.isMCEnabled | UT |
 
 ### 2.8 TierValidationService
 
@@ -149,20 +149,20 @@
 | BT-68 | shouldEnforceNameUniquenessWithinProgram | US2-AC4 | name="Gold", program already has "Gold" | 409: duplicate name | TS-C06 | TierValidationService | UT |
 | BT-69 | shouldValidateSerialNumberImmutabilityOnEdit | US3-AC6 | Edit attempt changing serialNumber | serialNumber field ignored or rejected | TS-E05 | TierValidationService | UT |
 
-### 2.9 TierChangeApplier
+### 2.9 TierApprovalHandler
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-70 | shouldBuildSlabInfoFromBasicDetails | US6-AC3 | UnifiedTierConfig with basicDetails | SlabInfo with name, description, colorCode, serialNumber, updatedViaNewUI=true | TS-A04 | TierChangeApplier.apply(PendingChange, orgId) | UT |
-| BT-71 | shouldBuildUpgradeStrategyInfoWithThresholdCSV | US6-AC3 | UnifiedTierConfig with eligibility (threshold=5000) | StrategyInfo type=2 (SLAB_UPGRADE), threshold appended to CSV | TS-A05 | TierChangeApplier.apply | UT |
-| BT-72 | shouldBuildDowngradeStrategyInfoFromConfig | US6-AC3 | UnifiedTierConfig with downgrade config | StrategyInfo type=5 (SLAB_DOWNGRADE), TierConfiguration JSON updated | TS-A05 | TierChangeApplier.apply | UT |
-| BT-73 | shouldMapCSVIndexCorrectlyForSerialNumber | US6-AC3 | Tier with serialNumber=4 in 4-tier program | CSV index = serialNumber - 2 = 2 (0-indexed in CSV, base tier has no entry) | TS-A05 | TierChangeApplier.apply | UT |
-| BT-74 | shouldPassOnlyUpgradeAndDowngradeStrategiesToThrift | US6-AC3, US6-AC4 | Full UnifiedTierConfig | Thrift call receives exactly [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies, NOT allocation/expiry | TS-A05 | TierChangeApplier.apply | UT |
-| BT-75 | shouldUpdateSqlSlabIdInMongoAfterSync | US6-AC4 | Approved tier, Thrift returns SlabInfo with id=42 | MongoDB doc metadata.sqlSlabId = 42 | TS-A01 | TierChangeApplier.apply | UT |
-| BT-76 | shouldSwapVersionsOnEditApproval | US3-AC8, US6-AC4 | PendingChange for UPDATE with parentId | New doc -> ACTIVE, old ACTIVE doc -> SNAPSHOT | TS-A08 | TierChangeApplier.apply | UT |
-| BT-77 | shouldPassKpiTypeDirectlyToThrift | US6-AC3 | eligibility.kpiType="PURCHASE" | Thrift current_value_type mapped from kpiType String (no enum conversion) | TS-A05 | TierChangeApplier.apply | UT |
-| BT-78 | shouldSetUpdatedViaNewUIFlagTrue | US6-AC3 | Any tier sync | SlabInfo.updatedViaNewUI = true, StrategyInfo.updatedViaNewUI = true | TS-A05 | TierChangeApplier.apply | UT |
-| BT-79 | ~~shouldApplyDeleteBySettingStatusToStopped~~ | ~~US4-AC2, US4-AC3~~ | ~~PendingChange with changeType=DELETE~~ | ~~MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED~~ | ~~TS-A09~~ | ~~TierChangeApplier.apply~~ | **OBSOLETE** — no MC-gated delete flow; deletion sets DELETED directly on DRAFT with no SQL change (Rework #2) |
+| BT-70 | shouldBuildSlabInfoFromBasicDetails | US6-AC3 | UnifiedTierConfig with basicDetails | SlabInfo with name, description, colorCode, serialNumber, updatedViaNewUI=true | TS-A04 | TierApprovalHandler.publish(PendingChange, orgId) | UT |
+| BT-71 | shouldBuildUpgradeStrategyInfoWithThresholdCSV | US6-AC3 | UnifiedTierConfig with eligibility (threshold=5000) | StrategyInfo type=2 (SLAB_UPGRADE), threshold appended to CSV | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-72 | shouldBuildDowngradeStrategyInfoFromConfig | US6-AC3 | UnifiedTierConfig with downgrade config | StrategyInfo type=5 (SLAB_DOWNGRADE), TierConfiguration JSON updated | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-73 | shouldMapCSVIndexCorrectlyForSerialNumber | US6-AC3 | Tier with serialNumber=4 in 4-tier program | CSV index = serialNumber - 2 = 2 (0-indexed in CSV, base tier has no entry) | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-74 | shouldPassOnlyUpgradeAndDowngradeStrategiesToThrift | US6-AC3, US6-AC4 | Full UnifiedTierConfig | Thrift call receives exactly [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies, NOT allocation/expiry | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-75 | shouldUpdateSqlSlabIdInMongoAfterSync | US6-AC4 | Approved tier, Thrift returns SlabInfo with id=42 | MongoDB doc metadata.sqlSlabId = 42 | TS-A01 | TierApprovalHandler.publish | UT |
+| BT-76 | shouldSwapVersionsOnEditApproval | US3-AC8, US6-AC4 | PendingChange for UPDATE with parentId | New doc -> ACTIVE, old ACTIVE doc -> SNAPSHOT | TS-A08 | TierApprovalHandler.publish | UT |
+| BT-77 | shouldPassKpiTypeDirectlyToThrift | US6-AC3 | eligibility.kpiType="PURCHASE" | Thrift current_value_type mapped from kpiType String (no enum conversion) | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-78 | shouldSetUpdatedViaNewUIFlagTrue | US6-AC3 | Any tier sync | SlabInfo.updatedViaNewUI = true, StrategyInfo.updatedViaNewUI = true | TS-A05 | TierApprovalHandler.publish | UT |
+| BT-79 | ~~shouldApplyDeleteBySettingStatusToStopped~~ | ~~US4-AC2, US4-AC3~~ | ~~PendingChange with changeType=DELETE~~ | ~~MongoDB status -> STOPPED, SQL ProgramSlab status -> STOPPED~~ | ~~TS-A09~~ | ~~TierApprovalHandler.publish~~ | **OBSOLETE** — no MC-gated delete flow; deletion sets DELETED directly on DRAFT with no SQL change (Rework #2) |
 
 ---
 
@@ -183,18 +183,18 @@
 | BT-88 | ~~shouldReturnStoppedTiersOnlyWhenIncludeInactiveTrue~~ | ~~US4-AC6~~ | ~~GET /v3/tiers?programId=977&includeInactive=true~~ | ~~STOPPED tiers included; without flag, STOPPED excluded~~ | ~~TS-L13, TS-L14~~ | ~~TierController -> TierFacade.listTiers~~ | **OBSOLETE** — STOPPED status removed; DELETED is terminal and never surfaced in listings (Rework #2) |
 | BT-89 | shouldExcludeEngineConfigFromListingResponse | US1-AC2 | GET /v3/tiers?programId=977 | engineConfig field absent or null on each tier in listing | TS-L11 | TierController -> TierFacade.listTiers | IT |
 
-### 3.2 API Endpoint Tests (MakerCheckerController)
+### 3.2 API Endpoint Tests (TierReviewController)
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-90 | shouldSubmitChangeViaEndpoint | US5-AC1 | POST /v3/maker-checker/submit with {entityType: TIER, entityId, changeType: CREATE} | 200, PendingChange returned | TS-S01 | MakerCheckerController -> MakerCheckerService.submit | IT |
-| BT-91 | shouldApproveChangeViaEndpoint | US6-AC1 | POST /v3/maker-checker/{changeId}/approve | 200, tier becomes ACTIVE | TS-A01 | MakerCheckerController -> MakerCheckerService.approve | IT |
-| BT-92 | shouldRejectChangeViaEndpoint | US6-AC2 | POST /v3/maker-checker/{changeId}/reject with comment | 200, tier reverts to DRAFT | TS-A02 | MakerCheckerController -> MakerCheckerService.reject | IT |
-| BT-93 | shouldListPendingChangesViaEndpoint | US6-AC7 | GET /v3/maker-checker/pending?entityType=TIER&programId=977 | 200, list of PendingChange objects | TS-A07 | MakerCheckerController -> MakerCheckerService.listPending | IT |
-| BT-94 | shouldReturnMCConfigViaEndpoint | US7-AC1, P75-2 | GET /v3/maker-checker/config?programId=977&entityType=TIER | 200, makerCheckerEnabled: true/false | TS-MC01 | MakerCheckerController -> MakerCheckerService.isMakerCheckerEnabled | IT |
-| BT-95 | shouldReturn400WhenMCConfigMissingProgramId | US7-AC1 | GET /v3/maker-checker/config without programId | 400 error | TS-MC06 | MakerCheckerController | IT |
-| BT-96 | shouldReturnChangeDetailViaEndpoint | P75-3 | GET /v3/maker-checker/{changeId} | 200 OK with full PendingChange including payload snapshot | TS-GC01 | MakerCheckerController | IT |
-| BT-97 | shouldReturn404ForNonExistentChangeDetail | P75-3 | GET /v3/maker-checker/nonexistent | 404 | TS-GC02 | MakerCheckerController | IT |
+| BT-90 | shouldSubmitChangeViaEndpoint | US5-AC1 | POST /v3/tiers/{tierId}/submit | 200, PendingChange returned | TS-S01 | TierReviewController -> TierFacade.submitForApproval | IT |
+| BT-91 | shouldApproveChangeViaEndpoint | US6-AC1 | POST /v3/tiers/{tierId}/approve | 200, tier becomes ACTIVE | TS-A01 | TierReviewController -> TierFacade.handleApproval | IT |
+| BT-92 | shouldRejectChangeViaEndpoint | US6-AC2 | POST /v3/tiers/{tierId}/reject with comment | 200, tier reverts to DRAFT | TS-A02 | TierReviewController -> TierFacade.handleRejection | IT |
+| BT-93 | shouldListPendingChangesViaEndpoint | US6-AC7 | GET /v3/tiers/approvals?programId=977 | 200, list of PendingChange objects | TS-A07 | TierReviewController -> TierFacade.listPendingApprovals | IT |
+| BT-94 | shouldReturnMCConfigViaEndpoint | US7-AC1, P75-2 | GET /v3/tiers/config?programId=977 | 200, makerCheckerEnabled: true/false | TS-MC01 | TierReviewController -> TierFacade.isMCEnabled | IT |
+| BT-95 | shouldReturn400WhenMCConfigMissingProgramId | US7-AC1 | GET /v3/tiers/config without programId | 400 error | TS-MC06 | TierReviewController | IT |
+| BT-96 | shouldReturnChangeDetailViaEndpoint | P75-3 | GET /v3/tiers/approvals/{changeId} | 200 OK with full PendingChange including payload snapshot | TS-GC01 | TierReviewController | IT |
+| BT-97 | shouldReturn404ForNonExistentChangeDetail | P75-3 | GET /v3/tiers/approvals/nonexistent | 404 | TS-GC02 | TierReviewController | IT |
 
 ### 3.3 MongoDB Persistence Tests
 
@@ -209,18 +209,18 @@
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-102 | shouldCallCreateSlabAndUpdateStrategiesOnApproval | US6-AC3, US6-AC4 | Approve a CREATE PendingChange | Thrift mock verifies createSlabAndUpdateStrategies called with correct SlabInfo + strategies | TS-A04, TS-A05 | TierChangeApplier.apply -> PointsEngineRulesThriftService | IT |
-| BT-103 | shouldRollbackOnThriftSyncFailure | US6-AC3 | Approve, but Thrift call throws exception | 500: "Failed to sync. Approval rolled back." Tier stays PENDING_APPROVAL | TS-A10 | TierChangeApplier.apply | IT |
-| BT-104 | shouldCallThriftWithAtomicSingleCall | US6-AC3 | Approve a tier | Exactly ONE Thrift call (not separate slab + strategy calls) | TS-ADR12 | TierChangeApplier.apply | IT |
+| BT-102 | shouldCallCreateSlabAndUpdateStrategiesOnApproval | US6-AC3, US6-AC4 | Approve a CREATE PendingChange | Thrift mock verifies createSlabAndUpdateStrategies called with correct SlabInfo + strategies | TS-A04, TS-A05 | TierApprovalHandler.publish -> PointsEngineRulesThriftService | IT |
+| BT-103 | shouldRollbackOnThriftSyncFailure | US6-AC3 | Approve, but Thrift call throws exception | 500: "Failed to sync. Approval rolled back." Tier stays PENDING_APPROVAL | TS-A10 | TierApprovalHandler.publish | IT |
+| BT-104 | shouldCallThriftWithAtomicSingleCall | US6-AC3 | Approve a tier | Exactly ONE Thrift call (not separate slab + strategy calls) | TS-ADR12 | TierApprovalHandler.publish | IT |
 
 ### 3.5 Full Flow Integration Tests
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-105 | shouldCompleteFullCreateSubmitApproveFlow | US2-AC1, US5-AC1, US6-AC1 | POST /tiers -> POST /submit -> POST /approve | Tier goes DRAFT -> PENDING_APPROVAL -> ACTIVE, SQL slab created | TS-C01, TS-S01, TS-A01 | TierFacade + MakerCheckerService + TierChangeApplier | IT |
-| BT-106 | shouldCompleteFullEditSubmitApproveSwapFlow | US3-AC3, US3-AC8, US6-AC4 | PUT /tiers/{activeId} -> POST /submit -> POST /approve | New doc ACTIVE, old doc SNAPSHOT | TS-E02, TS-E07, TS-A08 | TierFacade + MakerCheckerService + TierChangeApplier | IT |
-| BT-107 | ~~shouldCompleteFullDeleteSubmitApproveFlow~~ | ~~US4-AC3, US6-AC1~~ | ~~DELETE /tiers/{activeId} -> POST /submit -> POST /approve~~ | ~~Tier -> STOPPED, SQL status -> STOPPED~~ | ~~TS-D02, TS-A09~~ | ~~TierFacade + MakerCheckerService + TierChangeApplier~~ | **OBSOLETE** — no MC-gated delete flow; replaced by BT-32/BT-84 direct DRAFT→DELETED path (Rework #2) |
-| BT-108 | shouldCompleteCreateWithMCDisabledDirectToActive | US2-AC6, US7-AC3 | POST /tiers (MC disabled) | Tier immediately ACTIVE, sqlSlabId populated, Thrift called | TS-C02, TS-MC03 | TierFacade + TierChangeApplier | IT |
+| BT-105 | shouldCompleteFullCreateSubmitApproveFlow | US2-AC1, US5-AC1, US6-AC1 | POST /tiers -> POST /submit -> POST /approve | Tier goes DRAFT -> PENDING_APPROVAL -> ACTIVE, SQL slab created | TS-C01, TS-S01, TS-A01 | TierFacade + MakerCheckerService<T> + TierApprovalHandler | IT |
+| BT-106 | shouldCompleteFullEditSubmitApproveSwapFlow | US3-AC3, US3-AC8, US6-AC4 | PUT /tiers/{activeId} -> POST /submit -> POST /approve | New doc ACTIVE, old doc SNAPSHOT | TS-E02, TS-E07, TS-A08 | TierFacade + MakerCheckerService<T> + TierApprovalHandler | IT |
+| BT-107 | ~~shouldCompleteFullDeleteSubmitApproveFlow~~ | ~~US4-AC3, US6-AC1~~ | ~~DELETE /tiers/{activeId} -> POST /submit -> POST /approve~~ | ~~Tier -> STOPPED, SQL status -> STOPPED~~ | ~~TS-D02, TS-A09~~ | ~~TierFacade + MakerCheckerService<T> + TierApprovalHandler~~ | **OBSOLETE** — no MC-gated delete flow; replaced by BT-32/BT-84 direct DRAFT→DELETED path (Rework #2) |
+| BT-108 | shouldCompleteCreateWithMCDisabledDirectToActive | US2-AC6, US7-AC3 | POST /tiers (MC disabled) | Tier immediately ACTIVE, sqlSlabId populated, Thrift called | TS-C02, TS-MC03 | TierFacade + TierApprovalHandler | IT |
 
 ---
 
@@ -233,7 +233,7 @@
 | BT-109 | shouldStoreInMongoOnlyNotSQLWhenMCEnabled | ADR-01 | Dual-storage: MongoDB for drafts, SQL only on approval | Create tier (MC on) | MongoDB doc exists, no ProgramSlab row in SQL | TS-ADR01 | IT |
 | BT-110 | shouldSyncBothMongoAndSQLOnApproval | ADR-01 | Dual-storage: both stores consistent after approval | Approve tier | MongoDB doc ACTIVE, SQL ProgramSlab created | TS-ADR02 | IT |
 | BT-111 | shouldAcceptAnyEntityTypeThroughMCFramework | ADR-02 | Generic MC: entity-agnostic | Submit BENEFIT entity type | PendingChange created for BENEFIT | TS-ADR03 | IT |
-| BT-112 | shouldDispatchToCorrectChangeApplierPerEntityType | ADR-02 | Generic MC: strategy dispatch | Approve TIER change | TierChangeApplier invoked (not a generic applier) | TS-ADR04 | UT |
+| BT-112 | shouldDispatchToCorrectChangeApplierPerEntityType | ADR-02 | Generic MC: strategy dispatch | Approve TIER change | TierApprovalHandler invoked (not a generic applier) | TS-ADR04 | UT |
 | ~~BT-113~~ | ~~shouldNotBreakExistingFindByProgramQuery~~ | ~~ADR-03~~ | ~~Expand-then-contract: existing DAO unchanged~~ | ~~Call findByProgram() after adding status column~~ | ~~Returns ALL slabs regardless of status~~ | ~~TS-ADR05~~ | ~~IT~~ | **OBSOLETE** — ADR-03 removed (Rework #3: no SQL changes) |
 | ~~BT-114~~ | ~~shouldFilterNonActiveInNewFindActiveByProgram~~ | ~~ADR-03~~ | ~~Expand-then-contract: new filtered query~~ | ~~Call findActiveByProgram()~~ | ~~Returns only ACTIVE slabs~~ | ~~TS-ADR06~~ | ~~IT~~ | **OBSOLETE** — ADR-03 removed (Rework #3: no findActiveByProgram()) |
 | ~~BT-115~~ | ~~shouldDefaultExistingRowsToActiveOnMigration~~ | ~~ADR-03~~ | ~~Flyway migration default value~~ | ~~Run migration on existing rows~~ | ~~All rows have status='ACTIVE'~~ | ~~TS-ADR07~~ | ~~IT~~ | **OBSOLETE** — ADR-03 removed (Rework #3: no Flyway migration) |

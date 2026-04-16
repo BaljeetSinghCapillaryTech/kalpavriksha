@@ -57,19 +57,19 @@ epics:
         name: "Submit for Approval"
         complexity: medium
         acceptance_criteria:
-          - "POST /v3/maker-checker/submit accepts entityType, entityId, payload"
-          - "Creates PendingChange MongoDB doc"
+          - "POST /v3/tiers/{tierId}/submit accepts tier changes for approval"
+          - "Creates approval request in MongoDB"
           - "Status -> PENDING_APPROVAL"
           - "Notification hook interface"
       - id: US-6
         name: "Approve/Reject"
         complexity: medium-high
         acceptance_criteria:
-          - "POST /v3/maker-checker/{changeId}/approve"
-          - "POST /v3/maker-checker/{changeId}/reject (comment required)"
-          - "Approve: ChangeApplier.apply() -> Thrift sync"
+          - "POST /v3/tiers/{tierId}/approve"
+          - "POST /v3/tiers/{tierId}/approvals (comment required)"
+          - "Approve: TierApprovalHandler -> Thrift sync"
           - "Reject: -> DRAFT"
-          - "GET /v3/maker-checker/pending?entityType=TIER"
+          - "GET /v3/approvals"
       - id: US-7
         name: "MC Toggle"
         complexity: low
@@ -106,21 +106,21 @@ api_endpoints:
     path: "/v3/tiers/{tierId}"
     response: "void (204) — DRAFT only. 409 if not DRAFT. Soft-delete to DELETED."
   - method: POST
-    path: "/v3/maker-checker/submit"
-    body: "SubmitChangeRequest {entityType, entityId, payload}"
-    response: "PendingChange"
+    path: "/v3/tiers/{tierId}/submit"
+    body: "TierApprovalRequest {changes}"
+    response: "ApprovalRecord"
   - method: POST
-    path: "/v3/maker-checker/{changeId}/approve"
-    body: "ApprovalRequest {comment}"
-    response: "PendingChange"
+    path: "/v3/tiers/{tierId}/approve"
+    body: "ApprovalDecision {comment}"
+    response: "ApprovalRecord"
   - method: POST
-    path: "/v3/maker-checker/{changeId}/reject"
+    path: "/v3/tiers/{tierId}/approvals"
     body: "RejectionRequest {comment (required)}"
-    response: "PendingChange"
+    response: "ApprovalRecord"
   - method: GET
-    path: "/v3/maker-checker/pending"
+    path: "/v3/approvals"
     params: "entityType (optional), programId (optional)"
-    response: "PendingChange[]"
+    response: "ApprovalRecord[]"
 
 new_files:
   intouch_api_v3:
@@ -143,21 +143,21 @@ new_files:
       - "src/main/java/com/capillary/intouchapiv3/makerchecker/enums/EntityType.java"
       - "src/main/java/com/capillary/intouchapiv3/makerchecker/enums/ChangeStatus.java"
     services:
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/MakerCheckerService.java (interface)"
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/MakerCheckerServiceImpl.java"
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/ChangeApplier.java (strategy interface)"
-      - "src/main/java/com/capillary/intouchapiv3/tier/TierChangeApplier.java (implements ChangeApplier)"
+      - "src/main/java/com/capillary/makechecker/MakerCheckerService.java (interface)"
+      - "src/main/java/com/capillary/makechecker/MakerCheckerServiceImpl.java"
+      - "src/main/java/com/capillary/makechecker/ApprovableEntityHandler.java (strategy interface)"
+      - "src/main/java/com/capillary/intouchapiv3/tier/TierApprovalHandler.java (implements ApprovableEntityHandler)"
     repositories:
       - "src/main/java/com/capillary/intouchapiv3/tier/TierRepository.java"
       - "src/main/java/com/capillary/intouchapiv3/tier/TierRepositoryImpl.java"
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/PendingChangeRepository.java"
+      - "src/main/java/com/capillary/makechecker/ApprovalRepository.java"
     dtos:
       - "src/main/java/com/capillary/intouchapiv3/tier/dto/TierCreateRequest.java"
       - "src/main/java/com/capillary/intouchapiv3/tier/dto/TierUpdateRequest.java"
       - "src/main/java/com/capillary/intouchapiv3/tier/dto/TierListResponse.java"
       - "src/main/java/com/capillary/intouchapiv3/tier/dto/KpiSummary.java"
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/dto/SubmitChangeRequest.java"
-      - "src/main/java/com/capillary/intouchapiv3/makerchecker/dto/ApprovalRequest.java"
+      - "src/main/java/com/capillary/makechecker/dto/ApprovalRequest.java"
+      - "src/main/java/com/capillary/makechecker/dto/ApprovalDecision.java"
     validation:
       - "src/main/java/com/capillary/intouchapiv3/tier/validation/TierValidationService.java"
 

@@ -45,21 +45,22 @@ graph TB
 
     subgraph "intouch-api-v3"
         TC[TierController<br/>/v3/tiers]
-        MCC[MakerCheckerController<br/>/v3/maker-checker]
-        TF[TierFacade]
-        MCF[MakerCheckerFacade]
-        MCS[MakerCheckerService<br/>Generic Interface]
-        TCA[TierChangeApplier<br/>implements ChangeApplier]
+        TRC[TierReviewController<br/>/v3/tiers/{tierId}/submit<br/>/v3/tiers/{tierId}/approve]
+        TF[TierFacade<br/>submitForApproval<br/>handleApproval]
+        MCS[MakerCheckerService&lt;T&gt;<br/>Generic (Baljeet)]
+        TAH[TierApprovalHandler<br/>implements ApprovableEntityHandler]
         TR[TierRepository<br/>MongoDB]
-        PCR[PendingChangeRepository<br/>MongoDB]
         TVS[TierValidationService]
-        STV[StatusTransitionValidator<br/>Reuse]
         PERTS[PointsEngineRules<br/>ThriftService]
     end
 
+    subgraph "makechecker/ (Baljeet - Generic)"
+        MCS_impl["MakerCheckerService&lt;T&gt;<br/>Generic state machine<br/>submitForApproval<br/>approve (SAGA pattern)<br/>reject"]
+        AEH["ApprovableEntityHandler&lt;T&gt;<br/>validateForSubmission<br/>preApprove<br/>publish (Thrift)<br/>postApprove<br/>onPublishFailure<br/>postReject"]
+    end
+
     subgraph "MongoDB (EMF Cluster)"
-        UTC[(unified_tier_configs)]
-        PC[(pending_changes)]
+        UTC[(unified_tier_configs<br/>implements ApprovableEntity)]
     end
 
     subgraph "emf-parent (Thrift: port 9199)"
@@ -81,19 +82,18 @@ graph TB
     end
 
     UI -->|REST| TC
-    UI -->|REST| MCC
+    UI -->|REST| TRC
     TC --> TF
-    MCC --> MCF
+    TRC --> TF
     TF --> TR
     TF --> TVS
     TF --> MCS
-    MCF --> MCS
-    MCS --> TCA
-    MCS --> PCR
-    TCA --> STV
-    TCA --> PERTS
+    MCS --> MCS_impl
+    MCS_impl --> TAH
+    MCS_impl --> TR
+    TAH --> AEH
+    TAH --> PERTS
     TR --> UTC
-    PCR --> PC
     PERTS -->|Thrift RPC| PERS
     PERS --> PSD
     PERS --> SD
@@ -114,27 +114,22 @@ graph TB
 | Component | Responsibility |
 |-----------|---------------|
 | `TierController` | REST endpoints: GET /v3/tiers, POST, PUT, DELETE. Auth via AbstractBaseAuthenticationToken. |
-| `TierFacade` | Business logic: MC toggle check, status transitions, versioned edit orchestration, listing assembly. |
-| `UnifiedTierConfig` | MongoDB @Document. Full tier config in user-friendly format. |
+| `TierReviewController` | REST endpoints: POST /v3/tiers/{tierId}/submit, POST /v3/tiers/{tierId}/approve, GET /v3/tiers/approvals. |
+| `TierFacade` | Business logic: submitForApproval(), handleApproval(), status transitions, versioned edit orchestration, listing assembly. |
+| `UnifiedTierConfig` | MongoDB @Document. Implements `ApprovableEntity`. Full tier config in user-friendly format. |
 | `TierRepository` | Spring Data MongoRepository + custom impl for sharded access. |
 | `TierValidationService` | Field-level validation: name uniqueness, threshold ordering, required fields. |
-| `TierChangeApplier` | Converts MongoDB tier config -> SlabInfo + StrategyInfo. Calls Thrift to sync SQL. |
+| `TierApprovalHandler` | Implements `ApprovableEntityHandler<UnifiedTierConfig>`. Converts MongoDB tier config -> SlabInfo + StrategyInfo. Calls Thrift to sync SQL. |
 | `TierStatus` | Enum: DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT. No PAUSED or STOPPED (Rework #2). |
 
-### 4.2 Maker-Checker Module (intouch-api-v3 -- generic, shared)
+### 4.2 Maker-Checker Module (makechecker/ -- Baljeet's Generic Package, Pre-Existing)
 
 | Component | Responsibility |
 |-----------|---------------|
-| `MakerCheckerController` | REST endpoints: POST submit, POST approve/reject, GET pending. |
-| `MakerCheckerFacade` | Orchestrates submit/approve/reject. Delegates to ChangeApplier per entity type. |
-| `MakerCheckerService` | Interface: submit(), approve(), reject(), listPending(). |
-| `MakerCheckerServiceImpl` | Implementation: status transitions, PendingChange persistence, ChangeApplier dispatch. |
-| `ChangeApplier<T>` | Strategy interface: `apply(T payload)`. Domain-specific sync logic. |
-| `PendingChange` | MongoDB @Document. entityType, entityId, payload (full snapshot), requestedBy, reviewedBy, status. |
-| `PendingChangeRepository` | MongoDB repository for pending changes. |
-| `NotificationHandler` | Hook interface: onSubmit, onApprove, onReject. No-op default. |
-| `EntityType` | Enum: TIER, BENEFIT, SUBSCRIPTION. Extensible. |
-| `ChangeStatus` | Enum: PENDING_APPROVAL, APPROVED, REJECTED. |
+| `MakerCheckerService<T>` | Generic state machine: submitForApproval(entity, handler, save), approve(entity, comment, reviewedBy, handler, save), reject(entity, comment, reviewedBy, handler, save). Implements SAGA pattern in approve(). |
+| `ApprovableEntity` | Interface: getStatus(), setStatus(Object), getVersion(), setVersion(Long), transitionToPending(), transitionToRejected(String). |
+| `ApprovableEntityHandler<T>` | Strategy interface: validateForSubmission(T), preApprove(T), publish(T) -> PublishResult, postApprove(T, result), onPublishFailure(T, error), postReject(T, comment). |
+| `PublishResult` | Return type from publish(): contains version, external IDs, or other confirmation data. |
 
 ### 4.3 emf-parent Changes (minimal)
 
@@ -275,25 +270,13 @@ graph TB
 }
 ```
 
-### 5.2 PendingChange (Generic MC)
+### 5.2 Status Lifecycle on UnifiedTierConfig
 
-```json
-{
-  "_id": "ObjectId",
-  "orgId": "long",
-  "programId": "int",
-  "entityType": "TIER | BENEFIT | SUBSCRIPTION",
-  "entityId": "string (the unifiedTierId or equivalent)",
-  "changeType": "CREATE | UPDATE | DELETE",
-  "payload": "{ full snapshot of the entity document }",
-  "status": "PENDING_APPROVAL | APPROVED | REJECTED",
-  "requestedBy": "string (userId)",
-  "requestedAt": "date",
-  "reviewedBy": "string | null",
-  "reviewedAt": "date | null",
-  "comment": "string | null (required on reject)"
-}
-```
+Status lives on the entity itself. No separate `PendingChange` collection. The `ApprovableEntity` interface on `UnifiedTierConfig` manages transitions:
+
+- `transitionToPending()`: DRAFT → PENDING_APPROVAL (called by MakerCheckerService.submitForApproval)
+- `transitionToRejected(comment)`: PENDING_APPROVAL → DRAFT, stores comment in metadata
+- `approve(version)`: PENDING_APPROVAL → ACTIVE, updates version and stores approval timestamp
 
 ---
 
@@ -304,18 +287,18 @@ graph TB
 | Method | Path | Purpose | Auth | MC Behavior |
 |--------|------|---------|------|-------------|
 | GET | `/v3/tiers?programId={id}&status={filter}` | List tiers with config + KPIs | IntouchUser | Read-only |
-| POST | `/v3/tiers` | Create tier | IntouchUser | MC on: DRAFT. MC off: ACTIVE + Thrift sync. |
-| PUT | `/v3/tiers/{tierId}` | Edit tier | IntouchUser | MC on: versioned DRAFT. MC off: immediate + Thrift sync. |
+| POST | `/v3/tiers` | Create tier | IntouchUser | Always creates as DRAFT. No toggle. |
+| PUT | `/v3/tiers/{tierId}` | Edit tier | IntouchUser | Creates versioned DRAFT (parentId -> ACTIVE). No toggle. |
 | DELETE | `/v3/tiers/{tierId}` | Delete DRAFT tier (→ DELETED) | IntouchUser | DRAFT only. Immediate. No MC. 409 if not DRAFT. |
 
-### 6.2 Maker-Checker (Generic)
+### 6.2 Tier Approval (formerly Maker-Checker Controller)
 
-| Method | Path | Purpose | Auth |
-|--------|------|---------|------|
-| POST | `/v3/maker-checker/submit` | Submit for approval | IntouchUser |
-| POST | `/v3/maker-checker/{changeId}/approve` | Approve | IntouchUser (approver role) |
-| POST | `/v3/maker-checker/{changeId}/reject` | Reject (comment required) | IntouchUser (approver role) |
-| GET | `/v3/maker-checker/pending?entityType=TIER&programId={id}` | List pending | IntouchUser |
+| Method | Path | Purpose | Auth | Body |
+|--------|------|---------|------|------|
+| POST | `/v3/tiers/{tierId}/submit` | Submit DRAFT tier for approval (DRAFT → PENDING_APPROVAL) | IntouchUser | `{}` |
+| POST | `/v3/tiers/{tierId}/approve` | Approve pending tier (PENDING_APPROVAL → ACTIVE) | IntouchUser (approver) | `{ "approvalStatus": "APPROVE", "comment": "..." }` |
+| POST | `/v3/tiers/{tierId}/approve` | Reject pending tier (PENDING_APPROVAL → DRAFT) | IntouchUser (approver) | `{ "approvalStatus": "REJECT", "comment": "Required reason" }` |
+| GET | `/v3/tiers/approvals?programId={id}` | List pending approval tiers | IntouchUser | N/A |
 
 ### 6.3 Response Envelope
 
@@ -330,12 +313,12 @@ All responses use `ResponseWrapper<T>`:
 
 ---
 
-## 7. TierChangeApplier Design
+## 7. TierApprovalHandler Design
 
 ### 7.1 CREATE Flow (Validated)
 
 ```
-TierChangeApplier.applyCreate(UnifiedTierConfig doc):
+TierApprovalHandler.publish(UnifiedTierConfig doc):
   1. Fetch current strategies: getAllConfiguredStrategies(programId, orgId)
   
   2. Build SlabInfo:
@@ -363,28 +346,37 @@ TierChangeApplier.applyCreate(UnifiedTierConfig doc):
      d. updateStrategiesForNewSlab() auto-extends
         POINT_ALLOCATION + POINT_EXPIRY CSVs
   
-  6. Store sqlSlabId in MongoDB doc metadata
+  6. Return PublishResult with sqlSlabId (from Thrift response)
 ```
 
 ### 7.2 UPDATE Flow
 
 ```
-TierChangeApplier.applyUpdate(UnifiedTierConfig newDoc, UnifiedTierConfig activeDoc):
-  1. Build SlabInfo with changes (name, description, color)
+TierApprovalHandler.publish(UnifiedTierConfig newDoc):
+  (Handles transitions PENDING_APPROVAL -> ACTIVE by reading activeDoc from MongoDB)
   
-  2. If eligibility config changed:
+  1. Load parentId (the ACTIVE version) from newDoc
+  
+  2. Build SlabInfo with changes (name, description, color)
+  
+  3. If eligibility config changed:
      - Fetch SLAB_UPGRADE strategy
      - Replace threshold at CSV position (serialNumber - 2)
      - Build updated StrategyInfo
   
-  3. If downgrade config changed:
+  4. If downgrade config changed:
      - Fetch SLAB_DOWNGRADE strategy (TierConfiguration JSON)
      - Find slab entry by slabNumber, update it
      - Build updated StrategyInfo
   
-  4. Call createSlabAndUpdateStrategies with SlabInfo + modified strategies
+  5. Call createSlabAndUpdateStrategies with SlabInfo + modified strategies
   
-  5. Version swap: newDoc -> ACTIVE, activeDoc -> SNAPSHOT
+  6. Return PublishResult with new version
+  
+  7. MakerCheckerService.approve() calls postApprove():
+     - Set newDoc status = ACTIVE
+     - Set parentId doc status = SNAPSHOT
+     - Update both in MongoDB
 ```
 
 ### 7.3 DELETE (DRAFT Only → DELETED) Flow
@@ -404,9 +396,28 @@ TierFacade.deleteTier(tierId):
   
   5. No member reassessment — DRAFT tiers have no members
   
-  NOTE: This does NOT go through TierChangeApplier or MC.
+  NOTE: This does NOT go through TierApprovalHandler or MC.
   DRAFT deletion is a simple MongoDB status update.
   Tier retirement (stopping ACTIVE tiers) is deferred to a future epic.
+```
+
+### 7.4 MakerCheckerService SAGA Pattern (Approval)
+
+```
+MakerCheckerService<T>.approve(tierConfig, comment, reviewedBy, handler, save):
+  1. Call handler.preApprove(tierConfig) — validation before publish
+  
+  2. Call handler.publish(tierConfig) — THRIFT CALL (external, may fail)
+     Returns PublishResult
+  
+  3. On success: Call handler.postApprove(tierConfig, result)
+     - Update MongoDB: status = ACTIVE, version = result.version
+     - Call save callback (e.g., tierRepository.save)
+  
+  4. On failure (Thrift exception):
+     - Call handler.onPublishFailure(tierConfig, exception)
+     - Rethrow exception (SAGA rollback)
+     - tierConfig stays PENDING_APPROVAL in MongoDB
 ```
 
 ---
@@ -442,12 +453,12 @@ stateDiagram-v2
 **Rationale**: Follows UnifiedPromotion pattern. MongoDB provides flexible document storage for rich config. SQL provides the stable, indexed storage the engine needs. Sync is explicit via Thrift on approval.
 **Per**: Decision D-10, verified against UnifiedPromotion.java.
 
-### ADR-02: Generic Maker-Checker Framework
-**Decision**: Build entity-agnostic MC framework with ChangeApplier strategy pattern.
-**Context**: Tiers need approval workflow. Benefits, subscriptions will need it later.
-**Alternatives**: (a) Tier-specific MC (faster, refactor later), (b) Copy UnifiedPromotion MC pattern (inconsistent).
-**Rationale**: Same developer (Ritwik) owns MC framework as Layer 1 shared module in registry. Building generic from the start avoids refactoring when benefits arrives.
-**Per**: Decision D-12, registry epic-assignment.json.
+### ADR-02: Generic Maker-Checker Framework (Baljeet's makechecker/ Package)
+**Decision**: Use Baljeet's pre-existing generic `makechecker/` package (ApprovableEntity + ApprovableEntityHandler). TierApprovalHandler implements the handler interface.
+**Context**: Tiers need approval workflow. Benefits, subscriptions will need it later. Baljeet built the reusable framework.
+**Alternatives**: (a) Tier-specific MC (faster, inconsistent), (b) Copy UnifiedPromotion MC pattern (outdated).
+**Rationale**: Baljeet's package is battle-tested and extensible. No PendingChange collection — status lives on the entity itself. SAGA pattern in MakerCheckerService.approve() handles Thrift publish failures gracefully.
+**Per**: Decision D-12, team coordination with Baljeet on makechecker/ ownership.
 
 ### ~~ADR-03: Expand-Then-Contract Migration~~ — NOT NEEDED (Rework #3)
 ~~**Decision**: Add `status` column to `program_slabs` with DEFAULT 'ACTIVE'. Add new `findActiveByProgram()` DAO method. Do NOT modify existing `findByProgram()`.~~
@@ -465,11 +476,11 @@ stateDiagram-v2
 **Per**: Decision D-13, D-24 (Flow A confirmed).
 
 ### ADR-05: Existing Thrift Methods (No IDL Change)
-**Decision**: Use existing `createSlabAndUpdateStrategies`, `getAllSlabs`, `createOrUpdateSlab` from `pointsengine_rules.thrift`. Add Java wrapper methods in `PointsEngineRulesThriftService`.
+**Decision**: Use existing `createSlabAndUpdateStrategies`, `getAllSlabs`, `createOrUpdateSlab` from `pointsengine_rules.thrift`. TierApprovalHandler calls these via `PointsEngineRulesThriftService` wrappers.
 **Context**: Phase 2 Critic flagged missing Thrift methods (C-1). Phase 5 research found they already exist in a different Thrift file.
 **Alternatives**: (a) New Thrift method (unnecessary), (b) Direct DB access (breaks service boundary), (c) REST endpoint on emf-parent (inconsistent).
-**Rationale**: Methods exist. Only need Java wrappers. Lowest scope, lowest risk.
-**Per**: Phase 5 critical finding, revised C-1.
+**Rationale**: Methods exist. Only need Java wrappers in PointsEngineRulesThriftService. Lowest scope, lowest risk.
+**Per**: Phase 5 critical finding, revised C-1. TierApprovalHandler.publish() invokes these via wrappers.
 
 ### ADR-06: New Programs Only
 **Decision**: The new tier CRUD system (MongoDB draft -> SQL live) applies to new programs only. Existing programs continue using the current system.
@@ -478,7 +489,7 @@ stateDiagram-v2
 **Rationale**: User directive. No migration risk. Clean separation between old and new flows.
 **Per**: Decision D-23 (user override).
 
-### ADR-07: TierChangeApplier Uses Single Atomic Thrift Call
+### ADR-07: TierApprovalHandler Uses Single Atomic Thrift Call
 **Decision**: `createSlabAndUpdateStrategies` is called as a single atomic operation, passing SlabInfo + [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies. Points strategies (allocation, redemption, expiry) are NOT passed -- the engine auto-extends them.
 **Context**: Creating a slab requires both the slab record and strategy updates. Splitting into multiple calls creates inconsistency windows.
 **Alternatives**: (a) Multiple separate Thrift calls (inconsistency risk), (b) Transaction across calls (not supported in Thrift).
@@ -487,36 +498,34 @@ stateDiagram-v2
 
 ---
 
-## 10. Implementation Plan
+## 10. Implementation Plan (Completed)
 
-### Layer 1: Generic Maker-Checker Framework (can start immediately)
-1. `EntityType` enum, `ChangeStatus` enum
-2. `PendingChange` MongoDB document
-3. `PendingChangeRepository`
-4. `ChangeApplier<T>` strategy interface
-5. `MakerCheckerService` interface + `MakerCheckerServiceImpl`
-6. `NotificationHandler` hook interface + no-op default
-7. `MakerCheckerController` REST endpoints
-8. `StatusTransitionValidator` -- extend existing or create tier-specific
+### Layer 1: Generic Maker-Checker Framework (makechecker/ - Baljeet's Package)
+- COMPLETED: Pre-existing in Baljeet's package
+- `ApprovableEntity` interface (getStatus, setStatus, getVersion, setVersion, transitionToPending, transitionToRejected)
+- `ApprovableEntityHandler<T>` interface (validateForSubmission, preApprove, publish, postApprove, onPublishFailure, postReject)
+- `MakerCheckerService<T>` (submitForApproval, approve with SAGA, reject)
+- Status transitions managed on entity itself (no PendingChange collection)
 
-### Layer 2: Tier CRUD (can start in parallel with Layer 1 using interfaces)
-1. `TierStatus` enum
-2. `UnifiedTierConfig` MongoDB document (full schema from Section 5.1)
+### Layer 2: Tier CRUD (intouch-api-v3)
+- COMPLETED: All tier-specific implementation
+1. `TierStatus` enum: DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT
+2. `UnifiedTierConfig` MongoDB @Document implementing `ApprovableEntity`
 3. `TierRepository` + `TierRepositoryImpl` (sharded MongoDB)
 4. `TierValidationService`
-5. `TierFacade` -- listing, creation, editing, deletion logic
-6. `TierController` REST endpoints
-7. `TierChangeApplier` -- MongoDB -> Thrift conversion (Section 7)
+5. `TierFacade` -- submitForApproval(), handleApproval(), creation, editing, deletion logic
+6. `TierController` -- GET/POST/PUT/DELETE endpoints
+7. `TierReviewController` -- POST /v3/tiers/{tierId}/submit, POST /v3/tiers/{tierId}/approve, GET /v3/tiers/approvals
+8. `TierApprovalHandler` implements `ApprovableEntityHandler<UnifiedTierConfig>` -- MongoDB -> Thrift conversion (Section 7)
 
-### Layer 3: emf-parent Changes
-~~1. Flyway migration: `ALTER TABLE program_slabs ADD COLUMN status`~~ — NOT NEEDED (Rework #3)
-~~2. `ProgramSlab.java`: add status field~~ — NOT NEEDED (Rework #3)
-~~3. `PeProgramSlabDao.java`: add `findActiveByProgram()`~~ — NOT NEEDED (Rework #3)
-4. `PointsEngineRulesThriftService`: add wrapper methods for slab Thrift calls
+### Layer 3: emf-parent Changes (Minimal)
+- COMPLETED: No entity/DAO changes needed
+- `PointsEngineRulesThriftService`: wrapper methods for slab Thrift calls (already exist)
+- Zero Flyway migrations (Rework #3)
 
-### Layer 4: Integration + Cache
-1. Member count cache job (cron every 10 min)
-2. End-to-end testing: create tier -> submit -> approve -> verify SQL
+### Layer 4: Integration + Cache (Completed)
+- COMPLETED: Member count cache job (cron every 10 min)
+- COMPLETED: End-to-end testing: create tier -> submit -> approve -> verify SQL
 
 ---
 
@@ -525,24 +534,29 @@ stateDiagram-v2
 | Risk | Severity | Mitigation |
 |------|----------|-----------|
 | R1: CSV index off-by-one | HIGH | Unit test with 3,4,5+ slabs. serialNumber-2 = CSV index. |
-| R2: Downgrade strategy monolith | MEDIUM | @Lockable on TierChangeApplier methods. |
+| R2: Downgrade strategy monolith | MEDIUM | @Lockable on TierApprovalHandler methods. |
 | R3: Strategy ID preservation | MEDIUM | Always fetch existing strategy ID before update. |
 | R4: CSV positions on soft-delete | LOW | Never remove positions. Document in code comments. |
 | R5: Legacy API in separate service | LOW | Our listing reads MongoDB, not legacy API. |
 
 ---
 
-## 12. Done Criteria
+## 12. Done Criteria (Migration Complete)
 
-- [ ] `GET /v3/tiers?programId={id}` returns all tiers with full config and KPIs
-- [ ] `POST /v3/tiers` creates a tier (DRAFT with MC, ACTIVE without MC)
-- [ ] `PUT /v3/tiers/{tierId}` edits with versioning (ACTIVE -> new DRAFT)
-- [ ] `DELETE /v3/tiers/{tierId}` deletes DRAFT tier (→ DELETED). 409 if not DRAFT.
-- [ ] Generic MC framework: submit, approve, reject, list pending
-- [ ] MC toggle per-program + per-entity-type
-- [ ] TierChangeApplier syncs MongoDB -> SQL via Thrift
-- [ ] Flyway migration adds status column (expand-then-contract)
-- [ ] All tests pass (unit + integration)
-- [ ] serialNumber immutability enforced (400 on change attempt)
-- [ ] Member count cache refreshes every 10 min
-- [ ] ~~PartnerProgramSlab block validation~~ Deferred to future tier retirement epic (Rework #2)
+- [x] `GET /v3/tiers?programId={id}` returns all tiers with full config and KPIs
+- [x] `POST /v3/tiers` creates a tier (always DRAFT, no MC toggle)
+- [x] `PUT /v3/tiers/{tierId}` edits with versioning (ACTIVE -> new DRAFT with parentId)
+- [x] `DELETE /v3/tiers/{tierId}` deletes DRAFT tier (→ DELETED). 409 if not DRAFT.
+- [x] POST /v3/tiers/{tierId}/submit — submit DRAFT for approval (DRAFT → PENDING_APPROVAL)
+- [x] POST /v3/tiers/{tierId}/approve — approve or reject pending (body: {approvalStatus, comment})
+- [x] GET /v3/tiers/approvals?programId={id} — list pending approval tiers
+- [x] Generic MC framework: Baljeet's makechecker/ package (ApprovableEntity + ApprovableEntityHandler)
+- [x] No MC toggle per-program (always enabled for tiers)
+- [x] TierApprovalHandler syncs MongoDB -> SQL via Thrift (implements ApprovableEntityHandler)
+- [x] No Flyway migration needed (Rework #3 — status lives on entity)
+- [x] All tests pass (unit + integration)
+- [x] serialNumber immutability enforced (400 on change attempt)
+- [x] Member count cache refreshes every 10 min
+- [x] Deleted old makerchecker/ package (17 files)
+- [x] Removed MakerCheckerController, MakerCheckerFacade, MakerCheckerServiceImpl, PendingChange collection, ChangeApplier interface
+- [x] ~~PartnerProgramSlab block validation~~ Deferred to future tier retirement epic (Rework #2)

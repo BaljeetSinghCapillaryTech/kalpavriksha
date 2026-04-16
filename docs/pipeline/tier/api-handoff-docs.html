@@ -571,8 +571,7 @@
   </div>
 
   <div class="sidebar-section">
-    <h3>Maker-Checker</h3>
-    <a href="#mc-config" class="sidebar-link"><span class="method-dot get"></span> MC Config</a>
+    <h3>Tier Approval Workflow</h3>
     <a href="#submit" class="sidebar-link"><span class="method-dot post"></span> Submit</a>
     <a href="#approve" class="sidebar-link"><span class="method-dot post"></span> Approve</a>
     <a href="#reject" class="sidebar-link"><span class="method-dot post"></span> Reject</a>
@@ -596,7 +595,7 @@
   <!-- ─── HERO ─── -->
   <section class="hero" id="overview">
     <h1>Tiers CRUD &mdash; API Reference</h1>
-    <p>Complete API contract for the Garuda UI team. Covers tier CRUD, generic maker-checker approval workflows, and all supporting endpoints.</p>
+    <p>Complete API contract for the Garuda UI team. Covers tier CRUD, generic approval approval workflows, and all supporting endpoints.</p>
     <div class="hero-meta">
       <div class="hero-meta-item"><strong>Base URL</strong> https://{host}/v3</div>
       <div class="hero-meta-item"><strong>Auth</strong> Bearer token</div>
@@ -627,12 +626,8 @@
       <div class="method-path"><span class="method-badge delete">DEL</span> <code>/v3/tiers/{id}</code></div>
       <div class="desc">Soft-delete (per-status behavior)</div>
     </a>
-    <a href="#mc-config" class="summary-card">
-      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/config</code></div>
-      <div class="desc">MC toggle status</div>
-    </a>
     <a href="#submit" class="summary-card">
-      <div class="method-path"><span class="method-badge post">POST</span> <code>/v3/maker-checker/submit</code></div>
+      <div class="method-path"><span class="method-badge post">POST</span> <code>/v3/tiers/{tierId}/submit</code></div>
       <div class="desc">Submit for approval</div>
     </a>
     <a href="#approve" class="summary-card">
@@ -644,11 +639,11 @@
       <div class="desc">Reject change</div>
     </a>
     <a href="#list-pending" class="summary-card">
-      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/pending</code></div>
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/tiers/approvals</code></div>
       <div class="desc">List pending changes</div>
     </a>
     <a href="#get-change" class="summary-card">
-      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/maker-checker/{id}</code></div>
+      <div class="method-path"><span class="method-badge get">GET</span> <code>/v3/tiers/{tierId}/id}</code></div>
       <div class="desc">Change detail + payload</div>
     </a>
     <a href="#not-in-scope" class="summary-card" style="border-left: 3px solid var(--danger)">
@@ -1026,7 +1021,7 @@ Authorization: Bearer eyJhbGci...</pre>
       <span class="method-badge post">POST</span>
       <span class="endpoint-path">/v3/tiers</span>
     </div>
-    <p class="endpoint-desc">Creates a new tier. If maker-checker is enabled, saves as DRAFT. If disabled, saves as ACTIVE and syncs to SQL immediately.</p>
+    <p class="endpoint-desc">Creates a new tier. If approval is enabled, saves as DRAFT. If disabled, saves as ACTIVE and syncs to SQL immediately.</p>
 
     <div class="card">
       <h4>Headers</h4>
@@ -1281,56 +1276,6 @@ Authorization: Bearer eyJhbGci...</pre>
 
   <!-- ════════════════════════════════════════ -->
   <!-- ─── MC CONFIG ─── -->
-  <!-- ════════════════════════════════════════ -->
-  <section id="mc-config" class="endpoint-section">
-    <div class="endpoint-header">
-      <span class="method-badge get">GET</span>
-      <span class="endpoint-path">/v3/maker-checker/config</span>
-    </div>
-    <p class="endpoint-desc">Returns whether maker-checker is enabled for a program + entity type. <strong>Call this on page load</strong> to determine the save/submit flow.</p>
-
-    <div class="card">
-      <h4>Query Parameters</h4>
-      <table>
-        <tr><th>Param</th><th>Type</th><th>Required</th><th>Example</th></tr>
-        <tr><td><code>programId</code></td><td>int</td><td>YES</td><td><code>977</code></td></tr>
-        <tr><td><code>entityType</code></td><td>string</td><td>YES</td><td><code>TIER</code></td></tr>
-      </table>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-      <div>
-        <pre><span class="label">MC ENABLED</span>
-{
-  <span class="json-key">"data"</span>: {
-    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
-    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
-    <span class="json-key">"makerCheckerEnabled"</span>: <span class="json-bool">true</span>
-  }
-}</pre>
-      </div>
-      <div>
-        <pre><span class="label">MC DISABLED</span>
-{
-  <span class="json-key">"data"</span>: {
-    <span class="json-key">"programId"</span>: <span class="json-num">977</span>,
-    <span class="json-key">"entityType"</span>: <span class="json-str">"TIER"</span>,
-    <span class="json-key">"makerCheckerEnabled"</span>: <span class="json-bool">false</span>
-  }
-}</pre>
-      </div>
-    </div>
-
-    <div class="card">
-      <h4>UI Behavior</h4>
-      <table>
-        <tr><th>MC State</th><th>Create</th><th>Edit</th><th>Delete</th></tr>
-        <tr><td><code>true</code></td><td>Save as DRAFT + "Submit for Approval"</td><td>Versioned DRAFT + "Submit"</td><td>DRAFT &rarr; DELETED (no MC gate)</td></tr>
-        <tr><td><code>false</code></td><td>Save &amp; activate immediately</td><td>Applied immediately</td><td>DRAFT &rarr; DELETED (no MC gate)</td></tr>
-      </table>
-    </div>
-  </section>
-
   <hr class="section-divider">
 
   <!-- ════════════════════════════════════════ -->
@@ -1339,9 +1284,9 @@ Authorization: Bearer eyJhbGci...</pre>
   <section id="submit" class="endpoint-section">
     <div class="endpoint-header">
       <span class="method-badge post">POST</span>
-      <span class="endpoint-path">/v3/maker-checker/submit</span>
+      <span class="endpoint-path">/v3/tiers/{tierId}/submit</span>
     </div>
-    <p class="endpoint-desc">Submits a DRAFT tier (or other entity) for maker-checker approval. Changes status to PENDING_APPROVAL.</p>
+    <p class="endpoint-desc">Submits a DRAFT tier (or other entity) for approval approval. Changes status to PENDING_APPROVAL.</p>
 
     <pre><span class="label">REQUEST BODY</span>
 {
@@ -1370,9 +1315,9 @@ Authorization: Bearer eyJhbGci...</pre>
   <section id="approve" class="endpoint-section">
     <div class="endpoint-header">
       <span class="method-badge post">POST</span>
-      <span class="endpoint-path">/v3/maker-checker/{changeId}/approve</span>
+      <span class="endpoint-path">/v3/tiers/{changeId}/approve</span>
     </div>
-    <p class="endpoint-desc">Approves a pending change. Triggers TierChangeApplier to sync MongoDB to SQL via Thrift.</p>
+    <p class="endpoint-desc">Approves a pending change. Triggers TierApprovalHandler to sync MongoDB to SQL via Thrift.</p>
 
     <pre><span class="label">REQUEST BODY</span>
 {
@@ -1398,7 +1343,7 @@ Authorization: Bearer eyJhbGci...</pre>
   <section id="reject" class="endpoint-section">
     <div class="endpoint-header">
       <span class="method-badge post">POST</span>
-      <span class="endpoint-path">/v3/maker-checker/{changeId}/reject</span>
+      <span class="endpoint-path">/v3/tiers/{changeId}/reject</span>
     </div>
     <p class="endpoint-desc">Rejects a pending change. Comment is required. Tier reverts to DRAFT status.</p>
 
@@ -1421,7 +1366,7 @@ Authorization: Bearer eyJhbGci...</pre>
   <section id="list-pending" class="endpoint-section">
     <div class="endpoint-header">
       <span class="method-badge get">GET</span>
-      <span class="endpoint-path">/v3/maker-checker/pending</span>
+      <span class="endpoint-path">/v3/tiers/approvals</span>
     </div>
     <p class="endpoint-desc">Lists all pending changes awaiting approval. Filterable by entity type and program.</p>
 
@@ -1458,7 +1403,7 @@ Authorization: Bearer eyJhbGci...</pre>
   <section id="get-change" class="endpoint-section">
     <div class="endpoint-header">
       <span class="method-badge get">GET</span>
-      <span class="endpoint-path">/v3/maker-checker/{changeId}</span>
+      <span class="endpoint-path">/v3/tiers/{changeId}</span>
     </div>
     <p class="endpoint-desc">Returns the full pending change document including the embedded payload snapshot. Approvers use this to review what changed before deciding.</p>
 
@@ -1553,7 +1498,7 @@ Authorization: Bearer eyJhbGci...</pre>
 sequenceDiagram
     participant UI as Garuda UI
     participant API as /v3/tiers
-    participant MC as /v3/maker-checker
+    participant MC as /v3/approval
     participant SQL as MySQL (via Thrift)
 
     UI->>API: POST /v3/tiers {Platinum config}
@@ -1575,11 +1520,11 @@ sequenceDiagram
       </div>
       <div class="flow-step">
         <h5>Submit for Approval</h5>
-        <p><code>POST /v3/maker-checker/submit</code> &rarr; tier becomes PENDING_APPROVAL, returns <code>changeId</code></p>
+        <p><code>POST /v3/tiers/{tierId}/submit</code> &rarr; tier becomes PENDING_APPROVAL, returns <code>changeId</code></p>
       </div>
       <div class="flow-step">
         <h5>Approve</h5>
-        <p><code>POST /v3/maker-checker/{changeId}/approve</code> &rarr; syncs to SQL, tier becomes ACTIVE</p>
+        <p><code>POST /v3/tiers/{tierId}/changeId}/approve</code> &rarr; syncs to SQL, tier becomes ACTIVE</p>
       </div>
       <div class="flow-step">
         <h5>Verify</h5>
@@ -1697,7 +1642,7 @@ sequenceDiagram
 
     <div class="card">
       <h4>Criteria Type Mapping</h4>
-      <p style="color: #a0ffa0; margin-bottom: 8px;">The new API uses the <strong>same enum values</strong> as production. No conversion needed in TierChangeApplier.</p>
+      <p style="color: #a0ffa0; margin-bottom: 8px;">The new API uses the <strong>same enum values</strong> as production. No conversion needed in TierApprovalHandler.</p>
       <table>
         <tr><th>Enum Value</th><th>Used In</th></tr>
         <tr><td><code>CUMULATIVE_PURCHASES</code></td><td>Production + New API</td></tr>
@@ -1714,7 +1659,7 @@ sequenceDiagram
         <tr><th>Production</th><th>New API</th></tr>
         <tr>
           <td><code>threshold_value: ["2000","5000","12000"]</code><br><span style="color:var(--text-muted);font-size:11px;">Program-wide CSV array. N-1 values for N tiers. Position = serialNumber - 2.</span></td>
-          <td><code>activities[].value: 2000</code><br><span style="color:var(--text-muted);font-size:11px;">Per-tier individual value. TierChangeApplier joins/splits during sync.</span></td>
+          <td><code>activities[].value: 2000</code><br><span style="color:var(--text-muted);font-size:11px;">Per-tier individual value. TierApprovalHandler joins/splits during sync.</span></td>
         </tr>
       </table>
     </div>
@@ -1737,7 +1682,7 @@ sequenceDiagram
 
     <div class="callout warning">
       <span class="callout-icon">&#9888;</span>
-      <div><strong>pointsSaveData is NOT in the new API.</strong> Allocations, redemptions, and expiry strategies are managed by the engine. When a new slab is created via Thrift, the engine auto-extends all CSV values. TierChangeApplier only sends SLAB_UPGRADE and SLAB_DOWNGRADE strategies.</div>
+      <div><strong>pointsSaveData is NOT in the new API.</strong> Allocations, redemptions, and expiry strategies are managed by the engine. When a new slab is created via Thrift, the engine auto-extends all CSV values. TierApprovalHandler only sends SLAB_UPGRADE and SLAB_DOWNGRADE strategies.</div>
     </div>
 
     <div class="card">

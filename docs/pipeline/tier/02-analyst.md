@@ -25,7 +25,7 @@
 |--------|--------|----------|------------------|-------------------------|
 | ~~ProgramSlab entity~~ | ~~Add status field~~ — NOT NEEDED (Rework #3) | ~~MEDIUM~~ | ~~PeProgramSlabDao, InfoLookupService, PointsEngineRuleService, PointsReturnService, ProgramCreationService, PointsEngineServiceManager, BulkOrgConfigImportValidator~~ | ~~customer_enrollment (FK), PartnerProgramSlab (FK)~~ |
 | ~~PeProgramSlabDao~~ | ~~Add findActiveByProgram()~~ — NOT NEEDED (Rework #3) | ~~LOW~~ | ~~New TierFacade only (existing methods unchanged)~~ | ~~program_slabs table~~ |
-| PointsEngineRulesThriftService | Add slab wrapper methods | LOW | New TierChangeApplier only | emf-parent Thrift service |
+| PointsEngineRulesThriftService | Add slab wrapper methods | LOW | New TierApprovalHandler only | emf-parent Thrift service |
 
 ### 2.2 Indirect Impact (modules we read from or integrate with)
 
@@ -56,13 +56,13 @@ mindmap
         customer_enrollment FK (SAFE - IDs unchanged)
         PartnerProgramSlab (SAFE -- deletion gated to DRAFT only)
       PointsEngineRulesThriftService +wrappers
-        TierChangeApplier (new code)
+        TierApprovalHandler (new code)
     New Code (no blast radius)
       TierController
       TierFacade
       UnifiedTierConfig MongoDB
       MakerCheckerService
-      PendingChange MongoDB
+      TierApprovalHandler
     Unchanged (verified C6+)
       PEB (uses unchanged findByProgram)
       Thrift IDL (existing methods used)
@@ -170,7 +170,7 @@ mindmap
 
 | # | Risk | Severity | Likelihood | Impact | Mitigation | Status |
 |---|------|----------|-----------|--------|------------|--------|
-| R1 | CSV index off-by-one in TierChangeApplier | HIGH | MEDIUM | Data corruption (wrong tier gets threshold) | Unit tests with 3,4,5+ slabs. Code review. | Open -- address in SDET |
+| R1 | CSV index off-by-one in TierApprovalHandler | HIGH | MEDIUM | Data corruption (wrong tier gets threshold) | Unit tests with 3,4,5+ slabs. Code review. | Open -- address in SDET |
 | R2 | Downgrade strategy read-modify-write race | MEDIUM | LOW | Concurrent edits corrupt TierConfiguration JSON | @Lockable with 300s TTL. Single-writer pattern. | Mitigated by design |
 | R3 | Strategy ID collision on update | MEDIUM | LOW | Uniqueness constraint violation (500 error) | Always fetch existing strategy ID before update | Open -- address in Developer |
 | R4 | customer_enrollment index for member counts | MEDIUM | MEDIUM | Slow cache refresh query on large tables | Add covering index. Run off-peak. | Open -- needs Flyway migration |

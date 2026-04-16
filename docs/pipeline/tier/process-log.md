@@ -35,8 +35,8 @@
 - Codebase research: ProgramSlab entity, TierConfiguration DTO, SlabUpgradeMode enum, TierDowngradeSlabConfig, PeProgramSlabDao, PeCustomerEnrollmentDao, UnifiedPromotion (MongoDB pattern), PromotionStatus lifecycle, EntityOrchestrator
 - LSP (jdtls) used: symbol search for ProgramSlab (25 results), Slab (45 results), TierConfig (15 results), CustomerEnrollment (11 results), SlabUpgradeStrategy (6 results)
 - Key finding: ZERO tier REST APIs exist in intouch-api-v3. All tier operations go through Thrift.
-- Key finding: maker-checker exists only for promotions (UnifiedPromotionFacade). No tier MC.
-- Key finding: UnifiedPromotion pattern = MongoDB draft -> EntityOrchestrator -> SQL sync on approval. THIS is the pattern for tiers.
+- Key finding: approval framework exists only for promotions (UnifiedPromotionFacade). No tier approval flow yet.
+- Key finding: UnifiedPromotion pattern = MongoDB draft -> ApprovableEntityHandler -> SQL sync on approval. THIS is the pattern for tiers.
 - Questions asked: 8 (all human concerns, resolved)
 - 8 key decisions recorded (D-08 through D-15)
 - UI screenshots reviewed: 8 screenshots from v0.app prototype covering tier listing, eligibility, downgrade, benefits, benefit listing, benefit creation
@@ -91,11 +91,11 @@
 ### Phase 5: Codebase Research + Cross-Repo Tracing
 - Time: 2026-04-11
 - Repos researched: intouch-api-v3 (deep), emf-parent (deep), Thrift IDL (deep), peb (verified no changes)
-- CRITICAL FINDING: Blocker C-1 REVISED. Thrift methods for slab CRUD ALREADY EXIST in pointsengine_rules.thrift (not emf.thrift). createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab all present. PointsEngineRulesThriftService in intouch-api-v3 just needs wrapper methods added. NO new Thrift IDL change needed.
+- CRITICAL FINDING: Blocker C-1 RESOLVED. Thrift methods for slab CRUD ALREADY EXIST in pointsengine_rules.thrift (not emf.thrift). createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab all present. PointsEngineRulesThriftService in intouch-api-v3 just needs wrapper methods added. NO new Thrift IDL change needed.
 - LSP (jdtls) used: symbol searches for CurrentValueType (1 result), UpgradeCriteria (4 results)
-- Files analyzed in depth: UnifiedPromotionEditOrchestrator (edit/rollback pattern), StatusTransitionValidator (state machine), EmfMongoDataSourceManager (sharded interface), UnifiedPromotionRepository (MongoRepository + custom queries), UnifiedPromotionController (REST pattern), PointsEngineRulesThriftService (Thrift client), ResponseWrapper (API envelope), Lockable (distributed lock), TierDowngradePeriodConfig (PeriodType, computation window), AdditionalUpgradeCriteria (secondary upgrade criteria)
+- Files analyzed in depth: UnifiedPromotionEditOrchestrator (edit/rollback pattern using ApprovableEntityHandler), StatusTransitionValidator (state machine), EmfMongoDataSourceManager (sharded interface), UnifiedPromotionRepository (MongoRepository + custom queries), UnifiedPromotionController (REST pattern), PointsEngineRulesThriftService (Thrift client), ResponseWrapper (API envelope), Lockable (distributed lock on TierApprovalHandler), TierDowngradePeriodConfig (PeriodType, computation window), AdditionalUpgradeCriteria (secondary upgrade criteria)
 - Cross-repo trace: 4 sequence diagrams (create, approve, list, cache refresh)
-- Change inventory: ~25 new files + 1 modified in intouch-api-v3. 1 new + 2 modified in emf-parent. 0 in Thrift IDL. 0 in peb.
+- Change inventory: ~25 new files + 1 modified in intouch-api-v3. 0 in emf-parent (no SQL changes). 0 in Thrift IDL. 0 in peb.
 - Artifacts: code-analysis-intouch-api-v3.md, code-analysis-emf-parent.md, cross-repo-trace.md
 - LATE ADDITION: Production payload analysis from /loyalty/api/v1/strategy/tier-strategy/977
   - P-1 CRITICAL: Points strategy layer (allocations, redemptions, expirys) not in BA/PRD. Per-slab CSV values.
@@ -112,7 +112,7 @@
 - System architecture: 12 components across 3 repos
 - MongoDB document schema: UnifiedTierConfig (8 sections, ~50 fields) + PendingChange (generic)
 - API design: 8 endpoints (4 tier CRUD + 4 MC)
-- TierChangeApplier: CREATE flow validated, UPDATE flow designed, STOP flow designed
+- TierApprovalHandler: CREATE flow validated, UPDATE flow designed, DRAFT-delete flow designed
 - Status state machine: 7 states, 8 transitions
 - Implementation plan: 4 layers with dependency ordering
 - 5 risks catalogued with mitigations
@@ -121,7 +121,7 @@
 
 ### Phase 6a: Impact Analysis
 - Time: 2026-04-11
-- Blast radius mapped: 2 direct changes (ProgramSlab, PeProgramSlabDao), 7 indirect modules checked (all SAFE)
+- Blast radius mapped: 0 direct changes (no SQL entity/DAO changes), 7 indirect modules checked (all SAFE)
 - Security: COMPLIANT with G-03. Auth, parameterized queries, no PII.
 - Performance: Listing <200ms. Member count cache needs new index on customer_enrollment.
 - Backward compatibility: FULL. Expand-then-contract, existing methods unchanged, no Thrift IDL change.
@@ -133,14 +133,8 @@
 ### Phase 6b: Migration Planning
 - Time: 2026-04-11
 - Finding: emf-parent has NO Flyway/Liquibase. Migrations are standalone SQL scripts.
-- ~~3 migrations planned:~~
-  - ~~M-1: ALTER TABLE program_slabs ADD COLUMN status (FAST, <1s)~~ — NOT NEEDED (Rework #3)
-  - ~~M-2: CREATE INDEX idx_program_slabs_org_program_status (FAST, <1s)~~ — NOT NEEDED (Rework #3)
-  - M-3: CREATE INDEX idx_ce_org_program_slab_active on customer_enrollment (SLOW, 5-30 min, maintenance window, ALGORITHM=INPLACE)
-- ~~All backward-compatible. All have rollback scripts.~~
-- ~~Execution order: M-1+M-2 -> Deploy code -> M-3 -> Enable cache cron~~
-- ~~No data migration needed (existing rows default to ACTIVE)~~
-- **Rework #3**: M-1 and M-2 removed — SQL only contains ACTIVE tiers, no status column needed. M-3 (customer_enrollment index) may still be needed for member count cache.
+- **Rework #3**: No SQL DDL changes needed. SQL only contains ACTIVE tiers (synced via Thrift on approval). No status column, no new indexes on program_slabs.
+- M-3 (CREATE INDEX idx_ce_org_program_slab_active on customer_enrollment) may be needed for member count cache (pending Layer 4 implementation).
 - Artifact: 01b-migrator.md
 
 ### Phase 7: LLD (Designer) + API Handoff
@@ -151,8 +145,8 @@
   - MongoDB documents: UnifiedTierConfig, PendingChange with full field definitions
   - 7 enums: TierStatus, EntityType, ChangeType, ChangeStatus, CriteriaType, ActivityRelation, DowngradeSchedule
   - Status transition rules defined as Map<TierStatus, Set<TierAction>>
-  - 3 Thrift wrapper methods specified for PointsEngineRulesThriftService
-  - ~~emf-parent changes: ProgramSlab +status field, PeProgramSlabDao +findActiveByProgram()~~ — NOT NEEDED (Rework #3)
+  - Existing Thrift methods verified (createSlabAndUpdateStrategies). No IDL changes needed.
+  - No emf-parent entity/DAO changes (Rework #3)
 - API Handoff (api-handoff.md):
   - 8 endpoints with complete URL, method, headers, query params
   - Full request body examples with realistic tier data (Bronze/Silver/Gold/Platinum)

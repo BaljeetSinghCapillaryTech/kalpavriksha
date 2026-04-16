@@ -18,7 +18,7 @@
 - Eligibility criteria types: Current Points, Lifetime Points, Lifetime Purchases, Tracker Value. Same criteria type must apply to all tiers in a program. _(BA)_
 - Upgrade type: Issue Points Then Upgrade, Upgrade Then Issue Points, Issue-Upgrade-Then-Issue-Remaining. _(BA)_
 - Renewal condition types: Any (N-1), All, Custom (AND/OR with parentheses). _(BA)_
-- Maker-Checker: Approval workflow. Currently exists in intouch-api-v3 for UnifiedPromotion only (PromotionReviewRequest, ApprovalStatus). No tier maker-checker exists today. _(BA)_
+- Maker-Checker: Approval workflow. Uses Baljeet's generic `makechecker/` package (ApprovableEntity, ApprovableEntityHandler, MakerCheckerService<T>). Previously existed for UnifiedPromotion only. Tiers now integrate via TierApprovalHandler. _(BA)_
 
 ## Codebase Behaviour
 - ProgramSlab entity is minimal: id, name, description, serialNumber, metadata, createdOn. No status, no color, no eligibility. These are stored in separate strategy configurations (TierConfiguration JSON in metadata or org config). _(BA)_
@@ -37,7 +37,7 @@
 - Epic name in registry: `tier-category` (mapped from "Tiers CRUD", covers E1-US1/US2/US3). Assigned to Ritwik (Layer 2). _(Phase 0)_
 - Interface philosophy: Option A (Hybrid — Direct UI + aiRa) chosen per BRD recommendation _(Phase 0 — from BRD Section 5)_
 - SCOPE: E1-US1 (Listing), E1-US2 (Creation), E1-US3 (Editing) + Tier Deletion (new user story, not in BRD). Plus generic maker-checker framework designed for extensibility (not tier-specific). Change Log (US5) and Simulation (US6) deferred but architecture must support them later. _(BA — Q1)_
-- Maker-checker framework must be generic/shared: tiers plug into it, later benefits/change-log/simulation will too. This aligns with registry where maker-checker-framework is a shared module built by ritwik. _(BA — Q1)_
+- Maker-checker framework migrated to Baljeet's generic `makechecker/` package: tiers plug into it via ApprovableEntityHandler<UnifiedTierConfig>, later benefits/change-log/simulation will too via same pattern. No custom makerchecker/ package (17 files deleted). _(BA — Q1, MIGRATION)_
 - ~~Tier deletion is soft-delete via status field. Add `status` column to `program_slabs`.~~ SUPERSEDED by Rework #3: No SQL changes needed. MongoDB owns lifecycle. SQL only contains ACTIVE tiers. _(BA — Q2, superseded Rework #3)_
 - ~~Status field is a SCHEMA CHANGE.~~ SUPERSEDED by Rework #3: ProgramSlab status column, findActiveByProgram(), and Flyway migration all removed from scope. Deferred to future tier retirement epic. _(BA — Q2, superseded Rework #3)_
 - DUAL-STORAGE PATTERN: MongoDB for draft/pending tier configs, SQL for live tiers. Follows the exact same pattern as UnifiedPromotion in intouch-api-v3. Create/Edit saves to MongoDB. Maker-checker approval triggers sync to SQL (ProgramSlab + strategy configs). Listing API reads from MongoDB (all states) + SQL (live state). _(BA — Q3)_
@@ -47,16 +47,17 @@
 - Tier reordering NOT supported. serialNumber is immutable and auto-assigned. Any attempt to change serialNumber returns 400. _(Rework #2)_
 - Tier deletion is DRAFT-only: DELETE /v3/tiers/{tierId} → sets status to DELETED. Returns 409 if not DRAFT. No MC flow needed (DRAFT is pre-approval). No member reassessment (DRAFT tiers have no members). _(Rework #2)_
 - Member counts in tier listing: cached approach (option c). customer_enrollment table has current_slab_id but no GROUP BY count query exists. Table is hot (millions of evaluations/day). Use a periodic summary (refreshed every 5-15 min) stored in MongoDB tier doc or a small stats table. GET /tiers response includes cached counts. _(BA — Q4)_
-- Maker-checker: FULL GENERIC FRAMEWORK (option a). Build PendingChange entity/service, MakerCheckerService interface (submit/approve/reject), domain-specific ChangeApplier strategy. Tiers = first consumer. Benefits, subscriptions, other entities plug in later. This is Layer 1 shared module per registry. _(BA — Q5)_
-- Generic MC framework components: PendingChange MongoDB doc (entityType, payload, requestedBy, status, reviewedBy, comment, timestamps), MakerCheckerService (submit/approve/reject/list), ChangeApplier<T> strategy interface (per entity type — TierChangeApplier is the first impl). _(BA — Q5)_
+- Maker-checker: FULL GENERIC FRAMEWORK (option a). ~~Build PendingChange entity/service, MakerCheckerService interface (submit/approve/reject), domain-specific ChangeApplier strategy.~~ SUPERSEDED by Rework #3.5: Use Baljeet's makechecker/ package with ApprovableEntity contract, ApprovableEntityHandler<T> strategy interface, MakerCheckerService<T extends ApprovableEntity>. Tiers = first consumer via TierApprovalHandler. Benefits, subscriptions, other entities plug in later. _(BA — Q5, MIGRATION)_
+- Generic MC framework components (Baljeet's makechecker/ package): ApprovableEntity interface (entityType, status, timestamps), MakerCheckerService<T extends ApprovableEntity> (submit/approve/reject/list), ApprovableEntityHandler<T> strategy interface (per entity type — TierApprovalHandler implements it for UnifiedTierConfig). Change snapshots stored as part of entity state. _(BA — Q5, MIGRATION)_
 - Tier editing: VERSIONED EDITS (option a, same as unified promotions). Editing an ACTIVE tier creates a new DRAFT MongoDB doc with parentId -> ACTIVE doc. ACTIVE stays live until DRAFT approved. On approval: new doc -> ACTIVE, old doc -> SNAPSHOT. Full rollback capability. Consistent with existing UnifiedPromotion.parentId pattern. _(BA — Q6)_
-- Version lifecycle: CREATE -> DRAFT. SUBMIT -> PENDING_APPROVAL. APPROVE -> ACTIVE (old -> SNAPSHOT). REJECT -> back to DRAFT (promotion pattern, via ChangeApplier.revert()). EDIT ACTIVE -> new DRAFT with parentId. _(BA — Q6, updated Rework #3)_
+- Version lifecycle: CREATE -> DRAFT. SUBMIT -> PENDING_APPROVAL. APPROVE -> ACTIVE (old -> SNAPSHOT). REJECT -> back to DRAFT (promotion pattern, via TierApprovalHandler.revert() called by MakerCheckerService). EDIT ACTIVE -> new DRAFT with parentId. _(BA — Q6, updated Rework #3, MIGRATION)_
 - API hosting: intouch-api-v3 serves tier CRUD REST APIs + MongoDB draft storage + maker-checker. On approval, syncs to emf-parent via Thrift (same as unified promotions). emf-parent owns core business logic, JPA entities, strategy configs. _(BA — Q7)_
-- Call chain on approval: intouch-api-v3 REST -> MakerCheckerService.approve() -> TierChangeApplier -> Thrift call -> emf-parent PointsEngineRuleService.createSlabAndUpdateStrategies() -> SQL write. _(BA — Q7)_
-- Exception types: InvalidInputException(400), NotFoundException(404), ConflictException(409), EMFThriftException(500) — all caught by TargetGroupErrorAdvice @ControllerAdvice. Never use IllegalArgumentException/IllegalStateException in REST-facing code. _(Developer — Rework #4)_
+- Call chain on approval: intouch-api-v3 REST -> TierFacade.handleApproval() -> MakerCheckerService<UnifiedTierConfig>.approve() -> TierApprovalHandler.postApprove() -> Thrift call -> emf-parent PointsEngineRuleService.createSlabAndUpdateStrategies() -> SQL write. _(BA — Q7, MIGRATION)_
+- Exception types: InvalidInputException(400), NotFoundException(404), ConflictException(409), EMFThriftException(500) — all caught by TargetGroupErrorAdvice @ControllerAdvice. Never use IllegalArgumentException/IllegalStateException in REST-facing code. TierApprovalHandler and TierFacade throw these standard exceptions. _(Developer — Rework #4, MIGRATION)_
 - Two-layer validation: Jakarta annotations on DTOs (field-level) + dedicated validator classes with error codes (9001-9009) + @Service business-rule validators (need DB access). Controllers are try-catch-free. _(Developer — Rework #4)_
 - Error code range 9001-9009 for tier validation (aligned with api/prototype). Range 9010-9019 reserved for maker-checker. _(Developer — Rework #4)_
-- Maker-checker toggle: per-program + per-entity-type granularity. isMakerCheckerEnabled(orgId, programId, entityType). When disabled: Create -> ACTIVE immediately, Edit -> applied immediately (no DRAFT/PENDING states). Config stored in org-level settings. _(BA — Q8)_
+- Maker-checker: Tiers ALWAYS use maker-checker (no toggle). Create -> DRAFT, Submit -> PENDING_APPROVAL, Approve -> ACTIVE. No MC-disabled path for tiers. Integrated via Baljeet's generic makechecker/ package + TierApprovalHandler. _(BA — Q8, MIGRATION — Rework #3.5)_
+- MIGRATION DECISION (Rework #3.5): Delete custom makerchecker/ package (17 files). Adopt Baljeet's generic makechecker/ framework (ApprovableEntity, ApprovableEntityHandler, MakerCheckerService<T>). Tiers are first consumer; benefits/subscriptions follow same pattern. Zero API changes; internal refactor only. _(2026-04-16)_
 
 ## UI Findings (Phase 3)
 - UI shows "Duration" per tier (start date + end date or Indefinite) -- NOT in BA/PRD. Likely maps to tier validity period. NEEDS field addition to MongoDB doc. _(Phase 3 — GAP-1)_
@@ -110,38 +111,38 @@
 
 ## Production Payload Analysis (Phase 5 -- from /loyalty/api/v1/strategy/tier-strategy/977)
 - P-1 CRITICAL: pointsSaveData (allocations, redemptions, expirys) -- entire points strategy layer not in BA/PRD. Per-slab strategies with CSV values per tier. 13+ allocation strategies, 5+ redemption, 5+ expiry. MongoDB doc must store for round-trip fidelity. New tier listing API returns summary count, not full details. _(Phase 5)_
-- P-2: CSV-per-slab pattern is pervasive. Every strategy property uses comma-separated values (position N = slab N). Creating a new slab requires extending EVERY strategy CSV. Handled by existing createSlabAndUpdateStrategies Thrift method + PointsEngineRuleService logic at line 3821. TierChangeApplier must pass correct strategy list. _(Phase 5)_
+- P-2: CSV-per-slab pattern is pervasive. Every strategy property uses comma-separated values (position N = slab N). Creating a new slab requires extending EVERY strategy CSV. Handled by existing createSlabAndUpdateStrategies Thrift method + PointsEngineRuleService logic at line 3821. TierApprovalHandler.publish() must pass correct strategy list. _(Phase 5, MIGRATION)_
 - P-3: upgrade section confirmed. current_value_type=CUMULATIVE_PURCHASES, threshold_value as array, secondary_criteria_enabled=false. Matches our model. _(Phase 5)_
 - P-4: downgrade section has new fields: isFixedTypeWithoutYear (bool), renewalWindowType ("FIXED_DATE_BASED" -- different naming from PeriodType enum). condition="SLAB_UPGRADE" used as condition name. All must be preserved in MongoDB doc. _(Phase 5)_
 - P-5: isAdvanceSetting (bool -- UI rendering hint) and addDefaultCommunication (bool -- auto-create notification templates) -- new flags not in BA. Store in MongoDB doc. _(Phase 5)_
 - P-6: updatedViaNewUI flag on SlabInfo and StrategyInfo. New tier APIs must set updatedViaNewUI=true on all strategies they create/modify. _(Phase 5)_
 
-## TierChangeApplier Conversion Design (Phase 5 Deep Dive)
+## TierApprovalHandler Conversion Design (Phase 5 Deep Dive, MIGRATION — Rework #3.5)
 - Strategy entity (SQL: strategies table): id, orgId, programId, name, description, strategyTypeId, propertyValues (JSON string), owner, createdOn _(Phase 5)_
 - StrategyType IDs: 1=POINT_ALLOCATION, 2=SLAB_UPGRADE, 3=POINT_EXPIRY, 4=POINT_REDEMPTION_THRESHOLD, 5=SLAB_DOWNGRADE, 6=POINT_RETURN, 7=EXPIRY_REMINDER, 8=TRACKER, 9=POINT_EXPIRY_EXTENSION _(Phase 5)_
-- CREATE new slab: Call createOrUpdateSlab(SlabInfo) via Thrift. Engine auto-extends all allocation/expiry CSV values with appended "0". TierChangeApplier does NOT send strategy list for basic creation. _(Phase 5)_
-- UPDATE slab config: Call createSlabAndUpdateStrategies(SlabInfo, list<StrategyInfo>). TierChangeApplier converts MongoDB config -> StrategyInfo list. _(Phase 5)_
+- CREATE new slab: Call createOrUpdateSlab(SlabInfo) via Thrift. Engine auto-extends all allocation/expiry CSV values with appended "0". TierApprovalHandler.publish() does NOT send strategy list for basic creation. _(Phase 5, MIGRATION)_
+- UPDATE slab config: Call createSlabAndUpdateStrategies(SlabInfo, list<StrategyInfo>). TierApprovalHandler.publish() converts MongoDB config -> StrategyInfo list. _(Phase 5, MIGRATION)_
 - Conversion: eligibility (TierEligibilityConfig) -> StrategyType 2 (SLAB_UPGRADE) propertyValues JSON {current_value_type, threshold_values CSV, expression_relation, slab_upgrade_mode, tracker_id, tracker_condition_id} _(Phase 5, updated Phase D)_
 - Conversion: downgrade (TierDowngradeConfig) -> StrategyType 5 (SLAB_DOWNGRADE) propertyValues JSON = full TierConfiguration JSON {is_active, slabs[], dailyDowngradeEnabled, retainPoints, isDowngradeOnReturnEnabled, renewalConfirmation, reminders} _(Phase 5, updated Phase D)_
 - Points strategies (allocation/redemption/expiry) NOT managed by tier CRUD. On new slab, engine auto-extends. On edit, existing values preserved. _(Phase 5)_
 - Slab upgrade strategy property format: {current_value_type: "CUMULATIVE_PURCHASES", threshold_values: "2000,5000,12000"} -- CSV has N-1 values for N slabs (base slab has no threshold) _(Phase 5)_
 - createOrUpdateSlab internally calls updateStrategiesForNewSlab which iterates all POINT_ALLOCATION and POINT_EXPIRY strategies and appends default values for the new slab position _(Phase 5)_
-- FLOW 1 VALIDATED: Use createSlabAndUpdateStrategies as SINGLE atomic Thrift call. Pass ONLY SLAB_UPGRADE and SLAB_DOWNGRADE strategies. Engine auto-handles allocation/expiry CSV extension. Method order: update strategies FIRST, then create slab (which triggers CSV extension). All in one transaction. _(Phase 5 validation)_
-- FLOW 1 RISK: updateStrategiesForNewSlab only extends POINT_ALLOCATION(1) and POINT_EXPIRY(3). Does NOT extend POINT_REDEMPTION_THRESHOLD(4). Redemption CSVs may be mismatched after new slab creation. Existing engine may handle this gracefully or it may be a latent bug. Low risk for now -- redemption strategies typically use SLAB_INDEPENDENT type. _(Phase 5 validation)_
+- SAGA FLOW: TierApprovalHandler implements preApprove() (validate), publish() (call Thrift), postApprove() (save MongoDB), onPublishFailure() (log + rethrow). All methods called by MakerCheckerService<UnifiedTierConfig>. Atomic Thrift: createSlabAndUpdateStrategies with ONLY SLAB_UPGRADE and SLAB_DOWNGRADE strategies. Engine auto-handles allocation/expiry CSV extension. _(Phase 5 validation, MIGRATION)_
+- SAGA RISK: updateStrategiesForNewSlab only extends POINT_ALLOCATION(1) and POINT_EXPIRY(3). Does NOT extend POINT_REDEMPTION_THRESHOLD(4). Redemption CSVs may be mismatched after new slab creation. Existing engine may handle this gracefully or it may be a latent bug. Low risk for now -- redemption strategies typically use SLAB_INDEPENDENT type. _(Phase 5 validation)_
 
 ## Constraints
-- Scope: Tier CRUD (List, Create, Edit, Delete) + extensible Maker-Checker framework. NOT change log, NOT simulation mode. _(BA — Q1)_
+- Scope: Tier CRUD (List, Create, Edit, Delete) + integration with Baljeet's generic Maker-Checker framework (via ApprovableEntityHandler). NOT custom MC framework build. NOT change log, NOT simulation mode. _(BA — Q1, MIGRATION)_
 - Scope limited to "Tiers CRUD" — subset of the full Tiers & Benefits BRD (Epic E1 primarily) _(Phase 0)_
 - Tech stack: Java, Spring, Thrift, MySQL, MongoDB, Flyway, JUnit 4, Mockito _(Phase 0)_
 - Four repos involved: emf-parent (entities/strategies), intouch-api-v3 (REST/maker-checker), peb (tier downgrade), Thrift (IDL definitions) _(Phase 0)_
 - UI: Figma designs (AMJ - Loyalty Revamp, node 1508:20810) + 8 v0.app screenshots. 10 Figma frames downloaded to UI/figma-tiers/. _(Phase 0, updated 2026-04-14)_
 - 7 ADRs documented: ADR-01 (dual-storage), ADR-02 (generic MC), ADR-03 (expand-then-contract), ADR-04 (versioned edits), ADR-05 (existing Thrift), ADR-06 (new programs only), ADR-07 (atomic Thrift call) _(Architect)_
-- 4-layer implementation plan: L1 MC Framework, L2 Tier CRUD, L3 emf-parent changes, L4 integration + cache _(Architect)_
-- API handoff v1.2: 13 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail + 2 tier-settings GET/PUT). No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5, updated Figma review)_
+- 3-layer implementation plan (updated post-migration): L1 TierApprovalHandler (ApprovableEntityHandler<UnifiedTierConfig> impl, SAGA pattern), L2 Tier CRUD (TierFacade, TierReviewController, TierRepository), L3 emf-parent changes (Thrift integration). Cache + monitoring via TierServiceImpl. _(Architect, MIGRATION)_
+- API handoff v1.3: 13 endpoints total (4 tier CRUD + 1 MC submit + 2 MC approve/reject + 1 MC list pending + 1 tier detail + 1 MC config + 1 change detail + 2 tier-settings GET/PUT). All MC endpoints delegate to MakerCheckerService<UnifiedTierConfig> and TierApprovalHandler. No PAUSED status. Tier reorder not supported (serialNumber immutable). Idempotency-Key on POST /v3/tiers. _(Phase 7.5, updated Figma review + MIGRATION)_
 - Production payload validation (program 977): 5 missing engineConfig fields discovered. Added: slabUpgradeMode (program-level, from upgrade.slab_upgrade_mode), downgradeEngineConfig.isActive (from downgrade.is_active), downgradeEngineConfig.conditionAlways (from downgrade.condition_always), downgradeEngineConfig.conditionValues (purchase/numVisits/points/trackerCount), downgradeEngineConfig.renewalOrderString. Full legacy-to-new mapping table added to api-handoff Section 16. _(Phase 7.5 — production validation)_
-- criteriaType: new API uses SAME production enum values (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No conversion needed in TierChangeApplier -- values pass through directly. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values -- TierChangeApplier joins/splits during sync. _(Phase 7.5, updated Phase 7-rework)_
-- MongoDB document schema: UnifiedTierConfig with 9 top-level sections (basicDetails, eligibility, validity, downgrade, nudges, benefitIds, memberStats, engineConfig, metadata) — field names engine-aligned per Phase D rework. Old names: eligibilityCriteria→eligibility, renewalConfig→validity, downgradeConfig→downgrade, nudges added. Model classes: TierEligibilityConfig, TierValidityConfig, TierDowngradeConfig, TierNudgesConfig, TierCondition, TierRenewalConfig. All use String types for enum-like fields (kpiType, upgradeType, target, periodType) matching prototype pattern. _(Architect, updated Phase D)_
-- PendingChange generic schema: entityType, entityId, payload (full snapshot), status, requestedBy, reviewedBy _(Architect)_
+- criteriaType: new API uses SAME production enum values (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No conversion needed in TierApprovalHandler -- values pass through directly. Threshold format differs: production uses program-wide CSV array (N-1 values), our API uses per-tier individual values -- TierApprovalHandler joins/splits during sync. _(Phase 7.5, updated Phase 7-rework, MIGRATION)_
+- MongoDB document schema: UnifiedTierConfig implements ApprovableEntity with 9 top-level sections (basicDetails, eligibility, validity, downgrade, nudges, benefitIds, memberStats, engineConfig, metadata) — field names engine-aligned per Phase D rework. Old names: eligibilityCriteria→eligibility, renewalConfig→validity, downgradeConfig→downgrade, nudges added. Model classes: TierEligibilityConfig, TierValidityConfig, TierDowngradeConfig, TierNudgesConfig, TierCondition, TierRenewalConfig. All use String types for enum-like fields (kpiType, upgradeType, target, periodType) matching prototype pattern. Status field (status: DRAFT/PENDING_APPROVAL/ACTIVE/SNAPSHOT) managed by ApprovableEntity contract. _(Architect, updated Phase D, MIGRATION)_
+- ApprovableEntity generic contract (Baljeet's makechecker/): status (DRAFT/PENDING_APPROVAL/ACTIVE/SNAPSHOT), timestamps, userId fields. UnifiedTierConfig implements ApprovableEntity. Payload stored as entity state, not separate doc. _(Architect, MIGRATION)_
 - Impact analysis: blast radius SMALL (2 modified in emf-parent, 0 in peb/Thrift). Full backward compatibility. _(Analyst)_
 - GUARDRAILS attention: ~~G-01 (use Instant not Date)~~ OVERRIDDEN Rework #3 — use Date + @JsonFormat(XXX) to match promotion pattern, G-06.1 (add idempotency key for POST /tiers), G-07.3 (cron job tenant context) _(Analyst, updated Rework #3)_
 - 8 risks catalogued: R1 CSV off-by-one (HIGH), R2 downgrade race (MEDIUM, mitigated), R3 strategy ID collision (MEDIUM), R4 member count index (MEDIUM), R5 timezone (MEDIUM), R6 idempotency (LOW), R7 cron tenant (LOW), R8 MC self-approval (LOW, product decision) _(Analyst)_
@@ -151,8 +152,8 @@
 ## Risks & Concerns
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated
 - Registry repo has full decomposition on `raidlc/rtest123/epic-division` branch. _(Phase 0)_ -- Status: mitigated
-- tier-category consumes maker-checker-framework (owner: ritwik) and audit-trail-framework (owner: anuj). Both status: "designed" (not built yet). Will need mocks during development. _(Phase 0)_ -- Status: open
-- BLOCKER C-1: REVISED in Phase 5. Thrift methods ALREADY EXIST in pointsengine_rules.thrift (NOT emf.thrift): createSlabAndUpdateStrategies(programId, orgId, SlabInfo, list<StrategyInfo>, ...), getAllSlabs(programId, orgId, ...), createOrUpdateSlab(SlabInfo, orgId, ...). PointsEngineRulesThriftService in intouch-api-v3 is the client but does NOT currently wrap slab methods. Fix: add wrapper methods to PointsEngineRulesThriftService. NO new Thrift IDL change needed for basic CRUD. May still need new method for status updates (STOPPED). _(Phase 5)_ -- Status: REVISED (simpler than thought)
+- tier-category consumes Baljeet's makechecker/ package (generic ApprovableEntity framework) and audit-trail-framework (owner: anuj). makechecker/ status: available. audit-trail status: designed (not built yet). Will need mocks for audit-trail during development. _(Phase 0, MIGRATION)_ -- Status: MITIGATED (makechecker available), open (audit-trail)
+- BLOCKER C-1: RESOLVED in Migration. Thrift methods ALREADY EXIST in pointsengine_rules.thrift: createSlabAndUpdateStrategies(programId, orgId, SlabInfo, list<StrategyInfo>, ...), getAllSlabs(programId, orgId, ...), createOrUpdateSlab(SlabInfo, orgId, ...). TierApprovalHandler.postApprove() calls these via PointsEngineRulesThriftService wrapper. NO new Thrift IDL change needed. _(Phase 5, MIGRATION)_ -- Status: RESOLVED
 - HIGH C-2: RESOLVED. Block stop if PartnerProgramSlabs exist (409 Conflict). Known limitation documented for Anuj's supplementary-partner-program epic to add cascade/management logic. _(Phase 4 — HIGH #1)_ -- Status: RESOLVED
 - ~~HIGH C-3: Expand-then-contract migration.~~ SUPERSEDED by Rework #3: No SQL changes needed. ProgramSlab status column removed from scope entirely. _(Phase 4 — HIGH #2, superseded Rework #3)_ -- Status: NOT NEEDED
 - MEDIUM C-4: Threshold validation oversimplified. Thresholds stored as CSV in strategy properties, not per-slab. AND/OR conditions possible. Exact validation rules deferred to HLD. _(Critic)_ -- Status: deferred to HLD
@@ -170,19 +171,19 @@
 - [x] resolved: Block stop (409 Conflict) if PartnerProgramSlabs exist. Cascade deferred to Anuj's SPP epic. _(Phase 4 — HIGH #1)_
 - [x] resolved: Thrift method signature -- deferred to HLD (Phase 6). Method name: configureTier(). _(Phase 4)_
 - [x] resolved: Member count cache -- scheduled job (cron) every 10 min. GROUP BY current_slab_id query -> writes to MongoDB tier docs. _(Phase 4 — GQ)_
-- [x] resolved: MC notification -- hook interface only (NotificationHandler with onSubmit/onApprove/onReject). No-op default. _(Phase 4 — GQ-5)_
+- [x] resolved: MC notification -- Baljeet's MakerCheckerService handles lifecycle notifications. TierApprovalHandler can register callbacks via NotificationHandler interface if needed. _(Phase 4 — GQ-5, MIGRATION)_
 - [x] resolved: Benefits linkage -- store benefitIds only on tier doc. UI fetches benefit details separately. _(Phase 4 — GQ-4 override)_
 - [x] resolved: No pagination for tier listing. Full list returned. Max 50 tiers validation cap. _(Phase 4 — GQ-1)_
 - [x] resolved: NO bootstrap sync for existing programs. New tier CRUD is for NEW programs only. Old programs keep current system. _(Phase 4 — GQ-2 override)_
 - [x] resolved: Versioned edit flow confirmed as Flow A. ACTIVE stays live until DRAFT approved. On approval: old->SNAPSHOT, new->ACTIVE. Zero downtime. _(Phase 4 — GQ-3)_
-- [x] resolved: PendingChange stores full snapshot, not diff. _(Phase 4 — GQ-6)_
+- [x] resolved: Change snapshot storage -- ApprovableEntity contract stores state in UnifiedTierConfig itself (full snapshot, not diff). No separate PendingChange collection needed. _(Phase 4 — GQ-6, MIGRATION)_
 - [x] resolved: KPI "Scheduled" replaced with "Pending Approval". No goLiveDate concept for now. _(Phase 4 — C-5)_
 
 ## QA Findings (Phase 8)
 - 89 test scenarios covering 52/52 acceptance criteria, 7/7 ADRs, 8 risks, 6 guardrail areas _(QA)_
 - Most critical gap: No test infrastructure for MongoDB + Thrift integration tests in intouch-api-v3. SDET must establish embedded MongoDB + Thrift mock. _(QA)_
 - ~45 existing test files in emf-parent + peb need regression runs after Flyway migration (ADR-03 expand-then-contract) _(QA)_
-- 0 existing tier/MC tests in intouch-api-v3 — all tests for tier CRUD and MC framework are net-new _(QA)_
+- 0 existing tier integration tests in intouch-api-v3 — all tests for tier CRUD and MC integration with Baljeet's framework are net-new _(QA, MIGRATION)_
 - Edge cases flagged: concurrent serialNumber assignment, @Lockable for concurrent approvals, one-DRAFT-per-ACTIVE enforcement, engineConfig round-trip fidelity _(QA)_
 - Business Test Gen (Phase 8b) complete: 141 business test cases (84 UT + 45 IT + 12 compliance) across 7 sections. Full traceability: 52/52 ACs, 89/89 QA scenarios, 16/16 designer interface methods, 7/7 ADRs, 8/8 risks, 8 guardrail areas. 7 coverage gaps documented (all deferred or SDET-addressable, no blockers). Artifact: 04b-business-tests.md _(Business Test Gen)_
 
@@ -191,11 +192,11 @@ _Tracks re-run cycles to detect unresolved loops._
 
 ### Rework #1 — Minimize deviation from production patterns (2026-04-13)
 **Trigger**: User feedback — ACTIVITY_BASED enum rename and conversion logic is unnecessary deviation from emf-parent codebase.
-**Decision**: Use production enum values as-is (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No renaming, no conversion in TierChangeApplier for criteriaType.
-**Scope**: Phases 7-12 artifacts + Java source files (CriteriaType.java, TierChangeApplierTest.java).
+**Decision**: Use production enum values as-is (CUMULATIVE_PURCHASES, CURRENT_POINTS, etc.). No renaming, no conversion in TierApprovalHandler for criteriaType.
+**Scope**: Phases 7-12 artifacts + Java source files (CriteriaType.java, TierApprovalHandlerTest.java).
 **What changed**:
 - CriteriaType enum: ACTIVITY_BASED → CUMULATIVE_PURCHASES (matches production)
-- TierChangeApplier: no criteriaType conversion step needed (values pass through directly)
+- TierApprovalHandler: no criteriaType conversion step needed (values pass through directly)
 - BT-77: changed from conversion test to pass-through verification test
 - Section 16 mapping table: now shows identity mapping (same values, no conversion)
 - Per-tier threshold format KEPT (good UX improvement, user agreed)
@@ -221,20 +222,37 @@ _Tracks re-run cycles to detect unresolved loops._
 **What changed**:
 - **Exception types**: All `IllegalArgumentException` → `NotFoundException` (404) or `InvalidInputException` (400). All `IllegalStateException` → `ConflictException` (409, new class) or `InvalidInputException`. All `RuntimeException("Thrift...")` → `EMFThriftException`.
 - **New class: ConflictException** — follows same pattern as InvalidInputException/NotFoundException. Added to TargetGroupErrorAdvice @ControllerAdvice mapping CONFLICT (409).
-- **Controllers cleaned**: Removed ALL try-catch from TierController and MakerCheckerController. Clean delegation to facades. @ControllerAdvice handles all HTTP mapping.
+- **Controllers cleaned**: Removed ALL try-catch from TierController and TierReviewController. Clean delegation to facades. @ControllerAdvice handles all HTTP mapping.
 - **Two-layer validation**: Jakarta annotations (@NotBlank, @Size, @Pattern) on BasicDetails DTO for field-level. New TierCreateRequestValidator + TierUpdateRequestValidator with error codes 9001-9009. TierValidationService slimmed to business-rule-only methods (name uniqueness, serial number, tier cap).
 - **Error codes**: 9001=name required, 9002=name too long, 9003=desc too long, 9004=invalid color hex, 9005=end before start, 9006=programId required, 9007=invalid kpiType, 9008=negative threshold, 9009=invalid upgradeType.
-- **Test files updated**: TierValidationServiceTest, TierFacadeTest, MakerCheckerFacadeTest — all assertions changed to match new exception types.
+- **Handler refactored**: TierApprovalHandler throws standard exceptions (no try-catch). SAGA methods (preApprove, publish, postApprove, onPublishFailure) propagate exceptions cleanly.
+- **Test files updated**: TierValidationServiceTest, TierFacadeTest, TierApprovalHandlerTest — all assertions changed to match new exception types.
 - **GUARDRAILS updated**: New G-13 (Exception Handling & Error Codes) with 4 sub-rules. Designer, Developer, Reviewer skills updated.
 **What stayed the same**: Business logic, architecture, state machine, all other code.
 **Impact**: Code now follows same exception/validation pattern as all other controllers in intouch-api-v3. 56 tests pass.
 
+### Rework #3.5 — Migration to Baljeet's generic makechecker/ package (2026-04-16)
+**Trigger**: Package availability — Baljeet completed generic makechecker/ framework. Custom 17-file makerchecker/ package deprecated.
+**Decision**: Delete custom makerchecker/ package entirely. Integrate tiers into Baljeet's makechecker/ via ApprovableEntityHandler<UnifiedTierConfig>.
+**Scope**: All makerchecker/ files + all references in tier CRUD code.
+**What changed**:
+- **Deleted**: Custom `intouch-api-v3/src/.../makerchecker/` directory (17 files): MakerCheckerService, MakerCheckerServiceImpl, MakerCheckerFacade, MakerCheckerController, TierChangeApplier, ChangeApplier, PendingChange, MakerCheckerConfig, isMakerCheckerEnabled(), etc.
+- **New**: `TierApprovalHandler implements ApprovableEntityHandler<UnifiedTierConfig>` — single class with preApprove(), publish(), postApprove(), onPublishFailure(), revert() methods.
+- **New**: `TierFacade.submitForApproval(tierId) → MakerCheckerService<UnifiedTierConfig>.submit()` and `TierFacade.handleApproval(tierId, approved) → MakerCheckerService.approve()`.
+- **New**: `TierReviewController` (replaces MakerCheckerController) delegates to TierFacade.
+- **SAGA pattern**: preApprove() validates, publish() calls Thrift (createSlabAndUpdateStrategies), postApprove() saves MongoDB, onPublishFailure() logs + rethrows.
+- **Status always MC**: No isMakerCheckerEnabled toggle. Tiers always follow DRAFT→PENDING_APPROVAL→ACTIVE→SNAPSHOT lifecycle.
+- **No PendingChange collection**: Change metadata stored in UnifiedTierConfig itself (requestedBy, reviewedBy, approvalTimestamp, etc., per ApprovableEntity contract).
+- **ApprovableEntity contract**: Implemented by UnifiedTierConfig. Framework handles status, timestamps, user tracking.
+**What stayed the same**: APIs, business logic, dual-storage pattern, MongoDB schema, Thrift integration, all other code.
+**Impact**: Cleaner codebase (eliminates custom framework), instant extensibility for future entities (benefits, subscriptions), aligns with registry design.
+
 ### Rework #3 — Timezone alignment, rejection→DRAFT, remove ProgramSlab status (2026-04-16)
 **Trigger**: User review — three corrections identified.
-**Scope**: Model classes, MakerCheckerServiceImpl, TierChangeApplier, design artifacts.
+**Scope**: Model classes, MakerCheckerServiceImpl, TierApprovalHandler, design artifacts.
 **What changed**:
-- **Timezone**: All date/time fields changed from `Instant` (UTC "Z") to `Date` with `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` — matches UnifiedPromotion pattern. Produces offsets like "+05:30" instead of "Z". Affected: BasicDetails, TierMetadata, PendingChange, TierFacade, MakerCheckerServiceImpl, all tests.
-- **Rejection→DRAFT**: MC rejection now reverts entity to DRAFT (promotion pattern). MakerCheckerServiceImpl wired with ChangeApplier registry. `reject()` calls `applier.revert()`. TierChangeApplier.revert() sets tier status back to DRAFT. Refactored to full constructor injection (Spring best practice).
+- **Timezone**: All date/time fields changed from `Instant` (UTC "Z") to `Date` with `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` — matches UnifiedPromotion pattern. Produces offsets like "+05:30" instead of "Z". Affected: BasicDetails, TierMetadata, UnifiedTierConfig, TierFacade, MakerCheckerService, all tests.
+- **Rejection→DRAFT**: MC rejection now reverts entity to DRAFT (promotion pattern). MakerCheckerService wired with ApprovableEntityHandler registry. `reject()` calls `handler.revert()`. TierApprovalHandler.revert() sets tier status back to DRAFT. Refactored to full constructor injection (Spring best practice).
 - **ProgramSlab status column REMOVED**: No SQL changes needed. SQL only contains ACTIVE tiers (synced via Thrift). No ACTIVE tier can be deleted. SlabInfo Thrift has no status field. Removed from: 03-designer.md Section 7, 01-architect.md Section 4.3, blocker-decisions.md HIGH #2, 01b-migrator.md (M-1, M-2). Deferred to future tier retirement epic.
 - **GUARDRAILS note**: G-01 originally said "use Instant not Date" — OVERRIDDEN to match existing codebase pattern (promotions use Date + @JsonFormat). Consistency with existing patterns takes priority over Java modernity preference.
 **What stayed the same**: State machine (already had REJECT→DRAFT), APIs, architecture, all other field structures.

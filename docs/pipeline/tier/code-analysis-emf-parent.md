@@ -13,7 +13,7 @@
 
 3. **Thrift methods for slab CRUD already exist** in pointsengine_rules.thrift (PointsEngineRuleService), NOT in emf.thrift (EMFService). This is a critical finding -- the Blocker C-1 was based on searching the wrong Thrift file.
 
-4. **Slab creation is atomic: slab + strategies.** `createSlabAndUpdateStrategies` creates the ProgramSlab AND updates all associated strategies in one call. This is what the TierChangeApplier will call on MC approval.
+4. **Slab creation is atomic: slab + strategies.** `createSlabAndUpdateStrategies` creates the ProgramSlab AND updates all associated strategies in one call. This is what the TierApprovalHandler will call on MC approval.
 
 ## Entity Model
 

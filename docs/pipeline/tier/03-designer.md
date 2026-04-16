@@ -12,14 +12,14 @@
 com.capillary.intouchapiv3/
   resources/
     TierController.java                    -- REST endpoints for /v3/tiers
-    MakerCheckerController.java            -- REST endpoints for /v3/maker-checker
+    TierReviewController.java              -- REST endpoints for /v3/tiers/{tierId}/submit, /approve, /v3/tiers/approvals
   tier/
-    UnifiedTierConfig.java                 -- MongoDB @Document
+    UnifiedTierConfig.java                 -- MongoDB @Document; implements ApprovableEntity
     TierFacade.java                        -- Business logic orchestrator
     TierRepository.java                    -- MongoRepository interface
     TierRepositoryCustom.java              -- Custom query interface
     TierRepositoryImpl.java                -- Sharded MongoDB implementation
-    TierChangeApplier.java                 -- ChangeApplier impl (MongoDB -> Thrift -> SQL)
+    TierApprovalHandler.java               -- ApprovableEntityHandler<UnifiedTierConfig> impl
     TierValidationService.java             -- Field-level validation
     dto/
       TierCreateRequest.java               -- POST request body
@@ -39,85 +39,138 @@ com.capillary.intouchapiv3/
       TierMetadata.java                    -- created/updated by, sqlSlabId
     enums/
       TierStatus.java                      -- DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT
-  makerchecker/
-    MakerCheckerService.java               -- Generic interface
-    MakerCheckerServiceImpl.java           -- Implementation
-    MakerCheckerFacade.java                -- Request orchestration
-    ChangeApplier.java                     -- Strategy interface
-    PendingChange.java                     -- MongoDB @Document
-    PendingChangeRepository.java           -- MongoRepository
-    NotificationHandler.java               -- Hook interface
-    NoOpNotificationHandler.java           -- Default no-op impl
-    dto/
-      SubmitChangeRequest.java
-      ApprovalRequest.java
-      RejectionRequest.java
-    enums/
-      EntityType.java                      -- TIER, BENEFIT, SUBSCRIPTION
-      ChangeType.java                      -- CREATE, UPDATE, DELETE
-      ChangeStatus.java                    -- PENDING_APPROVAL, APPROVED, REJECTED
+
+com.capillary.intouchapiv3.makechecker/  -- Baljeet's generic maker-checker package (existing)
+  -- Framework interfaces and implementation:
+  MakerCheckerService<T>                   -- Generic state machine for ApprovableEntity types
+  ApprovableEntity                         -- Interface: getStatus(), setStatus(), getVersion(), setVersion(), transitionToPending(), transitionToRejected(String)
+  ApprovableEntityHandler<T>               -- Strategy interface: validateForSubmission(), preApprove(), publish(), postApprove(), onPublishFailure(), postReject()
+  PublishResult                            -- Result of publish(): carries externalId (sqlSlabId for tiers), other metadata
 ```
 
 ---
 
 ## 2. Key Interface Contracts
 
-### 2.1 ChangeApplier (Generic Strategy)
+### 2.1 ApprovableEntityHandler (Generic Strategy)
 
 ```java
-package com.capillary.intouchapiv3.makerchecker;
+package com.capillary.makechecker;  // Baljeet's package
 
 /**
- * Strategy interface for domain-specific change application on MC approval.
- * Each entity type (TIER, BENEFIT, etc.) provides its own implementation.
+ * Strategy interface for domain-specific approval workflow on ApprovableEntity types.
+ * Each entity type (UnifiedTierConfig, Benefit, etc.) provides its own implementation.
  *
- * @param <T> The entity document type (e.g., UnifiedTierConfig)
+ * @param <T> The entity document type (implements ApprovableEntity)
  */
-public interface ChangeApplier<T> {
+public interface ApprovableEntityHandler<T extends ApprovableEntity> {
 
     /**
-     * Apply a pending change (sync to backend on approval).
-     * Called by MakerCheckerService when a PendingChange is approved.
+     * Validate entity before submission to PENDING_APPROVAL.
+     * Called by MakerCheckerService when submitForApproval() is invoked.
      *
-     * @param change The approved PendingChange document
-     * @param orgId Organization ID from auth context
-     * @return The updated entity after backend sync
-     * @throws ServiceException if sync fails (triggers rollback)
+     * @param entity The entity to validate
+     * @throws ValidationException if validation fails (submit request rejected)
      */
-    T apply(PendingChange change, long orgId);
+    void validateForSubmission(T entity);
 
     /**
-     * Revert a change on rejection (cleanup if needed).
-     * Default: no-op (most rejections just change status).
+     * Re-validate before approval (e.g., check uniqueness, external state).
+     * Called by MakerCheckerService after loading entity and before publish().
+     *
+     * @param entity The entity to re-validate
+     * @throws ValidationException if validation fails (approval rejected)
      */
-    default void revert(PendingChange change, long orgId) {}
+    void preApprove(T entity);
 
     /**
-     * Entity type this applier handles.
+     * Publish entity to external system (e.g., Thrift, SQL).
+     * Performs SAGA phase 1: sync to backend. On error, MakerCheckerService calls onPublishFailure().
+     *
+     * @param entity The entity to publish
+     * @return PublishResult carrying externalId and other metadata
+     * @throws Exception if publish fails (triggers onPublishFailure + rethrow)
      */
-    EntityType getEntityType();
+    PublishResult publish(T entity);
+
+    /**
+     * Post-approval hook after successful publish.
+     * SAGA phase 2: update entity status to ACTIVE, store externalId, archive old versions, etc.
+     *
+     * @param entity The entity (status now PENDING_APPROVAL, external ID available)
+     * @param publishResult The result from publish()
+     */
+    void postApprove(T entity, PublishResult publishResult);
+
+    /**
+     * Error handler if publish fails.
+     * SAGA phase 1 failure: log error, do NOT change status (entity stays PENDING_APPROVAL).
+     *
+     * @param entity The entity (status still PENDING_APPROVAL)
+     * @param exception The publish exception
+     */
+    void onPublishFailure(T entity, Exception exception);
+
+    /**
+     * Post-rejection hook.
+     * Revert entity to DRAFT and store rejection comment if needed.
+     *
+     * @param entity The entity (status will be set to DRAFT)
+     * @param comment Rejection reason (e.g., "Invalid KPI threshold")
+     */
+    void postReject(T entity, String comment);
 }
 ```
 
-### 2.2 MakerCheckerService
+### 2.2 MakerCheckerService (Generic Framework)
 
 ```java
-package com.capillary.intouchapiv3.makerchecker;
+package com.capillary.makechecker;  // Baljeet's package
 
-import java.util.List;
+/**
+ * Generic state machine for ApprovableEntity approval workflows.
+ * Handles DRAFT -> PENDING_APPROVAL -> ACTIVE/REJECTED transitions.
+ *
+ * @param <T> The entity type (must implement ApprovableEntity)
+ */
+public interface MakerCheckerService<T extends ApprovableEntity> {
 
-public interface MakerCheckerService {
+    /**
+     * Submit entity for approval (DRAFT -> PENDING_APPROVAL).
+     * Calls handler.validateForSubmission(), transitionToPending(), saves entity.
+     *
+     * @param entity The entity to submit
+     * @param handler The approval workflow strategy
+     * @param save Callback to persist entity (e.g., repository::save)
+     * @throws ValidationException if validation fails
+     */
+    void submitForApproval(T entity, ApprovableEntityHandler<T> handler, Consumer<T> save);
 
-    PendingChange submit(long orgId, EntityType entityType, String entityId,
-                         ChangeType changeType, Object payload, String requestedBy);
+    /**
+     * Approve entity (PENDING_APPROVAL -> ACTIVE).
+     * SAGA: calls handler.preApprove() -> handler.publish() -> handler.postApprove().
+     * On publish failure: calls handler.onPublishFailure() and rethrows exception.
+     *
+     * @param entity The entity to approve
+     * @param comment Approval comment
+     * @param reviewedBy User ID of reviewer
+     * @param handler The approval workflow strategy
+     * @param save Callback to persist entity
+     * @throws Exception if publish fails (entity stays PENDING_APPROVAL)
+     */
+    void approve(T entity, String comment, String reviewedBy, ApprovableEntityHandler<T> handler, Consumer<T> save);
 
-    PendingChange approve(long orgId, String changeId, String reviewedBy, String comment);
-
-    PendingChange reject(long orgId, String changeId, String reviewedBy, String comment);
-
-    List<PendingChange> listPending(long orgId, EntityType entityType, Integer programId);
-
-    boolean isMakerCheckerEnabled(long orgId, int programId, EntityType entityType);
+    /**
+     * Reject entity (PENDING_APPROVAL -> DRAFT).
+     * Calls handler.postReject() to revert and store comment.
+     *
+     * @param entity The entity to reject
+     * @param comment Rejection reason
+     * @param reviewedBy User ID of reviewer
+     * @param handler The approval workflow strategy
+     * @param save Callback to persist entity
+     */
+    void reject(T entity, String comment, String reviewedBy, ApprovableEntityHandler<T> handler, Consumer<T> save);
 }
 ```
 
@@ -132,14 +185,15 @@ public class TierFacade {
     // Dependencies (all @Autowired)
     private TierRepository tierRepository;
     private TierValidationService validationService;
-    private MakerCheckerService makerCheckerService;
-    private TierChangeApplier tierChangeApplier;
+    private MakerCheckerService<UnifiedTierConfig> makerCheckerService;
+    private TierApprovalHandler tierApprovalHandler;
     private StatusTransitionValidator statusTransitionValidator;
+    private PointsEngineRulesThriftService thriftService;
 
     /** List all tiers for a program with KPI summary and member stats */
     public TierListResponse listTiers(long orgId, int programId, List<TierStatus> statusFilter);
 
-    /** Create a new tier. MC enabled: DRAFT. MC disabled: ACTIVE + sync. */
+    /** Create a new tier. Always DRAFT (always goes through MC flow). */
     public UnifiedTierConfig createTier(long orgId, TierCreateRequest request, String userId);
 
     /** Edit a tier. DRAFT: in-place. ACTIVE: versioned (new DRAFT with parentId). */
@@ -147,59 +201,100 @@ public class TierFacade {
 
     /** Delete a DRAFT tier (set DELETED). DRAFT only — 409 if not DRAFT. No MC flow. */
     public void deleteTier(long orgId, String tierId, String userId);
+
+    /** Submit tier for approval (DRAFT -> PENDING_APPROVAL). Delegates to makerCheckerService. */
+    public UnifiedTierConfig submitForApproval(long orgId, String tierId, String userId);
+
+    /** Approve tier (PENDING_APPROVAL -> ACTIVE via SAGA). Delegates to makerCheckerService. */
+    public UnifiedTierConfig handleApproval(long orgId, String tierId, String action, 
+                                            String comment, String reviewedBy);
+
+    /** List all pending approvals for an org/program. Queries tiers with PENDING_APPROVAL status. */
+    public List<UnifiedTierConfig> listPendingApprovals(long orgId, Integer programId);
 }
 ```
 
-### 2.4 TierChangeApplier
+### 2.4 TierApprovalHandler
 
 ```java
 package com.capillary.intouchapiv3.tier;
 
 @Component
 @Slf4j
-public class TierChangeApplier implements ChangeApplier<UnifiedTierConfig> {
+public class TierApprovalHandler implements ApprovableEntityHandler<UnifiedTierConfig> {
 
     private PointsEngineRulesThriftService thriftService;
     private TierRepository tierRepository;
+    private TierValidationService validationService;
 
     @Override
-    public EntityType getEntityType() { return EntityType.TIER; }
+    public void validateForSubmission(UnifiedTierConfig entity) {
+        // 1. Validate basicDetails (name, serialNumber, etc.)
+        // 2. Throws ValidationException if validation fails
+        validationService.validateBasicDetails(entity.getBasicDetails());
+    }
+
+    @Override
+    public void preApprove(UnifiedTierConfig entity) {
+        // 1. Re-check name uniqueness (may have changed since submission)
+        // 2. Excludes entity itself and parent version (if versioned edit)
+        validationService.validateNameUniquenessExcluding(
+            entity.getOrgId(), entity.getProgramId(), entity.getBasicDetails().getName(), entity.getId()
+        );
+    }
 
     /**
-     * Sync tier from MongoDB to SQL via Thrift.
+     * Sync tier from MongoDB to SQL via Thrift (SAGA phase 1).
      * Uses @Lockable to prevent concurrent syncs for same program.
+     * Returns PublishResult with externalId = sqlSlabId for later postApprove() use.
      */
-    @Lockable(key = "'lock_tier_sync_' + #orgId + '_' + #change.programId", ttl = 300000, acquireTime = 5000)
+    @Lockable(key = "'lock_tier_sync_' + #entity.orgId + '_' + #entity.programId", ttl = 300000, acquireTime = 5000)
     @Override
-    public UnifiedTierConfig apply(PendingChange change, long orgId) {
-        // 1. Deserialize payload to UnifiedTierConfig
-        // 2. Build SlabInfo from basicDetails
-        // 3. Fetch current strategies, build SLAB_UPGRADE + SLAB_DOWNGRADE StrategyInfos
-        // 4. Call createSlabAndUpdateStrategies (single atomic Thrift call)
-        // 5. Update MongoDB doc: status -> ACTIVE, store sqlSlabId
-        // 6. If versioned edit: old ACTIVE doc -> SNAPSHOT
+    public PublishResult publish(UnifiedTierConfig entity) {
+        // 1. Build SlabInfo from entity.basicDetails
+        // 2. Fetch current strategies, build SLAB_UPGRADE + SLAB_DOWNGRADE StrategyInfos
+        // 3. Call createOrUpdateSlab (Thrift) -> returns SlabInfo with id = sqlSlabId
+        // 4. Return PublishResult(externalId = sqlSlabId)
+        // 5. For versioned edits: sqlSlabId carried from parent via metadata
     }
-}
-```
 
-### 2.5 NotificationHandler (Hook)
+    @Override
+    public void postApprove(UnifiedTierConfig entity, PublishResult publishResult) {
+        // 1. Set entity status to ACTIVE
+        // 2. Store sqlSlabId in metadata from publishResult.externalId
+        // 3. If entity.parentId exists: fetch parent (ACTIVE), set to SNAPSHOT, save
+        // 4. Save entity to MongoDB
+        entity.setStatus(TierStatus.ACTIVE);
+        entity.getMetadata().setSqlSlabId(publishResult.getExternalId());
+        // Archive parent if versioned edit
+        if (entity.getParentId() != null) {
+            UnifiedTierConfig parent = tierRepository.findById(entity.getParentId()).orElse(null);
+            if (parent != null && parent.getStatus() == TierStatus.ACTIVE) {
+                parent.setStatus(TierStatus.SNAPSHOT);
+                tierRepository.save(parent);
+            }
+        }
+        tierRepository.save(entity);
+    }
 
-```java
-package com.capillary.intouchapiv3.makerchecker;
+    @Override
+    public void onPublishFailure(UnifiedTierConfig entity, Exception e) {
+        // Log error. Do NOT change status — entity stays PENDING_APPROVAL.
+        log.error("Failed to publish tier {} to Thrift", entity.getId(), e);
+    }
 
-public interface NotificationHandler {
-    void onSubmit(PendingChange change);
-    void onApprove(PendingChange change);
-    void onReject(PendingChange change);
-}
-
-// Default no-op implementation
-@Component
-@ConditionalOnMissingBean(NotificationHandler.class)
-public class NoOpNotificationHandler implements NotificationHandler {
-    public void onSubmit(PendingChange change) {}
-    public void onApprove(PendingChange change) {}
-    public void onReject(PendingChange change) {}
+    @Override
+    public void postReject(UnifiedTierConfig entity, String comment) {
+        // 1. Set entity status to DRAFT
+        // 2. Store rejection comment in metadata
+        // 3. Save entity
+        entity.setStatus(TierStatus.DRAFT);
+        if (entity.getMetadata() == null) {
+            entity.setMetadata(new TierMetadata());
+        }
+        entity.getMetadata().setRejectionComment(comment);
+        tierRepository.save(entity);
+    }
 }
 ```
 
@@ -212,7 +307,7 @@ public class NoOpNotificationHandler implements NotificationHandler {
 ```java
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @Document(collection = "unified_tier_configs")
-public class UnifiedTierConfig {
+public class UnifiedTierConfig implements ApprovableEntity {
     @Id
     private String objectId;
 
@@ -221,10 +316,10 @@ public class UnifiedTierConfig {
 
     @NotNull private Long orgId;
     @NotNull private Integer programId;
-    @NotNull private TierStatus status;
+    @NotNull private TierStatus status;  // implements ApprovableEntity.getStatus/setStatus
 
     private String parentId;            // ObjectId of ACTIVE when editing
-    private Integer version;
+    private Integer version;             // implements ApprovableEntity.getVersion/setVersion
 
     @Valid @NotNull private BasicDetails basicDetails;
     @Valid private TierEligibilityConfig eligibility;
@@ -236,34 +331,29 @@ public class UnifiedTierConfig {
     private MemberStats memberStats;
     private EngineConfig engineConfig;
     private TierMetadata metadata;
-}
-```
 
-### 3.2 PendingChange
+    // ApprovableEntity interface methods (delegates to TierStatus enum)
+    @Override
+    public Object getStatus() { return this.status; }
 
-```java
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
-@Document(collection = "pending_changes")
-public class PendingChange {
-    @Id
-    private String objectId;
+    @Override
+    public void setStatus(Object status) { this.status = (TierStatus) status; }
 
-    @NotNull private Long orgId;
-    private Integer programId;
-    @NotNull private EntityType entityType;
-    @NotNull private String entityId;
-    @NotNull private ChangeType changeType;
+    @Override
+    public Long getVersion() { return this.version != null ? this.version.longValue() : null; }
 
-    private Object payload;             // full snapshot (serialized entity)
-    @NotNull private ChangeStatus status;
+    @Override
+    public void setVersion(Long version) { this.version = version != null ? version.intValue() : null; }
 
-    @NotNull private String requestedBy;
-    @NotNull private Instant requestedAt;
-    private String reviewedBy;
-    private Instant reviewedAt;
+    @Override
+    public void transitionToPending() { this.status = TierStatus.PENDING_APPROVAL; }
 
-    @Size(max = 500)
-    private String comment;             // required on reject
+    @Override
+    public void transitionToRejected(String comment) { 
+        this.status = TierStatus.DRAFT;  // reverts to DRAFT on rejection
+        if (this.metadata == null) { this.metadata = new TierMetadata(); }
+        this.metadata.setRejectionComment(comment);
+    }
 }
 ```
 
@@ -273,25 +363,22 @@ public class PendingChange {
 
 ```java
 public enum TierStatus {
-    DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT  // No PAUSED or STOPPED (Rework #2)
-}
-
-public enum EntityType {
-    TIER, BENEFIT, SUBSCRIPTION
-}
-
-public enum ChangeType {
-    CREATE, UPDATE, DELETE
-}
-
-public enum ChangeStatus {
-    PENDING_APPROVAL, APPROVED, REJECTED
+    DRAFT,              // Initial state (MC-enabled creation), reversion state (rejected, reverted from ACTIVE)
+    PENDING_APPROVAL,   // Submitted for approval, awaiting reviewer action
+    ACTIVE,             // Approved and published to Thrift/SQL
+    DELETED,            // Soft-deleted (DRAFT tier deleted by creator — audit trail preserved)
+    SNAPSHOT            // Archived (parent of versioned edit — replaced by new ACTIVE version)
+    // NOTE (Rework #2): Removed PAUSED, STOPPED states. Tier retirement deferred to future epic.
 }
 
 // NOTE (Rework #4 — engine realignment): CriteriaType, ActivityRelation,
 // DowngradeSchedule, DowngradeTargetType enums REMOVED.
 // Replaced by String fields in TierEligibilityConfig, TierDowngradeConfig, etc.
 // to match the prototype pattern (flexible for UI, validated at request level).
+
+// NOTE (Migration): Removed EntityType, ChangeType, ChangeStatus enums (custom makerchecker/ package).
+// These are now part of Baljeet's generic makechecker/ package, used internally by MakerCheckerService<T>.
+// Tier code only works with UnifiedTierConfig (implements ApprovableEntity) and TierStatus (status field).
 ```
 
 ---
@@ -299,7 +386,7 @@ public enum ChangeStatus {
 ## 5. Status Transition Rules
 
 ```java
-// Extend or reuse StatusTransitionValidator
+// StatusTransitionValidator (validates action-based transitions)
 // Rework #2: Removed PAUSED, STOPPED, PAUSE, RESUME, STOP actions
 private static final Map<TierStatus, Set<TierAction>> VALID_TRANSITIONS = Map.of(
     TierStatus.DRAFT,              Set.of(TierAction.SUBMIT_FOR_APPROVAL, TierAction.DELETE),
@@ -308,6 +395,11 @@ private static final Map<TierStatus, Set<TierAction>> VALID_TRANSITIONS = Map.of
     TierStatus.SNAPSHOT,           Set.of(),  // terminal (archived)
     TierStatus.DELETED,            Set.of()   // terminal (DRAFT soft-delete, audit trail preserved)
 );
+
+// MakerCheckerService handles state machine transitions:
+// - submitForApproval(): DRAFT -> PENDING_APPROVAL (calls entity.transitionToPending())
+// - approve(): PENDING_APPROVAL -> ACTIVE (TierApprovalHandler.postApprove() sets status)
+// - reject(): PENDING_APPROVAL -> DRAFT (calls entity.transitionToRejected(comment))
 ```
 
 ---
@@ -315,8 +407,16 @@ private static final Map<TierStatus, Set<TierAction>> VALID_TRANSITIONS = Map.of
 ## 6. Thrift Wrapper Methods (add to PointsEngineRulesThriftService)
 
 ```java
-// New methods to add:
+// Wrapper methods for TierApprovalHandler.publish() (SAGA phase 1):
 
+public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
+        int lastModifiedBy, long lastModifiedOn) throws Exception {
+    String serverReqId = CapRequestIdUtil.getRequestId();
+    return getClient().createOrUpdateSlab(
+            slabInfo, orgId, lastModifiedBy, lastModifiedOn, serverReqId);
+}
+
+// Optional (if strategy updates needed):
 public SlabInfo createSlabAndUpdateStrategies(int programId, int orgId,
         SlabInfo slabInfo, List<StrategyInfo> strategyInfos,
         int lastModifiedBy, long lastModifiedOn) throws Exception {
@@ -330,18 +430,92 @@ public List<SlabInfo> getAllSlabs(int programId, int orgId) throws Exception {
     String serverReqId = CapRequestIdUtil.getRequestId();
     return getClient().getAllSlabs(programId, orgId, serverReqId);
 }
+```
 
-public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
-        int lastModifiedBy, long lastModifiedOn) throws Exception {
-    String serverReqId = CapRequestIdUtil.getRequestId();
-    return getClient().createOrUpdateSlab(
-            slabInfo, orgId, lastModifiedBy, lastModifiedOn, serverReqId);
+---
+
+## 7. REST Endpoints (TierReviewController)
+
+```java
+package com.capillary.intouchapiv3.resources;
+
+@RestController
+@RequestMapping("/v3/tiers")
+public class TierReviewController {
+
+    private TierFacade tierFacade;
+
+    /**
+     * Submit a DRAFT tier for approval (DRAFT -> PENDING_APPROVAL).
+     * POST /v3/tiers/{tierId}/submit
+     * 
+     * @param tierId The tier MongoDB ObjectId
+     * @return The tier (now PENDING_APPROVAL)
+     * @throws 404 if tier not found or not DRAFT
+     * @throws 409 if tier not in DRAFT status
+     */
+    @PostMapping("/{tierId}/submit")
+    public ResponseEntity<UnifiedTierConfig> submitForApproval(
+            @PathVariable String tierId,
+            @AuthenticationPrincipal User user) {
+        long orgId = user.getOrgId();
+        String userId = user.getId();
+        UnifiedTierConfig tier = tierFacade.submitForApproval(orgId, tierId, userId);
+        return ResponseEntity.ok(tier);
+    }
+
+    /**
+     * Approve or reject a PENDING_APPROVAL tier.
+     * POST /v3/tiers/{tierId}/approve
+     * 
+     * Body: {
+     *   "approvalStatus": "APPROVE" | "REJECT",
+     *   "comment": "Optional comment"
+     * }
+     * 
+     * - APPROVE: PENDING_APPROVAL -> ACTIVE (via SAGA: preApprove -> publish -> postApprove)
+     * - REJECT: PENDING_APPROVAL -> DRAFT (via postReject)
+     * 
+     * @return The tier (now ACTIVE or DRAFT)
+     * @throws 404 if tier not found or not PENDING_APPROVAL
+     * @throws 409 if tier not in PENDING_APPROVAL status
+     * @throws 500 if publish to Thrift fails (entity stays PENDING_APPROVAL)
+     */
+    @PostMapping("/{tierId}/approve")
+    public ResponseEntity<UnifiedTierConfig> handleApproval(
+            @PathVariable String tierId,
+            @RequestBody ApprovalRequest request,
+            @AuthenticationPrincipal User user) {
+        long orgId = user.getOrgId();
+        String userId = user.getId();
+        UnifiedTierConfig tier = tierFacade.handleApproval(orgId, tierId, 
+                                    request.getApprovalStatus(), 
+                                    request.getComment(), 
+                                    userId);
+        return ResponseEntity.ok(tier);
+    }
+
+    /**
+     * List all pending approvals for a program.
+     * GET /v3/tiers/approvals?programId=N
+     * 
+     * @param programId Filter by program (optional; if omitted, return all for org)
+     * @return List of tiers with PENDING_APPROVAL status
+     */
+    @GetMapping("/approvals")
+    public ResponseEntity<List<UnifiedTierConfig>> listPendingApprovals(
+            @RequestParam(required = false) Integer programId,
+            @AuthenticationPrincipal User user) {
+        long orgId = user.getOrgId();
+        List<UnifiedTierConfig> pending = tierFacade.listPendingApprovals(orgId, programId);
+        return ResponseEntity.ok(pending);
+    }
 }
 ```
 
 ---
 
-## 7. emf-parent Changes
+## 8. emf-parent Changes
 
 > **Rework #3**: ProgramSlab status field and findActiveByProgram() REMOVED from scope.
 > Rationale: SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier
@@ -354,27 +528,65 @@ public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
 
 ---
 
-## 8. Dependency Graph
+## 9. Dependency Graph
 
 ```mermaid
 graph TD
     TC[TierController] --> TF[TierFacade]
-    MCC[MakerCheckerController] --> MCF[MakerCheckerFacade]
+    TRC[TierReviewController] --> TF
     TF --> TVS[TierValidationService]
     TF --> TR[TierRepository]
-    TF --> MCS[MakerCheckerService]
-    MCF --> MCS
-    MCS --> MCSI[MakerCheckerServiceImpl]
-    MCSI --> PCR[PendingChangeRepository]
-    MCSI --> CA[ChangeApplier -- interface]
-    MCSI --> NH[NotificationHandler]
-    CA -.->|implements| TCA[TierChangeApplier]
-    TCA --> PERTS[PointsEngineRulesThriftService]
-    TCA --> TR
-    TCA --> STV[StatusTransitionValidator]
+    TF --> MCS["MakerCheckerService&lt;UnifiedTierConfig&gt;<br/>(Baljeet's makechecker/)"]
+    TF --> TAH[TierApprovalHandler]
+    TF --> PERTS[PointsEngineRulesThriftService]
+    
+    MCS --> TAH
+    TAH --> PERTS
+    TAH --> TR
+    TAH --> TVS
+    TAH --> STV[StatusTransitionValidator]
+    
     TR --> TRI[TierRepositoryImpl]
     TRI --> EMDS[EmfMongoDataSourceManager]
 
-    style CA stroke-dasharray: 5 5
-    style NH stroke-dasharray: 5 5
+    style MCS fill:#e1f5ff
+    style TAH fill:#f3e5f5
+    style TRC fill:#fff3e0
 ```
+
+---
+
+## 10. Migration Summary: Custom Makerchecker → Baljeet's Generic Makechecker
+
+This LLD reflects the completed migration from a custom `com.capillary.intouchapiv3.makerchecker/` package to Baljeet's generic `com.capillary.makechecker/` framework.
+
+### Deleted (Custom Package)
+| Item | Replacement |
+|------|-------------|
+| `MakerCheckerService` (interface) | `MakerCheckerService<T extends ApprovableEntity>` (Baljeet's generic) |
+| `MakerCheckerServiceImpl` | Baljeet's implementation in `makechecker/` package |
+| `MakerCheckerFacade` | Logic merged into `TierFacade` (submitForApproval, handleApproval, listPendingApprovals methods) |
+| `MakerCheckerController` | `TierReviewController` (domain-specific endpoints) |
+| `ChangeApplier<T>` (interface) | `ApprovableEntityHandler<T>` (Baljeet's strategy interface) |
+| `TierChangeApplier` | `TierApprovalHandler implements ApprovableEntityHandler<UnifiedTierConfig>` |
+| `PendingChange` (MongoDB document) | Status now lives on entity itself (`UnifiedTierConfig` implements `ApprovableEntity`) |
+| `PendingChangeRepository` | Not needed (no separate collection) |
+| `MakerCheckerConfig` / `isMakerCheckerEnabled()` | Removed — Tiers always go through MC flow (always DRAFT at creation) |
+| `NotificationHandler` / `NoOpNotificationHandler` | No longer used in tier context |
+| EntityType, ChangeType, ChangeStatus enums | Now internal to Baljeet's `makechecker/` package |
+
+### Key Changes
+
+1. **Status on entity**: `UnifiedTierConfig` implements `ApprovableEntity` with status field (TierStatus) and transition methods.
+2. **Handler pattern**: `TierApprovalHandler` replaces `TierChangeApplier` with extended methods (validateForSubmission, preApprove, publish, postApprove, onPublishFailure, postReject).
+3. **SAGA approval**: `MakerCheckerService.approve()` implements SAGA: preApprove → publish (Thrift) → postApprove. On publish failure: onPublishFailure + rethrow.
+4. **No MC configuration**: Tiers no longer have a config flag. All tiers created as DRAFT, all go through MC flow.
+5. **No external pending collection**: Status transitions persist directly on `UnifiedTierConfig`.
+6. **REST endpoints**: Consolidated into `TierReviewController` (/v3/tiers/{tierId}/submit, /approve, /approvals).
+
+### Benefits
+- Decoupling tier domain from generic MC framework
+- Consistent approval pattern across all entity types (tiers, benefits, subscriptions) via Baljeet's framework
+- Simpler status model (no PENDING_CHANGE collection to sync)
+- SAGA guarantees at framework level (preApprove → publish → postApprove atomic semantics)
+- Reduced custom code, increased testability

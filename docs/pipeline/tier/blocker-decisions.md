@@ -8,28 +8,27 @@
 ## BLOCKER #1: No Thrift method for tier config sync
 
 **Source**: Critic C-1 / Analyst G-1
-**Severity**: BLOCKER
-**Decision**: Add new Thrift method `configureTier(TierConfigRequest)` to emf.thrift
-**Rationale**: Preserves service boundary between intouch-api-v3 and emf-parent. SQL write logic stays in emf-parent. Consistent with existing Thrift-based architecture. The existing ManualSlabAdjustmentData struct shows slab-related Thrift types already exist.
-**Impact**: Requires Thrift IDL change + code generation + handler implementation in emf-parent.
+**Severity**: BLOCKER — RESOLVED
+**Finding**: Thrift methods for slab CRUD already exist in pointsengine_rules.thrift (createSlabAndUpdateStrategies, getAllSlabs, createOrUpdateSlab)
+**Decision**: Use existing Thrift methods. PointsEngineRulesThriftService just needs wrapper methods added.
+**Rationale**: No new Thrift IDL change required. Existing service boundary preserved.
+**Impact**: Zero impact on Thrift. Minor wrapper method additions in intouch-api-v3.
 
-## ~~HIGH #1: PartnerProgramSlab cascade on tier stop~~ → REDUCED (Rework #2)
+## HIGH #1: PartnerProgramSlab cascade on tier deletion → DEFERRED
 
 **Source**: Critic C-2
-**Severity**: ~~HIGH~~ → LOW (Rework #2: only DRAFT tiers can be deleted; DRAFTs have no SQL record / no PartnerProgramSlab refs)
-**Original Decision**: Block stop (409 Conflict) if active PartnerProgramSlabs reference the tier
-**Updated Decision (Rework #2)**: No action needed for current scope. DRAFT tiers exist only in MongoDB — they have no ProgramSlab SQL record and therefore no PartnerProgramSlab references. The 409 guard is not needed because the precondition (SQL record with partner refs) cannot exist for DRAFT tiers.
+**Severity**: HIGH → NOT APPLICABLE (Rework #2)
+**Analysis**: Only DRAFT tiers can be deleted; DRAFTs have no SQL record / no PartnerProgramSlab refs
+**Decision (Rework #2)**: No action needed for current scope. DRAFT tiers exist only in MongoDB — they have no ProgramSlab SQL record and therefore no PartnerProgramSlab references.
 **Deferred To**: Future tier retirement epic (when ACTIVE tier stopping is implemented, this guard will be needed).
 **Handoff Note**: When tier retirement is built, add: (1) block stop if PartnerProgramSlabs reference the slab (409), or (2) cascade stop to partner slabs.
 
-## ~~HIGH #2: PeProgramSlabDao blast radius~~ → NOT NEEDED (Rework #3)
+## HIGH #2: PeProgramSlabDao blast radius → NOT NEEDED (Rework #3)
 
 **Source**: Critic C-3
-**Severity**: ~~HIGH~~ → N/A (Rework #3)
-**Original Decision**: Expand-then-contract migration with status column and findActiveByProgram()
-**Updated Decision (Rework #3)**: **No changes to ProgramSlab or PeProgramSlabDao needed.**
-SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted
-(DRAFT-only deletion). No PAUSED/STOPPED states exist. SlabInfo Thrift has no status field.
+**Severity**: HIGH → N/A (Rework #3)
+**Analysis**: SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted (DRAFT-only deletion). No PAUSED/STOPPED states exist.
+**Decision (Rework #3)**: **No changes to ProgramSlab or PeProgramSlabDao needed.**
 Every row in program_slabs is always active — a status column has zero use.
 **Deferred To**: Future tier retirement epic (when ACTIVE tier stopping is implemented, this migration will be needed).
 
@@ -74,9 +73,9 @@ Every row in program_slabs is always active — a status column has zero use.
 
 | # | Question | Status | Resolution |
 |---|---------|--------|------------|
-| Blocker #1 | Thrift sync method | RESOLVED | New configureTier() Thrift method |
-| C-2 | PartnerProgramSlab cascade | REDUCED (Rework #2) | Not needed for DRAFT-only deletion. Deferred to future tier retirement epic. |
-| C-3 | DAO blast radius | ~~RESOLVED~~ NOT NEEDED (Rework #3) | ~~Expand-then-contract, new findActiveByProgram()~~ No SQL changes. |
+| Blocker #1 | Thrift sync method | RESOLVED | Use existing createSlabAndUpdateStrategies. No IDL change needed. |
+| C-2 | PartnerProgramSlab cascade | DEFERRED | Not needed for DRAFT-only deletion. Deferred to future tier retirement epic. |
+| C-3 | DAO blast radius | NOT NEEDED (Rework #3) | No SQL changes at all. SQL only contains ACTIVE tiers. |
 | C-4 | Threshold validation | DEFERRED | To HLD (Phase 6) |
 | C-5 | "Scheduled" KPI | RESOLVED | Replace with "Pending Approval" |
 | GAP-1 | Tier Duration | RESOLVED | startDate/endDate on MongoDB doc |
