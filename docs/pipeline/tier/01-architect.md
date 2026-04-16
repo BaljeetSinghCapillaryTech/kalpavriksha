@@ -445,12 +445,13 @@ stateDiagram-v2
 **Rationale**: Same developer (Ritwik) owns MC framework as Layer 1 shared module in registry. Building generic from the start avoids refactoring when benefits arrives.
 **Per**: Decision D-12, registry epic-assignment.json.
 
-### ADR-03: Expand-Then-Contract Migration
-**Decision**: Add `status` column to `program_slabs` with DEFAULT 'ACTIVE'. Add new `findActiveByProgram()` DAO method. Do NOT modify existing `findByProgram()`.
-**Context**: PeProgramSlabDao used in 7+ services. Modifying existing queries risks regression in core engine.
-**Alternatives**: (a) Modify all existing queries (high blast radius), (b) Database view (added complexity).
-**Rationale**: Zero regression risk. Existing engine callers see all slabs (correct for serial number ordering). New APIs use the filtered method. Per GUARDRAILS G-05.4.
-**Per**: Decision D-18, Critic C-3.
+### ~~ADR-03: Expand-Then-Contract Migration~~ — NOT NEEDED (Rework #3)
+~~**Decision**: Add `status` column to `program_slabs` with DEFAULT 'ACTIVE'. Add new `findActiveByProgram()` DAO method. Do NOT modify existing `findByProgram()`.~~
+~~**Context**: PeProgramSlabDao used in 7+ services. Modifying existing queries risks regression in core engine.~~
+~~**Alternatives**: (a) Modify all existing queries (high blast radius), (b) Database view (added complexity).~~
+~~**Rationale**: Zero regression risk. Existing engine callers see all slabs (correct for serial number ordering). New APIs use the filtered method. Per GUARDRAILS G-05.4.~~
+~~**Per**: Decision D-18, Critic C-3.~~
+**Rework #3**: ADR-03 removed from scope. SQL `program_slabs` only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted (DRAFT-only deletion in MongoDB). SlabInfo Thrift has no status field. Therefore: no status column, no findActiveByProgram(), no Flyway migration, zero emf-parent entity/DAO changes. Deferred to future tier retirement epic.
 
 ### ADR-04: Versioned Edits with parentId
 **Decision**: Editing an ACTIVE tier creates a new DRAFT document with parentId pointing to the ACTIVE. ACTIVE stays live until new version approved.
@@ -504,9 +505,9 @@ stateDiagram-v2
 7. `TierChangeApplier` -- MongoDB -> Thrift conversion (Section 7)
 
 ### Layer 3: emf-parent Changes
-1. Flyway migration: `ALTER TABLE program_slabs ADD COLUMN status`
-2. `ProgramSlab.java`: add status field
-3. `PeProgramSlabDao.java`: add `findActiveByProgram()`
+~~1. Flyway migration: `ALTER TABLE program_slabs ADD COLUMN status`~~ — NOT NEEDED (Rework #3)
+~~2. `ProgramSlab.java`: add status field~~ — NOT NEEDED (Rework #3)
+~~3. `PeProgramSlabDao.java`: add `findActiveByProgram()`~~ — NOT NEEDED (Rework #3)
 4. `PointsEngineRulesThriftService`: add wrapper methods for slab Thrift calls
 
 ### Layer 4: Integration + Cache

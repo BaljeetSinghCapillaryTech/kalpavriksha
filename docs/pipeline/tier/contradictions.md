@@ -38,25 +38,21 @@ This means `createSlabAndUpdateStrategies` is an **internal** method within emf-
 
 ---
 
-## Contradiction C-3: PeProgramSlabDao usage is widespread -- "all queries need status filter" is high risk
+## ~~Contradiction C-3: PeProgramSlabDao usage is widespread -- "all queries need status filter" is high risk~~ — RESOLVED (Rework #3: Entire concern eliminated)
 
 **Source**: BA Decision KD-02
 **Claim**: "All existing slab queries must be updated to filter by status"
-**Challenge**: `PeProgramSlabDao` is used in **7+ service classes** across emf-parent:
-- InfoLookupService (4 call sites: findById, findByProgramSlabNumber, findByProgram, findNumberOfSlabs)
-- PointsEngineRuleService (2 call sites: findById, saveAndFlush)
-- PointsReturnService (1 call site)
-- ProgramCreationService (1 call site)
-- PointsEngineServiceManager (2 call sites: findById, findByProgram)
-- BulkOrgConfigImportValidator (1 call site)
+**Challenge**: `PeProgramSlabDao` is used in **7+ service classes** across emf-parent.
 
-Modifying ALL these call sites to add status filters is a significant change with high regression risk. The BA labels this as a "schema change" but understates the blast radius.
+**Resolution (Rework #3)**: This contradiction is now moot. No SQL changes are needed:
+- SQL `program_slabs` only contains ACTIVE tiers (synced via Thrift on approval)
+- No ACTIVE tier can be deleted (DRAFT-only deletion in MongoDB)
+- SlabInfo Thrift has no status field
+- Therefore: no status column, no findActiveByProgram(), no Flyway migration, no blast radius
+- PeProgramSlabDao is completely untouched. Zero regression risk.
 
-**Evidence**: 25 lines of grep results showing PeProgramSlabDao referenced across 7 files.
-
-**Impact**: Every caller of `findByProgram()` and `findById()` would need review. Missing even one could cause stopped/deleted tiers to appear in live tier evaluations.
-
-**Recommendation**: Consider the expand-then-contract approach: Phase 1 adds the column with default ACTIVE. Phase 2 adds a new DAO method `findActiveByProgram()` that filters by status. Phase 3 migrates callers one by one. Do NOT change existing methods in a single commit.
+~~**Recommendation**: Consider the expand-then-contract approach...~~
+**Recommendation**: No action needed. Deferred to future tier retirement epic (when ACTIVE tiers may need stopping/archival).
 
 ---
 

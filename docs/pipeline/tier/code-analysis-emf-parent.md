@@ -102,9 +102,9 @@
 
 | File | Change | Why |
 |------|--------|-----|
-| ProgramSlab.java | Add `status` field + getter/setter | Soft-delete lifecycle |
-| PeProgramSlabDao.java | Add `findActiveByProgram()` method | Status-filtered queries |
-| Flyway migration (NEW) | ALTER TABLE program_slabs ADD COLUMN status | Schema change |
+| ~~ProgramSlab.java~~ | ~~Add `status` field + getter/setter~~ | ~~Soft-delete lifecycle~~ — NOT NEEDED (Rework #3) |
+| ~~PeProgramSlabDao.java~~ | ~~Add `findActiveByProgram()` method~~ | ~~Status-filtered queries~~ — NOT NEEDED (Rework #3) |
+| ~~Flyway migration (NEW)~~ | ~~ALTER TABLE program_slabs ADD COLUMN status~~ | ~~Schema change~~ — NOT NEEDED (Rework #3) |
 
 ## Files to READ (patterns to follow)
 

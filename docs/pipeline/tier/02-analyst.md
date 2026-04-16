@@ -23,19 +23,19 @@
 
 | Module | Change | Severity | Upstream Callers | Downstream Dependencies |
 |--------|--------|----------|------------------|-------------------------|
-| ProgramSlab entity | Add status field | MEDIUM | PeProgramSlabDao, InfoLookupService, PointsEngineRuleService, PointsReturnService, ProgramCreationService, PointsEngineServiceManager, BulkOrgConfigImportValidator | customer_enrollment (FK), PartnerProgramSlab (FK) |
-| PeProgramSlabDao | Add findActiveByProgram() | LOW | New TierFacade only (existing methods unchanged) | program_slabs table |
+| ~~ProgramSlab entity~~ | ~~Add status field~~ — NOT NEEDED (Rework #3) | ~~MEDIUM~~ | ~~PeProgramSlabDao, InfoLookupService, PointsEngineRuleService, PointsReturnService, ProgramCreationService, PointsEngineServiceManager, BulkOrgConfigImportValidator~~ | ~~customer_enrollment (FK), PartnerProgramSlab (FK)~~ |
+| ~~PeProgramSlabDao~~ | ~~Add findActiveByProgram()~~ — NOT NEEDED (Rework #3) | ~~LOW~~ | ~~New TierFacade only (existing methods unchanged)~~ | ~~program_slabs table~~ |
 | PointsEngineRulesThriftService | Add slab wrapper methods | LOW | New TierChangeApplier only | emf-parent Thrift service |
 
 ### 2.2 Indirect Impact (modules we read from or integrate with)
 
 | Module | How Affected | Severity | Risk |
 |--------|-------------|----------|------|
-| customer_enrollment | FK to program_slabs.id via current_slab_id | LOW | Adding status column does not break FK. Existing slab IDs unchanged. |
+| customer_enrollment | FK to program_slabs.id via current_slab_id | LOW | ~~Adding status column does not break FK.~~ No SQL changes in scope (Rework #3). Existing slab IDs unchanged. |
 | PartnerProgramSlab | FK to program_slabs | LOW | No blocking concern for deletion: only DRAFT tiers can be deleted, and DRAFT tiers have no members or active partner references. |
-| PEB TierDowngradeBatch | Reads program_slabs for downgrade evaluation | LOW | Uses findByProgram() which is UNCHANGED (expand-then-contract). Sees all slabs including DELETED (terminal, no members). |
-| PEB TierReassessment | Reads program_slabs for tier reassessment | LOW | Same as above -- unchanged query, sees all slabs. |
-| InfoLookupService | Reads program_slabs for config lookups (4 call sites) | LOW | Uses findByProgram() which is UNCHANGED. |
+| PEB TierDowngradeBatch | Reads program_slabs for downgrade evaluation | LOW | ~~Uses findByProgram() which is UNCHANGED (expand-then-contract). Sees all slabs including DELETED (terminal, no members).~~ No SQL changes (Rework #3). Unaffected. |
+| PEB TierReassessment | Reads program_slabs for tier reassessment | LOW | ~~Same as above -- unchanged query, sees all slabs.~~ No SQL changes (Rework #3). Unaffected. |
+| InfoLookupService | Reads program_slabs for config lookups (4 call sites) | LOW | ~~Uses findByProgram() which is UNCHANGED.~~ No SQL changes (Rework #3). Unaffected. |
 | UnifiedPromotion (existing) | No changes. Separate module. | NONE | Pattern is followed, not modified. |
 | MongoDB EMF cluster | New collections added | LOW | EmfMongoDataSourceManager handles sharding. Follow UnifiedPromotionRepository pattern for index creation. |
 
@@ -45,7 +45,7 @@
 mindmap
   root((Tiers CRUD))
     Direct Changes
-      ProgramSlab +status
+      ProgramSlab NO CHANGES (Rework #3)
         PeProgramSlabDao
           InfoLookupService (SAFE - unchanged)
           PointsEngineRuleService (SAFE - unchanged)
@@ -127,12 +127,11 @@ mindmap
 ## 5. Backward Compatibility
 
 ### 5.1 SQL Schema Change (G-05.4)
-- **Change**: `ALTER TABLE program_slabs ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'`
-- **Assessment**: **FULLY backward-compatible.** All existing rows get status='ACTIVE'. All existing queries return the same results because they don't filter by status. New column is added, never modifies or removes existing columns.
-- **Expand-then-contract**: Correct approach per ADR-03 and G-05.4. **(COMPLIANT)**
+- ~~**Change**: `ALTER TABLE program_slabs ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'`~~
+- **Rework #3**: No SQL schema changes in scope. SQL only contains ACTIVE tiers (synced via Thrift on approval). No status column needed — MongoDB owns tier lifecycle. ADR-03 expand-then-contract is no longer applicable.
 
 ### 5.2 Existing DAO Methods
-- **Assessment**: `findByProgram()`, `findByProgramSlabNumber()`, `findNumberOfSlabs()` are ALL UNCHANGED. They continue to return all slabs regardless of status. Only new code uses `findActiveByProgram()`.
+- **Assessment**: `findByProgram()`, `findByProgramSlabNumber()`, `findNumberOfSlabs()` are ALL UNCHANGED. ~~They continue to return all slabs regardless of status. Only new code uses `findActiveByProgram()`.~~ No new DAO methods needed (Rework #3).
 - **Risk**: NONE for existing callers. **(C7)**
 
 ### 5.3 Thrift Interface

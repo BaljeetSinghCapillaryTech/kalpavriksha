@@ -577,7 +577,7 @@ graph TB
       <tbody>
         <tr><td>C-1</td><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync -- REVISED in Phase 5: methods exist in pointsengine_rules.thrift</td><td class="status-ok">Resolved</td></tr>
         <tr><td>C-2</td><td class="status-warn">HIGH</td><td>PartnerProgramSlab impact -- block stop (409) if references exist</td><td class="status-ok">Resolved</td></tr>
-        <tr><td>C-3</td><td class="status-warn">HIGH</td><td>PeProgramSlabDao blast radius -- expand-then-contract migration</td><td class="status-ok">Resolved</td></tr>
+        <tr><td>C-3</td><td style="text-decoration:line-through;color:#6b7280;">HIGH</td><td><s>PeProgramSlabDao blast radius -- expand-then-contract migration</s> &mdash; NOT NEEDED (Rework #3: no SQL changes)</td><td class="status-ok">Resolved</td></tr>
         <tr><td>C-4</td><td>MEDIUM</td><td>Threshold validation -- CSV per-slab, deferred to HLD</td><td>Deferred</td></tr>
         <tr><td>C-5</td><td>LOW</td><td>"Scheduled" KPI -- replaced with "Pending Approval"</td><td class="status-ok">Resolved</td></tr>
         <tr><td>C-6</td><td>LOW</td><td>MC framework scope merges two registry epics</td><td>Accepted</td></tr>
@@ -661,7 +661,7 @@ graph LR
       <tbody>
         <tr><td class="status-fail">BLOCKER</td><td>No Thrift method for tier sync</td><td>REVISED: Methods already exist in pointsengine_rules.thrift. Add Java wrappers only.</td></tr>
         <tr><td class="status-warn">HIGH</td><td>PartnerProgramSlab cascade</td><td>Block (409 Conflict). Cascade deferred to Anuj's SPP epic.</td></tr>
-        <tr><td class="status-warn">HIGH</td><td>DAO blast radius (7+ services)</td><td>Expand-then-contract. New findActiveByProgram(). Existing unchanged.</td></tr>
+        <tr><td style="text-decoration:line-through;color:#6b7280;">HIGH</td><td><s>DAO blast radius (7+ services)</s></td><td><s>Expand-then-contract. New findActiveByProgram().</s> NOT NEEDED (Rework #3: no SQL changes, no emf-parent entity/DAO modifications)</td></tr>
         <tr><td class="status-warn">HIGH</td><td>Tier Duration missing</td><td>Add startDate/endDate to MongoDB doc.</td></tr>
       </tbody>
     </table>
@@ -888,12 +888,12 @@ graph TB
         PERS[PointsEngineRuleService<br/>createSlabAndUpdateStrategies]
         COS[createOrUpdateSlab<br/>updateStrategiesForNewSlab]
         ILS[InfoLookupService<br/>getStrategies / getSlabs]
-        PSD[PeProgramSlabDao<br/>findByProgram + NEW findActiveByProgram]
+        PSD[PeProgramSlabDao<br/>findByProgram UNCHANGED]
         SD[StrategyDao<br/>saveAndFlush]
     end
 
     subgraph "MySQL (Warehouse)"
-        PS[(program_slabs<br/>+ NEW status column)]
+        PS[(program_slabs<br/>UNCHANGED - no status column)]
         ST[(strategies<br/>propertyValues JSON)]
         CE[(customer_enrollment<br/>current_slab_id)]
     end
@@ -1240,11 +1240,9 @@ flowchart TB
         L2A --> L2B --> L2C --> L2D --> L2E --> L2F
     end
     subgraph "Layer 3: emf-parent (can start in parallel)"
-        L3A[Flyway: ADD status column]
-        L3B[ProgramSlab + status field]
-        L3C[PeProgramSlabDao + findActiveByProgram]
         L3D[Thrift wrapper methods]
-        L3A --> L3B --> L3C --> L3D
+        L3N[No entity/DAO/Flyway changes<br/>Rework #3]
+        L3N -.-> L3D
     end
     subgraph "Layer 4: Integration"
         L4A[TierChangeApplier]
@@ -1319,23 +1317,19 @@ flowchart TB
     <h2>Phase 6b: Migration Planning <span class="phase-badge complete">Complete</span></h2>
     <p class="phase-time">Completed: 2026-04-11</p>
     <span class="skill-tag">/migrator</span>
-    <p>3 migrations planned. emf-parent has NO Flyway/Liquibase -- standalone SQL scripts. All backward-compatible with rollback.</p>
+    <p><s>3 migrations planned.</s> <strong>Rework #3</strong>: M-1 and M-2 removed &mdash; SQL only has ACTIVE tiers, no status column needed. M-3 (customer_enrollment index) may still be needed for member count cache.</p>
 
     <div class="key-numbers">
-      <div class="key-number"><div class="value">3</div><div class="label">Migrations</div></div>
-      <div class="key-number"><div class="value">2</div><div class="label">Tables</div></div>
+      <div class="key-number"><div class="value"><s>3</s> 1</div><div class="label">Migrations</div></div>
+      <div class="key-number"><div class="value">1</div><div class="label">Tables</div></div>
       <div class="key-number"><div class="value">0</div><div class="label">Data Migrations</div></div>
     </div>
 
-    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Migration Execution Order</h3>
+    <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Migration Execution Order (Updated Rework #3)</h3>
     <div class="mermaid">
 flowchart LR
-    M1["M-1: ADD COLUMN status<br/>program_slabs<br/>< 1s"] --> M2["M-2: ADD INDEX<br/>program_slabs<br/>< 1s"]
-    M2 --> DEP["Deploy code"]
-    DEP --> M3["M-3: ADD INDEX<br/>customer_enrollment<br/>5-30 min (INPLACE)"]
+    DEP["Deploy code"] --> M3["M-3: ADD INDEX<br/>customer_enrollment<br/>5-30 min (INPLACE)"]
     M3 --> CRON["Enable cache cron"]
-    style M1 fill:#10b981,color:#fff
-    style M2 fill:#10b981,color:#fff
     style DEP fill:#00d4ff,color:#000
     style M3 fill:#f59e0b,color:#000
     style CRON fill:#10b981,color:#fff
@@ -1346,8 +1340,8 @@ flowchart LR
         <tr><th>#</th><th>Table</th><th>Change</th><th>Duration</th><th>Downtime?</th></tr>
       </thead>
       <tbody>
-        <tr><td>M-1</td><td>program_slabs</td><td>ADD COLUMN status DEFAULT 'ACTIVE'</td><td class="status-ok">< 1s</td><td>No</td></tr>
-        <tr><td>M-2</td><td>program_slabs</td><td>ADD INDEX (org_id, program_id, status)</td><td class="status-ok">< 1s</td><td>No</td></tr>
+        <tr><td><s>M-1</s></td><td><s>program_slabs</s></td><td><s>ADD COLUMN status DEFAULT 'ACTIVE'</s> &mdash; NOT NEEDED (Rework #3)</td><td>N/A</td><td>N/A</td></tr>
+        <tr><td><s>M-2</s></td><td><s>program_slabs</s></td><td><s>ADD INDEX (org_id, program_id, status)</s> &mdash; NOT NEEDED (Rework #3)</td><td>N/A</td><td>N/A</td></tr>
         <tr><td>M-3</td><td>customer_enrollment</td><td>ADD INDEX (covering for GROUP BY count)</td><td class="status-warn">5-30 min</td><td>No (INPLACE)</td></tr>
       </tbody>
     </table>
@@ -1502,14 +1496,14 @@ graph TD
   <section class="phase-section" id="phase-10c">
     <h2>Phase 10c: Gap Analysis -- Compliance <span class="phase-badge complete">Complete</span></h2>
     <span class="skill-tag">/analyst --compliance</span>
-    <p>7 ADRs checked: 3 COMPLIANT, 2 PARTIAL (expected), 2 NOT STARTED (Layer 3). GUARDRAILS: G-01 UTC COMPLIANT, G-07 tenant COMPLIANT. 0 CRITICAL, 1 HIGH (migration pending).</p>
+    <p>7 ADRs checked: 3 COMPLIANT, 2 PARTIAL (expected), 1 NOT STARTED (Layer 3), <s>1 NOT STARTED (ADR-03 migration)</s> NOT NEEDED (Rework #3). GUARDRAILS: G-01 UTC COMPLIANT, G-07 tenant COMPLIANT. 0 CRITICAL, <s>1 HIGH (migration pending)</s> 0 HIGH.</p>
   </section>
 
   <!-- Phase 10d: Migration Validation -->
   <section class="phase-section" id="phase-10d">
     <h2>Phase 10d: Migration Validation <span class="phase-badge" style="background:rgba(107,114,128,0.2);color:#9ca3af;">Skipped</span></h2>
     <span class="skill-tag">/migrator</span>
-    <p>No Flyway migration scripts in scope for Layer 1-2. Migration (program_slabs.status column) is Layer 3 work in emf-parent.</p>
+    <p>No Flyway migration scripts in scope. <s>Migration (program_slabs.status column) is Layer 3 work in emf-parent.</s> <strong>Rework #3</strong>: ProgramSlab status column removed from scope entirely &mdash; SQL only has ACTIVE tiers.</p>
   </section>
 
   <!-- Phase 11: Reviewer -->
@@ -1560,8 +1554,8 @@ graph TD
     <h3 style="font-size: 14px; margin: 16px 0 8px; color: var(--text-primary);">Remaining Work (Layer 3-4)</h3>
     <table class="data-table">
       <tr><th>Layer</th><th>Repo</th><th>Item</th></tr>
-      <tr><td>L3</td><td>emf-parent</td><td>Flyway migration: program_slabs.status column</td></tr>
-      <tr><td>L3</td><td>emf-parent</td><td>ProgramSlab.java status field + PeProgramSlabDao.findActiveByProgram()</td></tr>
+      <tr><td><s>L3</s></td><td><s>emf-parent</s></td><td><s>Flyway migration: program_slabs.status column</s> &mdash; NOT NEEDED (Rework #3)</td></tr>
+      <tr><td><s>L3</s></td><td><s>emf-parent</s></td><td><s>ProgramSlab.java status field + PeProgramSlabDao.findActiveByProgram()</s> &mdash; NOT NEEDED (Rework #3)</td></tr>
       <tr><td>L3</td><td>intouch-api-v3</td><td>PointsEngineRulesThriftService wrapper methods</td></tr>
       <tr><td>L3</td><td>intouch-api-v3</td><td>TierChangeApplier: wire Thrift, add @Lockable, CREATE/DELETE sync</td></tr>
       <tr><td>L4</td><td>intouch-api-v3</td><td>Controller &rarr; Facade wiring + @ExceptionHandler</td></tr>

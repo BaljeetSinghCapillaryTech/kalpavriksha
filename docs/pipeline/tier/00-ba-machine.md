@@ -70,7 +70,7 @@ key_decisions:
     rationale: "Focused delivery with extensible architecture for future epics"
     source: "BA Q1"
   - id: KD-02
-    decision: "Soft-delete via status column on program_slabs. Lifecycle: DRAFT -> PENDING_APPROVAL -> ACTIVE. DRAFT -> DELETED (terminal). No PAUSED or STOPPED."
+    decision: "Soft-delete via status in MongoDB only. Lifecycle: DRAFT -> PENDING_APPROVAL -> ACTIVE. DRAFT -> DELETED (terminal). No PAUSED or STOPPED. No SQL status column (Rework #3 -- SQL only has ACTIVE tiers)."
     rationale: "Simplified lifecycle. Only DRAFT tiers can be deleted. Tier retirement (ACTIVE -> STOPPED) deferred to future epic."
     source: "BA Q2, Rework #2"
   - id: KD-03
@@ -99,10 +99,12 @@ key_decisions:
     source: "BA Q8"
 
 schema_changes:
+  # Rework #3: No SQL schema changes needed. SQL only contains ACTIVE tiers.
+  # ProgramSlab status column, findActiveByProgram(), Flyway migration all removed from scope.
   - table: program_slabs
-    change: "ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'"
-    migration: "Flyway V-next. Expand-then-contract. Existing rows default to ACTIVE."
-    risk: "All existing queries on program_slabs must add status filter."
+    change: "NONE (Rework #3 -- SQL only has ACTIVE tiers, no status column needed)"
+    migration: "N/A"
+    risk: "No SQL risk. Lifecycle managed in MongoDB only."
 
 new_mongodb_collections:
   - name: "unified_tier_configs"

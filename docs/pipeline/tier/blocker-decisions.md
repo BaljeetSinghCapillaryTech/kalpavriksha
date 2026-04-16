@@ -76,7 +76,7 @@ Every row in program_slabs is always active — a status column has zero use.
 |---|---------|--------|------------|
 | Blocker #1 | Thrift sync method | RESOLVED | New configureTier() Thrift method |
 | C-2 | PartnerProgramSlab cascade | REDUCED (Rework #2) | Not needed for DRAFT-only deletion. Deferred to future tier retirement epic. |
-| C-3 | DAO blast radius | RESOLVED | Expand-then-contract, new findActiveByProgram() |
+| C-3 | DAO blast radius | ~~RESOLVED~~ NOT NEEDED (Rework #3) | ~~Expand-then-contract, new findActiveByProgram()~~ No SQL changes. |
 | C-4 | Threshold validation | DEFERRED | To HLD (Phase 6) |
 | C-5 | "Scheduled" KPI | RESOLVED | Replace with "Pending Approval" |
 | GAP-1 | Tier Duration | RESOLVED | startDate/endDate on MongoDB doc |

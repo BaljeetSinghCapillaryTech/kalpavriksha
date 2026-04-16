@@ -106,10 +106,7 @@ Files: `TierController.java`, `MakerCheckerController.java`
 
 ### Step 6: Flyway Migration Safety (C7)
 
-**PASS** — No Flyway migration scripts exist in intouch-api-v3 for this feature. The `program_slabs` ALTER TABLE migration (ADR-03) is in emf-parent, not yet created. When created:
-- Must use `ALTER TABLE program_slabs ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'`
-- Must be idempotent
-- Must have rollback script
+**PASS** — No Flyway migration scripts exist in intouch-api-v3 for this feature. ~~The `program_slabs` ALTER TABLE migration (ADR-03) is in emf-parent, not yet created.~~ **Rework #3**: No SQL migration needed. ADR-03 (expand-then-contract) removed from scope — SQL only contains ACTIVE tiers, no status column needed.
 
 ---
 

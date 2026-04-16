@@ -163,19 +163,15 @@ new_files:
 
 modified_files:
   emf_parent:
-    - "pointsengine-emf/src/main/java/com/capillary/shopbook/points/entity/ProgramSlab.java (add status field)"
-    - "pointsengine-emf/src/main/java/com/capillary/shopbook/points/dao/PeProgramSlabDao.java (add status filter to queries)"
-    - "Flyway migration script for status column"
+    # Rework #3: No entity/DAO changes needed. SQL only has ACTIVE tiers.
+    - "NONE -- ProgramSlab.java, PeProgramSlabDao.java, Flyway migration all removed from scope (Rework #3)"
   thrift:
-    - "Possibly: new Thrift method for tier config sync (TBD in Phase 6)"
+    - "No IDL changes. Existing methods used via Java wrappers in intouch-api-v3 (ADR-05)."
 
 ddl:
-  - type: alter
-    table: program_slabs
-    sql: "ALTER TABLE program_slabs ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'"
-  - type: index
-    table: program_slabs
-    sql: "CREATE INDEX idx_program_slabs_status ON program_slabs (org_id, program_id, status)"
+  # Rework #3: No SQL DDL changes needed.
+  # ProgramSlab status column, findActiveByProgram(), Flyway migration all removed from scope.
+  # SQL only contains ACTIVE tiers (synced via Thrift on approval).
 
 grooming_questions:
   - id: GQ-1

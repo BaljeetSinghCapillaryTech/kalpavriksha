@@ -29,7 +29,7 @@
 | # | Question | Options Presented | Chosen | Reasoning |
 |---|----------|-------------------|--------|-----------|
 | D-08 | Scope: which user stories? | (a) Strict tier-category (b) Full E1 (c) Custom | Hybrid: E1-US1/US2/US3 + Deletion + generic MC framework | Focused delivery with extensible architecture. MC framework is Layer 1 shared module. |
-| D-09 | Tier deletion strategy | (a) Soft-delete with status (b) Hide from UI only (c) True delete | (a) Soft-delete with status column on program_slabs | Enables tier lifecycle (DRAFT/ACTIVE/STOPPED). Required for maker-checker flow. All existing queries need status filter. |
+| D-09 | Tier deletion strategy | (a) Soft-delete with status (b) Hide from UI only (c) True delete | ~~(a) Soft-delete with status column on program_slabs~~ **SUPERSEDED (Rework #3)**: DRAFT-only deletion in MongoDB (set DELETED). No SQL status column — SQL only has ACTIVE tiers. | ~~Enables tier lifecycle (DRAFT/ACTIVE/STOPPED).~~ MongoDB owns lifecycle. SQL unaffected. |
 | D-10 | Data storage for tier config | (a) Aggregate from existing (b) Normalize new tables (c) Hybrid | Dual-storage: MongoDB draft + SQL live (same as unified promotions) | Follows existing UnifiedPromotion pattern. MongoDB for draft/pending, SQL for engine-readable entities. Thrift sync on approval. |
 | D-11 | Member counts in listing | (a) Include live (b) Exclude (c) Include cached | (c) Cached counts, included in response | customer_enrollment is hot table, no existing count-by-slab query. 5-15 min refresh sufficient for UI. |
 | D-12 | Maker-checker framework design | (a) Full generic framework (b) Tier-specific with extension points | (a) Full generic framework | Layer 1 shared module. PendingChange entity, MakerCheckerService interface, ChangeApplier strategy. Tiers first consumer. |
@@ -42,7 +42,7 @@
 |---|----------|-------------------|--------|-----------|
 | D-16 | BLOCKER: Thrift sync method missing | (a) New Thrift method (b) Direct DB (c) REST (d) Shared lib | (a) New Thrift method configureTier() | Preserves service boundary. SQL write stays in emf-parent. Consistent with architecture. |
 | D-17 | PartnerProgramSlab cascade on stop | (a) Block (b) Cascade (c) Warn (d) Defer | (a) Block (409 Conflict) | Safest. Prevents silent corruption. Cascade deferred to Anuj's SPP epic. |
-| D-18 | PeProgramSlabDao blast radius | Expand-then-contract (recommended) | Accepted. New findActiveByProgram() + unchanged findByProgram(). | Zero regression risk. Engine callers see all slabs (correct behavior). |
+| D-18 | PeProgramSlabDao blast radius | Expand-then-contract (recommended) | ~~Accepted. New findActiveByProgram() + unchanged findByProgram().~~ **SUPERSEDED (Rework #3)**: No SQL changes needed. No findActiveByProgram(). No Flyway migration. | ~~Zero regression risk.~~ Risk eliminated entirely — no emf-parent entity/DAO changes. |
 | D-19 | Tier Duration field | (a) Add to MongoDB (b) Derive from strategy (c) Defer | (a) Add startDate/endDate to MongoDB doc | UI requires it. Maps to membership validity period. |
 | D-20 | isDowngradeOnReturnEnabled | (a) Preserve hidden (b) Surface (c) Deprecate | (a) Preserve hidden, pass through | Existing toggle. Product decision to surface/deprecate is out of scope. |
 | D-21 | Notification templates | (a) Store both (b) Detail only (c) Text only | (a) Store both nudges text + notificationConfig | UI needs text. Engine needs config. Coexist independently. |

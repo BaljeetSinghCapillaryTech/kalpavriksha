@@ -183,8 +183,9 @@ graph TB
 ## Data Model Changes
 
 ### SQL (Flyway migration)
-- **ALTER TABLE `program_slabs`**: ADD COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'
-- **Index**: ADD INDEX `idx_program_slabs_status` ON `program_slabs` (`org_id`, `program_id`, `status`)
+~~- **ALTER TABLE `program_slabs`**: ADD COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'~~
+~~- **Index**: ADD INDEX `idx_program_slabs_status` ON `program_slabs` (`org_id`, `program_id`, `status`)~~
+**Rework #3**: No SQL schema changes needed. SQL only contains ACTIVE tiers (synced via Thrift on approval). ProgramSlab status column, findActiveByProgram(), and Flyway migration removed from scope.
 
 ### MongoDB (new collections)
 - **`unified_tier_configs`**: Full tier configuration documents. Fields: orgId, programId, tierId, unifiedTierId, status, parentId, version, basicDetails{}, eligibilityCriteria{}, renewalConfig{}, downgradeConfig{}, benefits[], memberStats{}, metadata{}, createdBy, createdAt, updatedAt
@@ -194,7 +195,7 @@ graph TB
 
 - **Performance**: Tier listing API should respond in <500ms for programs with up to 20 tiers
 - **Consistency**: On MC approval, MongoDB and SQL must be consistent. Use transactional write or compensating action on failure.
-- **Backward compatibility**: Existing Thrift callers that read ProgramSlab must not break. The new `status` column defaults to ACTIVE for all existing rows.
+- **Backward compatibility**: Existing Thrift callers that read ProgramSlab must not break. ~~The new `status` column defaults to ACTIVE for all existing rows.~~ No SQL changes (Rework #3).
 - **Multi-tenancy**: All queries scoped by orgId (existing pattern).
 - **Idempotency**: POST /v3/tiers should be idempotent on retry (use unifiedTierId for dedup).
 

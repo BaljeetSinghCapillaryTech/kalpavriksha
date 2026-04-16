@@ -248,7 +248,7 @@ stateDiagram-v2
   <tr><td>R2: Downgrade race condition</td><td>MEDIUM</td><td>@Lockable on TierChangeApplier</td><td>Pending (Layer 3)</td></tr>
   <tr><td>R3: Strategy ID preservation</td><td>MEDIUM</td><td>Fetch existing ID before update</td><td>Test planned (BT-87)</td></tr>
   <tr><td>R4: Member count index</td><td>MEDIUM</td><td>INDEX on customer_enrollment</td><td>Pending (Layer 4)</td></tr>
-  <tr><td>R5: Timezone drift</td><td>MEDIUM</td><td>java.time.Instant everywhere</td><td><span class="badge pass">Mitigated</span></td></tr>
+  <tr><td>R5: Timezone drift</td><td>MEDIUM</td><td>java.util.Date + @JsonFormat(XXX) &mdash; promotion pattern (Rework #3)</td><td><span class="badge pass">Mitigated</span></td></tr>
 </table>
 </section>
 
@@ -257,9 +257,9 @@ stateDiagram-v2
 <div class="card">
 <h3>Layer 3: emf-parent Changes</h3>
 <ul style="color:var(--muted); font-size:13px; padding-left:20px;">
-  <li>Flyway migration: ALTER TABLE program_slabs ADD COLUMN status</li>
-  <li>ProgramSlab.java: add status field</li>
-  <li>PeProgramSlabDao: add findActiveByProgram()</li>
+  <li><s>Flyway migration: ALTER TABLE program_slabs ADD COLUMN status</s> &mdash; NOT NEEDED (Rework #3)</li>
+  <li><s>ProgramSlab.java: add status field</s> &mdash; NOT NEEDED (Rework #3)</li>
+  <li><s>PeProgramSlabDao: add findActiveByProgram()</s> &mdash; NOT NEEDED (Rework #3)</li>
   <li>PointsEngineRulesThriftService: add wrapper methods</li>
   <li>TierChangeApplier: wire Thrift, add @Lockable, implement CREATE/DELETE sync</li>
 </ul>

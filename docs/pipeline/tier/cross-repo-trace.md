@@ -136,11 +136,11 @@ sequenceDiagram
 
 | Type | File | Why |
 |------|------|-----|
-| MODIFIED | points/entity/ProgramSlab.java | Add status field |
-| MODIFIED | points/dao/PeProgramSlabDao.java | Add findActiveByProgram() method |
-| NEW | Flyway migration V__add_program_slab_status.sql | ALTER TABLE + INDEX |
+| ~~MODIFIED~~ | ~~points/entity/ProgramSlab.java~~ | ~~Add status field~~ — NOT NEEDED (Rework #3) |
+| ~~MODIFIED~~ | ~~points/dao/PeProgramSlabDao.java~~ | ~~Add findActiveByProgram() method~~ — NOT NEEDED (Rework #3) |
+| ~~NEW~~ | ~~Flyway migration V__add_program_slab_status.sql~~ | ~~ALTER TABLE + INDEX~~ — NOT NEEDED (Rework #3) |
 
-**Total: 1 new file, 2 modified files**
+**Total: ~~1 new file, 2 modified files~~ 0 files — Rework #3 removed all emf-parent entity/DAO changes. SQL only contains ACTIVE tiers.**
 
 ### Thrift (NO changes needed)
 

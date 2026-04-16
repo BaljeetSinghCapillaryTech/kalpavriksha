@@ -133,13 +133,14 @@
 ### Phase 6b: Migration Planning
 - Time: 2026-04-11
 - Finding: emf-parent has NO Flyway/Liquibase. Migrations are standalone SQL scripts.
-- 3 migrations planned:
-  - M-1: ALTER TABLE program_slabs ADD COLUMN status (FAST, <1s)
-  - M-2: CREATE INDEX idx_program_slabs_org_program_status (FAST, <1s)
+- ~~3 migrations planned:~~
+  - ~~M-1: ALTER TABLE program_slabs ADD COLUMN status (FAST, <1s)~~ — NOT NEEDED (Rework #3)
+  - ~~M-2: CREATE INDEX idx_program_slabs_org_program_status (FAST, <1s)~~ — NOT NEEDED (Rework #3)
   - M-3: CREATE INDEX idx_ce_org_program_slab_active on customer_enrollment (SLOW, 5-30 min, maintenance window, ALGORITHM=INPLACE)
-- All backward-compatible. All have rollback scripts.
-- Execution order: M-1+M-2 -> Deploy code -> M-3 -> Enable cache cron
-- No data migration needed (existing rows default to ACTIVE)
+- ~~All backward-compatible. All have rollback scripts.~~
+- ~~Execution order: M-1+M-2 -> Deploy code -> M-3 -> Enable cache cron~~
+- ~~No data migration needed (existing rows default to ACTIVE)~~
+- **Rework #3**: M-1 and M-2 removed — SQL only contains ACTIVE tiers, no status column needed. M-3 (customer_enrollment index) may still be needed for member count cache.
 - Artifact: 01b-migrator.md
 
 ### Phase 7: LLD (Designer) + API Handoff
@@ -151,7 +152,7 @@
   - 7 enums: TierStatus, EntityType, ChangeType, ChangeStatus, CriteriaType, ActivityRelation, DowngradeSchedule
   - Status transition rules defined as Map<TierStatus, Set<TierAction>>
   - 3 Thrift wrapper methods specified for PointsEngineRulesThriftService
-  - emf-parent changes: ProgramSlab +status field, PeProgramSlabDao +findActiveByProgram()
+  - ~~emf-parent changes: ProgramSlab +status field, PeProgramSlabDao +findActiveByProgram()~~ — NOT NEEDED (Rework #3)
 - API Handoff (api-handoff.md):
   - 8 endpoints with complete URL, method, headers, query params
   - Full request body examples with realistic tier data (Bronze/Silver/Gold/Platinum)

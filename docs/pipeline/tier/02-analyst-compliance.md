@@ -13,7 +13,7 @@
 |---|-----------------------------------|------------|----------|----------|
 | ADR-01 | Dual-Storage (MongoDB + SQL) | PARTIAL | MEDIUM | MongoDB done (UnifiedTierConfig, PendingChange). SQL sync not yet wired (TierChangeApplier throws for CREATE/DELETE). |
 | ADR-02 | Generic MC Framework | COMPLIANT | — | ChangeApplier<T> interface, MakerCheckerService, PendingChange, EntityType enum all generic. |
-| ADR-03 | Expand-Then-Contract Migration | NOT STARTED | HIGH | No Flyway migration script yet. ProgramSlab.status field not added to emf-parent. |
+| ~~ADR-03~~ | ~~Expand-Then-Contract Migration~~ | ~~NOT STARTED~~ — NOT NEEDED (Rework #3) | ~~HIGH~~ | ~~No Flyway migration script yet. ProgramSlab.status field not added to emf-parent.~~ Removed from scope — SQL only contains ACTIVE tiers. |
 | ADR-04 | Versioned Edits with parentId | COMPLIANT | — | TierFacade.createVersionedDraft sets parentId, version+1. Version swap in TierChangeApplier (new→ACTIVE, old→SNAPSHOT). |
 | ADR-05 | Existing Thrift (No IDL Change) | PARTIAL | MEDIUM | TierChangeApplier has comment for Thrift service but not wired. Wrapper methods not added to PointsEngineRulesThriftService. |
 | ADR-06 | New Programs Only | COMPLIANT | — | No bootstrap sync code. New tier CRUD operates on MongoDB only. |
@@ -35,11 +35,11 @@
 - `PendingChange` stores `entityType` and `payload` (Object)
 - `EntityType` enum: TIER, BENEFIT, SUBSCRIPTION — extensible
 
-### ADR-03: Expand-Then-Contract — NOT STARTED (C7)
-- No Flyway migration V*.sql file found in emf-parent
-- `ProgramSlab.java` in emf-parent not modified (no `status` field added)
-- `PeProgramSlabDao.findActiveByProgram()` not added
-- **This is expected** — emf-parent changes are Layer 3, developer focused on Layer 1-2 first
+### ADR-03: Expand-Then-Contract — NOT NEEDED (Rework #3)
+- ~~No Flyway migration V*.sql file found in emf-parent~~
+- ~~`ProgramSlab.java` in emf-parent not modified (no `status` field added)~~
+- ~~`PeProgramSlabDao.findActiveByProgram()` not added~~
+- **Rework #3**: ADR-03 removed from scope entirely. SQL only contains ACTIVE tiers (synced via Thrift on approval). No ACTIVE tier can be deleted (DRAFT-only deletion). SlabInfo Thrift has no status field. ProgramSlab status column, findActiveByProgram(), and Flyway migration all unnecessary.
 
 ### ADR-04: Versioned Edits — COMPLIANT (C7)
 - `TierFacade.updateTier()` — ACTIVE → `createVersionedDraft()` with parentId and version+1
@@ -113,7 +113,7 @@
 | # | Finding | Severity | Category | Action |
 |---|---------|----------|----------|--------|
 | F-01 | TierChangeApplier: Thrift sync not wired (CREATE/DELETE) | MEDIUM | ADR-01, ADR-05, ADR-07 | Developer Layer 3: add wrapper methods, wire Thrift, add @Lockable |
-| F-02 | Flyway migration not created (program_slabs.status) | HIGH | ADR-03 | Developer Layer 3: create V*.sql in emf-parent |
+| ~~F-02~~ | ~~Flyway migration not created (program_slabs.status)~~ | ~~HIGH~~ | ~~ADR-03~~ | ~~Developer Layer 3: create V*.sql in emf-parent~~ — NOT NEEDED (Rework #3) |
 | F-03 | isMakerCheckerEnabled hardcoded false | MEDIUM | Interface contract | Developer: integrate with OrgConfig service |
 | F-04 | StatusTransitionValidator not used | LOW | Interface contract | Code uses switch instead. Behavior correct. Refactor optional. |
 | F-05 | Controllers not wired to facades | MEDIUM | Not functional | Developer: wire REST → Facade, add exception handlers |
@@ -121,6 +121,6 @@
 | F-07 | Idempotency-Key header accepted but not implemented | LOW | G-06.1 | Developer Layer 4: implement dedup logic |
 | F-08 | No MongoDB compound indexes defined | MEDIUM | Performance | Developer: add @CompoundIndex or startup initializer |
 
-### Verdict: No CRITICAL findings. 1 HIGH (migration), 4 MEDIUM, 3 LOW.
+### Verdict: No CRITICAL findings. ~~1 HIGH (migration)~~ 0 HIGH (Rework #3 removed migration), 4 MEDIUM, 3 LOW.
 
 The HIGH finding (F-02) is expected — emf-parent changes are Layer 3, and the pipeline is currently at Layer 1-2 (intouch-api-v3 only). Layer 3 items are tracked as known remaining work.
