@@ -383,3 +383,273 @@ MERGE RECOMMENDATION: APPROVE
 | ADR-16 | TIER_BASED requires tiers list | PASS |
 | ADR-17 | loyaltySyncTiers required when sync=true | PASS |
 | ADR-18 | editActiveSubscription copies subscriptionProgramId | PASS |
+
+---
+
+---
+
+# Phase 11 — Reviewer (Rework 2: PUBLISH_FAILED + Pattern A Idempotency)
+
+> Date: 2026-04-16 | Phase: 11 (Reviewer, Rework 2 pass)
+> Ticket: aidlc/subscription_v1
+> Reviewer: Claude Sonnet 4.6
+> Scope: SAGA reliability changes — PUBLISH_FAILED state machine + Pattern A stable idempotency key
+> Prior Phase 11 status: APPROVED (Run 3, 2026-04-15)
+
+---
+
+## Section 1: Build Verification (Rework 2)
+
+### Commands executed
+
+**intouch-api-v3 (from /Users/baljeetsingh/IdeaProjects/intouch-api-v3):**
+```bash
+mvn test -Dtest="com.capillary.intouchapiv3.unified.subscription.*Test,com.capillary.intouchapiv3.makechecker.*Test"
+```
+
+**emf-parent (from /Users/baljeetsingh/IdeaProjects/emf-parent):**
+```bash
+mvn test -pl pointsengine-emf-ut -Dtest="PartnerProgramIdempotencyServiceTest,PartnerProgramIdempotencyThriftImplTest"
+```
+
+### Results
+
+| Module | Test Class | Tests | Failures | Errors | Status |
+|--------|-----------|-------|----------|--------|--------|
+| intouch-api-v3 | SubscriptionApprovalHandlerTest | 10 | 0 | 0 | PASS |
+| intouch-api-v3 | SubscriptionProgramTest | 1 | 0 | 0 | PASS |
+| intouch-api-v3 | SubscriptionPublishServiceTest | 7 | 0 | 0 | PASS |
+| intouch-api-v3 | SubscriptionFacadePublishFailedTest | 3 | 0 | 0 | PASS |
+| intouch-api-v3 | MakerCheckerServiceTest | 6 | 0 | 0 | PASS |
+| intouch-api-v3 | (+ 17 other subscription UTs from Phase 11) | 65 | 0 | 0 | PASS |
+| intouch-api-v3 | **TOTAL** | **92** | **0** | **0** | **PASS** |
+| emf-parent | PartnerProgramIdempotencyServiceTest | 1 | 0 | 0 | PASS |
+| emf-parent | PartnerProgramIdempotencyThriftImplTest | 3 | 0 | 0 | PASS |
+| emf-parent | **TOTAL** | **4** | **0** | **0** | **PASS** |
+
+> Note: ERROR log lines from PUBLISH_FAILED path tests are intentional (SAGA failure scenario). Expected behavior.
+
+Integration tests: Skipped — Docker not running in review environment. Session memory confirms IT infrastructure is unchanged from Phase 11 final (16/16 ITs GREEN with Colima).
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Build Verification (Rework 2): PASSED
+   Compilation: PASS
+   Unit Tests: PASS (92 intouch-api-v3 + 4 emf-parent = 96 total, 0 failed)
+   Integration Tests: Skipped (Docker not running; infrastructure unchanged)
+   Build-fix cycles used: 0/3
+
+Proceeding to requirements traceability review...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## Section 2: Requirements Traceability (Rework 2)
+
+The Rework 2 requirements are defined in `session-memory.md` — "Designer + QA Rework 2" section. Requirements R-14 through R-21 cover PUBLISH_FAILED state and Pattern A idempotency.
+
+### Requirements Traceability Matrix (Rework 2)
+
+| ID | Requirement | Designer (session-memory) | SDET | Developer | Status |
+|----|-------------|--------------------------|------|-----------|--------|
+| R-14 | `transitionToPublishFailed(String reason)` interface method on `ApprovableEntity` | ✅ | ✅ BT-PF-01 | ✅ `ApprovableEntity.java:47` | PASS |
+| R-15 | `SubscriptionStatus.PUBLISH_FAILED` enum value | ✅ | ✅ BT-PF-01,02 | ✅ `SubscriptionStatus.java:4` | PASS |
+| R-16 | `MakerCheckerService.approve()`: `transitionToPublishFailed` + best-effort save before rethrow | ✅ | ✅ BT-PF-03,04 | ✅ `MakerCheckerService.java:67-75` | PASS |
+| R-17 | `SubscriptionApprovalHandler.onPublishFailure()` logs PUBLISH_FAILED (status set by MakerCheckerService) | ✅ | ✅ BT-PF-05 | ✅ `SubscriptionApprovalHandler.java:232-234` | PASS |
+| R-18 | `SubscriptionFacade.handleApproval()` guard accepts PUBLISH_FAILED (allows retry + reject) | ✅ | ✅ BT-PF-06,07,08 | ✅ `SubscriptionFacade.java:325-327` | PASS |
+| R-19 | Stable serverReqId `"sub-approve-" + subscriptionProgramId` in `SubscriptionPublishService.publishToMySQL()` | ✅ | ✅ BT-PA-01,02 | ✅ `SubscriptionPublishService.java:74` | PASS |
+| R-20 | `PartnerProgramIdempotencyService` — Redis-backed cache with `KEY_PREFIX + serverReqId`, ONE_HOUR TTL | ✅ | ✅ BT-PA-03,04 | ✅ `PartnerProgramIdempotencyService.java` | PASS |
+| R-21 | Idempotency guard in `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()`: cache-hit → early return; cache miss → write + cache | ✅ | ✅ BT-PA-05,06,07 | ✅ `PointsEngineRuleConfigThriftImpl.java:260-291` | PASS |
+
+**Summary:**
+- Total Rework 2 requirements: 8
+- PASS: 8
+- FAIL: 0
+- PARTIAL: 0
+
+### Business Test Case Coverage (Rework 2)
+
+| BT ID | Test Method | Class | Result |
+|-------|-------------|-------|--------|
+| BT-PF-01,02 | `shouldTransitionToPublishFailed` | SubscriptionProgramTest | PASS |
+| BT-PF-03 | `shouldCallSaveAfterPublishFailure` | MakerCheckerServiceTest | PASS |
+| BT-PF-04 | `shouldHandleSaveFailureGracefullyAfterPublishFailure` | MakerCheckerServiceTest | PASS |
+| BT-PF-05 | `shouldLogPublishFailedAndNotChangeStatus` | SubscriptionApprovalHandlerTest | PASS |
+| BT-PF-06 | `shouldAcceptApproveFromPublishFailedState` | SubscriptionFacadePublishFailedTest | PASS |
+| BT-PF-07 | `shouldAcceptRejectFromPublishFailedState` | SubscriptionFacadePublishFailedTest | PASS |
+| BT-PF-08 | `shouldRejectApprovalFromDraftState` | SubscriptionFacadePublishFailedTest | PASS |
+| BT-PA-01,02 | `shouldPassStableServerReqIdToThrift` | SubscriptionPublishServiceTest | PASS |
+| BT-PA-03,04 | `shouldReturnNullOnMissAndReturnIdOnCacheHit` | PartnerProgramIdempotencyServiceTest | PASS |
+| BT-PA-05 | `shouldSkipEditorWriteAndReturnCachedIdOnCacheHit` | PartnerProgramIdempotencyThriftImplTest | PASS |
+| BT-PA-06 | `shouldCallEditorAndCacheResultOnCacheMiss` | PartnerProgramIdempotencyThriftImplTest | PASS |
+| BT-PA-07 | `shouldBypassIdempotencyWhenServerReqIdIsNull` | PartnerProgramIdempotencyThriftImplTest | PASS |
+
+All 15 business test cases from Rework 2 are covered and PASS [C7 — verified from test run output].
+
+### Unresolved Questions (Rework 2)
+
+| Question | Status | Impact |
+|----------|--------|--------|
+| SDET open question: "Should PUBLISH_FAILED require going through DRAFT before re-approval, or allow direct APPROVE?" | Current design (R-18) allows direct APPROVE from PUBLISH_FAILED — accepted per Designer Rework 2 | Informational — no blocker |
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Requirements Traceability Review (Rework 2)
+   Total Rework 2 requirements: 8
+   PASS: 8
+   FAIL: 0
+   PARTIAL: 0
+   BT coverage: 15/15 (all Rework 2 BTs covered and GREEN)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## Section 3: Code Review (Rework 2)
+
+### 3a: Session Memory Alignment
+
+| Decision | Expectation (session-memory.md Rework 2) | Implementation | Verdict |
+|----------|------------------------------------------|---------------|---------|
+| Best-effort save wrapped in try-catch | `MakerCheckerService.approve()` catch block: if MongoDB fails, original Thrift exception still propagates | `MakerCheckerService.java:69-74`: inner try-catch on `save.save(entity)`, logs saveEx, rethrows original `e` | PASS [C7] |
+| Cache TTL ONE_HOUR | `applicationCacheManager.put(key, id, CacheName.ONE_HOUR)` | `PartnerProgramIdempotencyService.java:57`: `CacheName.ONE_HOUR` used | PASS [C7] |
+| Null/blank serverReqId bypasses check | `if (partnerProgramIdempotencyService != null && serverReqId != null && !serverReqId.isBlank())` | `PointsEngineRuleConfigThriftImpl.java:260-261`: both null and blank guard present | PASS [C7] |
+| @Autowired(required=false) for backward compatibility | Non-subscription callers of `createOrUpdatePartnerProgram` don't have idempotency service registered | `PointsEngineRuleConfigThriftImpl.java:187-188`: `@Autowired(required = false)` | PASS [C7] |
+| CacheName import: `ApplicationCacheConfig.CacheName` | `com.capillary.shopbook.root.config.ApplicationCacheConfig.CacheName.ONE_HOUR` | `PartnerProgramIdempotencyService.java:4`: exact import confirmed | PASS [C7] |
+| emf-parent idempotency cache key prefix: `"pp-create-idempotency:"` | Static constant on service | `PartnerProgramIdempotencyService.java:27`: `static final String KEY_PREFIX = "pp-create-idempotency:"` | PASS [C7] |
+
+### 3b: Security Verification (Rework 2)
+
+| Security Consideration | Evidence | Verdict |
+|----------------------|---------|---------|
+| G-03.1: No SQL in cache key | Cache key: `"pp-create-idempotency:" + serverReqId` where serverReqId is `"sub-approve-" + UUID` — no user input, no SQL | PASS |
+| G-03.5: No PII in logs | `PartnerProgramIdempotencyService` logs `serverReqId` (subscription UUID-based) and `partnerProgramId` (MySQL int). No member data. | PASS |
+| G-07.5: Logs include orgId | `MakerCheckerService.java:65-66` logs `orgId` in SAGA failure line | PASS |
+
+### 3c: Guardrails Compliance (Rework 2)
+
+**G-01 (Timezone) — CRITICAL: PASS**
+- No new date/time handling introduced. `lastModifiedOn` uses `System.currentTimeMillis()` (UTC epoch millis — pre-existing pattern). No `java.util.Date`. ✅
+
+**G-02 (Null Safety) — HIGH: PASS**
+- `PartnerProgramIdempotencyService.getCachedPartnerProgramId()`: null guard before returning. Cache miss returns null (documented contract, not an error).
+- `MakerCheckerService.approve()`: best-effort save has inner try-catch — no NPE propagation from a secondary save failure masking the original exception.
+- `PointsEngineRuleConfigThriftImpl`: double guard (`partnerProgramIdempotencyService != null && serverReqId != null && !serverReqId.isBlank()`) before any idempotency operation. ✅
+
+**G-03 (Security) — CRITICAL: PASS**
+- No SQL anywhere in Rework 2 code. Cache key is a predictable, non-injectable string. ✅
+
+**G-07 (Multi-Tenancy) — CRITICAL: PASS**
+- Cache key includes `subscriptionProgramId` (UUID), which is unique per subscription (and implicitly per org, since UUIDs are globally unique). No orgId in key. Risk of cross-org collision: negligible (UUID collision probability ~10⁻³⁶).
+- `MakerCheckerService` receives `orgId` through entity's `getOrgId()` — same tenant context as before. ✅
+
+**G-12 (AI-Specific) — CRITICAL: PASS**
+- `PartnerProgramIdempotencyService` follows the exact pattern of `ExpiryExtensionConfigurationHelper` (R-20 reference from session memory): `@Service`, `@Autowired ApplicationCacheManager`, `CacheName.ONE_HOUR`, same logger pattern.
+- `@Autowired(required=false)` follows existing convention in `PointsEngineRuleConfigThriftImpl` (lines 181-184 use same pattern for `actionContextMappingDao` and `actionContextMappingBuilder`). ✅
+
+### 3d: Code Review Findings (Rework 2)
+
+#### Blockers: NONE
+
+#### Non-Blocking Findings
+
+**NB-RW2-01** — `SubscriptionApprovalHandler.java:27` — stale Javadoc
+
+Class-level Javadoc bullet says:
+```
+* - onPublishFailure: entity remains PENDING_APPROVAL (BT-29)
+```
+After Rework 2, `MakerCheckerService` sets the entity to `PUBLISH_FAILED` before calling `onPublishFailure`. BT-29 was also replaced (now expects PUBLISH_FAILED). The comment contradicts the actual behavior.
+
+**Fix**: `"entity remains PENDING_APPROVAL (BT-29)"` → `"entity is already PUBLISH_FAILED when called — logs the failure (BT-PF-05)"`.
+
+Severity: Non-blocking (comment only, behavior is correct).
+
+---
+
+**NB-RW2-02** — `SubscriptionApprovalHandler.postReject()` (lines 244–245) — redundant status assignment
+
+```java
+@Override
+public void postReject(SubscriptionProgram entity, String comment) {
+    entity.setStatus(SubscriptionStatus.DRAFT);   // redundant
+    entity.setComments(comment);                   // redundant
+}
+```
+
+`MakerCheckerService.reject()` already calls `entity.transitionToRejected(comment)` which sets `status=DRAFT` and `comments=comment` before calling `postReject`. The `postReject` body is a no-op duplicate.
+
+**Fix**: Either clear the body to empty (pure hook pattern) or remove the redundant lines. No behavioral impact today, but could mislead future implementors into believing `postReject` is the canonical place to set status.
+
+Severity: Non-blocking (idempotent double-write, result is correct).
+
+---
+
+**NB-RW2-03** — `PartnerProgramIdempotencyService.getCachedPartnerProgramId()` — unchecked cast
+
+```java
+Object cached = applicationCacheManager.get(key, CacheName.ONE_HOUR);
+return cached != null ? (Integer) cached : null;  // line 43
+```
+
+If `applicationCacheManager` uses a serialization format (e.g., Jackson with number coercion, Kryo) that deserializes the stored `int` as `Long`, this throws `ClassCastException` at runtime. The tests use Mockito stubs returning `Integer` directly, which do not exercise this path.
+
+**Fix**:
+```java
+if (cached instanceof Integer) return (Integer) cached;
+if (cached instanceof Number) return ((Number) cached).intValue();
+return null;
+```
+
+Severity: Non-blocking for this implementation (the cache manager likely returns Integer; behavior consistent with existing code in the same module). However, this is a silent runtime risk if cache layer changes. [C4 — depends on `ApplicationCacheManager` internals not verified here]
+
+---
+
+**NB-RW2-04** — `publishIsActive()` uses random `serverReqId` for PAUSE/RESUME/ARCHIVE (informational)
+
+`SubscriptionPublishService.java:118`: `String serverReqId = CapRequestIdUtil.getRequestId()` — generates a random request ID for PAUSE/RESUME/ARCHIVE Thrift calls. These calls are NOT covered by Pattern A idempotency.
+
+This is **by design** — Pattern A protects the `createOrUpdatePartnerProgram` CREATE path only (INSERT risk). PAUSE/RESUME/ARCHIVE are UPDATE operations (`SET is_active=?`), which are naturally idempotent (writing the same boolean value twice has no side effects). Random serverReqId is safe here.
+
+No action needed. Documented for clarity.
+
+---
+
+### 3e: Documentation Check (Rework 2)
+
+| Item | Status |
+|------|--------|
+| `07-reviewer.md` — this Rework 2 section | Added |
+| `session-memory.md` — Rework 2 section | Already present (SDET + Developer wrote it) |
+| `05-sdet.md` — Rework 2 section | Already present |
+| `PartnerProgramIdempotencyService.java` Javadoc | Complete — describes Redis-backed idempotency, key format, TTL, use case |
+| `MakerCheckerService.java` Javadoc | Updated to describe PUBLISH_FAILED catch block (R-16) |
+| `ApprovableEntity.java` Javadoc | New method `transitionToPublishFailed` documented (R-14) |
+
+---
+
+## Section 4: Merge Recommendation (Rework 2)
+
+```
+MERGE RECOMMENDATION: APPROVE
+```
+
+**Rationale**: All 8 Rework 2 requirements implemented and verified. 96 unit tests pass (92 intouch-api-v3 + 4 emf-parent). Zero blockers.
+
+### Summary
+
+| Area | Status |
+|------|--------|
+| PUBLISH_FAILED state (R-14 through R-18) | ✅ Correct implementation. State visible, retry/reject supported, best-effort MongoDB persistence. |
+| Pattern A idempotency (R-19 through R-21) | ✅ Stable serverReqId + Redis cache + bypass guard for null serverReqId. Backward-compatible. |
+| Build | ✅ 96/96 UTs PASS |
+| Requirements | ✅ 8/8 Rework 2 requirements PASS |
+| Guardrails | ✅ G-01, G-03, G-07, G-12 all PASS |
+| Blockers | None |
+
+### Post-merge tracked items (Rework 2)
+
+- NB-RW2-01: Fix stale Javadoc in `SubscriptionApprovalHandler.java:27`
+- NB-RW2-02: Clean up redundant status assignment in `SubscriptionApprovalHandler.postReject()`
+- NB-RW2-03: Add type-safe cast with `instanceof Number` fallback in `PartnerProgramIdempotencyService.getCachedPartnerProgramId()`

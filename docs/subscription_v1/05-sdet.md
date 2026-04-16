@@ -332,3 +332,90 @@ For the 36 failing tests to go GREEN, Developer must:
 15. Fix `findActiveByOrgIdAndName` @Query to use `$regex` with `$options:'i'` (BT-R-24, BT-R-25, BT-R-35)
 16. Implement `updateSubscription()` (BT-R-27)
 17. Implement `editActiveSubscription()` with fork-check (BT-R-28, BT-R-30)
+
+---
+
+## Rework 2 — PUBLISH_FAILED State + Pattern A Idempotency (2026-04-16)
+
+### Business Test Case Mapping
+
+| Business Test Case | Test Class/Method | Layer | Status |
+|--------------------|-------------------|-------|--------|
+| BT-29 (revised) | `SubscriptionApprovalHandlerTest.shouldNotThrowAndPreservePublishFailedStatusInHandler` | UT | GREEN ✓ |
+| BT-23 (revised) | `MakerCheckerServiceTest.shouldTransitionToPublishFailedAndSaveOnPublishException` | UT | GREEN ✓ |
+| BT-PF-01, BT-PF-02 | `SubscriptionProgramTest.shouldTransitionToPublishFailedAndStoreReason` | UT | GREEN ✓ |
+| BT-PF-03 | `MakerCheckerServiceTest.shouldCallOnPublishFailureAndSaveOnThriftException` | UT | GREEN ✓ |
+| BT-PF-04 | `MakerCheckerServiceTest.shouldRethrowOriginalPublishExceptionEvenIfSaveFails` | UT | GREEN ✓ |
+| BT-PF-05 | `SubscriptionApprovalHandlerTest.shouldHandlePublishFailureWithPublishFailedEntityWithoutThrowing` | UT | GREEN ✓ |
+| BT-PF-06 | `SubscriptionFacadePublishFailedTest.shouldAllowApprovalFromPendingApprovalState` | UT | GREEN ✓ |
+| BT-PF-07 | `SubscriptionFacadePublishFailedTest.shouldAllowApprovalAndRejectionFromPublishFailedState` | UT | GREEN ✓ |
+| BT-PF-08 | `SubscriptionFacadePublishFailedTest.shouldRejectApprovalFromInvalidStates` | UT | GREEN ✓ |
+| BT-PA-01, BT-PA-02 | `SubscriptionPublishServiceTest.shouldPassStableServerReqIdToThrift` | UT | GREEN ✓ |
+| BT-PA-03, BT-PA-04 | `PartnerProgramIdempotencyServiceTest.shouldReturnNullOnMissAndReturnIdOnCacheHit` | UT | BLOCKED (emf-parent env) |
+| BT-PA-05 | `PartnerProgramIdempotencyThriftImplTest.shouldSkipEditorWriteAndReturnCachedIdOnCacheHit` | UT | BLOCKED (emf-parent env) |
+| BT-PA-06 | `PartnerProgramIdempotencyThriftImplTest.shouldCallEditorAndCacheResultOnCacheMiss` | UT | BLOCKED (emf-parent env) |
+| BT-PA-07 | `PartnerProgramIdempotencyThriftImplTest.shouldBypassIdempotencyWhenServerReqIdIsNull` | UT | BLOCKED (emf-parent env) |
+| BT-PF-IT-01..03 | `SubscriptionSagaPublishFailedIT` | IT | Deferred |
+| BT-PA-IT-01..02 | `PartnerProgramIdempotencyIT` | IT | Deferred |
+
+### Test Files Written/Modified
+
+#### intouch-api-v3 (all GREEN — 92/92 subscription tests pass)
+
+| File | Change | BT Coverage |
+|------|--------|-------------|
+| `SubscriptionApprovalHandlerTest.java` | Updated BT-29; added BT-PF-05 | BT-29 (revised), BT-PF-05 |
+| `MakerCheckerServiceTest.java` | Updated BT-23; added BT-PF-03, BT-PF-04 | BT-23 (revised), BT-PF-03, BT-PF-04 |
+| `SubscriptionProgramTest.java` (new) | Combined BT-PF-01 + BT-PF-02 | BT-PF-01, BT-PF-02 |
+| `SubscriptionFacadePublishFailedTest.java` (new) | 3 tests | BT-PF-06, BT-PF-07, BT-PF-08 |
+| `SubscriptionPublishServiceTest.java` | Added BT-PA-01 + BT-PA-02 | BT-PA-01, BT-PA-02 |
+
+#### emf-parent (BLOCKED — pre-existing build environment issues)
+
+| File | Change | BT Coverage |
+|------|--------|-------------|
+| `PartnerProgramIdempotencyServiceTest.java` (new) | BT-PA-03 + BT-PA-04 combined | BT-PA-03, BT-PA-04 |
+| `PartnerProgramIdempotencyThriftImplTest.java` (new) | BT-PA-05, BT-PA-06, BT-PA-07 | BT-PA-05, BT-PA-06, BT-PA-07 |
+
+### Production Code Changes (same session — SDET + Developer combined for Rework 2)
+
+| File | Change |
+|------|--------|
+| `SubscriptionStatus.java` | Added `PUBLISH_FAILED` |
+| `ApprovableEntity.java` | Added `transitionToPublishFailed(String reason)` |
+| `SubscriptionProgram.java` | Implemented `transitionToPublishFailed()` |
+| `MakerCheckerService.java` | Best-effort save after `onPublishFailure` |
+| `SubscriptionApprovalHandler.java` | Updated `onPublishFailure` logging |
+| `SubscriptionFacade.java` | Extended `handleApproval()` guard to `PENDING_APPROVAL || PUBLISH_FAILED` |
+| `SubscriptionPublishService.java` | Stable `serverReqId = "sub-approve-" + subscriptionProgramId` |
+| `PartnerProgramIdempotencyService.java` (new) | Full implementation (not just skeleton) |
+| `PointsEngineRuleConfigThriftImpl.java` | Added `@Autowired(required=false) PartnerProgramIdempotencyService` field |
+
+**Note**: Rework 2 is a small focused change. Production code and tests were written together (no separate SDET RED phase). Developer still needs to implement the `createOrUpdatePartnerProgram` idempotency logic in `PointsEngineRuleConfigThriftImpl` (calling `partnerProgramIdempotencyService.getCachedPartnerProgramId` / `cachePartnerProgramId`).
+
+### GREEN Confirmation
+
+- **Compilation**: PASS (`mvn compile` and `mvn test-compile` both succeed in intouch-api-v3)
+- **Unit tests**: PASS (92 / 92 subscription tests GREEN)
+- **Regressions**: NONE (pre-existing 313 IT failures unchanged — all require running infrastructure)
+- **emf-parent**: BLOCKED (pre-existing environment — not caused by Rework 2 changes)
+
+### Remaining Developer Work (Rework 2)
+
+1. **`PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()`** — add idempotency guard at method entry:
+   ```java
+   if (serverReqId != null && !serverReqId.isBlank()) {
+       Integer cached = partnerProgramIdempotencyService.getCachedPartnerProgramId(serverReqId);
+       if (cached != null) {
+           partnerProgramInfo.partnerProgramId = cached;
+           return; // skip re-execution
+       }
+   }
+   // ... existing logic ...
+   // after successful commit:
+   if (serverReqId != null && !serverReqId.isBlank()) {
+       partnerProgramIdempotencyService.cachePartnerProgramId(serverReqId, partnerProgramInfo.partnerProgramId);
+   }
+   ```
+2. Fix emf-parent build environment (AspectJ/JDK 21) so tests can run
+3. Implement IT tests: `SubscriptionSagaPublishFailedIT` + `PartnerProgramIdempotencyIT` (deferred)

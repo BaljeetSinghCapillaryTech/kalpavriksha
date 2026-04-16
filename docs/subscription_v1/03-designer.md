@@ -3293,3 +3293,389 @@ public void preApprove(SubscriptionProgram entity) {
 | GAP-10 | `SubscriptionProgram.java`, `SubscriptionPublishService.java`, `SubscriptionRequest.java` | `TierConfig.loyaltySyncTiers` new field; wired to Thrift field 11 | ADR-17 |
 | GAP-11 / ADR-18 | `SubscriptionFacade.java` | `updateSubscription()` and `editActiveSubscription()` methods specified with correct ADR-18 ID lifecycle | ADR-18 |
 | ADR-18 (comment) | `SubscriptionProgram.java` | `subscriptionProgramId` Javadoc corrected — was "Edits-of-ACTIVE produce new UUID" | ADR-18 |
+
+---
+
+## Rework 2 — PUBLISH_FAILED State + Pattern A Idempotency Key (2026-04-16)
+
+> **Scope**: Two changes driven by SAGA reliability analysis:
+> 1. **PUBLISH_FAILED status** — give the maker-checker a dedicated failure state instead of silently leaving entities in PENDING_APPROVAL when the Thrift publish fails. Enables operator visibility, retry, and send-back-to-draft.
+> 2. **Pattern A — Stable idempotency key** — intouch-api-v3 passes a stable `serverReqId` per subscription approval; emf-parent caches `serverReqId → partnerProgramId` in Redis (ONE_HOUR). Handles timeout-after-commit split-brain: on retry the Thrift call returns the cached MySQL ID without re-inserting.
+
+---
+
+### R-13: `SubscriptionStatus` — Add `PUBLISH_FAILED`
+
+**File**: `com/capillary/intouchapiv3/unified/subscription/enums/SubscriptionStatus.java`
+
+```java
+public enum SubscriptionStatus {
+    DRAFT, PENDING_APPROVAL, ACTIVE, PAUSED, ARCHIVED,
+    /**
+     * Publish (Thrift/MySQL write) was attempted but failed.
+     * Entity may be retried (→ PENDING_APPROVAL again or directly re-approved)
+     * or rejected back to DRAFT by the operator.
+     */
+    PUBLISH_FAILED
+}
+```
+
+**Discovered from**: `UnifiedPromotion.PromotionStatus.PUBLISH_FAILED` in `pointsengine-emf` — exact precedent for the same SAGA failure pattern.
+
+---
+
+### R-14: `ApprovableEntity` — Add `transitionToPublishFailed(String reason)`
+
+**File**: `com/capillary/intouchapiv3/makechecker/ApprovableEntity.java`
+
+Add one method:
+
+```java
+/**
+ * Called by MakerCheckerService when publish() throws.
+ * Implementations set status=PUBLISH_FAILED and store the failure reason.
+ *
+ * @param reason Error message / exception message from the failed publish attempt.
+ *               Stored in entity.comments for operator visibility.
+ */
+void transitionToPublishFailed(String reason);
+```
+
+No other changes to the interface.
+
+---
+
+### R-15: `SubscriptionProgram` — Implement `transitionToPublishFailed()`
+
+**File**: `com/capillary/intouchapiv3/unified/subscription/SubscriptionProgram.java`
+
+Add after `transitionToRejected()` (line 186):
+
+```java
+@Override
+public void transitionToPublishFailed(String reason) {
+    this.status = SubscriptionStatus.PUBLISH_FAILED;
+    this.comments = reason;
+}
+```
+
+No other changes to this class.
+
+---
+
+### R-16: `MakerCheckerService.approve()` — Persist PUBLISH_FAILED after `onPublishFailure`
+
+**File**: `com/capillary/intouchapiv3/makechecker/MakerCheckerService.java`
+
+Current catch block (lines 64–69):
+```java
+} catch (Exception e) {
+    logger.error("SAGA publish failed. orgId={}, entityStatus={}",
+            entity.getOrgId(), entity.getStatus(), e);
+    handler.onPublishFailure(entity, e);
+    throw e;
+}
+```
+
+**Replace with**:
+```java
+} catch (Exception e) {
+    logger.error("SAGA publish failed. orgId={}, entityStatus={}",
+            entity.getOrgId(), entity.getStatus(), e);
+    handler.onPublishFailure(entity, e);   // sets status=PUBLISH_FAILED
+    try {
+        save.save(entity);                 // best-effort: persist PUBLISH_FAILED to MongoDB
+    } catch (Exception saveEx) {
+        logger.error("Failed to persist PUBLISH_FAILED status. Entity may still appear PENDING_APPROVAL. orgId={}",
+                entity.getOrgId(), saveEx);
+    }
+    throw e;                               // always rethrow original publish exception
+}
+```
+
+**Why**: Without this save, the Thrift failure leaves the entity silently in PENDING_APPROVAL with no indication in MongoDB that the publish was attempted and failed. The save is `best-effort` (wrapped in try-catch) because the entity state persistence should not replace or mask the original publish exception.
+
+---
+
+### R-17: `SubscriptionApprovalHandler.onPublishFailure()` — Call `transitionToPublishFailed()`
+
+**File**: `com/capillary/intouchapiv3/unified/subscription/SubscriptionApprovalHandler.java`
+
+Current implementation:
+```java
+@Override
+public void onPublishFailure(SubscriptionProgram entity, Exception e) {
+    logger.error("SAGA publish failed. Entity remains PENDING_APPROVAL. orgId={}, subscriptionProgramId={}",
+            entity.getOrgId(), entity.getSubscriptionProgramId(), e);
+    // Intentionally do NOT change entity status — SAGA compensation = leave as-is
+}
+```
+
+**Replace with**:
+```java
+@Override
+public void onPublishFailure(SubscriptionProgram entity, Exception e) {
+    logger.error("SAGA publish failed. Setting PUBLISH_FAILED. orgId={}, subscriptionProgramId={}",
+            entity.getOrgId(), entity.getSubscriptionProgramId(), e);
+    // Transition to PUBLISH_FAILED — MakerCheckerService will save (R-16)
+    entity.transitionToPublishFailed(e.getMessage());
+}
+```
+
+**Why**: The previous "intentionally leave as-is" comment was correct for a no-save world, but with R-16 the save IS happening. The handler must set the status so the save persists PUBLISH_FAILED instead of PENDING_APPROVAL.
+
+---
+
+### R-18: `SubscriptionFacade.handleApproval()` — Extend Guard to Allow `PUBLISH_FAILED`
+
+**File**: `com/capillary/intouchapiv3/unified/subscription/SubscriptionFacade.java`
+
+Current guard (line 324):
+```java
+if (!SubscriptionStatus.PENDING_APPROVAL.equals(entity.getStatus())) {
+    throw new InvalidSubscriptionStateException("handleApproval", entity.getStatus());
+}
+```
+
+**Replace with**:
+```java
+// Allow both PENDING_APPROVAL (normal flow) and PUBLISH_FAILED (retry/reject-to-draft)
+if (!SubscriptionStatus.PENDING_APPROVAL.equals(entity.getStatus())
+        && !SubscriptionStatus.PUBLISH_FAILED.equals(entity.getStatus())) {
+    throw new InvalidSubscriptionStateException("handleApproval", entity.getStatus());
+}
+```
+
+**Why**:
+- `PUBLISH_FAILED → APPROVE`: operator retries the publish (e.g., after emf-parent recovers)
+- `PUBLISH_FAILED → REJECT`: operator sends the subscription back to DRAFT so the maker can fix config
+
+Both transitions start from `PUBLISH_FAILED` and must be allowed by the facade guard. The state machine logic (APPROVE → sets ACTIVE, REJECT → sets DRAFT) is unchanged — only the guard entry condition is widened.
+
+---
+
+### R-19: `SubscriptionPublishService.publishToMySQL()` — Stable `serverReqId` (Pattern A)
+
+**File**: `com/capillary/intouchapiv3/unified/subscription/SubscriptionPublishService.java`
+
+Current (line 74):
+```java
+String serverReqId = CapRequestIdUtil.getRequestId();
+```
+
+**Replace with**:
+```java
+// Pattern A: stable idempotency key — same subscriptionProgramId always gets the same key.
+// On Thrift timeout + retry, emf-parent's Redis cache returns the previously-committed
+// partnerProgramId instead of re-inserting (preventing duplicate MySQL rows).
+String serverReqId = "sub-approve-" + subscription.getSubscriptionProgramId();
+```
+
+**Guard in `PointsEngineRulesThriftService.createOrUpdatePartnerProgram()`** (line 472–474):
+```java
+if (serverReqId == null || serverReqId.isEmpty()) {
+    serverReqId = CapRequestIdUtil.getRequestId();
+}
+```
+This guard already exists and is safe — it falls back to a random ID only if serverReqId is null/blank, which will never be the case for subscription approvals.
+
+**No other changes to `SubscriptionPublishService`**.
+
+---
+
+### R-20: `PartnerProgramIdempotencyService` — New Service in emf-parent (Pattern A)
+
+**File**: `com/capillary/shopbook/pointsengine/endpoint/impl/external/PartnerProgramIdempotencyService.java`  
+**Module**: `emf-parent/pointsengine-emf`
+
+**Discovered from**:
+- `ExpiryExtensionConfigurationHelper.java` — uses `applicationCacheManager.get(key, CacheName.ONE_HOUR)` + `.put(key, value, CacheName.ONE_HOUR)` — exact pattern to follow
+- `LimitsHelper.java` — uses `cacheManager = "redisCacheManager"` with `ApplicationCacheConfig.CacheName.ONE_DAY`
+
+```java
+package com.capillary.shopbook.pointsengine.endpoint.impl.external;
+
+import com.capillary.shopbook.emf.cache.ApplicationCacheManager;
+import com.capillary.shopbook.root.config.ApplicationCacheConfig.CacheName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+/**
+ * Redis-backed idempotency cache for partner program create/update operations.
+ *
+ * Pattern A (SAGA reliability): each subscription approval generates a stable
+ * serverReqId ("sub-approve-" + subscriptionProgramId). If the Thrift call commits
+ * to MySQL but the response times out, intouch-api-v3 retries with the same serverReqId.
+ * This service detects the retry and returns the previously-committed partnerProgramId
+ * without re-executing the write — preventing duplicate partner_programs rows.
+ *
+ * TTL: ONE_HOUR. Sufficient for transient timeout recovery; does not survive
+ * long-term outages (reconciliation job handles those separately).
+ */
+@Service
+public class PartnerProgramIdempotencyService {
+
+    private static final Logger logger = LoggerFactory.getLogger(PartnerProgramIdempotencyService.class);
+    private static final String KEY_PREFIX = "pp-create-idempotency:";
+
+    @Autowired
+    private ApplicationCacheManager applicationCacheManager;
+
+    /**
+     * Returns the previously-committed partnerProgramId for this serverReqId, or null
+     * if this is the first attempt.
+     *
+     * @param serverReqId Stable per-approval key (e.g., "sub-approve-{subscriptionProgramId}")
+     * @return Cached MySQL partnerProgramId, or null on first attempt
+     */
+    public Integer getCachedPartnerProgramId(String serverReqId) {
+        return (Integer) applicationCacheManager.get(KEY_PREFIX + serverReqId, CacheName.ONE_HOUR);
+    }
+
+    /**
+     * Stores the committed partnerProgramId for this serverReqId (ONE_HOUR TTL).
+     * Called immediately after a successful MySQL write.
+     *
+     * @param serverReqId      Stable per-approval key
+     * @param partnerProgramId The MySQL ID that was committed
+     */
+    public void cachePartnerProgramId(String serverReqId, int partnerProgramId) {
+        logger.info("Caching idempotency result. serverReqId={}, partnerProgramId={}", serverReqId, partnerProgramId);
+        applicationCacheManager.put(KEY_PREFIX + serverReqId, partnerProgramId, CacheName.ONE_HOUR);
+    }
+}
+```
+
+**Annotations**: `@Service` — consistent with `ExpiryExtensionConfigurationHelper` using `@Component`; `@Service` is semantically correct for a service class.
+
+**Maven status**: `ApplicationCacheManager` and `ApplicationCacheConfig.CacheName` already on the classpath in `pointsengine-emf` (verified: `ExpiryExtensionConfigurationHelper` in same module uses both). No new dependencies.
+
+**Imports**:
+- `com.capillary.shopbook.emf.cache.ApplicationCacheManager` (from `emf` module — already available)
+- `com.capillary.shopbook.root.config.ApplicationCacheConfig.CacheName` (from `emf` root — already available)
+
+---
+
+### R-21: `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` — Idempotency Check (Pattern A)
+
+**File**: `com/capillary/shopbook/pointsengine/endpoint/impl/external/PointsEngineRuleConfigThriftImpl.java`  
+**Module**: `emf-parent/pointsengine-emf`
+
+Add one `@Autowired` field (alongside existing `@Autowired` fields at lines 126–184):
+
+```java
+@Autowired
+private PartnerProgramIdempotencyService partnerProgramIdempotencyService;
+```
+
+Modify `createOrUpdatePartnerProgram()` method body (lines 252–281).
+
+**Before** (current implementation):
+```java
+@Override
+@Trace(dispatcher = true)
+@MDCData(orgId = "#orgId", requestId = "#serverReqId")
+public PartnerProgramInfo createOrUpdatePartnerProgram(PartnerProgramInfo partnerProgramInfo, int programId,
+                                                       int orgId, int lastModifiedBy, long lastModifiedOn, String serverReqId)
+        throws PointsEngineRuleServiceException, TException {
+    try {
+        List<PartnerProgramSlab> partnerProgramSlabs = m_pointsEngineRuleEditor.getPartnerProgramSlabs(orgId,
+                programId, partnerProgramInfo.getPartnerProgramId());
+        com.capillary.shopbook.points.entity.PartnerProgram partnerProgramEntity = getPartnerProgramEntity(
+                partnerProgramInfo, orgId, programId, partnerProgramSlabs);
+        PartnerProgram oldPartnerProgram = m_pointsEngineRuleEditor.getPartnerProgram(
+                partnerProgramInfo.getPartnerProgramId(), orgId);
+        partnerProgramEntity = m_pointsEngineRuleEditor.createOrUpdatePartnerProgram(orgId, partnerProgramEntity,
+                oldPartnerProgram);
+
+        boolean updatedViaNewUI = partnerProgramInfo.isSetUpdatedViaNewUI()
+                && partnerProgramInfo.isUpdatedViaNewUI();
+        logger.info("updated via new UI: {}", updatedViaNewUI);
+        m_pointsEngineRuleEditor.logAuditTrails(oldPartnerProgram, partnerProgramEntity, lastModifiedBy,
+                updatedViaNewUI);
+
+        partnerProgramInfo.setPartnerProgramId(partnerProgramEntity.getId());
+
+        logger.info("Returning partner program with id: {}", partnerProgramInfo.getPartnerProgramId());
+        return partnerProgramInfo;
+    } catch (Exception ex) {
+        logger.error("Error in creating/updating partner program for program: " + programId, ex);
+        throw new PointsEngineRuleServiceException(ex.getMessage());
+    } finally {
+        newRelicUtils.pushRequestContextStats();
+    }
+}
+```
+
+**After** (with Pattern A idempotency check added at top of try block):
+```java
+@Override
+@Trace(dispatcher = true)
+@MDCData(orgId = "#orgId", requestId = "#serverReqId")
+public PartnerProgramInfo createOrUpdatePartnerProgram(PartnerProgramInfo partnerProgramInfo, int programId,
+                                                       int orgId, int lastModifiedBy, long lastModifiedOn, String serverReqId)
+        throws PointsEngineRuleServiceException, TException {
+    try {
+        // Pattern A: idempotency check — skip re-execution if this serverReqId was already committed
+        if (serverReqId != null && !serverReqId.isEmpty()) {
+            Integer cachedId = partnerProgramIdempotencyService.getCachedPartnerProgramId(serverReqId);
+            if (cachedId != null) {
+                logger.info("Idempotent createOrUpdatePartnerProgram: returning cached result. serverReqId={}, cachedId={}",
+                        serverReqId, cachedId);
+                partnerProgramInfo.setPartnerProgramId(cachedId);
+                return partnerProgramInfo;
+            }
+        }
+
+        List<PartnerProgramSlab> partnerProgramSlabs = m_pointsEngineRuleEditor.getPartnerProgramSlabs(orgId,
+                programId, partnerProgramInfo.getPartnerProgramId());
+        com.capillary.shopbook.points.entity.PartnerProgram partnerProgramEntity = getPartnerProgramEntity(
+                partnerProgramInfo, orgId, programId, partnerProgramSlabs);
+        PartnerProgram oldPartnerProgram = m_pointsEngineRuleEditor.getPartnerProgram(
+                partnerProgramInfo.getPartnerProgramId(), orgId);
+        partnerProgramEntity = m_pointsEngineRuleEditor.createOrUpdatePartnerProgram(orgId, partnerProgramEntity,
+                oldPartnerProgram);
+
+        boolean updatedViaNewUI = partnerProgramInfo.isSetUpdatedViaNewUI()
+                && partnerProgramInfo.isUpdatedViaNewUI();
+        logger.info("updated via new UI: {}", updatedViaNewUI);
+        m_pointsEngineRuleEditor.logAuditTrails(oldPartnerProgram, partnerProgramEntity, lastModifiedBy,
+                updatedViaNewUI);
+
+        partnerProgramInfo.setPartnerProgramId(partnerProgramEntity.getId());
+
+        // Pattern A: cache the committed ID so retries can skip re-execution
+        if (serverReqId != null && !serverReqId.isEmpty()) {
+            partnerProgramIdempotencyService.cachePartnerProgramId(serverReqId, partnerProgramEntity.getId());
+        }
+
+        logger.info("Returning partner program with id: {}", partnerProgramInfo.getPartnerProgramId());
+        return partnerProgramInfo;
+    } catch (Exception ex) {
+        logger.error("Error in creating/updating partner program for program: " + programId, ex);
+        throw new PointsEngineRuleServiceException(ex.getMessage());
+    } finally {
+        newRelicUtils.pushRequestContextStats();
+    }
+}
+```
+
+**Minimal change principle**: Only 8 lines added — idempotency check at method entry and cache write after successful commit. All existing logic is preserved unchanged.
+
+---
+
+## Rework 2 Summary (2026-04-16)
+
+| Change # | File(s) | What Changed | Why |
+|----------|---------|-------------|-----|
+| R-13 | `SubscriptionStatus.java` | Add `PUBLISH_FAILED` enum value | Explicit failure state for SAGA publish errors |
+| R-14 | `ApprovableEntity.java` | Add `transitionToPublishFailed(String reason)` | Interface contract for generic failure transition |
+| R-15 | `SubscriptionProgram.java` | Implement `transitionToPublishFailed()` | Set status=PUBLISH_FAILED + store error in comments |
+| R-16 | `MakerCheckerService.java` | `approve()` catch block: save entity after `onPublishFailure` (best-effort) | Persist PUBLISH_FAILED to MongoDB before rethrowing |
+| R-17 | `SubscriptionApprovalHandler.java` | `onPublishFailure()`: call `entity.transitionToPublishFailed(e.getMessage())` | Set the failure status (MakerCheckerService will save) |
+| R-18 | `SubscriptionFacade.java` | `handleApproval()` guard: also allow `PUBLISH_FAILED` as starting state | Enable retry (approve) and send-back-to-draft (reject) from failure state |
+| R-19 | `SubscriptionPublishService.java` | Stable `serverReqId = "sub-approve-" + subscriptionProgramId` | Pattern A: same key on retry → emf-parent Redis cache hit → no double-insert |
+| R-20 | `PartnerProgramIdempotencyService.java` (NEW, emf-parent) | New `@Service` wrapping `applicationCacheManager.get/put` for idempotency | Isolated, testable idempotency logic; follows `ExpiryExtensionConfigurationHelper` pattern |
+| R-21 | `PointsEngineRuleConfigThriftImpl.java` (emf-parent) | Add idempotency check at `createOrUpdatePartnerProgram()` entry + cache write after commit | Pattern A SAGA completion — prevents double-insert on timeout-after-commit retries |

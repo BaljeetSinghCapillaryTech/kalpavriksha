@@ -319,6 +319,107 @@ No coverage gaps identified. All 48 BA acceptance criteria, 87 QA scenarios, and
 
 ---
 
+## 6. Rework 2 — PUBLISH_FAILED State + Pattern A Idempotency Key (2026-04-16)
+
+> **Source**: Designer Rework 2 (R-13 through R-21), QA Rework 2 (TS-SAGA-01 through TS-SAGA-16).
+
+---
+
+### 6.1 Tests Requiring Revision (Existing BTs Invalidated by Rework 2)
+
+These tests existed before Rework 2. Their expected outputs are now wrong and MUST be updated by SDET/Developer before implementing Rework 2 code:
+
+| BT ID | Test Name | Old Expected Output | New Expected Output |
+|-------|-----------|---------------------|---------------------|
+| BT-23 | `shouldPreserveEntityOnPublishFailure` | `entity.status` unchanged (PENDING_APPROVAL) | `entity.status = PUBLISH_FAILED`. `save.save(entity)` called once. |
+| BT-29 | `shouldLeaveStatusUnchangedOnPublishFailure` | `entity.status` unchanged (PENDING_APPROVAL) | `entity.status = PUBLISH_FAILED`. `entity.comments = e.getMessage()`. |
+| BT-61 | `shouldRemainPendingApprovalOnThriftFailure` | MongoDB `status = PENDING_APPROVAL` | MongoDB `status = PUBLISH_FAILED`. `comments` has error message. |
+| BT-C05 | `shouldCompensateSAGAOnThriftFailure` | Status remains `PENDING_APPROVAL` | Status = `PUBLISH_FAILED`, saved to MongoDB. |
+
+**Note**: The test `SubscriptionApprovalHandlerTest.shouldLeaveStatusUnchangedOnPublishFailure` already exists in the codebase (was written in SDET phase). It MUST be updated — the production `onPublishFailure()` implementation will now set `PUBLISH_FAILED`, causing the current test assertion to fail.
+
+---
+
+### 6.2 New Unit Tests — PUBLISH_FAILED State Machine
+
+#### Group PF — PUBLISH_FAILED State Transitions
+
+| ID | Test Name | Verifies | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|---------|-------|-----------------|-------------|-------------------|-------|
+| BT-PF-01 | shouldSetPublishFailedStatusOnTransition | R-15 | `entity.transitionToPublishFailed("Thrift timeout")` | `entity.status = PUBLISH_FAILED`, `entity.comments = "Thrift timeout"` | TS-SAGA-04 | `SubscriptionProgram.transitionToPublishFailed()` | UT |
+| BT-PF-02 | shouldNotThrowOnNullReasonInTransitionToPublishFailed | R-15, G-02 | `entity.transitionToPublishFailed(null)` | `entity.status = PUBLISH_FAILED`, `entity.comments = null`. No NPE. | TS-SAGA-04 | `SubscriptionProgram.transitionToPublishFailed()` | UT |
+| BT-PF-03 | shouldCallOnPublishFailureAndSaveOnThriftException | R-16 | `makerCheckerService.approve()` where `handler.publish()` throws | `handler.onPublishFailure()` called. `save.save(entity)` called. Exception rethrown. | TS-SAGA-02 | `MakerCheckerService.approve()` | UT |
+| BT-PF-04 | shouldRethrowOriginalExceptionEvenIfSaveFails | R-16 | `approve()`: `publish()` throws `EMFThriftException`, `save.save()` also throws `MongoException` | Caller receives `EMFThriftException`. `MongoException` NOT propagated. | TS-SAGA-03 | `MakerCheckerService.approve()` | UT |
+| BT-PF-05 | shouldTransitionToPublishFailedOnPublishError | R-17 | `onPublishFailure(entity{status=PENDING_APPROVAL}, new EMFThriftException("emf down"))` | `entity.status = PUBLISH_FAILED`. `entity.comments = "emf down"`. No exception thrown. | TS-SAGA-01 | `SubscriptionApprovalHandler.onPublishFailure()` | UT |
+| BT-PF-06 | shouldAllowApprovalFromPublishFailedState | R-18, AC-35 | `handleApproval(APPROVE)` on entity with `status=PUBLISH_FAILED` | `MakerCheckerService.approve()` called. No `InvalidSubscriptionStateException`. | TS-SAGA-05 | `SubscriptionFacade.handleApproval()` | UT |
+| BT-PF-07 | shouldAllowRejectionFromPublishFailedState | R-18, AC-34 | `handleApproval(REJECT, "fix needed")` on entity with `status=PUBLISH_FAILED` | `MakerCheckerService.reject()` called. No `InvalidSubscriptionStateException`. | TS-SAGA-06 | `SubscriptionFacade.handleApproval()` | UT |
+| BT-PF-08 | shouldRejectApprovalFromDraftActiveOrArchived | R-18 | `handleApproval(APPROVE)` for DRAFT / ACTIVE / PAUSED / ARCHIVED | `InvalidSubscriptionStateException` in all 4 cases. | TS-SAGA-07 | `SubscriptionFacade.handleApproval()` | UT |
+
+---
+
+### 6.3 New Unit Tests — Pattern A Idempotency Key
+
+#### Group PA — Stable serverReqId + PartnerProgramIdempotencyService
+
+| ID | Test Name | Verifies | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|---------|-------|-----------------|-------------|-------------------|-------|
+| BT-PA-01 | shouldGenerateStableServerReqIdForSubscription | R-19 | `publishToMySQL(subscription{subscriptionProgramId="uuid-abc"}, orgId, programId)` | `thriftService.createOrUpdatePartnerProgram(...)` called with `serverReqId = "sub-approve-uuid-abc"` | TS-SAGA-09 | `SubscriptionPublishService.publishToMySQL()` | UT |
+| BT-PA-02 | shouldGenerateSameServerReqIdOnRetry | R-19 | Two calls to `publishToMySQL()` for same subscription | Both calls: `serverReqId = "sub-approve-uuid-abc"` (identical) | TS-SAGA-10 | `SubscriptionPublishService.publishToMySQL()` | UT |
+| BT-PA-03 | shouldReturnNullForUncachedServerReqId | R-20 | `idempotencyService.getCachedPartnerProgramId("sub-approve-uuid-1")` on empty cache | Returns `null` | TS-SAGA-11 | `PartnerProgramIdempotencyService.getCachedPartnerProgramId()` | UT |
+| BT-PA-04 | shouldCacheAndRetrievePartnerProgramId | R-20 | `cachePartnerProgramId("sub-approve-uuid-1", 42)` then `getCachedPartnerProgramId("sub-approve-uuid-1")` | Returns `42` | TS-SAGA-12 | `PartnerProgramIdempotencyService` | UT |
+| BT-PA-05 | shouldSkipWriteAndReturnCachedIdOnRetry | R-21 | `createOrUpdatePartnerProgram(info, ..., "sub-approve-uuid-1")` where cache returns `99` | `info.partnerProgramId == 99`. `m_pointsEngineRuleEditor.createOrUpdatePartnerProgram()` NOT called. | TS-SAGA-13 | `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` | UT |
+| BT-PA-06 | shouldExecuteWriteAndCacheIdOnFirstCall | R-21 | `createOrUpdatePartnerProgram(info, ..., "sub-approve-uuid-1")` where cache returns `null`. Editor returns entity with `id=77`. | `info.partnerProgramId == 77`. `cachePartnerProgramId("sub-approve-uuid-1", 77)` called. | TS-SAGA-14 | `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` | UT |
+| BT-PA-07 | shouldBypassIdempotencyCheckForNullServerReqId | R-21, G-09 | `createOrUpdatePartnerProgram(info, ..., null)` | `getCachedPartnerProgramId()` NOT called. Normal write proceeds. `cachePartnerProgramId()` NOT called. | TS-SAGA-15 | `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` | UT |
+
+---
+
+### 6.4 New Integration Tests — Full SAGA Flow
+
+#### Group PF-IT — PUBLISH_FAILED End-to-End
+
+| ID | Test Name | Verifies | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|---------|----------|-------|-----------------|-------------|-------------------|-------|
+| BT-PF-IT-01 | shouldPersistPublishFailedToMongoOnThriftError | R-16+R-17 | Service → Thrift (throws) → MongoDB | `handleApproval(APPROVE)` where Thrift throws `EMFThriftException` | MongoDB doc `status = PUBLISH_FAILED`. `comments` has error message. `mysqlPartnerProgramId = null`. Exception propagated to controller. | TS-SAGA-08 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-PF-IT-02 | shouldRetryApprovalFromPublishFailedState | R-18 | Service → Thrift (mock success on retry) → MongoDB | Entity starts as PUBLISH_FAILED. `handleApproval(APPROVE)` again. | Thrift called. MongoDB `status = ACTIVE`. `mysqlPartnerProgramId` set. | TS-SAGA-05 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-PF-IT-03 | shouldRejectToFromPublishFailedState | R-18 | Service → MongoDB | Entity starts as PUBLISH_FAILED. `handleApproval(REJECT, "fix config")`. | MongoDB `status = DRAFT`. `comments = "fix config"`. Thrift NOT called. | TS-SAGA-06 | `SubscriptionFacade.handleApproval()` | IT |
+
+#### Group PA-IT — Pattern A End-to-End
+
+| ID | Test Name | Verifies | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|---------|----------|-------|-----------------|-------------|-------------------|-------|
+| BT-PA-IT-01 | shouldReturnCachedIdWithoutRewriteOnRetry | R-21 | emf-parent: cache hit → skip editor | First call: editor returns id=55, caches "sub-approve-uuid-1" → 55. Second call: same serverReqId. | Second call: editor NOT called. Returns `info.partnerProgramId=55`. | TS-SAGA-16 | `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` | IT |
+| BT-PA-IT-02 | shouldNotAffectExistingCallersWithBlankServerReqId | R-21, G-09 | emf-parent: null serverReqId path | Call with `serverReqId=null`. Editor executes normally. | No NPE. Write proceeds. Cache NOT populated. | TS-SAGA-15 | `PointsEngineRuleConfigThriftImpl.createOrUpdatePartnerProgram()` | IT |
+
+---
+
+### 6.5 Updated Coverage Summary (Rework 2)
+
+| Source | Total | Covered |
+|--------|-------|---------|
+| Rework 2 QA Scenarios (TS-SAGA-01 to TS-SAGA-16) | 16 | 16 |
+| Rework 2 Designer Changes (R-13 to R-21) | 9 | 9 |
+| Existing tests requiring revision | 4 | 4 (documented in §6.1) |
+
+**New test cases added: BT-PF-01 to BT-PF-08 (8 UT) + BT-PA-01 to BT-PA-07 (7 UT) + BT-PF-IT-01 to BT-PF-IT-03 (3 IT) + BT-PA-IT-01 to BT-PA-IT-02 (2 IT) = 20 new test cases**
+
+**Running total: 102 + 20 = 122 test cases**
+
+### 6.6 Updated Test Class Mapping (Rework 2 additions)
+
+| Test Class | Covers BT IDs | Type | Repo |
+|-----------|--------------|------|------|
+| `SubscriptionApprovalHandlerTest` *(update existing)* | BT-PF-05; update BT-29 | UT | intouch-api-v3 |
+| `MakerCheckerServiceTest` *(update existing)* | BT-PF-03, BT-PF-04; update BT-23 | UT | intouch-api-v3 |
+| `SubscriptionProgramTest` *(new or extend)* | BT-PF-01, BT-PF-02 | UT | intouch-api-v3 |
+| `SubscriptionFacadeApprovalTest` *(update existing)* | BT-PF-06, BT-PF-07, BT-PF-08; update BT-61 | UT + IT | intouch-api-v3 |
+| `SubscriptionPublishServiceTest` *(update existing)* | BT-PA-01, BT-PA-02 | UT | intouch-api-v3 |
+| `PartnerProgramIdempotencyServiceTest` *(new)* | BT-PA-03, BT-PA-04 | UT | emf-parent |
+| `PartnerProgramIdempotencyThriftImplTest` *(new)* | BT-PA-05, BT-PA-06, BT-PA-07 | UT | emf-parent |
+| `SubscriptionSagaPublishFailedIT` *(new)* | BT-PF-IT-01, BT-PF-IT-02, BT-PF-IT-03 | IT | intouch-api-v3 |
+| `PartnerProgramIdempotencyIT` *(new)* | BT-PA-IT-01, BT-PA-IT-02 | IT | emf-parent |
+
+---
+
 ## Rework Additions — ADR-08 through ADR-18 (Gap Analysis 2026-04-15)
 
 > Added: 2026-04-15 | Source ADRs: ADR-08 through ADR-18 | KD refs: KD-47 through KD-58

@@ -1,0 +1,1254 @@
+openapi: "3.0.3"
+
+info:
+  title: Subscription Programs API
+  description: >
+    REST API for managing Subscription Programs (E3) in the Capillary Garuda platform.
+    Supports full CRUD, maker-checker approval workflow, lifecycle management (pause/resume/archive),
+    and benefit linkage.
+    All responses are wrapped in a ResponseWrapper envelope — see schemas.ResponseWrapper.
+  version: "1.0.0"
+  contact:
+    name: Capillary Backend Team
+
+servers:
+  - url: https://{host}/
+    variables:
+      host:
+        default: api.capillary.in
+        description: Capillary API host
+
+tags:
+  - name: Subscriptions
+    description: CRUD and lifecycle operations
+  - name: Approvals
+    description: Maker-checker review workflow
+  - name: Benefits
+    description: Benefit linkage and de-linkage
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # CREATE
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions:
+    post:
+      tags: [Subscriptions]
+      summary: Create subscription (DRAFT)
+      description: >
+        Creates a new subscription program in DRAFT status. MongoDB-only — no MySQL write.
+        Name is pre-checked for uniqueness (case-insensitive) within the org.
+        orgId and programId are injected from the auth token.
+      operationId: createSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionProgramRequest'
+            examples:
+              supplementaryNonTier:
+                summary: Minimal SUPPLEMENTARY / NON_TIER
+                value:
+                  name: "Gold Membership"
+                  description: "Annual premium membership with exclusive rewards"
+                  subscriptionType: "NON_TIER"
+                  programType: "SUPPLEMENTARY"
+                  pointsExchangeRatio: 1.0
+                  duration:
+                    cycleType: "MONTHS"
+                    cycleValue: 12
+              supplementaryTierBased:
+                summary: TIER_BASED / SUPPLEMENTARY (full)
+                value:
+                  name: "Platinum Tier Access"
+                  description: "Premium tier subscription with concierge benefits"
+                  subscriptionType: "TIER_BASED"
+                  programType: "SUPPLEMENTARY"
+                  pointsExchangeRatio: 2.5
+                  syncWithLoyaltyTierOnDowngrade: true
+                  groupTag: "Premium"
+                  duration:
+                    cycleType: "MONTHS"
+                    cycleValue: 12
+                  tierConfig:
+                    linkedTierId: 5
+                    tierDowngradeOnExit: true
+                    downgradeTargetTierId: 3
+                    tiers:
+                      - tierNumber: 1
+                        tierName: "Bronze"
+                      - tierNumber: 2
+                        tierName: "Silver"
+                      - tierNumber: 3
+                        tierName: "Gold"
+                    loyaltySyncTiers:
+                      Bronze: "Tier 1"
+                      Silver: "Tier 2"
+                      Gold: "Tier 3"
+                  reminders:
+                    - daysBeforeExpiry: 30
+                      channel: "EMAIL"
+                      communicationProperties:
+                        templateId: "REMIND_30D"
+              externalProgram:
+                summary: EXTERNAL program (no duration)
+                value:
+                  name: "Airline Miles Partner"
+                  description: "External airline points program integration"
+                  subscriptionType: "NON_TIER"
+                  programType: "EXTERNAL"
+                  pointsExchangeRatio: 0.5
+      responses:
+        '201':
+          description: Subscription created in DRAFT status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+              example:
+                data:
+                  id: "64a1f2e3b4c5d6e7f8091234"
+                  subscriptionProgramId: "a3f1c2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+                  orgId: 1001
+                  programId: 200
+                  status: "DRAFT"
+                  version: 1
+                  parentId: null
+                  mysqlPartnerProgramId: null
+                  name: "Gold Membership"
+                  description: "Annual premium membership with exclusive rewards"
+                  subscriptionType: "NON_TIER"
+                  programType: "SUPPLEMENTARY"
+                  pointsExchangeRatio: 1.0
+                  syncWithLoyaltyTierOnDowngrade: false
+                  duration:
+                    cycleType: "MONTHS"
+                    cycleValue: 12
+                  benefits: []
+                  reminders: []
+                  createdBy: "john.doe"
+                  createdAt: "2026-04-15T09:00:00Z"
+                  updatedBy: "john.doe"
+                  updatedAt: "2026-04-15T09:00:00Z"
+                errors: null
+                warnings: null
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/NameConflict'
+
+    # ---------------------------------------------------------------------------
+    # LIST
+    # ---------------------------------------------------------------------------
+    get:
+      tags: [Subscriptions]
+      summary: List subscriptions (paginated)
+      description: >
+        Returns a paginated list of subscription programs for the caller's org and program.
+        Filter by one or more statuses. If no status filter is provided, all statuses are returned.
+      operationId: listSubscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: statuses
+          in: query
+          required: false
+          description: >
+            Filter by status. Repeatable. E.g. ?statuses=ACTIVE&statuses=PAUSED.
+            Omit to return all statuses.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/SubscriptionStatus'
+          style: form
+          explode: true
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Zero-based page number.
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+          description: Items per page.
+      responses:
+        '200':
+          description: Paginated list of subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ---------------------------------------------------------------------------
+  # APPROVALS QUEUE (must be declared before /{id} to avoid ambiguity)
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/approvals:
+    get:
+      tags: [Approvals]
+      summary: List pending approvals
+      description: >
+        Returns all PENDING_APPROVAL subscriptions for the caller's org and program (checker queue).
+      operationId: listPendingApprovals
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+      responses:
+        '200':
+          description: Paginated list of PENDING_APPROVAL subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ---------------------------------------------------------------------------
+  # GET / UPDATE by ID
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/{subscriptionProgramId}:
+    parameters:
+      - name: subscriptionProgramId
+        in: path
+        required: true
+        description: Immutable business identifier (UUID) of the subscription.
+        schema:
+          type: string
+          format: uuid
+          example: "a3f1c2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+
+    get:
+      tags: [Subscriptions]
+      summary: Get subscription by ID
+      operationId: getSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Subscriptions]
+      summary: Update subscription
+      description: >
+        Updates an existing subscription.
+        - DRAFT / PENDING_APPROVAL: in-place update.
+        - ACTIVE: creates a new DRAFT fork (parentId = ACTIVE doc's id). ACTIVE remains live.
+        - ARCHIVED: returns HTTP 422.
+      operationId: updateSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionProgramRequest'
+      responses:
+        '200':
+          description: Updated subscription (DRAFT, in-place) or new DRAFT fork (when editing ACTIVE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/NameConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+
+  # ---------------------------------------------------------------------------
+  # DUPLICATE
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/{subscriptionProgramId}/duplicate:
+    parameters:
+      - name: subscriptionProgramId
+        in: path
+        required: true
+        description: Business ID of the subscription to clone.
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [Subscriptions]
+      summary: Duplicate subscription
+      description: >
+        Creates a new DRAFT subscription by cloning an existing one.
+        A new subscriptionProgramId is assigned. Status is DRAFT. parentId is null.
+      operationId: duplicateSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: New DRAFT clone created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/NameConflict'
+
+  # ---------------------------------------------------------------------------
+  # STATUS CHANGE
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/{subscriptionProgramId}/status:
+    parameters:
+      - name: subscriptionProgramId
+        in: path
+        required: true
+        description: Business ID of the subscription.
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [Subscriptions]
+      summary: Change lifecycle status
+      description: >
+        Triggers a lifecycle state transition.
+        - SUBMIT_FOR_APPROVAL: DRAFT → PENDING_APPROVAL
+        - PAUSE: ACTIVE → PAUSED (Thrift call to MySQL)
+        - RESUME: PAUSED → ACTIVE (Thrift call to MySQL)
+        - ARCHIVE: ACTIVE/PAUSED → ARCHIVED (Thrift call to MySQL)
+      operationId: changeStatus
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+            examples:
+              submitForApproval:
+                summary: Submit DRAFT for approval
+                value:
+                  action: "SUBMIT_FOR_APPROVAL"
+                  comment: "Ready for Q2 launch review"
+              pause:
+                summary: Pause ACTIVE program
+                value:
+                  action: "PAUSE"
+                  comment: "Pausing for quarterly audit"
+              resume:
+                summary: Resume PAUSED program
+                value:
+                  action: "RESUME"
+              archive:
+                summary: Archive program
+                value:
+                  action: "ARCHIVE"
+                  comment: "Program discontinued"
+      responses:
+        '200':
+          description: Updated subscription after transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+        '502':
+          $ref: '#/components/responses/ThriftError'
+
+  # ---------------------------------------------------------------------------
+  # APPROVE / REJECT
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/{subscriptionProgramId}/approve:
+    parameters:
+      - name: subscriptionProgramId
+        in: path
+        required: true
+        description: Business ID of the PENDING_APPROVAL subscription.
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [Approvals]
+      summary: Approve or reject a PENDING_APPROVAL subscription
+      description: >
+        APPROVE: triggers SAGA — Thrift/MySQL write → status=ACTIVE → mysqlPartnerProgramId stored.
+        REJECT: status returns to DRAFT with the reviewer's comment.
+        On APPROVE + 502: subscription stays PENDING_APPROVAL. Safe to retry.
+      operationId: reviewSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+            examples:
+              approve:
+                summary: Approve
+                value:
+                  approvalStatus: "APPROVE"
+                  comment: "All details verified. Ready for Q2 launch."
+              reject:
+                summary: Reject
+                value:
+                  approvalStatus: "REJECT"
+                  comment: "Please add at least one expiry reminder and resubmit."
+      responses:
+        '200':
+          description: Updated subscription (ACTIVE on approve, DRAFT on reject)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/NameConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+        '502':
+          $ref: '#/components/responses/ThriftError'
+
+  # ---------------------------------------------------------------------------
+  # BENEFIT LINKAGE
+  # ---------------------------------------------------------------------------
+  /v3/subscriptions/{subscriptionProgramId}/benefits/{benefitId}:
+    parameters:
+      - name: subscriptionProgramId
+        in: path
+        required: true
+        description: Business ID of the subscription.
+        schema:
+          type: string
+          format: uuid
+      - name: benefitId
+        in: path
+        required: true
+        description: ID of the benefit to link or delink.
+        schema:
+          type: integer
+          format: int64
+          example: 1001
+
+    post:
+      tags: [Benefits]
+      summary: Link benefit to subscription
+      description: >
+        Appends the given benefitId to the subscription's benefits[] array (MongoDB-only).
+        No Thrift call. The server validates the benefit exists before linking.
+      operationId: linkBenefit
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Updated subscription with benefit added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Benefits]
+      summary: Delink benefit from subscription
+      description: >
+        Removes the given benefitId from the subscription's benefits[] array (MongoDB-only).
+        No Thrift call.
+      operationId: delinkBenefit
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Updated subscription with benefit removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionProgramResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# =============================================================================
+components:
+# =============================================================================
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Platform auth token. Org ID and program ID are extracted server-side.
+
+  # ---------------------------------------------------------------------------
+  # Reusable responses
+  # ---------------------------------------------------------------------------
+  responses:
+    ValidationError:
+      description: Field validation failed or cross-field rule violated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "must not be blank"
+            warnings: null
+
+    Unauthorized:
+      description: Missing or invalid auth token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "Unauthorized"
+            warnings: null
+
+    Forbidden:
+      description: Insufficient role/permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Subscription not found for this org
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "Subscription not found: id=a3f1c2d4-..., orgId=1001"
+            warnings: null
+
+    NameConflict:
+      description: Subscription name already in use (case-insensitive) across all partner programs in the org
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "Subscription name already exists in org 1001: 'Gold Membership'"
+            warnings: null
+
+    InvalidState:
+      description: Lifecycle state transition is not valid for the current status
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "Cannot perform 'PAUSE' on subscription in status: DRAFT"
+            warnings: null
+
+    ThriftError:
+      description: >
+        Thrift/MySQL call failed (APPROVE, PAUSE, RESUME, ARCHIVE).
+        Subscription status is unchanged. Safe to retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            data: null
+            errors:
+              - code: null
+                message: "EMF Thrift service error: connection refused"
+            warnings: null
+
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
+  schemas:
+
+    # ---- Enums ---------------------------------------------------------------
+
+    SubscriptionStatus:
+      type: string
+      enum:
+        - DRAFT
+        - PENDING_APPROVAL
+        - ACTIVE
+        - PAUSED
+        - ARCHIVED
+      description: >
+        DRAFT: editable, not live.
+        PENDING_APPROVAL: submitted, awaiting checker.
+        ACTIVE: live in MySQL, enrollments open.
+        PAUSED: MySQL is_active=false, new enrollments blocked.
+        ARCHIVED: terminal, no new enrollments.
+
+    SubscriptionType:
+      type: string
+      enum:
+        - TIER_BASED
+        - NON_TIER
+      description: >
+        TIER_BASED: subscription linked to a loyalty tier; requires tierConfig.linkedTierId and non-empty tierConfig.tiers.
+        NON_TIER: standalone, no tier linkage; tierConfig.tiers must be empty.
+
+    PartnerProgramType:
+      type: string
+      enum:
+        - SUPPLEMENTARY
+        - EXTERNAL
+      description: >
+        SUPPLEMENTARY: loyalty-native; duration required.
+        EXTERNAL: externally managed; duration must be absent.
+
+    CycleType:
+      type: string
+      enum:
+        - DAYS
+        - MONTHS
+      description: >
+        Unit for the membership cycle duration.
+        YEARS is NOT accepted — use MONTHS with cycleValue 12 for annual.
+
+    MigrateOnExpiry:
+      type: string
+      enum:
+        - NONE
+        - MIGRATE_TO_PROGRAM
+      description: >
+        NONE: enrollment ends on expiry.
+        MIGRATE_TO_PROGRAM: member moves to migrationTargetProgramId on expiry.
+
+    ReminderChannel:
+      type: string
+      enum:
+        - SMS
+        - EMAIL
+        - PUSH
+      description: Channel for expiry reminder communications (MongoDB-only; not dispatched by this service).
+
+    SubscriptionAction:
+      type: string
+      enum:
+        - SUBMIT_FOR_APPROVAL
+        - PAUSE
+        - RESUME
+        - ARCHIVE
+      description: >
+        SUBMIT_FOR_APPROVAL: DRAFT → PENDING_APPROVAL.
+        PAUSE: ACTIVE → PAUSED (Thrift).
+        RESUME: PAUSED → ACTIVE (Thrift).
+        ARCHIVE: ACTIVE/PAUSED → ARCHIVED (Thrift).
+
+    ApprovalStatus:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+      description: Checker review decision.
+
+    # ---- Nested value objects ------------------------------------------------
+
+    Duration:
+      type: object
+      required:
+        - cycleType
+        - cycleValue
+      properties:
+        cycleType:
+          $ref: '#/components/schemas/CycleType'
+        cycleValue:
+          type: integer
+          minimum: 1
+          description: Number of units. Must be a positive integer.
+          example: 12
+      description: >
+        Membership cycle duration. Required when programType=SUPPLEMENTARY.
+        Must be absent when programType=EXTERNAL.
+
+    Expiry:
+      type: object
+      properties:
+        programExpiryDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: UTC ISO-8601. After this date no new enrollments are accepted.
+          example: "2027-12-31T23:59:59Z"
+        migrateOnExpiry:
+          $ref: '#/components/schemas/MigrateOnExpiry'
+        migrationTargetProgramId:
+          type: integer
+          nullable: true
+          description: MySQL partner_programs.id of the fallback program. Required when migrateOnExpiry=MIGRATE_TO_PROGRAM.
+          example: 15
+
+    Settings:
+      type: object
+      properties:
+        restrictToOneActivePerMember:
+          type: boolean
+          nullable: true
+          description: When true, a member can only have one active enrollment at a time.
+          example: true
+
+    ProgramTier:
+      type: object
+      properties:
+        tierNumber:
+          type: integer
+          description: Serial number of this tier in the partner program (partner_program_slabs.serial_number).
+          example: 1
+        tierName:
+          type: string
+          description: Display name of this tier level.
+          example: "Gold"
+
+    TierConfig:
+      type: object
+      properties:
+        linkedTierId:
+          type: integer
+          nullable: true
+          description: Loyalty slab ID. Required when subscriptionType=TIER_BASED.
+          example: 5
+        tierDowngradeOnExit:
+          type: boolean
+          nullable: true
+          description: When true, member's loyalty tier is downgraded on exit.
+          example: true
+        downgradeTargetTierId:
+          type: integer
+          nullable: true
+          description: Loyalty slab ID to downgrade to. Required when tierDowngradeOnExit=true.
+          example: 3
+        tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgramTier'
+          description: Ordered list of partner program tiers. Required and non-empty when subscriptionType=TIER_BASED.
+          example:
+            - tierNumber: 1
+              tierName: "Bronze"
+            - tierNumber: 2
+              tierName: "Gold"
+        loyaltySyncTiers:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: >
+            Map of partner tier name → loyalty tier name.
+            Required when syncWithLoyaltyTierOnDowngrade=true.
+          example:
+            Bronze: "Tier 1"
+            Gold: "Tier 2"
+
+    BenefitRef:
+      type: object
+      required:
+        - benefitId
+      properties:
+        benefitId:
+          type: integer
+          format: int64
+          description: ID of an existing benefit.
+          example: 1001
+        addedOn:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the benefit was linked (set by server).
+          example: "2026-04-14T10:00:00Z"
+
+    Reminder:
+      type: object
+      required:
+        - daysBeforeExpiry
+        - channel
+      properties:
+        daysBeforeExpiry:
+          type: integer
+          minimum: 1
+          description: Days before membership expiry to send the reminder. Must be positive.
+          example: 30
+        channel:
+          $ref: '#/components/schemas/ReminderChannel'
+        communicationProperties:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Key-value template variables for the communication system.
+          example:
+            templateId: "REMIND_30D"
+            senderName: "Capillary Loyalty"
+
+    CustomFieldRef:
+      type: object
+      properties:
+        extendedFieldId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 42
+        name:
+          type: string
+          nullable: true
+          example: "membership_code"
+
+    CustomFields:
+      type: object
+      properties:
+        meta:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomFieldRef'
+          description: Custom fields at the member metadata level.
+        link:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomFieldRef'
+          description: Custom fields required on member link/enrollment.
+        delink:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomFieldRef'
+          description: Custom fields required on member delink/un-enrollment.
+
+    WorkflowMetadata:
+      type: object
+      readOnly: true
+      properties:
+        submittedBy:
+          type: string
+          nullable: true
+          description: Username of the maker who submitted for approval.
+          example: "john.doe"
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of submission (UTC).
+          example: "2026-04-14T10:00:00Z"
+        reviewedBy:
+          type: string
+          nullable: true
+          description: Username of the checker. null if not yet reviewed.
+          example: "jane.smith"
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of review decision (UTC). null if not yet reviewed.
+          example: "2026-04-15T11:30:00Z"
+
+    # ---- Request schema ------------------------------------------------------
+
+    SubscriptionProgramRequest:
+      type: object
+      required:
+        - name
+        - description
+        - subscriptionType
+        - programType
+        - pointsExchangeRatio
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_\-: ]*$'
+          description: >
+            Display name. Max 50 chars. Allowed: letters, digits, space, _, -, :
+            Must be unique (case-insensitive) across all partner programs in the org.
+          example: "Gold Membership"
+        description:
+          type: string
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_\-: ,.\s]*$'
+          description: >
+            Human-readable description. Max 100 chars.
+            Allowed: letters, digits, space, _, -, :, comma, dot.
+          example: "Annual premium membership with exclusive rewards"
+        subscriptionType:
+          $ref: '#/components/schemas/SubscriptionType'
+        programType:
+          $ref: '#/components/schemas/PartnerProgramType'
+        pointsExchangeRatio:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          description: Exchange ratio between loyalty and partner program points. Must be > 0.
+          example: 1.5
+        syncWithLoyaltyTierOnDowngrade:
+          type: boolean
+          nullable: true
+          description: When true, loyalty tier is synced on exit. Requires tierConfig.loyaltySyncTiers.
+          example: false
+        groupTag:
+          type: string
+          nullable: true
+          description: Free-text label for grouping subscriptions in the listing view.
+          example: "Premium"
+        duration:
+          $ref: '#/components/schemas/Duration'
+        expiry:
+          $ref: '#/components/schemas/Expiry'
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/Settings'
+          nullable: true
+        tierConfig:
+          $ref: '#/components/schemas/TierConfig'
+          nullable: true
+        benefits:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/BenefitRef'
+          description: Benefits linked to this subscription. Managed via /benefits sub-resource.
+        reminders:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Reminder'
+          description: Expiry reminders. Max 5. Stored in MongoDB only.
+        customFields:
+          $ref: '#/components/schemas/CustomFields'
+          nullable: true
+
+    # ---- Full document (response) -------------------------------------------
+
+    SubscriptionProgram:
+      type: object
+      readOnly: true
+      properties:
+        id:
+          type: string
+          readOnly: true
+          description: MongoDB ObjectId (internal document key). Do not use as the business key.
+          example: "64a1f2e3b4c5d6e7f8091234"
+        subscriptionProgramId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Immutable business identifier (UUID). Use this in all API calls.
+          example: "a3f1c2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+        orgId:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Tenant identifier (injected from auth token).
+          example: 1001
+        programId:
+          type: integer
+          readOnly: true
+          description: Loyalty program ID (injected from auth token).
+          example: 200
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        version:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Optimistic lock version. Starts at 1, auto-incremented on each save.
+          example: 2
+        parentId:
+          type: string
+          nullable: true
+          readOnly: true
+          description: ObjectId of the ACTIVE doc this DRAFT was forked from. null for original creates.
+          example: null
+        mysqlPartnerProgramId:
+          type: integer
+          nullable: true
+          readOnly: true
+          description: MySQL partner_programs.id. null until APPROVE SAGA completes.
+          example: 42
+        name:
+          type: string
+          maxLength: 50
+          example: "Gold Membership"
+        description:
+          type: string
+          maxLength: 100
+          example: "Annual premium membership with exclusive rewards"
+        subscriptionType:
+          $ref: '#/components/schemas/SubscriptionType'
+        programType:
+          $ref: '#/components/schemas/PartnerProgramType'
+        pointsExchangeRatio:
+          type: number
+          format: double
+          example: 1.0
+        syncWithLoyaltyTierOnDowngrade:
+          type: boolean
+          nullable: true
+          example: false
+        groupTag:
+          type: string
+          nullable: true
+          example: "Premium"
+        duration:
+          $ref: '#/components/schemas/Duration'
+          nullable: true
+        expiry:
+          $ref: '#/components/schemas/Expiry'
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/Settings'
+          nullable: true
+        tierConfig:
+          $ref: '#/components/schemas/TierConfig'
+          nullable: true
+        benefits:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenefitRef'
+        reminders:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Reminder'
+        customFields:
+          $ref: '#/components/schemas/CustomFields'
+          nullable: true
+        workflowMetadata:
+          $ref: '#/components/schemas/WorkflowMetadata'
+          nullable: true
+        comments:
+          type: string
+          maxLength: 150
+          nullable: true
+          readOnly: true
+          description: Most recent reviewer comment (approval note or rejection reason).
+          example: "Approved for Q2 launch."
+        createdBy:
+          type: string
+          readOnly: true
+          example: "john.doe"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-04-14T09:00:00Z"
+        updatedBy:
+          type: string
+          readOnly: true
+          example: "jane.smith"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-04-15T11:30:00Z"
+
+    # ---- Wrapper schemas -----------------------------------------------------
+
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int64
+          nullable: true
+          description: Internal error code. May be null if not mapped.
+          example: 1234
+        message:
+          type: string
+          description: Human-readable error description.
+          example: "must not be blank"
+
+    ApiWarning:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Subscriber count data may be stale."
+
+    SubscriptionProgramResponse:
+      type: object
+      description: ResponseWrapper<SubscriptionProgram>
+      properties:
+        data:
+          $ref: '#/components/schemas/SubscriptionProgram'
+          nullable: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiError'
+          nullable: true
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          nullable: true
+
+    SubscriptionListResponse:
+      type: object
+      description: ResponseWrapper<Page<SubscriptionProgram>>
+      properties:
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubscriptionProgram'
+            totalElements:
+              type: integer
+              format: int64
+              example: 42
+            totalPages:
+              type: integer
+              example: 5
+            size:
+              type: integer
+              example: 10
+            number:
+              type: integer
+              example: 0
+            first:
+              type: boolean
+              example: true
+            last:
+              type: boolean
+              example: false
+            numberOfElements:
+              type: integer
+              example: 10
+            empty:
+              type: boolean
+              example: false
+          nullable: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiError'
+          nullable: true
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      description: ResponseWrapper on error (data=null)
+      properties:
+        data:
+          nullable: true
+          example: null
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiError'
+          nullable: true
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiWarning'
+          nullable: true
+
+    # ---- Action request schemas ----------------------------------------------
+
+    StatusChangeRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          $ref: '#/components/schemas/SubscriptionAction'
+        comment:
+          type: string
+          nullable: true
+          description: Optional note. Stored in the document's comments field.
+          example: "Pausing for quarterly audit"
+
+    ReviewRequest:
+      type: object
+      required:
+        - approvalStatus
+      properties:
+        approvalStatus:
+          $ref: '#/components/schemas/ApprovalStatus'
+        comment:
+          type: string
+          nullable: true
+          description: >
+            Reviewer note. For REJECT, this is the rejection reason shown to the maker.
+            Stored in the document's comments field.
+          example: "Please add at least one expiry reminder and resubmit."
