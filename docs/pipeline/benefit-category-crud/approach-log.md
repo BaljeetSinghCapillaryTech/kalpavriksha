@@ -335,6 +335,88 @@ User answered both in one statement: **"e5: don't make uniqueness at DB level, h
   - No partial index gymnastics, no generated columns, no composite UNIQUE with `is_active`. Migration stays a simple CREATE TABLE per D-23 schema.
   - Thrift IDL stays minimal — no `force: optional` semantics needed around UNIQUE reads.
 
+### Phase 5 → 6 Transition: Pre-Phase-6 Resolutions
+
+After Phase 5 (Codebase Research + Cross-Repo Tracing) completed, three HIGH-severity blocking items were pre-resolved in a single interactive Q&A round to unblock Phase 6 (Architect).
+
+---
+
+**Q-1 (Q-T-01 — `createdBy` type 3-layer conflict)**
+
+- **Question asked**: Cross-repo-trace flagged a 3-layer type conflict for `createdBy` / `updatedBy`:
+  - Java entity pattern in EMF (`Benefits.java:createdBy` is `int`)
+  - D-23 blocker decision declared schema `created_by VARCHAR(...)`
+  - thrift-ifaces analysis recommended `string createdBy` for audit readability
+  Mixing these causes runtime Hibernate failure (INT column ↔ VARCHAR type) or mandatory handler translation (`i32` ↔ `string`). Must align before Phase 7 Designer.
+
+- **Options presented**:
+  - (a) **Platform-consistent** — align on `int` / `INT(11)` / `i32`. Matches existing `Benefits.createdBy` pattern. Username readability via join at read layer if needed.
+  - (b) **Audit-readable** — align on `String` / `VARCHAR(120)` / `string`. Username written directly, no join. Breaks pattern.
+  - (c) **Split concerns** — keep numeric `created_by_id` + add denormalized `created_by_username VARCHAR(120)`. Adds column, keeps both.
+
+- **User's choice**: **(a)** — platform-consistent `int`.
+
+- **Decision recorded**: **D-30** — `createdBy` / `updatedBy` = `int` / `INT(11)` / `i32` across all three layers. D-23's VARCHAR wording is amended (superseded on type specification; all other D-23 details — column names, `auto_update_time`, `_on` suffix — stand).
+
+- **Status**: Q-T-01 RESOLVED ✅ (was HIGH blocker). RF-3 MITIGATED.
+
+---
+
+**Q-2 (OQ-44 — HTTP 409 handler in `TargetGroupErrorAdvice`)**
+
+- **Question asked**: `TargetGroupErrorAdvice` currently has NO HTTP 409 handler. D-27 (reactivation → 409) and D-28 (active duplicate POST → 409) both require one. Options: add a new `ConflictException` + handler, OR downgrade 409 scenarios to HTTP 400 to match existing platform convention (where `ValidationException → 400`).
+
+- **Options presented**:
+  - (a) **Add `ConflictException` + `@ExceptionHandler` → HTTP 409**. Requires EMF handler to throw `PointsEngineRuleServiceException.setStatusCode(409)`; Facade catches, inspects `statusCode`, rethrows as `ConflictException`.
+  - (b) **Downgrade to HTTP 400**. Reuse `ValidationException`. Loses REST semantic precision — client cannot distinguish a malformed payload from a business-rule conflict.
+  - (c) **Use existing exception hierarchy** if one exists. (None found in Phase 5 analysis.)
+
+- **User's choice**: **(a)** — add `ConflictException` + 409 handler.
+
+- **Decision recorded**: **D-31** — NEW `ConflictException` class in `intouch-api-v3/.../exceptionResources/`; NEW `@ExceptionHandler(ConflictException.class)` in `TargetGroupErrorAdvice` → `HttpStatus.CONFLICT` + `ResponseWrapper.error(409, code, message)`. EMF handler throws `PointsEngineRuleServiceException` with `statusCode=409` for D-27 and D-28 paths; Facade maps.
+
+- **Status**: OQ-44 RESOLVED ✅ (was HIGH blocker). RF-2 MITIGATED.
+
+---
+
+**Q-3 (OQ-46 — cc-stack-crm ↔ emf-parent DDL sync mechanism)**
+
+- **Question asked**: emf-parent integration tests pull schema DDL from `integration-test/src/test/resources/cc-stack-crm/schema/dbmaster/warehouse/`. Both new DDL files (`benefit_categories.sql`, `benefit_category_slab_mapping.sql`) must exist in BOTH repos (cc-stack-crm authoritative + emf-parent IT resources). What keeps them in sync — manual copy, sync script, or something else? Who owns keeping them consistent?
+
+- **Options presented**:
+  - (a) **Tell directly** — user explains the mechanism in free text.
+  - (b) **Manual copy** — we adopt a convention: PR touches both repos, reviewers check diff parity.
+  - (c) **Sync script** — we propose a small script; user confirms/rejects.
+
+- **User's choice**: **(a)** — free-text answer. User explained: "this is a different module, we raise PR, then it will release before code release, and in EMF this module is added as submodule; we generally run IT and SonarQube coverage will track the coverage; so when we raise PR in submodule we will go to that branch in emf-parent and pull it and run the IT test cases."
+
+- **Verification performed (C7)**: Read `/Users/anujgupta/IdeaProjects/emf-parent/.gitmodules`:
+  ```
+  [submodule "cc-stack-crm"]
+      path = integration-test/src/test/resources/cc-stack-crm
+      url = https://github.com/Capillary/cc-stack-crm.git
+      branch = master
+  ```
+  User's claim confirmed by primary source.
+
+- **Decision recorded**: **D-32** — cc-stack-crm is a git submodule of emf-parent. Dev workflow: (1) PR in cc-stack-crm with new DDL → (2) bump submodule pointer to feature branch in emf-parent → (3) IT run + SonarQube coverage → (4) on cc-stack-crm merge to master, re-point submodule to merged commit. Release order: cc-stack-crm merges FIRST, emf-parent code release SECOND (aligns with RF-1 deployment sequence).
+
+- **Residual uncertainty (C5)**: Exact production Aurora schema apply mechanism (Facets Cloud auto-sync vs DBA script vs manual) is NOT resolved by the submodule workflow — that only covers dev + IT. Deferred to Phase 12 Blueprint deployment runbook (Q-CRM-1 and A-CRM-4 remain open for prod apply).
+
+- **Status**: OQ-46 RESOLVED ✅ (dev/IT path). RF-5 PARTIALLY MITIGATED (prod apply still open, now LOW severity for dev / MEDIUM for prod).
+
+---
+
+**Pre-Phase-6 Resolution Summary**
+
+| # | Item | Severity | Resolution | Decision | Blocks Phase 6? |
+|---|------|----------|------------|----------|-----------------|
+| Q-T-01 | createdBy type conflict | HIGH | Platform-consistent `int`/`INT(11)`/`i32` | D-30 | ✅ NO (resolved) |
+| OQ-44 | HTTP 409 handler | HIGH | Add `ConflictException` + 409 handler | D-31 | ✅ NO (resolved) |
+| OQ-46 | cc-stack-crm DDL sync | HIGH | Git submodule workflow (verified C7) | D-32 | ✅ NO (resolved; prod apply → Phase 12) |
+
+All Phase-6-blocking items cleared. Proceeding to Phase 6 (HLD — Architect).
+
 ### Phase 6 (Architect) Decisions
 
 _Pending._

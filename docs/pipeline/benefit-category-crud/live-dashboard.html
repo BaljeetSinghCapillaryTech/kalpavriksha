@@ -195,8 +195,8 @@
         <div class="progress-stats">
           <span><span class="stat-value">6</span> / 19 phases complete (1 skipped)</span>
           <span><span class="stat-value">19</span> artifacts generated</span>
-          <span><span class="stat-value">29</span> decisions made</span>
-          <span><span class="stat-value">47</span> findings surfaced</span>
+          <span><span class="stat-value">32</span> decisions made</span>
+          <span><span class="stat-value">47</span> findings surfaced (3 HIGH pre-resolved)</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -823,15 +823,15 @@ sequenceDiagram
           </tbody>
         </table>
 
-        <h3>Red Flags (9 total — 1 CRITICAL, 3 HIGH, 2 MEDIUM, 3 LOW)</h3>
+        <h3>Red Flags (9 total — 1 CRITICAL, 1 HIGH, 2 MEDIUM, 3 LOW, 2 RESOLVED)</h3>
         <table class="data-table">
           <thead><tr><th>ID</th><th>Risk</th><th>Severity</th><th>Owner</th></tr></thead>
           <tbody>
             <tr><td>RF-1</td><td>Thrift IDL version deployment sequencing (1.83 consumer vs 1.84 producer)</td><td class="status-warn">CRITICAL</td><td>Release plan</td></tr>
-            <tr><td>RF-2</td><td>Missing HTTP 409 handler in <code>TargetGroupErrorAdvice</code> — D-27/D-28 require it</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (OQ-44)</td></tr>
-            <tr><td>RF-3</td><td><code>createdBy</code> type conflict across 3 layers: int (entity) vs VARCHAR (D-23) vs string (IDL proposal)</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (Q-T-01)</td></tr>
+            <tr><td>RF-2</td><td><s>Missing HTTP 409 handler in <code>TargetGroupErrorAdvice</code></s></td><td class="status-pass">✅ RESOLVED</td><td>D-31: <code>ConflictException</code> + <code>@ExceptionHandler</code> → HTTP 409; EMF throws <code>statusCode=409</code>, Facade rethrows</td></tr>
+            <tr><td>RF-3</td><td><s><code>createdBy</code> type conflict across 3 layers</s></td><td class="status-pass">✅ RESOLVED</td><td>D-30: aligned on <code>int</code>/<code>INT(11)</code>/<code>i32</code> (D-23 VARCHAR wording amended)</td></tr>
             <tr><td>RF-4</td><td>Admin-only vs open writes — no <code>@PreAuthorize</code> on write endpoints today</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (OQ-34)</td></tr>
-            <tr><td>RF-5</td><td>DDL production migration mechanism ambiguous (Facets auto vs DBA vs Flyway)</td><td>MEDIUM</td><td>Phase 6/9 (OQ-46)</td></tr>
+            <tr><td>RF-5</td><td>DDL migration execution — <strong>dev/IT resolved (D-32 git submodule)</strong>; prod Aurora apply still open</td><td>LOW (dev) / MEDIUM (prod)</td><td>D-32 (dev); Phase 12 deployment runbook (prod)</td></tr>
             <tr><td>RF-6</td><td>Multi-tenancy by convention only — no framework safety net</td><td>MEDIUM</td><td>Phase 7 Designer (base-DAO pattern) + Phase 9 SDET (G-11.8 IT)</td></tr>
             <tr><td>RF-7</td><td>JVM timezone not pinned — residual risk for any <code>SimpleDateFormat</code> use</td><td>LOW</td><td>D-24 <code>Date.getTime()</code> mitigates; OQ-38 confirm prod TZ</td></tr>
             <tr><td>RF-8</td><td><code>NotFoundException → HTTP 200</code> platform quirk on GET-by-id</td><td>LOW</td><td>Phase 6 decide (OQ-45)</td></tr>
@@ -843,13 +843,13 @@ sequenceDiagram
         <table class="data-table">
           <thead><tr><th>ID</th><th>Question</th><th>Severity</th><th>Owner</th></tr></thead>
           <tbody>
-            <tr><td>OQ-44</td><td>Add <code>ConflictException</code>+409 handler, or downgrade D-27/D-28 to HTTP 400?</td><td class="status-warn">HIGH</td><td>Phase 6 Architect</td></tr>
+            <tr><td>OQ-44</td><td><s>Add <code>ConflictException</code>+409 handler, or downgrade D-27/D-28 to HTTP 400?</s></td><td class="status-pass">✅ RESOLVED</td><td>D-31 — add <code>ConflictException</code> + 409 handler</td></tr>
             <tr><td>OQ-45</td><td><code>NotFoundException</code>→HTTP 200 — follow or introduce 404?</td><td>MEDIUM</td><td>Phase 6 Architect</td></tr>
-            <tr><td>OQ-46</td><td>cc-stack-crm ↔ emf-parent IT DDL sync mechanism — script or manual?</td><td class="status-warn">HIGH</td><td>Phase 6/9</td></tr>
+            <tr><td>OQ-46</td><td><s>cc-stack-crm ↔ emf-parent IT DDL sync mechanism — script or manual?</s></td><td class="status-pass">✅ RESOLVED</td><td>D-32 — git submodule (verified at C7 from <code>.gitmodules</code>); prod apply → Phase 12</td></tr>
             <tr><td>OQ-47</td><td>Add to existing large <code>PointsEngineRuleConfigThriftImpl</code> or new handler class?</td><td>LOW</td><td>Phase 6 Architect</td></tr>
             <tr><td>OQ-48</td><td>Cross-layer naming consistency (REST path / Thrift method / Java method)</td><td>LOW</td><td>Phase 7 Designer</td></tr>
             <tr><td>OQ-49</td><td>Deactivate endpoint: dedicated path <code>/deactivate</code> vs body <code>{is_active:false}</code>?</td><td>MEDIUM</td><td>Phase 7 Designer</td></tr>
-            <tr><td>Q-T-01</td><td><code>createdBy</code> type — int / VARCHAR / i32 / string — align across 3 layers</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (BLOCKS Phase 7)</td></tr>
+            <tr><td>Q-T-01</td><td><s><code>createdBy</code> type — int / VARCHAR / i32 / string — align across 3 layers</s></td><td class="status-pass">✅ RESOLVED</td><td>D-30 — <code>int</code>/<code>INT(11)</code>/<code>i32</code> (platform-consistent)</td></tr>
             <tr><td>Q-T-02</td><td>Reuse an <code>AuditTrackedClass</code>-style Thrift struct for audit fields?</td><td>LOW</td><td>Phase 7</td></tr>
             <tr><td>Q-T-03</td><td>Denormalize <code>programId</code> on <code>BenefitCategorySlabMappingDto</code>?</td><td>LOW</td><td>Phase 7</td></tr>
             <tr><td>Q-CRM-1</td><td><code>org_mirroring_meta</code> — include new tables? (Pattern-match legacy <code>benefits</code> says no)</td><td>LOW</td><td>post-MVP</td></tr>
@@ -883,17 +883,57 @@ sequenceDiagram
           <li><code>code-analysis-cc-stack-crm.md</code> — schema repo (C7, DDL-only, zero Java)</li>
           <li><code>code-analysis-thrift-ifaces.md</code> — IDL additions (C7, 8 methods + 3 structs + 1 enum)</li>
           <li><code>cross-repo-trace.md</code> — 921 lines, 8 Mermaid sequence diagrams, 9 red flags, full D-18..D-29 traceability</li>
-          <li><code>session-memory.md</code> — Codebase Behaviour → C7; Cross-Repo Coordination → C6-C7; Red Flags subsection added; OQ-44..OQ-49 + Q-T-01..Q-T-03 + Q-CRM-1/2 added</li>
-          <li><code>process-log.md</code> — Phase 5 completion entry</li>
-          <li><code>pipeline-state.json</code> — Phase 5 marked complete with findings summary</li>
+          <li><code>session-memory.md</code> — Codebase Behaviour → C7; Cross-Repo Coordination → C6-C7; Red Flags subsection added; OQ-44..OQ-49 + Q-T-01..Q-T-03 + Q-CRM-1/2 added; <strong>D-30/D-31/D-32 recorded; D-23 marked amended; Q-T-01 / OQ-44 / OQ-46 → resolved</strong></li>
+          <li><code>process-log.md</code> — Phase 5 completion entry + Pre-Phase-6 Resolutions subsection</li>
+          <li><code>approach-log.md</code> — Phase 5→6 transition Q&amp;A records</li>
+          <li><code>pipeline-state.json</code> — Phase 5 complete; <code>blocking_for_phase_6</code> cleared; <code>5r</code> sub-phase entry added</li>
         </ul>
 
         <h3>Phase 5 Verdict</h3>
         <p><strong>✅ READY FOR PHASE 6.</strong> All architectural findings at C6+ with direct file evidence. Cross-repo coordination matrix raised from C4-C6 (pre-populated from D-18/D-19) to C6-C7 (Phase 5 verified). One hard blocker for Phase 7 coding — <strong>Q-T-01 <code>createdBy</code> type alignment</strong> — which Phase 6 Architect MUST resolve before Designer writes entity + IDL + column. Other open questions (OQ-44, OQ-46, OQ-47) are Phase 6 Architect decisions — not Phase 5 blockers.</p>
         <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-05</code></p>
+
+        <h3>Pre-Phase-6 Resolutions (post-Phase-5 interactive Q&amp;A)</h3>
+        <p>Before moving to Phase 6, the orchestrator ran a 3-question interactive round in main context to pre-resolve all HIGH-severity Phase-5-blockers, so Phase 6 Architect starts from a clean slate.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">3</div><div class="label">HIGH items resolved</div></div>
+          <div class="key-number"><div class="value">3</div><div class="label">New decisions (D-30/D-31/D-32)</div></div>
+          <div class="key-number"><div class="value">2</div><div class="label">Red Flags mitigated (RF-2, RF-3)</div></div>
+          <div class="key-number"><div class="value">1</div><div class="label">Red Flag partial (RF-5)</div></div>
+        </div>
+
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Item</th><th>User's Choice</th><th>Decision</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Q-T-01</td>
+              <td><code>createdBy</code>/<code>updatedBy</code> type — align 3 layers</td>
+              <td>(a) Platform-consistent <code>int</code></td>
+              <td><strong>D-30</strong> — <code>int</code> / <code>INT(11)</code> / <code>i32</code>. Amends D-23.</td>
+              <td>Matches <code>emf-parent/Benefits.java:createdBy</code> pattern. C7.</td>
+            </tr>
+            <tr>
+              <td>OQ-44</td>
+              <td>HTTP 409 handler in <code>TargetGroupErrorAdvice</code></td>
+              <td>(a) Add <code>ConflictException</code> + 409 handler</td>
+              <td><strong>D-31</strong> — NEW <code>ConflictException</code> + <code>@ExceptionHandler</code> → HTTP 409. EMF throws <code>PointsEngineRuleServiceException.setStatusCode(409)</code>; Facade catches and rethrows.</td>
+              <td>Design pattern clearly defined. C6.</td>
+            </tr>
+            <tr>
+              <td>OQ-46</td>
+              <td>cc-stack-crm ↔ emf-parent DDL sync</td>
+              <td>(a) Tell directly — submodule workflow</td>
+              <td><strong>D-32</strong> — cc-stack-crm is a git submodule of emf-parent at <code>integration-test/src/test/resources/cc-stack-crm</code> tracking <code>master</code>. Release order: cc-stack-crm PR merges first, emf-parent second.</td>
+              <td><code>.gitmodules</code> read directly. C7 dev/IT; C5 prod-apply (→ Phase 12).</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-05-resolutions</code></p>
       </section>
       <section class="phase-section" id="phase-6">
-        <h2>Phase 6: Architecture (HLD) <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 6: Architecture (HLD) <span class="phase-badge active">In Progress</span></h2>
       </section>
       <section class="phase-section" id="phase-6a">
         <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>

@@ -404,6 +404,60 @@
 
 ---
 
+### Pre-Phase-6 Resolutions (post-Phase-5, pre-Phase-6)
+
+**Date**: 2026-04-18
+**Mode**: Interactive Q&A in main context (no subagent) — orchestrator asked user 3 options-based questions for each HIGH-severity Phase-5-blocker before invoking Phase 6.
+**Trigger**: Phase 5 closed with 3 items tagged `blocking_for_phase_6` in `pipeline-state.json`. User command was `"continue with resolutions"` — opt-in to pre-resolve in main context rather than carry the blockers into Phase 6 Architect.
+
+#### Items resolved
+
+1. **Q-T-01 (`createdBy` type conflict) → D-30**
+   - Options: (a) platform-consistent `int`/`INT(11)`/`i32`; (b) audit-readable `String`/`VARCHAR`/`string`; (c) split (numeric id + denormalized username).
+   - User chose **(a)**. Aligned all three layers on `int`. D-23's VARCHAR wording superseded (only for the type; rest of D-23 stands).
+   - RF-3 mitigated.
+
+2. **OQ-44 (HTTP 409 handler) → D-31**
+   - Options: (a) add `ConflictException` class + `@ExceptionHandler` → HTTP 409; (b) downgrade 409 scenarios to HTTP 400; (c) reuse existing hierarchy (none available).
+   - User chose **(a)**. EMF throws `PointsEngineRuleServiceException.setStatusCode(409)`; intouch-api-v3 Facade catches `EMFThriftException` with `statusCode == 409`, rethrows as new `ConflictException`; `TargetGroupErrorAdvice` maps to `HttpStatus.CONFLICT` + `ResponseWrapper.error(...)`.
+   - RF-2 mitigated.
+
+3. **OQ-46 (cc-stack-crm ↔ emf-parent DDL sync) → D-32**
+   - Options: (a) tell directly; (b) manual copy convention; (c) sync script proposal.
+   - User chose **(a)** and explained the submodule workflow.
+   - Verified at C7 by reading `/Users/anujgupta/IdeaProjects/emf-parent/.gitmodules`: cc-stack-crm is a git submodule at path `integration-test/src/test/resources/cc-stack-crm` tracking `master`.
+   - Release order: cc-stack-crm PR merges FIRST (aligns with RF-1 Thrift-IDL deployment sequencing).
+   - Residual: production Aurora apply mechanism → Phase 12 deployment runbook. RF-5 demoted to LOW for dev / MEDIUM for prod.
+
+#### Decisions recorded
+
+- **D-30** — createdBy/updatedBy type = `int`/`INT(11)`/`i32` across all three layers. Amends D-23.
+- **D-31** — HTTP 409 handler via NEW `ConflictException` + `@ExceptionHandler` in `TargetGroupErrorAdvice`.
+- **D-32** — cc-stack-crm is a git submodule; dev workflow = submodule pointer bump + IT + SonarQube; prod apply deferred.
+
+#### Artifacts touched
+
+- `session-memory.md` — 3 rows added to Key Decisions (D-30/D-31/D-32); D-23 marked AMENDED; 3 Open Questions moved to RESOLVED (Q-T-01, OQ-44, OQ-46); Red Flags table updated (RF-2/RF-3 → RESOLVED, RF-5 → partial).
+- `approach-log.md` — NEW subsection "Phase 5 → 6 Transition: Pre-Phase-6 Resolutions" with full Q&A records, options presented, user choices, and evidence.
+- `process-log.md` — this entry.
+- `pipeline-state.json` — `blocking_for_phase_6` cleared; stats bumped.
+- `live-dashboard.html` — decision count bumped (29→32); Phase 5 resolved-items tables updated.
+
+**Git snapshot**: `aidlc/CAP-185145/phase-05-resolutions`
+
+#### Confidence summary
+
+| Decision | Confidence | Evidence level |
+|---------|-----------|----------------|
+| D-30 | C7 | Platform pattern verified (Benefits.java:createdBy is int) + user confirmation |
+| D-31 | C6 | Design pattern clearly defined; minor residual on existing `@ExceptionHandler` ordering in TargetGroupErrorAdvice |
+| D-32 (dev/IT) | C7 | `.gitmodules` file read directly — primary source |
+| D-32 (prod apply) | C5 | Assumption-only; explicitly deferred to Phase 12 |
+
+Phase 6 (HLD — Architect) is now unblocked on all HIGH items.
+
+---
+
 ## Rework History
 
 _(Populated if phases route back to earlier phases.)_
