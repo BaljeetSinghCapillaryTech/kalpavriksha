@@ -203,3 +203,84 @@ Reviewer Phase 11 returned REQUEST_CHANGES with 4 blockers + 4 partial requireme
 - Added to **Constraints**: Thrift IDL 1.83 installed locally to `.m2`; `PointsEngineRuleEditorImpl.getSupplementaryEnrollmentCountsByProgramIds` is a stub
 - Resolved Open Questions about status transition mechanism in generic `MakerCheckerService`
 - Resolved: BT-24–26 and BT-75–77 all GREEN after Thrift IDL update and production code implementation
+
+---
+
+## Rework 4 — Developer GREEN Phase (2026-04-17)
+
+### Scope
+Three production gap fixes: Gap 1 (mysqlPartnerProgramId carry-forward), Gap 2 (status-qualified state-transition methods), Gap 3 (SNAPSHOT on edit-of-ACTIVE approval).
+
+### Production Code Changes
+
+**1. `SubscriptionApprovalHandler.java` — Gap 3 (SNAPSHOT)**
+
+| Location | Change | Business Impact |
+|----------|--------|-----------------|
+| `postApprove()`, parentId!=null branch | `oldActive.setStatus(ARCHIVED)` → `oldActive.setStatus(SNAPSHOT)` | Old ACTIVE doc archived as read-only audit trail, not as a generic ARCHIVED record |
+
+**2. `SubscriptionFacade.java` — Gap 1 + Gap 2**
+
+| Method | Change | Business Impact |
+|--------|--------|-----------------|
+| `editActiveSubscription()` | `getSubscription(orgId, id)` → `getSubscriptionByStatus(orgId, id, ACTIVE)` | Prevents ambiguous doc selection during edit window |
+| `editActiveSubscription()` builder | Added `.mysqlPartnerProgramId(active.getMysqlPartnerProgramId())` | DRAFT fork carries forward MySQL ID → emf-parent does UPDATE (not INSERT) on re-approval |
+| `updateSubscription()` | `getSubscription(orgId, id)` → `getSubscriptionByStatus(orgId, id, DRAFT)` | Only loads DRAFT docs for update |
+| `pauseSubscription()` | `getSubscription(orgId, id)` → `getSubscriptionByStatus(orgId, id, ACTIVE)` | Only loads ACTIVE docs for pause |
+| `resumeSubscription()` | `getSubscription(orgId, id)` → `getSubscriptionByStatus(orgId, id, PAUSED)` | Only loads PAUSED docs for resume |
+| `handleApproval()` | `getSubscription(orgId, id)` → `getSubscriptionByStatusIn(orgId, id, [PENDING_APPROVAL, PUBLISH_FAILED])` | Enforces approvable states via query, not inline guard |
+| `archiveSubscription()` | `getSubscription(orgId, id)` → `getSubscriptionByStatusIn(orgId, id, [DRAFT, ACTIVE, PAUSED])` | SNAPSHOT/ARCHIVED/PENDING_APPROVAL not archivable — query enforces it |
+
+Removed old inline status guards from `updateSubscription`, `pauseSubscription`, `resumeSubscription`, `handleApproval`, `archiveSubscription` — they were unreachable after status-qualified fetch.
+
+### Test Modifications (Developer-authored)
+
+| Test Class | Test Method | Change | Reason | BT Case |
+|------------|-------------|--------|--------|---------|
+| `SubscriptionFacadePublishFailedTest` | `shouldAllowApprovalFromPendingApprovalState` | Mock changed from `findBySubscriptionProgramIdAndOrgId` to `findBySubscriptionProgramIdAndOrgIdAndStatusIn` | facade now uses status-qualified multi-status fetch (R-27) | BT-PF-06 |
+| `SubscriptionFacadePublishFailedTest` | `shouldAllowApprovalAndRejectionFromPublishFailedState` | Same mock change (both approve and reject paths) | facade now uses status-qualified multi-status fetch (R-27) | BT-PF-07 |
+| `SubscriptionFacadePublishFailedTest` | `shouldRejectApprovalFromInvalidStates` | Expected exception changed from `InvalidSubscriptionStateException` to `SubscriptionNotFoundException`; mock changed to return empty | With status-qualified fetch, DRAFT/ACTIVE/PAUSED/ARCHIVED are "not found in approvable states" — exception type changes by design | BT-PF-08 |
+| `SubscriptionProgramIdLifecycleTest` | `shouldPreserveSubscriptionProgramIdOnDraftUpdate` | Mock changed from unqualified to `findBySubscriptionProgramIdAndOrgIdAndStatus(DRAFT)` | facade now uses DRAFT-qualified fetch | BT-R-27 |
+| `SubscriptionProgramIdLifecycleTest` | `shouldCopySubscriptionProgramIdOnActiveEdit` | Mock changed from unqualified to `findBySubscriptionProgramIdAndOrgIdAndStatus(ACTIVE)` | facade now uses ACTIVE-qualified fetch | BT-R-28 |
+| `SubscriptionProgramIdLifecycleTest` | `shouldRejectSecondForkWhenDraftExists` | Mock changed from unqualified to `findBySubscriptionProgramIdAndOrgIdAndStatus(ACTIVE)` | facade now uses ACTIVE-qualified fetch | BT-R-30 |
+| `SubscriptionFacadeIT` | `shouldArchiveSubscriptionAndRejectResumeFromArchived` | Expected exception changed from `InvalidSubscriptionStateException` to `SubscriptionNotFoundException` | `resumeSubscription` with PAUSED-qualified query finds nothing for ARCHIVED doc → NotFoundException | BT-73 |
+
+**Total test modifications: 7** — all are mock/expectation updates for the Rework 4 status-qualified fetch contract change. No test assertions about business behavior were weakened.
+
+### GREEN Confirmation — Rework 4
+
+```
+Unit Tests (Subscription classes): 102 / 102 pass
+  SubscriptionRework4FacadeTest:           10/10 (Rework 4 new)
+  SubscriptionApprovalHandlerTest:         12/12 (Gap 3 + prior)
+  SubscriptionFacadePublishFailedTest:      3/3  (mock-updated)
+  SubscriptionProgramIdLifecycleTest:       5/5  (mock-updated)
+  SubscriptionFacadeIT:                    22/22 (IT + Rework 4 IT)
+  All other Subscription UT classes:      50/50
+
+Full test suite baseline:
+  Total:    7142 tests (+12 vs baseline 7130)
+  Failures: 0
+  Errors:   313 (pre-existing Docker infrastructure IT failures — unchanged)
+  Skipped:  2
+```
+
+Tests fixed by Developer: **7** (all mock/expectation updates — no business logic weakened)
+Skeleton classes replaced: N/A (methods were already real implementations from SDET phase; only state-transition calls swapped + ARCHIVED→SNAPSHOT + mysqlPartnerProgramId added)
+
+### Commit Point
+
+All 3 Rework 4 gaps implemented and GREEN. Ready for Reviewer phase.
+
+**Suggested commit message:**
+```
+fix(subscription): Rework 4 — status-qualified fetch, mysqlPartnerProgramId carry-forward, SNAPSHOT on versioned approval
+
+Gap 1: editActiveSubscription() now carries forward mysqlPartnerProgramId from ACTIVE parent
+       to DRAFT fork → emf-parent UPDATE (not INSERT) on re-approval.
+Gap 2: All 6 state-transition methods (update, pause, resume, archive, handleApproval,
+       editActive) now use status-qualified repository queries — eliminates non-deterministic
+       doc selection when ACTIVE + DRAFT fork coexist with same subscriptionProgramId.
+Gap 3: postApprove() now sets old ACTIVE doc to SNAPSHOT (not ARCHIVED) on versioned
+       approval — preserves pre-edit version as read-only audit trail.
+```

@@ -3,21 +3,32 @@
 > **Artifacts path**: `docs/subscription_v1/`
 > **Source phases read**: `00-ba.md`, `01-architect.md`, `03-designer.md`, `06-developer.md`, `session-memory.md`
 > **Code-verified**: `SubscriptionFacade.java`, `SubscriptionProgram.java`, `SubscriptionController.java` (skeleton), `ResponseWrapper.java`, all enums
-> **Date**: 2026-04-16 (Rework 2 — PUBLISH_FAILED + Pattern A idempotency)
+> **Date**: 2026-04-17 (Rework 3 — Thrift field coverage, source tracking)
 >
 > **Implementation status**:
 > - ✅ `SubscriptionFacade` — fully implemented, all tests GREEN
 > - ✅ `SubscriptionProgram` (MongoDB document), all enums, all DTOs — implemented
 > - ✅ `MakerCheckerService` — SAGA catch block transitions to `PUBLISH_FAILED` + best-effort persist
 > - ✅ `PartnerProgramIdempotencyService` (emf-parent) — Redis-backed idempotency for Thrift re-triggers (Pattern A)
-> - ⚠️ `SubscriptionController` / `SubscriptionReviewController` — **controller wiring pending** (facade logic complete, HTTP routing not yet wired). Endpoint shapes are from designer spec and are final — a one-session task to wire.
+> - ✅ `SubscriptionController` — fully wired. GET/POST/PUT/PATCH/DELETE endpoints implemented. Status params added (Rework 4).
 >
-> **Note for UI team**: You can start building mocks and integration tests against this contract now. The facade business logic is complete and battle-tested.
+> **Note for UI team**: All endpoints are implemented and tested. Safe to integrate against this contract.
 >
 > **Rework 2 changes (2026-04-16)**:
 > - New status `PUBLISH_FAILED` — Thrift publish failure now surfaces to the UI instead of silently retaining `PENDING_APPROVAL`
 > - Re-approval is allowed from `PUBLISH_FAILED` (same as `PENDING_APPROVAL`)
 > - Pattern A idempotency: stable `serverReqId = "sub-approve-" + subscriptionProgramId` prevents duplicate MySQL records on retry
+>
+> **Rework 3 changes (2026-04-17)**:
+> - New optional field `partnerProgramUniqueIdentifier` — forwarded to emf-parent Thrift field 7 when present
+> - New optional field `source` — `"UI"` or `"API"`, stored in MongoDB only (not forwarded to emf-parent), defaults to empty
+> - `updatedViaNewUI` (Thrift field 12) is now hardcoded `true` for all calls originating from intouch-api-v3 V3 — internal behaviour, not a request field
+>
+> **Rework 4 changes (2026-04-17)**:
+> - **`GET /v3/subscriptions/{id}`** — now requires `?status=` query param (default `ACTIVE`). During the edit window (ACTIVE + DRAFT fork coexist), you must specify which version to fetch. Without the param, `ACTIVE` is returned.
+> - **`GET /v3/subscriptions`** — `?statuses=` (multi-value, no default) replaced by `?status=` (single value, default `ACTIVE`). **Breaking change** for clients using multi-status queries.
+> - **New status: `SNAPSHOT`** — when an edit-of-ACTIVE is approved, the superseded ACTIVE doc transitions to `SNAPSHOT` (not `ARCHIVED`). SNAPSHOT is a read-only audit trail. It is excluded from the default listing (`?status=ACTIVE`) but retrievable with `?status=SNAPSHOT`.
+> - `mysqlPartnerProgramId` is now carried forward from ACTIVE → DRAFT fork on `editActiveSubscription()`, so re-approval triggers an UPDATE (not a duplicate INSERT) in MySQL.
 
 ---
 
@@ -141,6 +152,8 @@ Response wraps a Spring `Page<T>` inside `data`:
 | `reminders` | body | no | Up to 5 expiry reminders. Stored in MongoDB only — dispatched by PEB scheduler. |
 | `customFields` | body | no | Custom fields at META / LINK / DELINK levels |
 | `groupTag` | body | no | Free-text tag for grouped listing view |
+| `partnerProgramUniqueIdentifier` | body | no | Optional external unique identifier for the partner program. Forwarded to emf-parent (Thrift field 7) when present. |
+| `source` | body | no | Origination source — `"UI"` or `"API"`. Stored in MongoDB only (not forwarded to emf-parent). Defaults to empty if omitted. |
 
 **Request Body**:
 ```json
@@ -187,7 +200,9 @@ Response wraps a Spring `Page<T>` inside `data`:
     "link": [],
     "delink": []
   },
-  "groupTag": "premium-tier"
+  "groupTag": "premium-tier",
+  "partnerProgramUniqueIdentifier": "GOLD_2026_EXT",
+  "source": "UI"
 }
 ```
 
@@ -224,6 +239,8 @@ Response wraps a Spring `Page<T>` inside `data`:
     ],
     "customFields": { "meta": [{ "extendedFieldId": 501, "name": "price" }], "link": [], "delink": [] },
     "groupTag": "premium-tier",
+    "partnerProgramUniqueIdentifier": "GOLD_2026_EXT",
+    "source": "UI",
     "workflowMetadata": null,
     "comments": null,
     "createdBy": "user-entity-id-from-token",
@@ -261,9 +278,17 @@ Response wraps a Spring `Page<T>` inside `data`:
 
 **Maps to**: E3-US1 detail view, RP-12
 
-| Parameter | Location | Required | Description |
-|-----------|----------|----------|-------------|
-| `subscriptionProgramId` | path | yes | Business UUID from `subscriptionProgramId` field |
+> **Rework 4 change**: Added `?status=` param (default `ACTIVE`). During the edit window when an ACTIVE + DRAFT fork coexist with the same `subscriptionProgramId`, you must specify which version to retrieve. Omitting the param returns the ACTIVE version.
+
+| Parameter | Location | Required | Default | Description |
+|-----------|----------|----------|---------|-------------|
+| `subscriptionProgramId` | path | yes | — | Business UUID from `subscriptionProgramId` field |
+| `status` | query | no | `ACTIVE` | Status of the document to retrieve. One of: `DRAFT`, `PENDING_APPROVAL`, `PUBLISH_FAILED`, `ACTIVE`, `PAUSED`, `SNAPSHOT`, `ARCHIVED` |
+
+**Common usage patterns**:
+- Normal view: `GET /v3/subscriptions/{id}` → returns the ACTIVE version
+- View the edit-in-flight draft: `GET /v3/subscriptions/{id}?status=DRAFT`
+- View audit history after approval: `GET /v3/subscriptions/{id}?status=SNAPSHOT`
 
 **Response — Success** (HTTP 200):
 
@@ -273,7 +298,8 @@ Same shape as the POST 201 response body above. All fields returned.
 
 | HTTP Status | When |
 |-------------|------|
-| 404 | Subscription not found for this `subscriptionProgramId` + `orgId` |
+| 404 | No document found for `{subscriptionProgramId}` + `orgId` + `status` combination |
+| 400 | `status` value is not a valid `SubscriptionStatus` enum value |
 
 ---
 
@@ -309,10 +335,12 @@ Same shape as the POST 201 response body above. All fields returned.
 
 **Maps to**: E3-US1 (Listing), AC-01, AC-03, AC-05, AC-06, RP-11
 
+> **Rework 4 breaking change**: `?statuses=` (multi-value, no default) is replaced by `?status=` (single value, default `ACTIVE`). Clients that were passing `?statuses=ACTIVE&statuses=DRAFT` must migrate to two separate calls or use a different status per call. The default listing (`GET /v3/subscriptions`) now always returns ACTIVE subscriptions only — DRAFT, SNAPSHOT, and ARCHIVED are excluded unless explicitly requested.
+
 | Parameter | Location | Required | Default | Description |
 |-----------|----------|----------|---------|-------------|
 | `programId` | query | **yes** | — | Loyalty program ID to scope the listing |
-| `status` | query | no | all | Filter by one or more statuses (repeatable: `?status=ACTIVE&status=DRAFT`) |
+| `status` | query | no | `ACTIVE` | Single status filter. One of: `DRAFT`, `PENDING_APPROVAL`, `PUBLISH_FAILED`, `ACTIVE`, `PAUSED`, `SNAPSHOT`, `ARCHIVED`. **Single value only — multi-value `?statuses=` is no longer supported.** |
 | `groupTag` | query | no | — | Filter by group tag |
 | `search` | query | no | — | Text search on name (case-insensitive) |
 | `sort` | query | no | `subscribers` | Sort field. Supported: `subscribers`, `name`, `updatedAt` |
@@ -660,7 +688,7 @@ After **REJECT** — key fields that change:
 **Notes**:
 - **Backend does not enforce approver identity.** Any authenticated user can call this endpoint. Access control is a UI responsibility (KD-09, KD-29).
 - The approval SAGA is best-effort: Thrift write first → MongoDB update. If Thrift succeeds but the caller times out (split-brain), the subscription transitions to `PUBLISH_FAILED`. On retry, the **Pattern A idempotency key** (`"sub-approve-" + subscriptionProgramId`, Redis cache 1h TTL) ensures the MySQL record is returned from cache rather than created again — preventing duplicate partner programs.
-- If the subscription being approved has a `parentId` (edit-of-ACTIVE), the old ACTIVE document becomes ARCHIVED and the new DRAFT becomes ACTIVE.
+- If the subscription being approved has a `parentId` (edit-of-ACTIVE), the old ACTIVE document becomes **SNAPSHOT** (not ARCHIVED) and the new DRAFT becomes ACTIVE. SNAPSHOT is a read-only audit record — see the Enums section and state transition table for behaviour.
 - A `PUBLISH_FAILED` subscription that is **rejected** transitions to `DRAFT` (same as from `PENDING_APPROVAL`).
 
 ---
@@ -710,7 +738,7 @@ Global exception handler (`TargetGroupErrorAdvice`) maps exceptions to HTTP stat
 
 | Enum | Values | Used In |
 |------|--------|---------|
-| `SubscriptionStatus` | `DRAFT`, `PENDING_APPROVAL`, `PUBLISH_FAILED`, `ACTIVE`, `PAUSED`, `ARCHIVED` | `status` field on all responses; `status` query param on list. `PUBLISH_FAILED` means the Thrift publish call failed — approver can retry. |
+| `SubscriptionStatus` | `DRAFT`, `PENDING_APPROVAL`, `PUBLISH_FAILED`, `ACTIVE`, `PAUSED`, `SNAPSHOT`, `ARCHIVED` | `status` field on all responses; `status` query param on GET and list. `PUBLISH_FAILED` means the Thrift publish call failed — approver can retry. `SNAPSHOT` is a read-only audit copy of the superseded ACTIVE doc, created when an edit-of-ACTIVE is approved (Rework 4). |
 | `SubscriptionType` | `TIER_BASED`, `NON_TIER` | `subscriptionType` on create/update request and response |
 | `CycleType` | `DAYS`, `MONTHS`, `YEARS` | `duration.cycleType`. Note: `YEARS` is stored in MongoDB; converted to `MONTHS × 12` internally before MySQL write. UI may display YEARS as-is. |
 | `MigrateOnExpiry` | `NONE`, `MIGRATE_TO_PROGRAM` | `expiry.migrateOnExpiry` |
@@ -755,10 +783,20 @@ CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAU
 | **PUBLISH_FAILED** | Reject | DRAFT | No |
 | ACTIVE | Pause | PAUSED | Yes |
 | ACTIVE | Archive | ARCHIVED | Yes |
+| ACTIVE | Edit (fork) | ACTIVE (unchanged) + new DRAFT | No — new DRAFT created with same `subscriptionProgramId` |
 | PAUSED | Resume | ACTIVE | Yes |
 | PAUSED | Archive | ARCHIVED | Yes |
 | DRAFT | Archive | ARCHIVED | No |
+| DRAFT (edit fork) | Approve (Thrift success) | ACTIVE (new doc) + old ACTIVE → **SNAPSHOT** | Yes |
 | ARCHIVED | *any* | ❌ terminal — no transitions out | — |
+| **SNAPSHOT** | *any* | ❌ terminal — read-only audit trail, no transitions out | — |
+
+> **`SNAPSHOT` — key behavioural notes for UI** (Rework 4):
+> - Created automatically when an edit-of-ACTIVE is approved: the old ACTIVE doc becomes SNAPSHOT, the approved DRAFT becomes ACTIVE
+> - SNAPSHOT is **not shown** in the default listing (`GET /v3/subscriptions` defaults to `?status=ACTIVE`)
+> - SNAPSHOT is retrievable by explicit query: `GET /v3/subscriptions/{id}?status=SNAPSHOT` or `GET /v3/subscriptions?status=SNAPSHOT`
+> - SNAPSHOT cannot be edited, archived, submitted, or approved — any such operation returns 404 (not found in the relevant status-qualified query)
+> - UI recommendation: expose SNAPSHOT retrieval in a "Version History" or "Audit" panel, not in the main listing
 
 > **`PUBLISH_FAILED` — key behavioural notes for UI**:
 > - Appears in the approvals queue alongside `PENDING_APPROVAL`
@@ -785,6 +823,12 @@ CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAU
 7. **Edit-of-ACTIVE**: When a user edits an ACTIVE subscription, a new DRAFT is created (the ACTIVE stays live). The DRAFT has `parentId` set to the ACTIVE document's `objectId`. On approval, the ACTIVE becomes ARCHIVED and the DRAFT becomes the new ACTIVE. The UI should surface this "pending edit" state — check `parentId != null` on a DRAFT to indicate it is an edit of an existing live subscription.
 
 8. **Approval latency**: The APPROVE action triggers a synchronous Thrift call to MySQL. This may take up to a few seconds. Display a loading indicator and handle 502 gracefully (with a retry prompt).
+
+9. **`partnerProgramUniqueIdentifier`**: Optional. If your org uses an external identifier for partner programs (e.g. a CRM program code), pass it here and it will be stored in MySQL via Thrift. Omit if not applicable.
+
+10. **`source` field**: Optional audit field — pass `"UI"` when the subscription is created from the product UI, `"API"` (or omit) for programmatic/API-only calls. Stored in MongoDB only, never forwarded to emf-parent.
+
+11. **`updatedViaNewUI` (Thrift internal)**: The backend automatically sets Thrift field 12 (`updatedViaNewUI = true`) on every publish call from V3. This is invisible to the UI — no action required.
 
 ---
 

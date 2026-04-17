@@ -3679,3 +3679,226 @@ public PartnerProgramInfo createOrUpdatePartnerProgram(PartnerProgramInfo partne
 | R-19 | `SubscriptionPublishService.java` | Stable `serverReqId = "sub-approve-" + subscriptionProgramId` | Pattern A: same key on retry → emf-parent Redis cache hit → no double-insert |
 | R-20 | `PartnerProgramIdempotencyService.java` (NEW, emf-parent) | New `@Service` wrapping `applicationCacheManager.get/put` for idempotency | Isolated, testable idempotency logic; follows `ExpiryExtensionConfigurationHelper` pattern |
 | R-21 | `PointsEngineRuleConfigThriftImpl.java` (emf-parent) | Add idempotency check at `createOrUpdatePartnerProgram()` entry + cache write after commit | Pattern A SAGA completion — prevents double-insert on timeout-after-commit retries |
+
+---
+
+## Rework 4 — Gap Fixes (2026-04-17)
+
+Three production gaps identified during testing. All changes are in `intouch-api-v3` only. No emf-parent changes.
+
+### Pattern Decisions (Rework 4)
+All new repository methods follow the existing `@Query` annotation style in `SubscriptionProgramRepository.java` (Spring Data MongoDB, `extends MongoRepository<SubscriptionProgram, String>`). No new base class, no new dependency.
+
+---
+
+### Gap 1 — mysqlPartnerProgramId carry-forward on edit-of-ACTIVE
+
+**File:** `SubscriptionFacade.java`  
+**Method:** `editActiveSubscription()`  
+**Problem:** The DRAFT forked from ACTIVE does not copy `mysqlPartnerProgramId` from the parent. When the DRAFT is later approved, `buildPartnerProgramInfo()` sees `mysqlPartnerProgramId=null` → `createOrUpdatePartnerProgram` in emf-parent creates a **new** MySQL record instead of updating the existing one (the `externalId` guard in `buildPartnerProgramInfo` controls this).  
+**Fix:** In the builder chain that creates the new DRAFT, add:
+
+```java
+.mysqlPartnerProgramId(active.getMysqlPartnerProgramId())  // Gap 1 fix: carry forward for UPDATE path
+```
+
+**Ownership:** `SubscriptionFacade.editActiveSubscription()`, line inserted after `.parentId(active.getObjectId())`.  
+**Discovered from:** `SubscriptionFacade.java` lines 215-241 (builder chain), `SubscriptionPublishService.buildPartnerProgramInfo()` (uses `entity.getMysqlPartnerProgramId()` to decide create-vs-update).
+
+---
+
+### Gap 2 — Status-qualified queries for GET single, list GET, and all state-transition methods
+
+#### 2a — New repository methods
+
+**File:** `SubscriptionProgramRepository.java`  
+**Extends:** `MongoRepository<SubscriptionProgram, String>`, `SubscriptionProgramRepositoryCustom`  
+**Annotations:** `@Repository`, Spring Data `@Query`  
+**Package:** `com.capillary.intouchapiv3.unified.subscription`  
+**Discovered from:** existing `@Query` style in `SubscriptionProgramRepository.java` lines 22-69  
+**Maven dependency:** `spring-data-mongodb` already inherited via parent POM (C7 — all existing repos use it)
+
+```java
+/**
+ * Status-qualified single fetch — prevents ambiguity when ACTIVE + DRAFT fork
+ * coexist with the same subscriptionProgramId during an edit window (Rework 4, Gap 2).
+ * Used by all state-transition methods that require a specific source status.
+ */
+@Query("{'subscriptionProgramId': ?0, 'orgId': ?1, 'status': ?2}")
+Optional<SubscriptionProgram> findBySubscriptionProgramIdAndOrgIdAndStatus(
+        String subscriptionProgramId, Long orgId, SubscriptionStatus status);
+
+/**
+ * Multi-status single fetch — for operations that accept multiple valid source statuses.
+ * Used by handleApproval (PENDING_APPROVAL or PUBLISH_FAILED) and
+ * archiveSubscription (DRAFT or ACTIVE or PAUSED).
+ */
+@Query("{'subscriptionProgramId': ?0, 'orgId': ?1, 'status': { $in: ?2 }}")
+Optional<SubscriptionProgram> findBySubscriptionProgramIdAndOrgIdAndStatusIn(
+        String subscriptionProgramId, Long orgId, List<SubscriptionStatus> statuses);
+```
+
+#### 2b — Facade: new status-qualified helper + changed listSubscriptions signature
+
+**File:** `SubscriptionFacade.java`
+
+**New private helper (replaces all internal status-qualified loads):**
+```java
+/**
+ * Status-qualified internal fetch.
+ * Throws SubscriptionNotFoundException if no document matches {subscriptionProgramId, orgId, status}.
+ * Use this in all state-transition methods to avoid ambiguity during edit window (Gap 2).
+ */
+private SubscriptionProgram getSubscriptionByStatus(
+        Long orgId, String subscriptionProgramId, SubscriptionStatus status) {
+    return repository.findBySubscriptionProgramIdAndOrgIdAndStatus(
+                    subscriptionProgramId, orgId, status)
+            .orElseThrow(() -> new SubscriptionNotFoundException(subscriptionProgramId, orgId));
+}
+
+/**
+ * Multi-status internal fetch — for operations permitting multiple source states.
+ * Throws SubscriptionNotFoundException if none found.
+ */
+private SubscriptionProgram getSubscriptionByStatusIn(
+        Long orgId, String subscriptionProgramId, List<SubscriptionStatus> statuses) {
+    return repository.findBySubscriptionProgramIdAndOrgIdAndStatusIn(
+                    subscriptionProgramId, orgId, statuses)
+            .orElseThrow(() -> new SubscriptionNotFoundException(subscriptionProgramId, orgId));
+}
+```
+
+**Changed `getSubscription` public signature (for controller — now takes explicit status):**
+```java
+/**
+ * Public single-fetch. Used by controller GET /v3/subscriptions/{id}.
+ * Delegates to status-qualified repo query.
+ *
+ * @param status the expected status (controller passes from @RequestParam, default ACTIVE)
+ * @throws SubscriptionNotFoundException if not found
+ */
+public SubscriptionProgram getSubscription(Long orgId, String subscriptionProgramId,
+                                            SubscriptionStatus status) {
+    return repository.findBySubscriptionProgramIdAndOrgIdAndStatus(
+                    subscriptionProgramId, orgId, status)
+            .orElseThrow(() -> new SubscriptionNotFoundException(subscriptionProgramId, orgId));
+}
+```
+
+> **Note on old `getSubscription(Long, String)` overload:** The unqualified `findBySubscriptionProgramIdAndOrgId` overload is kept *only* for methods where status is genuinely unknown at load time (`duplicateSubscription`, `linkBenefit`, `delinkBenefit`, `getBenefits`, `listPendingApprovals`, `submitForApproval`). All state-transition methods switch to `getSubscriptionByStatus` or `getSubscriptionByStatusIn` (see §2c below).
+
+**Changed `listSubscriptions` signature:**
+```java
+/**
+ * List paginated subscriptions — single status filter, default ACTIVE (Gap 2).
+ * Null/empty status falls back to ACTIVE (matching controller default).
+ *
+ * @param status single status string (from @RequestParam, defaultValue="ACTIVE")
+ */
+public Object listSubscriptions(Long orgId, Integer programId,
+                                String status, int page, int size) throws Exception
+```
+
+Internal implementation: `SubscriptionStatus statusEnum = SubscriptionStatus.valueOf(status)` then call `repository.findByOrgIdAndStatus(orgId, statusEnum, pageable)`. The existing `findByOrgIdAndStatusIn` and `findByOrgId` are no longer called from the listing path.
+
+#### 2c — Facade: state-transition method internal changes
+
+Each method switches from `getSubscription(orgId, id)` to the appropriate status-qualified fetch:
+
+| Facade method | Old call | New call | Expected status |
+|---|---|---|---|
+| `updateSubscription()` | `getSubscription(orgId, id)` | `getSubscriptionByStatus(orgId, id, DRAFT)` | DRAFT |
+| `editActiveSubscription()` | `getSubscription(orgId, id)` | `getSubscriptionByStatus(orgId, id, ACTIVE)` | ACTIVE |
+| `pauseSubscription()` | `getSubscription(orgId, id)` | `getSubscriptionByStatus(orgId, id, ACTIVE)` | ACTIVE |
+| `resumeSubscription()` | `getSubscription(orgId, id)` | `getSubscriptionByStatus(orgId, id, PAUSED)` | PAUSED |
+| `handleApproval()` | `getSubscription(orgId, id)` | `getSubscriptionByStatusIn(orgId, id, [PENDING_APPROVAL, PUBLISH_FAILED])` | PENDING_APPROVAL or PUBLISH_FAILED |
+| `archiveSubscription()` | `getSubscription(orgId, id)` | `getSubscriptionByStatusIn(orgId, id, [DRAFT, ACTIVE, PAUSED])` | any non-terminal |
+
+The inline status check (`if (!DRAFT.equals(entity.getStatus()))`) after the load is still kept as a defence-in-depth assertion but becomes unreachable under normal operation — the repository query already enforces the constraint.
+
+#### 2d — Controller: status param changes
+
+**File:** `SubscriptionController.java`
+
+**`getSubscription` endpoint — add status param:**
+```java
+@GetMapping("/{subscriptionProgramId}")
+public ResponseEntity<?> getSubscription(
+        @PathVariable String subscriptionProgramId,
+        @RequestParam(defaultValue = "ACTIVE") String status,
+        AbstractBaseAuthenticationToken token) {
+    IntouchUser user = token.getIntouchUser();
+    logger.info("Getting subscription id={} status={} for orgId={}",
+            subscriptionProgramId, status, user.getOrgId());
+    SubscriptionProgram result = facade.getSubscription(
+            user.getOrgId(), subscriptionProgramId, SubscriptionStatus.valueOf(status));
+    return ResponseEntity.ok(result);
+}
+```
+
+**`listSubscriptions` endpoint — single status with default ACTIVE:**
+```java
+@GetMapping
+public ResponseEntity<?> listSubscriptions(
+        @RequestParam(defaultValue = "ACTIVE") String status,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int size,
+        AbstractBaseAuthenticationToken token) throws Exception {
+    IntouchUser user = token.getIntouchUser();
+    logger.info("Listing subscriptions for orgId={}, status={}", user.getOrgId(), status);
+    Object result = facade.listSubscriptions(
+            user.getOrgId(), (int) user.getRefId(), status, page, size);
+    return ResponseEntity.ok(result);
+}
+```
+
+**Breaking change note:** `List<String> statuses` param is removed. Callers that passed `?statuses=ACTIVE&statuses=DRAFT` must switch to `?status=ACTIVE` (single value). This is an intentional API simplification matching UnifiedPromotion's pattern.
+
+---
+
+### Gap 3 — SNAPSHOT status on edit-of-ACTIVE approval
+
+**File:** `SubscriptionApprovalHandler.java`  
+**Method:** `postApprove(SubscriptionProgram entity, PublishResult publishResult)`  
+**Problem:** When an edit-of-ACTIVE draft is approved, the old ACTIVE doc is transitioned to `ARCHIVED`. This means auditors cannot distinguish between "was archived by an admin" and "was superseded by a newer version". SNAPSHOT fills this gap — it is a read-only terminal state preserved for audit history.  
+**Fix:** Change the status written to the old parent doc from `ARCHIVED` to `SNAPSHOT`.
+
+```java
+// In SubscriptionApprovalHandler.postApprove(), when entity.getParentId() != null:
+repository.findById(entity.getParentId()).ifPresent(oldActive -> {
+    logger.info("Snapshotting old ACTIVE doc after versioned approval. orgId={}, parentId={}",
+            entity.getOrgId(), entity.getParentId());
+    oldActive.setStatus(SubscriptionStatus.SNAPSHOT);  // was ARCHIVED — Gap 3 fix
+    repository.save(oldActive);
+});
+```
+
+**SNAPSHOT invariants (no new code required — enforced by existing guards):**
+
+| Rule | Enforcement mechanism |
+|---|---|
+| SNAPSHOT is not listed by default | `listSubscriptions` now uses `status=ACTIVE` default — SNAPSHOT docs are invisible unless caller explicitly passes `?status=SNAPSHOT` |
+| SNAPSHOT is not editable | `updateSubscription()` calls `getSubscriptionByStatus(orgId, id, DRAFT)` → SNAPSHOT doc is not found → `SubscriptionNotFoundException` |
+| SNAPSHOT is not submittable | `submitForApproval()` calls `getSubscription(orgId, id)` (unqualified) but has inline guard `if (!DRAFT.equals(...))` → `InvalidSubscriptionStateException` |
+| SNAPSHOT is not archiveable by admin | `archiveSubscription()` now uses `getSubscriptionByStatusIn([DRAFT, ACTIVE, PAUSED])` → SNAPSHOT not in list → `SubscriptionNotFoundException` |
+| SNAPSHOT is not pauseable or resumable | Same guard — ACTIVE and PAUSED are the only states accepted |
+| `findActiveByOrgIdAndName` excludes SNAPSHOT | Existing query already: `'status': { $in: ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'PAUSED'] }` — SNAPSHOT not included → no name-conflict false positive |
+
+**`SubscriptionProgram.transitionToX()` — no new method needed:** SNAPSHOT is only ever set by `postApprove()` as an internal transition. There is no user-initiated SNAPSHOT transition. `ApprovableEntity` interface does not need a `transitionToSnapshot()` method.
+
+---
+
+### Rework 4 Summary
+
+| Change # | File | What Changes | Why |
+|---|---|---|---|
+| R-22 | `SubscriptionProgramRepository.java` | Add `findBySubscriptionProgramIdAndOrgIdAndStatus()` | Status-qualified single fetch — gap 2 |
+| R-23 | `SubscriptionProgramRepository.java` | Add `findBySubscriptionProgramIdAndOrgIdAndStatusIn()` | Multi-status fetch for handleApproval + archiveSubscription — gap 2 |
+| R-24 | `SubscriptionFacade.java` | Add private `getSubscriptionByStatus()` and `getSubscriptionByStatusIn()` helpers | Encapsulate status-qualified fetch + exception — gap 2 |
+| R-25 | `SubscriptionFacade.java` | Add `getSubscription(orgId, id, status)` overload | Public controller-facing status-qualified GET — gap 2 |
+| R-26 | `SubscriptionFacade.java` | Change `listSubscriptions()` signature: `List<String> statuses` → `String status` | Single-status listing, default ACTIVE — gap 2 |
+| R-27 | `SubscriptionFacade.java` | All 6 state-transition methods switch to `getSubscriptionByStatus`/`getSubscriptionByStatusIn` | Remove non-deterministic doc selection during edit window — gap 2 |
+| R-28 | `SubscriptionFacade.java` | `editActiveSubscription()` builder: add `.mysqlPartnerProgramId(active.getMysqlPartnerProgramId())` | Carry forward so approval triggers UPDATE not INSERT in emf-parent — gap 1 |
+| R-29 | `SubscriptionController.java` | `getSubscription()`: add `@RequestParam(defaultValue="ACTIVE") String status` | Default-ACTIVE single GET — gap 2 |
+| R-30 | `SubscriptionController.java` | `listSubscriptions()`: replace `List<String> statuses` → `@RequestParam(defaultValue="ACTIVE") String status` | Single-status list with default — gap 2 |
+| R-31 | `SubscriptionApprovalHandler.java` | `postApprove()`: `ARCHIVED` → `SNAPSHOT` when setting old parent status | Preserve pre-edit version for audit — gap 3 |

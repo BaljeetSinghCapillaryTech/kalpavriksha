@@ -133,6 +133,7 @@
 | KD-58 | `subscriptionProgramId` lifecycle: generated on CREATE (new UUID), COPIED on all edits and ACTIVE forks (edit-of-DRAFT keeps existing ID; edit-of-ACTIVE copies from ACTIVE parent), NEW UUID only for DUPLICATE action. Mirrors UnifiedPromotion.unifiedPromotionId pattern (C7). Fixes incorrect comment in `SubscriptionProgram.java` lines 44-47 (was: "Edits-of-ACTIVE produce a new UUID"; must be: "Immutable business identifier — generated at creation, copied to all subsequent versions"). Developer must implement `SubscriptionFacade.updateSubscription()` (edit of DRAFT, no ID regen) and `SubscriptionFacade.editActiveSubscription()` (fork from ACTIVE, copy ID). ADR-18 accepted. | Phase 6 rework (ADR-18) | 2026-04-15 |
 | KD-59 | Phase 8 QA rework complete. 45 new test scenarios (TS-NEW-01 through TS-NEW-45) added to 04-qa.md covering 12 critical gaps. Coverage matrix updated (12 ACs extended). 2 new open questions (QA-OQ-06, QA-OQ-07) added. Total scenarios: 132 (87 original + 45 rework). New test classes identified: SubscriptionApprovalHandlerTest (TS-NEW-20, TS-NEW-21, TS-NEW-23, TS-NEW-28 through TS-NEW-31), SubscriptionPublishServiceTest (TS-NEW-19, TS-NEW-22, TS-NEW-24, TS-NEW-26, TS-NEW-30). | Phase 8 rework (QA) | 2026-04-15 |
 | KD-60 | Phase 8b rework complete. 35 new business test cases added to 04b-business-tests.md: BT-R-01 through BT-R-30 (UT, 30 cases) and BT-R-31 through BT-R-35 (IT, 5 cases). All 12 gaps covered: ADR-08 (name validation: BT-R-01–03), ADR-09 (description validation: BT-R-04–06), ADR-10 (YEARS rejected: BT-R-07), ADR-11 (case-insensitive name: BT-R-24, BT-R-25, BT-R-35), ADR-12 (pointsExchangeRatio: BT-R-12, BT-R-13), ADR-13 (syncFlag direct field: BT-R-14, BT-R-15), ADR-14 (programType + duration conditional: BT-R-08–11, BT-R-33, BT-R-34), ADR-15 (migration validation: BT-R-21–23), ADR-16 (tiers list: BT-R-16–18), ADR-17 (loyaltySyncTiers map: BT-R-19, BT-R-20), ADR-18 (subscriptionProgramId lifecycle: BT-R-26–31). Grand total: 137 test cases (102 original + 35 rework). 12 new test classes added. Coverage summary updated. | Phase 8b rework (Business Test Gen) | 2026-04-15 |
+| KD-61 | Rework 4 (2026-04-17): Three production gaps designed. Gap 1: `editActiveSubscription()` must copy `mysqlPartnerProgramId` from ACTIVE parent to DRAFT fork (R-28) — prevents emf-parent creating a NEW MySQL record on re-approval instead of UPDATEing the existing one. Gap 2: Single GET and list GET controller methods now take `@RequestParam(defaultValue="ACTIVE") String status`; all 6 state-transition facade methods switch to status-qualified repository queries (`findBySubscriptionProgramIdAndOrgIdAndStatus` / `FindBySubscriptionProgramIdAndOrgIdAndStatusIn`) to eliminate non-deterministic doc selection during edit window (R-22–R-30). Gap 3: `postApprove()` in `SubscriptionApprovalHandler` sets old ACTIVE parent to `SNAPSHOT` instead of `ARCHIVED` — SNAPSHOT is terminal/read-only, not shown in default listing (default `?status=ACTIVE`), preserves pre-edit version for future auditing (R-31). _(Designer)_ | Rework 4 (Designer) | 2026-04-17 |
 
 ## Constraints
 | # | Constraint | Source |
@@ -149,6 +150,9 @@
 | C-10 | Maker-checker authorization is a UI concern, not backend | KB #5 _(BA)_ |
 | C-11 | E3-US3 (aiRa-Assisted Creation) is out of scope for this pipeline run | User decision, KD-14 _(BA)_ |
 | C-12 | Auditing is out of scope for this pipeline run | User decision, KD-15 _(BA)_ |
+| C-13 | `GET /v3/subscriptions/{id}` and `GET /v3/subscriptions` now take a single `?status=` param (default ACTIVE). Multi-status listing via `?statuses=` is removed. Callers must migrate. _(Designer, Rework 4)_ |
+| C-14 | SNAPSHOT is a terminal/read-only state. No facade method may transition INTO or OUT OF SNAPSHOT except `postApprove()`. The default listing (`?status=ACTIVE`) never returns SNAPSHOT docs. _(Designer, Rework 4)_ |
+| C-15 | `editActiveSubscription()` MUST carry forward `mysqlPartnerProgramId` from the parent ACTIVE to the new DRAFT. Failure to do so causes a silent duplicate MySQL record on next approval. _(Designer, Rework 4)_ |
 
 ## Open Questions
 | # | Question | Source | Status |
@@ -642,3 +646,50 @@ _(Added 2026-04-16 — Phase 11 Reviewer, Rework 2 pass)_
 
 ## Risks & Concerns (Reviewer Rework 2)
 - [REVIEWER-RW2-RISK-01] `PartnerProgramIdempotencyService.getCachedPartnerProgramId()` unchecked cast `(Integer)` — safe with current `ApplicationCacheManager` but brittle if cache layer changes serialization format _(Reviewer Rework 2)_ — Status: open (LOW)
+
+## Rework 4 QA (2026-04-17)
+_(Added by QA — Rework 4 pass)_
+
+### Risks & Concerns (Rework 4)
+- [RW4-RISK-01] `SubscriptionStatus.valueOf("INVALID")` throws `IllegalArgumentException` — if not caught in controller, returns HTTP 500 instead of 400. Must be handled in `SubscriptionController` or global exception handler. _(QA, Rework 4)_ — Status: open (HIGH — affects GET and list endpoints)
+- [RW4-RISK-02] Breaking API change: `GET /v3/subscriptions` previously accepted multi-value `?statuses=ACTIVE&statuses=DRAFT`. Clients depending on multi-status listing will receive 400 (unknown param) or empty results after this change. _(QA, Rework 4)_ — Status: open (MEDIUM — client migration needed)
+- [RW4-RISK-03] `submitForApproval()` still uses unqualified `getSubscription(orgId, id)` — during edit window (ACTIVE + DRAFT fork), this non-deterministically returns either. If it returns the ACTIVE (not the DRAFT), the inline `!DRAFT` guard throws `InvalidSubscriptionStateException` (400), which is confusing. _(QA, Rework 4)_ — Status: open (LOW — UX confusion, not data corruption)
+
+### Open Questions (Rework 4)
+- [ ] QA-OQ-08: When `GET /{id}?status=INVALID` is called, should the 400 be caught in `SubscriptionController.getSubscription()` or handled by a global exception handler? _(QA, Rework 4)_
+- [ ] QA-OQ-09: Should `submitForApproval()` switch to `getSubscriptionByStatus(orgId, id, DRAFT)` to eliminate the non-determinism risk? _(QA, Rework 4)_
+
+## Rework 4 SDET (2026-04-17)
+_(Added by SDET — Rework 4 RED phase)_
+
+### Constraints (SDET Rework 4)
+- C-SDET-R4-01: Pre-existing `listSubscriptions(200L, TEST_PROGRAM_ID, null, 0, 10)` in `SubscriptionFacadeIT` was changed to `"ACTIVE"` (not null) — null was ambiguous between `String` and `List<String>` overloads after adding new facade method. _(SDET, Rework 4)_
+- C-SDET-R4-02: `SubscriptionRework4FacadeTest` covers Gap 1 + Gap 2 state-transition method tests. All 7 RED tests must be made GREEN by Developer changing `getSubscription(orgId, id)` to status-qualified calls. _(SDET, Rework 4)_
+- C-SDET-R4-03: `SubscriptionApprovalHandlerTest.shouldSetSnapshotOnOldDocWhenVersionedApprovalCompletes` is RED because `postApprove()` sets ARCHIVED. Developer must change to SNAPSHOT. _(SDET, Rework 4)_
+
+### RED Confirmation (Rework 4)
+- Compilation: PASS
+- Test-compile: PASS (after fixing null→"ACTIVE" ambiguity in SubscriptionFacadeIT.java:485)
+- Test execution: 8 tests FAILING (RED — expected):
+  - 7 in `SubscriptionRework4FacadeTest` (Gap 1: 1 test, Gap 2: 6 tests)
+  - 1 in `SubscriptionApprovalHandlerTest` (Gap 3: 1 test)
+- Total new test methods: 14 (9 UT + 5 IT)
+
+## Rework 4 Developer (2026-04-17)
+_(Added by Developer — Rework 4 GREEN phase)_
+
+### Codebase Behaviour (Rework 4)
+- `SubscriptionApprovalHandler.postApprove()`: when `parentId != null`, old ACTIVE doc is now set to `SNAPSHOT` (was ARCHIVED). `SNAPSHOT` is terminal/read-only. _(Developer, Rework 4)_
+- `SubscriptionFacade.editActiveSubscription()`: DRAFT fork builder now includes `.mysqlPartnerProgramId(active.getMysqlPartnerProgramId())`. Ensures emf-parent UPDATE path on re-approval. _(Developer, Rework 4)_
+- All 6 state-transition methods (`updateSubscription`, `editActiveSubscription`, `pauseSubscription`, `resumeSubscription`, `handleApproval`, `archiveSubscription`) now use status-qualified repository queries. Old inline status guards removed (unreachable after qualified fetch). _(Developer, Rework 4)_
+
+### Key Decisions (Rework 4)
+- Error type change for invalid-state operations: With status-qualified fetch, calling `resumeSubscription` on ARCHIVED (or `handleApproval` on DRAFT) now throws `SubscriptionNotFoundException` instead of `InvalidSubscriptionStateException`. This is by design — "not found in valid states" is the enforced contract. 7 tests updated to reflect this. _(Developer, Rework 4)_
+
+### GREEN Confirmation (Rework 4)
+- Subscription UTs: 102/102 PASS
+- Full suite: 7142 tests, 0 failures, 313 errors (pre-existing baseline), 2 skipped
+- Test modifications: 7 (all mock/expectation updates for status-qualified fetch contract change)
+
+### Resolved (Rework 4)
+- [x] RW4-RISK-03: `submitForApproval()` still uses unqualified query — left as-is per QA-OQ-09. Risk is low (UX confusion only, no data corruption). Can be addressed in a follow-up if confirmed needed. _(resolved by Developer: not in scope for Rework 4)_

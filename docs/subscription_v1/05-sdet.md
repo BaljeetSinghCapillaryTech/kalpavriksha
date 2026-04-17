@@ -419,3 +419,113 @@ For the 36 failing tests to go GREEN, Developer must:
    ```
 2. Fix emf-parent build environment (AspectJ/JDK 21) so tests can run
 3. Implement IT tests: `SubscriptionSagaPublishFailedIT` + `PartnerProgramIdempotencyIT` (deferred)
+
+---
+
+## Rework 4 — Subscription Program Gap Fixes
+
+> Phase date: 2026-04-17 | Target: 3 production gaps (Gap 1: mysqlPartnerProgramId carry-forward, Gap 2: status-qualified GET/list, Gap 3: SNAPSHOT on edit-of-ACTIVE approval)
+> Input: 04-qa.md §12 Rework 4 (26 scenarios TS-R4-01–R4-26), 03-designer.md §Rework 4 (R-22–R-31), session-memory.md
+
+### Business Test Case Mapping — Rework 4
+
+| BT ID | Scenario | Test Class | Test Method | Layer |
+|-------|----------|------------|-------------|-------|
+| TS-R4-01 | mysqlPartnerProgramId copied to DRAFT fork | `SubscriptionRework4FacadeTest` | `shouldCarryForwardMysqlPartnerProgramIdInDraftFork` | UT |
+| TS-R4-02 | Re-approval triggers UPDATE (non-null mysqlPartnerProgramId in build) | `SubscriptionRework4FacadeTest` | `shouldCarryForwardMysqlPartnerProgramIdInDraftFork` (verifies non-null) | UT |
+| TS-R4-03 | First-time create: mysqlPartnerProgramId null → INSERT path | `SubscriptionRework4FacadeTest` | `shouldHaveNullMysqlPartnerProgramIdForFirstTimeCreate` | UT |
+| TS-R4-04 | `?status=ACTIVE` returns ACTIVE when ACTIVE+DRAFT coexist | `SubscriptionFacadeIT` | `shouldReturnCorrectDocWhenBothActiveAndDraftExistForSameId` | IT |
+| TS-R4-05 | `?status=DRAFT` returns DRAFT when ACTIVE+DRAFT coexist | `SubscriptionFacadeIT` | `shouldReturnCorrectDocWhenBothActiveAndDraftExistForSameId` | IT |
+| TS-R4-06 | `?status=` defaults to ACTIVE | `SubscriptionFacadeIT` | `shouldDefaultToActiveStatusForGetAndList` | IT |
+| TS-R4-07 | `?status=SNAPSHOT` returns SNAPSHOT doc | `SubscriptionFacadeIT` | `shouldSnapshotOldActiveOnVersionedApprovalAndExcludeFromDefaultListing` | IT |
+| TS-R4-08 | Unknown status → 400 (IllegalArgumentException) | `SubscriptionFacadeIT` | `shouldThrowIllegalArgumentForInvalidStatusValue` | IT |
+| TS-R4-09 | `updateSubscription` uses DRAFT-qualified query | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenUpdatingAndNoDraftExists` | UT |
+| TS-R4-10 | `GET /v3/subscriptions` no param defaults to ACTIVE | `SubscriptionFacadeIT` | `shouldDefaultToActiveStatusForGetAndList` | IT |
+| TS-R4-11 | `GET /v3/subscriptions?status=INVALID` → 400 | `SubscriptionFacadeIT` | `shouldThrowIllegalArgumentForInvalidStatusValue` | IT |
+| TS-R4-12 | `updateSubscription` → SubscriptionNotFoundException when no DRAFT | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenUpdatingAndNoDraftExists` | UT |
+| TS-R4-13 | `pauseSubscription` uses ACTIVE-qualified query | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenPausingAndNoActiveExists` | UT |
+| TS-R4-14 | `resumeSubscription` uses PAUSED-qualified query | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenResumingAndNoPausedExists` | UT |
+| TS-R4-15 | `handleApproval` uses PENDING_APPROVAL/PUBLISH_FAILED-qualified query | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenHandlingApprovalForNonApprovableStatus` | UT |
+| TS-R4-16 | `archiveSubscription` rejects SNAPSHOT/ARCHIVED status | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenArchivingSnapshotOrAlreadyArchivedDoc` | UT |
+| TS-R4-17 | `editActiveSubscription` uses ACTIVE-qualified query | `SubscriptionRework4FacadeTest` | `shouldThrowNotFoundWhenEditingActiveButOnlyDraftExists` | UT |
+| TS-R4-18 | Versioned approval: old ACTIVE → SNAPSHOT (not ARCHIVED) | `SubscriptionApprovalHandlerTest` + `SubscriptionFacadeIT` | `shouldSetSnapshotOnOldDocWhenVersionedApprovalCompletes` / `shouldSnapshotOldActive...` | UT + IT |
+| TS-R4-19 | SNAPSHOT not returned by default listing | `SubscriptionFacadeIT` | `shouldSnapshotOldActiveOnVersionedApprovalAndExcludeFromDefaultListing` | IT |
+| TS-R4-20 | SNAPSHOT retrievable via `?status=SNAPSHOT` | `SubscriptionFacadeIT` | `shouldSnapshotOldActiveOnVersionedApprovalAndExcludeFromDefaultListing` | IT |
+| TS-R4-21 | Updating/archiving SNAPSHOT → SubscriptionNotFoundException | `SubscriptionFacadeIT` | `shouldReturn404WhenAttemptingToUpdateOrArchiveSnapshot` | IT |
+| TS-R4-22 | Archiving SNAPSHOT → SubscriptionNotFoundException | `SubscriptionFacadeIT` | `shouldReturn404WhenAttemptingToUpdateOrArchiveSnapshot` | IT |
+| TS-R4-23 | First-time approval (no parentId) does NOT create SNAPSHOT | `SubscriptionApprovalHandlerTest` | `shouldNotCreateSnapshotWhenApprovedWithoutParentId` | UT |
+| TS-R4-24 | `findActiveByOrgIdAndName` excludes SNAPSHOT | Covered by TS-R4-25 + existing name-conflict test | — | via existing |
+| TS-R4-25 | Reuse name from SNAPSHOT doc | `SubscriptionRework4FacadeTest` | `shouldAllowNameReuseWhenOnlySnapshotHasThatName` | UT |
+| TS-R4-26 | getSubscription SNAPSHOT status returns audit doc | `SubscriptionFacadeIT` | `shouldSnapshotOldActiveOnVersionedApprovalAndExcludeFromDefaultListing` | IT |
+
+### Test Efficiency Summary — Rework 4
+
+| Layer | Test Methods Added | Business Test Cases Covered |
+|-------|-------------------|------------------------------|
+| UT | 7 (in `SubscriptionRework4FacadeTest`) + 2 (in `SubscriptionApprovalHandlerTest`) = **9** | TS-R4-01/02/03, R4-09/12–17, R4-18/23/25 |
+| IT | 5 (in `SubscriptionFacadeIT`) | TS-R4-04/05/06/07/08/10/11/18/19/20/21/22/26 |
+| **Total** | **14 new test methods** | **26 scenarios (all Rework 4)** |
+
+Efficiency ratio: 26 scenarios → 14 test methods (1.9x consolidation).
+
+### Files Written — Rework 4
+
+| File | Type | New Methods Added | BT Cases Covered |
+|------|------|-------------------|-----------------|
+| `src/test/java/com/capillary/intouchapiv3/unified/subscription/SubscriptionRework4FacadeTest.java` | NEW UT | 10 (including 1 passing: `shouldHaveNullMysqlPartnerProgramIdForFirstTimeCreate`) | TS-R4-01/02/03, R4-09/12–17, R4-25 |
+| `src/test/java/com/capillary/intouchapiv3/unified/subscription/SubscriptionApprovalHandlerTest.java` | EXTENDED | +2 (TS-R4-18, R4-23) | TS-R4-18, R4-23 |
+| `src/test/java/integrationTests/SubscriptionFacadeIT.java` | EXTENDED | +5 IT methods | TS-R4-04/05/06/07/08/10/11/18/19/20/21/22/26 |
+
+Pre-existing ambiguity fix: `SubscriptionFacadeIT.java` line 485 — changed `null` to `"ACTIVE"` (old test used `null` for `List<String>` overload; now unambiguous against `String` overload).
+
+### Skeleton Production Changes (for compilation only)
+
+The following changes were made to `src/main` to enable test compilation. They include real logic (not pure stubs) for the repository/facade/controller wiring — but the state-transition methods are NOT yet updated:
+
+| File | Change | Status |
+|------|--------|--------|
+| `SubscriptionProgramRepository.java` | +2 `@Query` methods: `findBySubscriptionProgramIdAndOrgIdAndStatus`, `findBySubscriptionProgramIdAndOrgIdAndStatusIn` | Ready (interface methods — Spring Data auto-implements) |
+| `SubscriptionFacade.java` | +public `getSubscription(orgId, id, status)` overload; +private `getSubscriptionByStatus()` / `getSubscriptionByStatusIn()`; +new `listSubscriptions(String status, ...)` | Ready |
+| `SubscriptionFacade.java` | State-transition methods still call unqualified `getSubscription(orgId, id)` | **Developer must update** (R-27) |
+| `SubscriptionFacade.java` | `editActiveSubscription()` builder missing `.mysqlPartnerProgramId(...)` | **Developer must add** (Gap 1) |
+| `SubscriptionController.java` | `getSubscription()` + `listSubscriptions()` updated with `@RequestParam(defaultValue="ACTIVE") String status` | Ready |
+| `SubscriptionStatus.java` | `SNAPSHOT` enum value added (between PAUSED and ARCHIVED) | Ready |
+| `SubscriptionApprovalHandler.java` | `postApprove()` still sets `ARCHIVED` for old doc | **Developer must change to SNAPSHOT** (Gap 3, R-31) |
+
+### RED Confirmation — Rework 4
+
+```
+Compilation: PASS  (mvn compile -q — no output)
+Test compile: PASS  (mvn test-compile -q — no output; ambiguity fixed in SubscriptionFacadeIT.java)
+
+Test execution (new Rework 4 UTs only):
+  SubscriptionRework4FacadeTest:     10 run, 7 FAIL, 0 errors, 3 pass (3 already-implemented paths)
+  SubscriptionApprovalHandlerTest:   12 run, 1 FAIL, 0 errors, 11 pass
+
+Failing tests (RED — expected):
+  1. SubscriptionRework4FacadeTest.shouldCarryForwardMysqlPartnerProgramIdInDraftFork  (Gap 1 — editActiveSubscription builder missing mysqlPartnerProgramId)
+  2. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenUpdatingAndNoDraftExists     (Gap 2 — updateSubscription uses unqualified query)
+  3. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenPausingAndNoActiveExists     (Gap 2 — pauseSubscription uses unqualified query)
+  4. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenResumingAndNoPausedExists    (Gap 2 — resumeSubscription uses unqualified query)
+  5. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenHandlingApprovalForNonApprovableStatus (Gap 2 — handleApproval uses unqualified query)
+  6. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenArchivingSnapshotOrAlreadyArchivedDoc  (Gap 2 — archiveSubscription uses unqualified query)
+  7. SubscriptionRework4FacadeTest.shouldThrowNotFoundWhenEditingActiveButOnlyDraftExists        (Gap 2 — editActiveSubscription uses unqualified query)
+  8. SubscriptionApprovalHandlerTest.shouldSetSnapshotOnOldDocWhenVersionedApprovalCompletes     (Gap 3 — postApprove sets ARCHIVED, not SNAPSHOT)
+
+Total: 8 tests FAILING (RED) — all expected. 14 passing tests are correct (prior or already-implemented).
+```
+
+### Developer's Green Phase Checklist — Rework 4
+
+Developer must make these 8 failing tests pass:
+
+1. **Gap 1** (`shouldCarryForwardMysqlPartnerProgramIdInDraftFork`) — In `editActiveSubscription()`: add `.mysqlPartnerProgramId(active.getMysqlPartnerProgramId())` to builder chain
+2. **Gap 2 — updateSubscription** — replace `getSubscription(orgId, id)` with `getSubscriptionByStatus(orgId, id, DRAFT)`
+3. **Gap 2 — pauseSubscription** — replace with `getSubscriptionByStatus(orgId, id, ACTIVE)`
+4. **Gap 2 — resumeSubscription** — replace with `getSubscriptionByStatus(orgId, id, PAUSED)`
+5. **Gap 2 — handleApproval** — replace with `getSubscriptionByStatusIn(orgId, id, List.of(PENDING_APPROVAL, PUBLISH_FAILED))`
+6. **Gap 2 — archiveSubscription** — replace with `getSubscriptionByStatusIn(orgId, id, List.of(DRAFT, ACTIVE, PAUSED))`
+7. **Gap 2 — editActiveSubscription** — replace with `getSubscriptionByStatus(orgId, id, ACTIVE)`
+8. **Gap 3** (`shouldSetSnapshotOnOldDocWhenVersionedApprovalCompletes`) — In `postApprove()`: change `oldActive.setStatus(ARCHIVED)` to `oldActive.setStatus(SNAPSHOT)`
+
+Run command after each fix: `mvn test -Dtest="SubscriptionRework4FacadeTest,SubscriptionApprovalHandlerTest" -am`
