@@ -1,15 +1,200 @@
 # API Handoff -- Tiers CRUD + Maker-Checker
 
 > For: UI Development Team (Garuda)
-> Version: 2.0 (v1.4 + Phase D: data model realigned with engine, 5 bug fixes, new field names)
+> Version: **3.0** (Rework #5: unified read surface, dual write paths, schema cleanup, drift detection)
+> v2.0 (Rework #3/Phase D: engine data-model realignment) was the prior version
 > Base URL: `https://{host}/v3`
 > Auth: Bearer token in `Authorization` header
 > Content-Type: `application/json`
-> Date: 2026-04-16
+> Date: 2026-04-17
 
 ---
 
-## Breaking Changes from v1.x
+## Rework #5 — Migration Guide v2.0 → v3.0 (READ FIRST)
+
+This is the single most important section for UI team migration to v3.0. Eight changes
+that affect every screen.
+
+### 5.1 Listing & Detail responses now use the **envelope** shape
+
+**v2.0 (old)** — list returned a flat array of `UnifiedTierConfig` and detail returned a flat document.
+
+**v3.0 (new)** — list returns `TierEnvelope[]` and detail returns a single `TierEnvelope`. An envelope groups together what the user sees per `slabId`:
+
+```json
+{
+  "slabId": 3850,
+  "live": {
+    /* TierView built from SQL — runtime-active state */
+    "name": "Gold",
+    "description": "Premium tier",
+    "color": "#FFD700",
+    "serialNumber": 3,
+    "eligibility": { /* ... */ },
+    "validity":    { /* ... */ },
+    "downgrade":   { /* ... */ }
+  },
+  "pendingDraft": {
+    /* TierView built from Mongo DRAFT or PENDING_APPROVAL — what the maker is editing */
+    "name": "Gold (revised)",
+    "description": "Premium tier — updated thresholds",
+    /* ... */
+    "tierUniqueId": "ut-977-003",
+    "draftStatus": "PENDING_APPROVAL",
+    "rejectionComment": null
+  },
+  "hasPendingDraft": true
+}
+```
+
+**Six envelope scenarios** UI must handle:
+
+| Scenario | live | pendingDraft | hasPendingDraft | UI hint |
+|---|---|---|---|---|
+| LIVE only | TierView | null | false | Show single row |
+| Brand-new DRAFT | null | TierView (DRAFT) | true | Show as "draft only" — no live state |
+| Edit-of-LIVE in DRAFT | TierView | TierView (DRAFT) | true | Show LIVE + "draft pending" badge |
+| Edit-of-LIVE in PENDING | TierView | TierView (PENDING) | true | Show LIVE + "approval pending" badge |
+| Legacy SQL-only tier | TierView (legacy) | null | false | Show as live (origin: legacy) |
+| SNAPSHOT only | not listed | not listed | not listed | Use approval history endpoint instead |
+
+LIVE state is read from SQL — it always reflects what the runtime engine sees. The pendingDraft side reflects in-flight changes from the new UI.
+
+### 5.2 Schema cleanup — fields hoisted, renamed, dropped
+
+| v2.0 | v3.0 | Action |
+|---|---|---|
+| `basicDetails.name` | `name` (root) | HOISTED |
+| `basicDetails.description` | `description` (root) | HOISTED |
+| `basicDetails.color` | `color` (root) | HOISTED |
+| `basicDetails.serialNumber` | `serialNumber` (root) | HOISTED |
+| `basicDetails.startDate` | — | DROPPED (use validity.startDate) |
+| `basicDetails.endDate` | — | DROPPED (use validity.endDate) |
+| `metadata` (object key) | `meta` (object key) | RENAMED |
+| `metadata.sqlSlabId` | `slabId` (root) | RENAMED + HOISTED |
+| `unifiedTierId` | `tierUniqueId` | RENAMED |
+| `metadata.updatedViaNewUI` | — | DROPPED (origin derived from envelope structure) |
+| `nudges` | — | DROPPED (deferred to a future epic) |
+| `benefitIds` | — | DROPPED (benefits are a separate epic E2) |
+
+**No more `basicDetails` wrapper.** Tier docs are now hoisted with all primary fields at root.
+
+**`meta` object** (renamed from `metadata`) now contains:
+```json
+"meta": {
+  "createdBy": "user-admin-01",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedBy": "user-admin-02",
+  "updatedAt": "2026-04-16T10:00:00Z",
+  "approvedBy": "admin-01",
+  "approvedAt": "2026-04-16T11:00:00Z",
+  "rejectionComment": null,
+  "rejectedBy": null,
+  "rejectedAt": null,
+  "basisSqlSnapshot": null
+}
+```
+
+`basisSqlSnapshot` is server-internal — UI may ignore it.
+
+### 5.3 Tier status enum simplified
+
+| v2.0 enum | v3.0 enum | Notes |
+|---|---|---|
+| DRAFT | DRAFT | unchanged |
+| PENDING_APPROVAL | PENDING_APPROVAL | unchanged |
+| ACTIVE | (still in enum, but **never appears** on a Mongo doc post-Rework #5) | LIVE state lives in SQL, surfaced via envelope.live |
+| SNAPSHOT | SNAPSHOT | unchanged — historical doc preserved per approval cycle |
+| DELETED | DELETED | unchanged — terminal state for DRAFT-only deletion |
+| STOPPED | — | DROPPED (tier retirement deferred — Rework #2) |
+
+UI should treat the `envelope.live` presence as the source of "is this tier live?", NOT a status field. The Mongo doc status is about the maker-checker workflow stage.
+
+### 5.4 Approve and Reject are now **separate endpoints**
+
+**v2.0**: a single endpoint with a body discriminator.
+
+**v3.0**:
+```
+POST /v3/tiers/{tierId}/approve   (no body, or {} — reviewer is taken from JWT)
+POST /v3/tiers/{tierId}/reject    body: { "comment": "Threshold too low" }
+```
+
+Reject **requires** a `comment` (validation enforced server-side). Reject moves the doc back to DRAFT but **retains** `meta.basisSqlSnapshot` so the maker can fix and re-submit without recreating the DRAFT.
+
+### 5.5 New error codes & responses
+
+| HTTP | Code | When | UI suggestion |
+|---|---|---|---|
+| 409 | `CONFLICT_NAME` | Layer 1 — DRAFT create with name that exists in SQL LIVE or Mongo active | Inline "name already in use" message |
+| 409 | `SINGLE_ACTIVE_DRAFT` | Edit attempted on PENDING_APPROVAL tier, OR concurrent insert race caught by Mongo partial unique index, OR /v3/tiers/{id}/PUT when another DRAFT is active for same slabId | Modal: "There is already a pending change for this tier. Reject the pending change first to edit." |
+| 409 | `APPROVAL_BLOCKED_DRIFT` | Approval blocked because the SQL state has changed since DRAFT was created (legacy UI made a write in between). Response includes `basisDiff` (which fields drifted). | Modal: "The live tier was modified since your draft was created. Compare and re-submit." (Show diff if available.) |
+| 409 | `APPROVAL_BLOCKED_NAME_CONFLICT` | Layer 2 re-check at approval — another tier with the same name was created/approved while this DRAFT was pending | Modal: "Name was taken since draft creation." Direct user to rename. |
+| 409 | `APPROVAL_BLOCKED_SINGLE_ACTIVE` | Layer 2 re-check — another DRAFT for the same slabId appeared (very rare race) | Modal: "Another draft for this tier appeared. Reload and reconcile." |
+| 400 | `MISSING_REJECT_COMMENT` | `/reject` called without comment | Inline validation on comment field |
+
+All errors continue to use the standard ResponseWrapper structure:
+```json
+{
+  "data": null,
+  "errors": [
+    {
+      "code": "APPROVAL_BLOCKED_DRIFT",
+      "message": "Tier was modified since draft creation; cannot approve.",
+      "details": {
+        "basisDiff": ["name", "eligibility.threshold"]
+      }
+    }
+  ]
+}
+```
+
+### 5.6 ID resolution for single-tier endpoint
+
+**v3.0** `GET /v3/tiers/{id}` (and PUT/DELETE) accepts EITHER:
+- A numeric `slabId` (e.g., `3850`) — looks up the tier with that SQL slab ID
+- A string `tierUniqueId` (e.g., `ut-977-003`) — looks up the Mongo doc by tierUniqueId
+
+The router auto-detects by parsing the path segment. Returns 404 if neither resolves.
+
+### 5.7 Summary KPIs renamed
+
+```json
+{
+  "summary": {
+    "totalTiers": 5,
+    "liveTiers": 3,            // RENAMED from "activeTiers" (Rework #5)
+    "pendingApprovalTiers": 1,
+    "totalMembers": 2135,
+    "lastMemberCountRefresh": "2026-04-16T12:00:00Z"
+  }
+}
+```
+
+`liveTiers` reflects the count from SQL LIVE rows (single source of truth). `pendingApprovalTiers` reflects the count of envelopes where `pendingDraft.draftStatus == "PENDING_APPROVAL"`.
+
+### 5.8 Origin (legacy vs new UI) is derived, not flagged
+
+**v2.0** had `metadata.updatedViaNewUI` as a boolean field on every doc.
+
+**v3.0** removes this. Origin is now **derived**:
+- If the envelope has a `pendingDraft` OR a Mongo doc exists for the slabId → tier was/is touched by NEW UI
+- If the envelope has only `live` from SQL with no Mongo doc → tier was created/last-touched via LEGACY UI
+
+If UI needs to display origin explicitly, compute it client-side from envelope structure. Server response no longer carries an `updatedViaNewUI` field.
+
+### 5.9 What stays the same
+
+- Auth (Bearer JWT, orgId from token)
+- Response wrapper shape `{data, errors, warnings}`
+- Idempotency-Key header behavior
+- All eligibility/validity/downgrade nested structures (engine alignment from Rework #3 unchanged)
+- KPI member-count cache semantics (cron-refreshed)
+- 50 tiers per program cap
+
+---
+
+## Breaking Changes from v1.x (historical — pre-Rework #3)
 
 | v1.x Field | v2.0 Field | Why |
 |------------|-----------|-----|
