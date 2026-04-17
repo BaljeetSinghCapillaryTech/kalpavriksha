@@ -143,8 +143,8 @@
         <a class="nav-link complete" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-3"><span>3. UI Extraction (skipped)</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6a"><span>6a. Impact Analysis</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6b"><span>6b. Migration Planning</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-7"><span>7. Designer (LLD)</span><span class="status-dot"></span></a>
@@ -166,7 +166,7 @@
         <a class="nav-link" href="#api-contracts"><span>API Contracts</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#hld-diagrams"><span>HLD Diagrams</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#lld-diagrams"><span>LLD Diagrams</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#cross-repo"><span>Cross-Repo Map</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#cross-repo"><span>Cross-Repo Map</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#implementation"><span>Implementation</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#review"><span>Review Findings</span><span class="status-dot"></span></a>
       </div>
@@ -184,18 +184,19 @@
           <div class="segment complete"></div>
           <div class="segment complete" title="Phase 3 — skipped"></div>
           <div class="segment complete"></div>
+          <div class="segment complete"></div>
           <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">5</span> / 19 phases complete (1 skipped)</span>
-          <span><span class="stat-value">14</span> artifacts generated</span>
-          <span><span class="stat-value">27</span> decisions made</span>
-          <span><span class="stat-value">38</span> findings surfaced</span>
+          <span><span class="stat-value">6</span> / 19 phases complete (1 skipped)</span>
+          <span><span class="stat-value">19</span> artifacts generated</span>
+          <span><span class="stat-value">29</span> decisions made</span>
+          <span><span class="stat-value">47</span> findings surfaced</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -653,11 +654,243 @@ flowchart LR
         <p><strong>Git</strong>: tag <code>aidlc/CAP-185145/phase-04</code> preserves revert point.</p>
       </section>
       <section class="phase-section" id="phase-5">
-        <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="phase-badge pending">In Progress</span></h2>
-        <p class="phase-time">Started: 2026-04-18</p>
+        <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
         <span class="skill-tag">parallel per-repo exploration</span>
         <span class="skill-tag">/cross-repo-tracer</span>
-        <p>Spawning 5 parallel subagents (one per repo: kalpavriksha, emf-parent, intouch-api-v3-2, cc-stack-crm, thrift-ifaces-pointsengine-rules) followed by 1 cross-repo tracer. Phase 5 MUST verify: OQ-35 (existing EMF Thrift handler template), OQ-38 (JVM default TZ in production), OQ-33 (legacy <code>/benefits</code> SLA baseline), C-25 (G-07 multi-tenancy enforcement), and raise Cross-Repo Coordination table from C5 to C6+ with evidence.</p>
+        <p>Agent team — 4 parallel Explore subagents (sonnet, one per code-bearing repo) dispatched in a single message + 1 cross-repo-tracer general-purpose subagent (sonnet) after per-repo research. Every architectural finding backed by direct code reads per the skill's C6+ rule for "0 modifications" claims. All 4 subagents returned read-only findings; orchestrator persisted them as <code>code-analysis-*.md</code> files and cross-repo-tracer wrote the master trace document directly.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">5</div><div class="label">Repos Scanned</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">Repos With Changes</div></div>
+          <div class="key-number"><div class="value">5</div><div class="label">Artifacts Produced</div></div>
+          <div class="key-number"><div class="value">8</div><div class="label">Mermaid Sequence Diagrams</div></div>
+          <div class="key-number"><div class="value">9</div><div class="label">Red Flags</div></div>
+          <div class="key-number"><div class="value">17</div><div class="label">New Files Planned</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">Modified Files Planned</div></div>
+          <div class="key-number"><div class="value">11</div><div class="label">New Open Questions</div></div>
+        </div>
+
+        <h3>Cross-Repo System Context</h3>
+        <div class="mermaid">
+flowchart LR
+    Client[Capillary Client]
+    subgraph intouch[intouch-api-v3 — REST Gateway]
+      Ctrl[BenefitCategoryController + SlabMappingController]
+      Facade[BenefitCategoryFacade]
+      Thrift[BenefitCategoryThriftService<br/>RPCService.rpcClient]
+      CE[ConflictException NEW + TargetGroupErrorAdvice]
+    end
+    subgraph emf[emf-parent — EMF Handler]
+      Handler[PointsEngineRuleConfigThriftImpl<br/>@ExposedCall]
+      Editor[PointsEngineRuleEditorImpl]
+      Service[BenefitCategoryService<br/>@Transactional warehouse]
+      DAO[BenefitCategoryDao + SlabMappingDao<br/>ShardContext.set orgId]
+    end
+    IDL[thrift-ifaces-pointsengine-rules<br/>pointsengine_rules.thrift + 8 methods<br/>1.83 → 1.84]
+    CRM[cc-stack-crm<br/>2 new DDL files in<br/>schema/dbmaster/warehouse/]
+    DB[(MySQL warehouse<br/>benefit_categories<br/>benefit_category_slab_mapping)]
+    Client -->|REST HTTPS| Ctrl --> Facade --> Thrift -->|Thrift RPC :9199| Handler --> Editor --> Service --> DAO --> DB
+    Thrift -.->|imports IDL| IDL
+    Handler -.->|imports IDL| IDL
+    DAO -.->|schema pinned from| CRM
+        </div>
+
+        <h3>Entity Relationship — Two New Tables</h3>
+        <div class="mermaid">
+erDiagram
+    benefit_categories {
+      INT id PK
+      INT org_id PK
+      INT program_id FK
+      VARCHAR name
+      ENUM category_type
+      TINYINT is_active
+      DATETIME created_on
+      INT created_by
+      DATETIME updated_on
+      INT updated_by
+      TIMESTAMP auto_update_time
+    }
+    benefit_category_slab_mapping {
+      INT id PK
+      INT org_id PK
+      INT benefit_category_id FK
+      INT slab_id FK
+      TINYINT is_active
+      DATETIME created_on
+      INT created_by
+      DATETIME updated_on
+      INT updated_by
+      TIMESTAMP auto_update_time
+    }
+    program_slabs {
+      INT id PK
+      INT org_id PK
+      INT program_id FK
+      VARCHAR slab_name
+    }
+    programs {
+      INT id PK
+      INT org_id PK
+    }
+    programs ||--o{ benefit_categories : "has many (app-FK)"
+    programs ||--o{ program_slabs : "has many (existing)"
+    benefit_categories ||--o{ benefit_category_slab_mapping : "applies to (app-FK)"
+    program_slabs ||--o{ benefit_category_slab_mapping : "applied by (app-FK)"
+        </div>
+        <p class="phase-time">Composite PK = (id, org_id) on every new table — follows <code>OrgEntityIntegerPKBase</code> platform standard. Zero DB-level UNIQUE constraints (D-28 app-layer uniqueness). Zero DB FK constraints (platform pattern). Indexes on (org_id, program_id), (org_id, benefit_category_id), (org_id, slab_id).</p>
+
+        <h3>Module Dependency Graph</h3>
+        <div class="mermaid">
+flowchart TB
+    subgraph runtime[Runtime Dependency Chain]
+      IUA[intouch-api-v3]
+      EMF[emf-parent]
+      IDL[thrift-ifaces-pointsengine-rules]
+      CRM[cc-stack-crm]
+      IUA -->|consumes at runtime :9199| EMF
+      IUA -->|Maven dep 1.83 → 1.84| IDL
+      EMF -->|Maven dep 1.83 → 1.84| IDL
+      EMF -.->|IT schema pull| CRM
+    end
+    subgraph deployment[Deployment Order — RF-1 CRITICAL]
+      S1["① Publish thrift-ifaces 1.84 to Artifactory"]
+      S2["② Deploy emf-parent implements 1.84 methods"]
+      S3["③ Deploy intouch-api-v3 calls 1.84 methods"]
+      S1 --> S2 --> S3
+    end
+        </div>
+
+        <h3>Write Path — createBenefitCategory (representative)</h3>
+        <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant I as intouch-api-v3<br/>Controller
+    participant F as BenefitCategoryFacade
+    participant T as BenefitCategoryThriftService
+    participant H as PointsEngineRuleConfigThriftImpl<br/>(@ExposedCall)
+    participant S as BenefitCategoryService<br/>(@Transactional warehouse)
+    participant D as MySQL warehouse
+    C->>I: POST /v3/benefitCategories<br/>Bean Validation
+    I->>F: create(orgId, request)
+    F->>T: createBenefitCategory(dto, serverReqId)
+    T->>H: Thrift RPC :9199<br/>RPCService.rpcClient
+    Note over H: ExposedCallAspect<br/>ShardContext.set(orgId)<br/>MDC.put(orgId)
+    H->>S: createBenefitCategory(orgId, dto)
+    Note over S: BEGIN TX (warehouse)
+    S->>D: SELECT active duplicate<br/>WHERE org_id AND program_id AND name AND is_active=1
+    alt Active duplicate (D-28)
+      S-->>H: ValidationException
+      H-->>T: PointsEngineRuleServiceException<br/>statusCode=409
+      T-->>F: EMFThriftException
+      F-->>I: ConflictException (NEW)
+      I-->>C: HTTP 409<br/>ResponseWrapper errors
+    else No active duplicate
+      S->>D: INSERT new row
+      Note over S: COMMIT TX
+      S-->>H: entity<br/>Date.getTime() → i64 millis (D-24)
+      H-->>T: BenefitCategoryDto
+      T-->>F: dto
+      F-->>I: response<br/>@JsonFormat → ISO-8601 UTC
+      I-->>C: HTTP 201 Created
+    end
+        </div>
+
+        <h3>Per-Repo Change Inventory</h3>
+        <table class="data-table">
+          <thead><tr><th>Repo</th><th>New Files</th><th>Modified Files</th><th>Why</th><th>Confidence</th></tr></thead>
+          <tbody>
+            <tr><td><strong>kalpavriksha</strong></td><td>0 (docs only)</td><td>0</td><td>Pipeline documentation host — no Java, no pom.xml</td><td>C7</td></tr>
+            <tr><td><strong>thrift-ifaces-pointsengine-rules</strong></td><td>0</td><td>1 modified: <code>pointsengine_rules.thrift</code> (enum BenefitCategoryType + 3 structs + 8 methods on existing <code>PointsEngineRuleService</code>). <code>pom.xml</code> 1.84-SNAPSHOT → 1.84</td><td>Add to existing service — platform multiplexes all loyalty CRUD through one <code>PointsEngineRuleService</code></td><td>C7</td></tr>
+            <tr><td><strong>emf-parent</strong></td><td>6+: <code>BenefitCategory.java</code>, <code>BenefitCategorySlabMapping.java</code>, <code>BenefitCategoryDao.java</code>, <code>BenefitCategorySlabMappingDao.java</code>, <code>BenefitCategoryService.java</code>, 2 new integration-test DDL snapshots</td><td>2: <code>PointsEngineRuleConfigThriftImpl.java</code> (+8 <code>@Override @Trace @MDCData</code> methods), <code>PointsEngineRuleEditorImpl.java</code> (+8 delegation methods). <code>pom.xml</code> 1.83 → 1.84</td><td>Owns entity + handler + transactional boundary + cascade logic. Canonical handler template = <code>PointsEngineRuleConfigThriftImpl</code></td><td>C6</td></tr>
+            <tr><td><strong>intouch-api-v3</strong></td><td>9: 2 controllers, facade, ThriftService, 4 DTOs, <strong>ConflictException (NEW)</strong></td><td>2: <code>TargetGroupErrorAdvice.java</code> (+@ExceptionHandler ConflictException → HTTP 409 — required by D-27/D-28), <code>pom.xml</code> 1.83 → 1.84</td><td>Thin REST facade — HTTP↔Thrift translation via <code>RPCService.rpcClient("emf-thrift-service", 9199, 60000)</code></td><td>C6</td></tr>
+            <tr><td><strong>cc-stack-crm</strong></td><td>2: <code>benefit_categories.sql</code>, <code>benefit_category_slab_mapping.sql</code> in <code>/schema/dbmaster/warehouse/</code></td><td>0 for MVP</td><td>DDL home (Facets repo, zero Java). <code>org_mirroring_meta</code>/<code>cdc_source_table_info</code> post-MVP</td><td>C6</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Key Architectural Findings — F-1 to F-7 (all C7)</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Finding</th><th>Why It Matters</th></tr></thead>
+          <tbody>
+            <tr><td>F-1</td><td>Canonical Thrift handler template = <code>PointsEngineRuleConfigThriftImpl</code> with <code>@ExposedCall(thriftName="pointsengine-rules")</code> + <code>@Override @Trace @MDCData(orgId="#orgId", requestId="#serverReqId")</code>. Delegation: Handler → Editor → Service → DAO. Exception translation: <code>ValidationException→400</code>, <code>Exception→500</code> via <code>PointsEngineRuleServiceException.setStatusCode(int)</code>.</td><td>Phase 7 Designer copies this pattern exactly</td></tr>
+            <tr><td>F-2</td><td>Multi-tenancy = <code>ShardContext.set(orgId)</code> ThreadLocal + manual <code>WHERE pk.orgId = :orgId</code> in every DAO method. NO Hibernate <code>@Filter</code>/<code>@Where</code>/<code>@FilterDef</code>. G-07.1 framework enforcement absent.</td><td>Cross-tenant IT (G-11.8 pattern) is MANDATORY for Phase 9</td></tr>
+            <tr><td>F-3</td><td>Transaction boundary = <code>@Transactional(value="warehouse")</code> + <code>@DataSourceSpecification(schemaType=WAREHOUSE)</code> on Service layer</td><td>Cascade deactivation (D-14) wraps in single TX at service level</td></tr>
+            <tr><td>F-4</td><td>No Flyway V-files in emf-parent. Schema DDLs pulled from <code>integration-test/.../cc-stack-crm/schema/dbmaster/warehouse/</code>. cc-stack-crm is schema source-of-truth.</td><td>Production DDL application mechanism AMBIGUOUS — RF-5 / Q-CRM-1 / OQ-46</td></tr>
+            <tr><td>F-5</td><td>REST gateway pattern: <code>@RestController</code> → <code>ResponseEntity&lt;ResponseWrapper&lt;T&gt;&gt;</code>. Bean Validation on DTOs. <code>TargetGroupErrorAdvice</code> maps exceptions. <strong>NO HTTP 409 handler exists.</strong></td><td>Must add <code>ConflictException</code> for D-27/D-28 — NEW-OQ-44</td></tr>
+            <tr><td>F-6</td><td>ADD 8 methods to existing <code>PointsEngineRuleService</code> in IDL — do NOT create a new service. Template = <code>BenefitsConfigData</code> CRUD at lines 1276-1282. Zero name-collision (grep verified 0 matches).</td><td>IDL change is additive only — low risk</td></tr>
+            <tr><td>F-7</td><td>Deployment sequence: ① publish thrift-ifaces:1.84 → ② deploy emf-parent → ③ deploy intouch-api-v3. Wrong order = <code>TApplicationException: unknown method</code></td><td>RF-1 CRITICAL — affects release plan</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Red Flags (9 total — 1 CRITICAL, 3 HIGH, 2 MEDIUM, 3 LOW)</h3>
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Risk</th><th>Severity</th><th>Owner</th></tr></thead>
+          <tbody>
+            <tr><td>RF-1</td><td>Thrift IDL version deployment sequencing (1.83 consumer vs 1.84 producer)</td><td class="status-warn">CRITICAL</td><td>Release plan</td></tr>
+            <tr><td>RF-2</td><td>Missing HTTP 409 handler in <code>TargetGroupErrorAdvice</code> — D-27/D-28 require it</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (OQ-44)</td></tr>
+            <tr><td>RF-3</td><td><code>createdBy</code> type conflict across 3 layers: int (entity) vs VARCHAR (D-23) vs string (IDL proposal)</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (Q-T-01)</td></tr>
+            <tr><td>RF-4</td><td>Admin-only vs open writes — no <code>@PreAuthorize</code> on write endpoints today</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (OQ-34)</td></tr>
+            <tr><td>RF-5</td><td>DDL production migration mechanism ambiguous (Facets auto vs DBA vs Flyway)</td><td>MEDIUM</td><td>Phase 6/9 (OQ-46)</td></tr>
+            <tr><td>RF-6</td><td>Multi-tenancy by convention only — no framework safety net</td><td>MEDIUM</td><td>Phase 7 Designer (base-DAO pattern) + Phase 9 SDET (G-11.8 IT)</td></tr>
+            <tr><td>RF-7</td><td>JVM timezone not pinned — residual risk for any <code>SimpleDateFormat</code> use</td><td>LOW</td><td>D-24 <code>Date.getTime()</code> mitigates; OQ-38 confirm prod TZ</td></tr>
+            <tr><td>RF-8</td><td><code>NotFoundException → HTTP 200</code> platform quirk on GET-by-id</td><td>LOW</td><td>Phase 6 decide (OQ-45)</td></tr>
+            <tr><td>RF-9</td><td>Thrift method name collision — grep verified 0 matches</td><td>LOW</td><td>N/A — no collision</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Open Questions — 11 New Cross-Cutting Questions</h3>
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Question</th><th>Severity</th><th>Owner</th></tr></thead>
+          <tbody>
+            <tr><td>OQ-44</td><td>Add <code>ConflictException</code>+409 handler, or downgrade D-27/D-28 to HTTP 400?</td><td class="status-warn">HIGH</td><td>Phase 6 Architect</td></tr>
+            <tr><td>OQ-45</td><td><code>NotFoundException</code>→HTTP 200 — follow or introduce 404?</td><td>MEDIUM</td><td>Phase 6 Architect</td></tr>
+            <tr><td>OQ-46</td><td>cc-stack-crm ↔ emf-parent IT DDL sync mechanism — script or manual?</td><td class="status-warn">HIGH</td><td>Phase 6/9</td></tr>
+            <tr><td>OQ-47</td><td>Add to existing large <code>PointsEngineRuleConfigThriftImpl</code> or new handler class?</td><td>LOW</td><td>Phase 6 Architect</td></tr>
+            <tr><td>OQ-48</td><td>Cross-layer naming consistency (REST path / Thrift method / Java method)</td><td>LOW</td><td>Phase 7 Designer</td></tr>
+            <tr><td>OQ-49</td><td>Deactivate endpoint: dedicated path <code>/deactivate</code> vs body <code>{is_active:false}</code>?</td><td>MEDIUM</td><td>Phase 7 Designer</td></tr>
+            <tr><td>Q-T-01</td><td><code>createdBy</code> type — int / VARCHAR / i32 / string — align across 3 layers</td><td class="status-warn">HIGH</td><td>Phase 6 Architect (BLOCKS Phase 7)</td></tr>
+            <tr><td>Q-T-02</td><td>Reuse an <code>AuditTrackedClass</code>-style Thrift struct for audit fields?</td><td>LOW</td><td>Phase 7</td></tr>
+            <tr><td>Q-T-03</td><td>Denormalize <code>programId</code> on <code>BenefitCategorySlabMappingDto</code>?</td><td>LOW</td><td>Phase 7</td></tr>
+            <tr><td>Q-CRM-1</td><td><code>org_mirroring_meta</code> — include new tables? (Pattern-match legacy <code>benefits</code> says no)</td><td>LOW</td><td>post-MVP</td></tr>
+            <tr><td>Q-CRM-2</td><td>CDC pipeline registration for new tables?</td><td>LOW</td><td>post-MVP</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Previously-Open Questions Resolved by Phase 5</h3>
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Question</th><th>Resolution</th></tr></thead>
+          <tbody>
+            <tr><td>OQ-33</td><td>NFR-1 500ms P95 — baseline vs legacy <code>/benefits</code>?</td><td>⚠ No explicit SLA doc found; 500ms P95 achievable at D-26 SMALL scale (C5)</td></tr>
+            <tr><td>OQ-34</td><td>Authz at Client boundary — writes admin-only?</td><td>⚠ Mechanism clear (KeyOnly=GET, BasicAndKey/OAuth=writes); product decision pending</td></tr>
+            <tr><td>OQ-35</td><td>Existing Thrift handler template?</td><td>✅ <code>PointsEngineRuleConfigThriftImpl</code> = canonical template</td></tr>
+            <tr><td>OQ-36</td><td>Error envelope across Thrift→REST boundary?</td><td>✅ <code>PointsEngineRuleServiceException.statusCode</code> i32 carries HTTP-analogue codes</td></tr>
+            <tr><td>OQ-37</td><td>Validation layer placement?</td><td>✅ Dual-layer: Bean Validation at REST + business rules in Facade/Service</td></tr>
+            <tr><td>OQ-38</td><td>JVM TZ in production?</td><td>⚠ NOT pinned in any repo — D-24 explicit UTC conversion is MANDATORY</td></tr>
+            <tr><td>OQ-39</td><td>Thrift i64 unit — seconds or milliseconds?</td><td>✅ Milliseconds (<code>Date.getTime()</code> convention)</td></tr>
+            <tr><td>OQ-40</td><td>ISO-8601 format at REST?</td><td>✅ Field-level <code>@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone="UTC")</code></td></tr>
+            <tr><td>OQ-41</td><td>Thrift timestamp field naming?</td><td>✅ Bare <code>createdOn</code>/<code>updatedOn</code> (no <code>_millis</code> suffix) in <code>pointsengine_rules.thrift</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Traceability — D-18..D-29 → Code Paths</h3>
+        <p>All 12 Phase-4 blocker decisions confirmed to materialise correctly in the traced write/read paths. See <code>cross-repo-trace.md §9</code> for per-decision mapping. Highlights: <strong>D-19</strong> (same chain for reads+writes) → all 8 Thrift methods on one service; <strong>D-24</strong> (three-boundary timestamps) → <code>Date ↔ i64 millis ↔ ISO-8601</code> verified at each conversion point; <strong>D-25</strong> (no maker-checker) → <code>EntityType</code> enum confirmed has no BENEFIT_CATEGORY entry; <strong>D-28</strong> (app-layer uniqueness) → <code>findActiveByOrgIdAndProgramIdAndName</code> SELECT-before-INSERT pattern with optional <code>GET_LOCK</code> advisory lock deferred to Phase 7.</p>
+
+        <h3>Artifacts</h3>
+        <ul class="artifact-list">
+          <li><code>code-analysis-emf-parent.md</code> — EMF repo (C7, handler template + entity pattern + DDL)</li>
+          <li><code>code-analysis-intouch-api-v3.md</code> — REST gateway (C7, ResponseWrapper + RPCService + auth flows)</li>
+          <li><code>code-analysis-cc-stack-crm.md</code> — schema repo (C7, DDL-only, zero Java)</li>
+          <li><code>code-analysis-thrift-ifaces.md</code> — IDL additions (C7, 8 methods + 3 structs + 1 enum)</li>
+          <li><code>cross-repo-trace.md</code> — 921 lines, 8 Mermaid sequence diagrams, 9 red flags, full D-18..D-29 traceability</li>
+          <li><code>session-memory.md</code> — Codebase Behaviour → C7; Cross-Repo Coordination → C6-C7; Red Flags subsection added; OQ-44..OQ-49 + Q-T-01..Q-T-03 + Q-CRM-1/2 added</li>
+          <li><code>process-log.md</code> — Phase 5 completion entry</li>
+          <li><code>pipeline-state.json</code> — Phase 5 marked complete with findings summary</li>
+        </ul>
+
+        <h3>Phase 5 Verdict</h3>
+        <p><strong>✅ READY FOR PHASE 6.</strong> All architectural findings at C6+ with direct file evidence. Cross-repo coordination matrix raised from C4-C6 (pre-populated from D-18/D-19) to C6-C7 (Phase 5 verified). One hard blocker for Phase 7 coding — <strong>Q-T-01 <code>createdBy</code> type alignment</strong> — which Phase 6 Architect MUST resolve before Designer writes entity + IDL + column. Other open questions (OQ-44, OQ-46, OQ-47) are Phase 6 Architect decisions — not Phase 5 blockers.</p>
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-05</code></p>
       </section>
       <section class="phase-section" id="phase-6">
         <h2>Phase 6: Architecture (HLD) <span class="phase-badge pending">Pending</span></h2>

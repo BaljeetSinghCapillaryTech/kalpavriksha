@@ -312,9 +312,95 @@
 ---
 
 ### Phase 5: Codebase Research + Cross-Repo Tracing
-**Time**: in progress
-**Skill(s)**: parallel per-repo exploration + `/cross-repo-tracer`
-**Mode**: agent team (5 parallel subagents + 1 cross-repo tracer after)
+**Time**: complete — 2026-04-18
+**Skill(s)**: parallel per-repo exploration + `/cross-repo-tracer` (both sonnet)
+**Mode**: agent team — 4 parallel Explore subagents + 1 cross-repo-tracer general-purpose subagent
+
+#### What Happened
+
+1. **4 parallel per-repo research subagents** dispatched in a single message (sonnet) with full Principles Injection Block. Each received: skill reference, reading list (session-memory, 00-ba-machine, blocker-decisions), explicit list of entities/methods to verify, output format. The 5th repo (`kalpavriksha`) was skipped — confirmed as docs-only (no Java, no pom.xml).
+2. **Explore-subagent write limitation**: All 4 returned findings as text (read-only tools). Orchestrator captured output → wrote 4 `code-analysis-*.md` files directly via Write tool.
+3. **Cross-repo-tracer subagent** (general-purpose, sonnet) dispatched after per-repo research completed. Read all 4 code-analysis files + session-memory + blocker-decisions + 00-ba-machine. Produced `cross-repo-trace.md` (921 lines, 8 Mermaid sequence diagrams, 9 red flags, 6 new OQs, full D-18..D-29 traceability, appendix DDL).
+4. **Incremental session-memory updates**: Codebase Behaviour rows raised from pre-Phase-5 (C5-C7 from Phase 2 Analyst snapshots) to full Phase 5 C7 with per-repo specifics. Cross-Repo Coordination matrix raised from C4-C6 pre-populated from D-18/D-19 to C6-C7 verified. Red Flags section added below coordination matrix. Open Questions table gained OQ-44 through OQ-49 + Q-T-01/Q-T-02/Q-T-03 + Q-CRM-1/Q-CRM-2.
+
+#### Repos Scanned (5)
+
+| Repo | Size (relevant) | Verdict | Key Finding |
+|------|-----------------|---------|-------------|
+| emf-parent | Large Java codebase, `pointsengine-emf` module | C7: canonical Thrift handler template located | `PointsEngineRuleConfigThriftImpl` + `@ExposedCall(thriftName="pointsengine-rules")` + `ExposedCallAspect` ShardContext propagation |
+| intouch-api-v3 | Spring Boot REST gateway | C7: RPC client pattern verified | `RPCService.rpcClient(Iface, "emf-thrift-service", 9199, 60000)` at `PointsEngineRulesThriftService:43-44` |
+| cc-stack-crm | Schema/DDL repo (Facets) | C7: Java-free, DDL-only | `/schema/dbmaster/warehouse/` is target for 2 new DDL files; 0 Java changes |
+| thrift-ifaces-pointsengine-rules | Single-IDL single-service repo | C7: add to existing service | `PointsEngineRuleService` existing service multiplexes all loyalty CRUD; no new service needed |
+| kalpavriksha | Docs-only orchestration repo | C7: 0 code changes | Pipeline documentation host |
+
+#### Key Architectural Findings (to Phase 6)
+
+| # | Finding | Confidence |
+|---|---------|------------|
+| F-1 | Canonical Thrift handler template = `PointsEngineRuleConfigThriftImpl` (emf-parent). Delegation pattern: Thrift handler → Editor → Service → DAO. Exception translation: `ValidationException → statusCode=400`, `Exception → statusCode=500` in `PointsEngineRuleServiceException`. | C7 |
+| F-2 | Multi-tenancy enforcement is BY CONVENTION — `ShardContext.set(orgId)` ThreadLocal + manual `WHERE pk.orgId = :orgId` in every DAO method. No Hibernate `@Filter`/`@Where`/`@FilterDef`. Cross-tenant IT (G-11.8 pattern) strongly recommended. | C7 |
+| F-3 | Transaction boundary: `@Transactional(value="warehouse")` + `@DataSourceSpecification(schemaType=WAREHOUSE)` on Service layer. Cascade deactivation (D-14) wraps in single transaction at service level. | C7 |
+| F-4 | No Flyway in emf-parent. Schema DDLs pulled from `integration-test/src/test/resources/cc-stack-crm/schema/dbmaster/warehouse/` for ITs — cc-stack-crm is the source of truth. Production DDL application mechanism is AMBIGUOUS (see RF-5). | C7 for source-of-truth; C5 for production mechanism |
+| F-5 | REST gateway pattern: `@RestController` → `ResponseEntity<ResponseWrapper<T>>`. Bean Validation on request DTOs. `TargetGroupErrorAdvice` maps exceptions → HTTP. NO 409 handler exists (OQ-44/RF-2). | C7 |
+| F-6 | Thrift IDL recommendation: ADD 8 methods to existing `PointsEngineRuleService` (do NOT create a new service). All loyalty CRUD multiplexed through one service. Template = `BenefitsConfigData` CRUD at lines 1276-1282. | C7 |
+| F-7 | Deployment sequencing: publish thrift-ifaces 1.84 → deploy emf-parent → deploy intouch-api-v3. Wrong order → `TApplicationException: unknown method`. | C7 |
+
+#### New Risks Surfaced (to Phase 6)
+
+| # | Risk | Severity |
+|---|------|----------|
+| RF-1 | Thrift IDL version deployment sequencing | CRITICAL |
+| RF-2 | Missing HTTP 409 handler (D-27/D-28 need it) | HIGH |
+| RF-3 | `createdBy` type conflict across 3 layers (int/VARCHAR/string) | HIGH |
+| RF-4 | Admin-only vs open writes (OQ-34) | HIGH |
+| RF-5 | DDL production migration mechanism ambiguous | MEDIUM |
+| RF-6 | Multi-tenancy by convention, no framework safety net | MEDIUM |
+| RF-7 | JVM TZ not pinned (OQ-38) | LOW with D-24 `Date.getTime()` |
+| RF-8 | `NotFoundException → HTTP 200` platform quirk | LOW |
+| RF-9 | Thrift method name collision | LOW (none found) |
+
+#### Previously-Open Questions Resolved (from Phase 4 OQ-33..OQ-43)
+
+- **OQ-33**: No SLA baseline found; 500ms P95 achievable at D-26 SMALL scale (C5).
+- **OQ-34**: Auth mechanism clear (KeyOnly=GET, BasicAndKey/OAuth=writes); product decision pending on admin-only restriction.
+- **OQ-35**: ✅ `PointsEngineRuleConfigThriftImpl` confirmed as canonical handler template.
+- **OQ-36**: ✅ `PointsEngineRuleServiceException.statusCode` i32 carries HTTP-analogue codes.
+- **OQ-37**: ✅ Dual-layer validation pattern confirmed (Bean Validation at REST + business rules in Facade/Service).
+- **OQ-38**: ⚠ JVM TZ NOT pinned in any repo — D-24's explicit UTC conversion is MANDATORY.
+- **OQ-39**: ✅ i64 epoch milliseconds is the established convention.
+- **OQ-40**: ✅ Field-level `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone="UTC")` recommended.
+- **OQ-41**: ✅ Bare `createdOn`/`updatedOn` naming (no `_millis` suffix) in `pointsengine_rules.thrift`.
+
+#### New Open Questions Raised
+
+| # | Question | Severity | Owner |
+|---|----------|----------|-------|
+| OQ-44 | HTTP 409 handler — add ConflictException or downgrade to 400? | HIGH | Phase 6 Architect |
+| OQ-45 | `NotFoundException → HTTP 200` platform quirk — follow or introduce 404? | MEDIUM | Phase 6 Architect |
+| OQ-46 | cc-stack-crm ↔ emf-parent integration-test DDL sync mechanism | HIGH | Phase 6/9 |
+| OQ-47 | Add to existing large `PointsEngineRuleConfigThriftImpl` or new handler class? | LOW | Phase 6 Architect |
+| OQ-48 | Cross-layer naming consistency (REST path/Thrift method/Java method) | LOW | Phase 7 Designer |
+| OQ-49 | Deactivate endpoint design (dedicated path vs `{is_active:false}` body) | MEDIUM | Phase 7 Designer |
+| Q-T-01 ⚠ | `createdBy` type alignment across 3 layers (int/VARCHAR/string) | HIGH | Phase 6 Architect |
+| Q-T-02 | AuditTrackedClass-style struct reuse | LOW | Phase 7 |
+| Q-T-03 | Denormalize `programId` on mapping DTO? | LOW | Phase 7 |
+| Q-CRM-1 | `org_mirroring_meta` inclusion for new tables | LOW | post-MVP |
+| Q-CRM-2 | CDC pipeline registration | LOW | post-MVP |
+
+#### Artifacts Produced
+
+- `code-analysis-emf-parent.md` — EMF repo findings (C7)
+- `code-analysis-intouch-api-v3.md` — REST gateway findings (C7)
+- `code-analysis-cc-stack-crm.md` — schema/DDL repo findings (C7)
+- `code-analysis-thrift-ifaces.md` — IDL additions proposal (C7)
+- `cross-repo-trace.md` — 921-line cross-repo master document with 8 Mermaid sequence diagrams, per-repo change inventory with evidence, 9 red flags, traceability to D-18..D-29, appendix DDL
+- session-memory.md updated (Codebase Behaviour rows → C7; Cross-Repo Coordination rows → C6-C7; Red Flags subsection added; Open Questions extended with OQ-44..OQ-49, Q-T-01..Q-T-03, Q-CRM-1/2)
+
+#### Phase 5 Verdict
+
+✅ **READY FOR PHASE 6**. All high-confidence architectural findings in place. Q-T-01 (createdBy type conflict) is the one item that MUST be resolved early in Phase 6 Architect before Phase 7 Designer writes code. Other open questions (OQ-44, OQ-46, OQ-47) are Phase 6 Architect decisions — not Phase 5 blockers.
+
+**Git snapshot**: `aidlc/CAP-185145/phase-05`
 
 ---
 
