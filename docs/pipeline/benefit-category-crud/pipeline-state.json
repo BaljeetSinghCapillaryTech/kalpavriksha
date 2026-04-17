@@ -34,7 +34,7 @@
     "0":   {"status": "complete", "completed_at": "2026-04-17", "artifacts": ["brd-raw.md", "session-memory.md", "process-log.md", "approach-log.md", "live-dashboard.html", "pipeline-state.json"]},
     "1":   {"status": "complete", "completed_at": "2026-04-18", "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md", "brdQnA.md", "../../../docs/product/registry.md"], "decisions_recorded": ["D-03","D-04","D-05","D-06","D-07","D-08","D-09","D-10","D-11","D-12","D-13","D-14","D-15","D-16"], "open_questions": ["OQ-4","OQ-12","OQ-15"], "blocking_for_phase_6": ["OQ-15"]},
     "2":   {"status": "complete", "completed_at": "2026-04-18", "name": "Critic + Gap Analysis", "skills": ["principles.md (Critic)", "/analyst --compliance"], "model": "opus", "artifacts": ["contradictions.md", "gap-analysis-brd.md"], "findings": {"critic_total": 18, "critic_blockers": 7, "critic_warnings": 8, "critic_nits": 3, "claims_verified": 10, "claims_confirmed": 5, "claims_contradicted": 2, "claims_partial": 3, "gaps_found": 11, "guardrail_concerns": 5, "guardrail_critical": 1, "total_blockers_for_phase4": 12}, "new_open_questions": ["OQ-16","OQ-17","OQ-18","OQ-19","OQ-20","OQ-21","OQ-22","OQ-23","OQ-24","OQ-25","OQ-26","OQ-27","OQ-28","OQ-29","OQ-30","OQ-31","OQ-32","OQ-33"], "new_constraints": ["C-20","C-21","C-22","C-23","C-24","C-25","C-26"], "blocking_for_phase_6": ["OQ-15","OQ-16","OQ-17","OQ-18","OQ-19","OQ-20","OQ-21","OQ-22","OQ-23","OQ-24","OQ-25","OQ-26"]},
-    "3":   {"status": "pending", "name": "UI Requirements Extraction"},
+    "3":   {"status": "skipped", "completed_at": "2026-04-18", "name": "UI Requirements Extraction", "skip_reason": "v0.app prototype predates Phase 1 scope simplification; UI-embedded design questions require Phase 4 product decisions first; may be unnecessary if OQ-17 resolves to 'internal plumbing only'; deferred in favour of /api-handoff after Phase 7 Designer freezes DTO contracts", "decisions_recorded": ["D-17"]},
     "4":   {"status": "pending", "name": "Grooming + Blocker Resolution"},
     "5":   {"status": "pending", "name": "Codebase Research + Cross-Repo Tracing"},
     "6":   {"status": "pending", "name": "HLD — Architect"},
@@ -51,7 +51,7 @@
     "11":  {"status": "pending", "name": "Reviewer"},
     "12":  {"status": "pending", "name": "Documentation + Blueprint"}
   },
-  "git_tags": ["aidlc/CAP-185145/phase-00", "aidlc/CAP-185145/phase-01", "aidlc/CAP-185145/phase-02"],
+  "git_tags": ["aidlc/CAP-185145/phase-00", "aidlc/CAP-185145/phase-01", "aidlc/CAP-185145/phase-02", "aidlc/CAP-185145/phase-03-skipped"],
   "rework_cycles": [],
   "confluence": {
     "configured": false,

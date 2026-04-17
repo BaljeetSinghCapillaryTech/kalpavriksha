@@ -141,8 +141,8 @@
         <a class="nav-link complete" href="#phase-0"><span>0. Input Collection</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-3"><span>3. UI Extraction</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-3"><span>3. UI Extraction (skipped)</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6a"><span>6a. Impact Analysis</span><span class="status-dot"></span></a>
@@ -182,7 +182,8 @@
           <div class="segment complete"></div>
           <div class="segment complete"></div>
           <div class="segment complete"></div>
-          <div class="segment active"></div><div class="segment"></div>
+          <div class="segment complete" title="Phase 3 — skipped"></div>
+          <div class="segment active"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
@@ -190,9 +191,9 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">3</span> / 19 phases complete</span>
+          <span><span class="stat-value">4</span> / 19 phases complete (1 skipped)</span>
           <span><span class="stat-value">12</span> artifacts generated</span>
-          <span><span class="stat-value">14</span> decisions made</span>
+          <span><span class="stat-value">15</span> decisions made</span>
           <span><span class="stat-value">26</span> findings surfaced</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
@@ -506,7 +507,10 @@ flowchart LR
         </ul>
       </section>
       <section class="phase-section" id="phase-3">
-        <h2>Phase 3: UI Extraction <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 3: UI Extraction <span class="phase-badge" style="background: var(--muted); color: #0a0a0a;">Skipped</span></h2>
+        <p class="phase-time">Skipped: 2026-04-18 (user decision)</p>
+        <p><strong>Rationale</strong> (recorded as D-17): v0.app prototype predates Phase 1 scope simplification and likely contains out-of-scope screens (Matrix View, aiRa, subscription picker, per-type value fields). UI-embedded design questions (cascade warning UX for C-6, reactivation asymmetry, POST-409-or-reactivate for C-7) require product decisions in Phase 4, not extraction from a prototype. Phase 4 may resolve OQ-17 to "internal plumbing only" — making Phase 3 unnecessary. If UI is kept, we'll produce an <code>/api-handoff</code> document after Phase 7 (Designer) so the UI team designs against a frozen API contract.</p>
+        <p><strong>Follow-up trigger</strong>: If Phase 4 resolves OQ-17 = "public UI required" → invoke <code>/api-handoff</code> after Phase 7.</p>
       </section>
       <section class="phase-section" id="phase-4">
         <h2>Phase 4: Blocker Resolution <span class="phase-badge pending">Pending</span></h2>

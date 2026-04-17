@@ -195,6 +195,39 @@
 
 ---
 
+### Phase 3: UI Requirements Extraction — 2026-04-18
+
+**Status**: ⏭️  SKIPPED (user decision)
+
+**What was done**:
+
+1. Attempted `WebFetch` on v0.app URL — confirmed it's a client-side-rendered chat shell with no SSR'd UI content ("This page is primarily a client-side chat interface shell with minimal rendered visual content").
+2. Verified `mcp list` — Chrome MCP NOT in available MCP servers (only Excalidraw, GDrive, Slack, Figma [failed], Atlassian, Gmail, capdoc). No headed-browser capability this session.
+3. Presented 4 options to user:
+   - Option 1: Provide screenshots
+   - Option 2: Provide text description / markdown path
+   - Option 3: Skip Phase 3 entirely (default recommendation)
+   - Option 4: Hybrid
+4. **User chose Option 3 — skip**.
+
+**Rationale for skipping** (recorded as D-17):
+- v0.app prototype predates Phase 1 scope simplification (descoped Matrix View, aiRa, subscription picker, per-type value fields, maker-checker). Extracting requirements from it risks re-introducing out-of-scope concepts into ACs.
+- UI-embedded design questions (cascade warning UX for C-6, reactivation asymmetry, POST-409-or-reactivate for C-7) require product decisions in Phase 4 blocker resolution, not extraction from a prototype.
+- Phase 4 may resolve OQ-17 to "ship as internal plumbing, no UI exposed" — in which case Phase 3 would have been wasted work.
+- If UI is kept in scope after Phase 4, we'll produce an `/api-handoff` document after Phase 7 (Designer) so the UI team designs against a frozen API contract rather than the pipeline reverse-engineering requirements from a pre-descoped prototype.
+
+**Artifacts produced**: None (phase skipped).
+
+**Follow-up**:
+- If Phase 4 resolves OQ-17 = "public UI required", invoke `/api-handoff` skill after Phase 7 to generate the UI contract doc.
+- If Phase 4 resolves OQ-17 = "internal only", no further UI work needed for MVP.
+
+**Git**:
+- No code/artifact changes — just state update + session-memory decision
+- Tag: `aidlc/CAP-185145/phase-03-skipped` (preserves revert point)
+
+---
+
 ## Rework History
 
 _(Populated if phases route back to earlier phases.)_
