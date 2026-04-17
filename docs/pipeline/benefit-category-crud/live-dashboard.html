@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Benefit Category CRUD — Live Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --panel: #242441;
+      --panel-2: #2d2d52;
+      --border: #3a3a60;
+      --text: #e0e0e0;
+      --muted: #9a9ac0;
+      --accent: #00d4ff;
+      --accent-2: #8a6dff;
+      --green: #4ade80;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --grey: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    aside h1 { font-size: 16px; margin: 0 0 4px 0; color: var(--accent); }
+    aside .ticket { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+    .nav-section { margin-top: 16px; }
+    .nav-title { font-size: 11px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.5px; }
+    .nav-link {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; margin: 2px 0;
+      font-size: 13px;
+      color: var(--text);
+      text-decoration: none;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .nav-link:hover { background: var(--panel-2); }
+    .nav-link .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--grey);
+    }
+    .nav-link.complete .status-dot { background: var(--green); }
+    .nav-link.active .status-dot { background: var(--yellow); }
+    main { padding: 32px 40px; max-width: 1400px; }
+    header.page-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px; margin-bottom: 32px;
+    }
+    header.page-header h1 { margin: 0 0 8px 0; font-size: 28px; }
+    header.page-header .meta { color: var(--muted); font-size: 14px; }
+    .progress-bar {
+      display: flex; gap: 2px; margin: 20px 0 8px; height: 10px; background: var(--panel);
+      border-radius: 4px; overflow: hidden;
+    }
+    .segment { flex: 1; background: var(--grey); }
+    .segment.complete { background: var(--green); }
+    .segment.active { background: var(--yellow); }
+    .progress-stats {
+      display: flex; gap: 24px; font-size: 13px; color: var(--muted); margin-top: 8px;
+    }
+    .stat-value { color: var(--accent); font-weight: 600; }
+    .phase-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .phase-section h2 {
+      margin: 0 0 8px 0; font-size: 18px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .phase-badge {
+      font-size: 11px; padding: 3px 10px; border-radius: 12px;
+      background: var(--grey); color: #fff; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .phase-badge.complete { background: var(--green); color: #0a0a0a; }
+    .phase-badge.active { background: var(--yellow); color: #0a0a0a; }
+    .phase-badge.pending { background: var(--grey); }
+    .phase-time { font-size: 12px; color: var(--muted); margin: 0 0 12px 0; }
+    .skill-tag {
+      display: inline-block; font-size: 12px; padding: 2px 8px;
+      background: var(--accent-2); color: #fff; border-radius: 4px;
+      font-family: 'SF Mono', Menlo, monospace; margin-right: 6px;
+    }
+    .key-numbers { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+    .key-number {
+      background: var(--panel-2);
+      padding: 12px 20px; border-radius: 6px;
+      min-width: 120px; text-align: center;
+    }
+    .key-number .value { font-size: 22px; font-weight: 600; color: var(--accent); }
+    .key-number .label { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+    .data-table {
+      width: 100%; border-collapse: collapse; margin: 12px 0;
+      font-size: 13px;
+    }
+    .data-table th, .data-table td {
+      border: 1px solid var(--border); padding: 8px 12px; text-align: left;
+    }
+    .data-table th { background: var(--panel-2); color: var(--accent); font-weight: 600; }
+    .artifact-list { list-style: none; padding: 0; margin: 8px 0; }
+    .artifact-list li {
+      display: inline-block; margin: 2px 4px;
+      padding: 3px 10px;
+      background: var(--panel-2);
+      border-radius: 4px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .status-ok { color: var(--green); }
+    .status-warn { color: var(--yellow); }
+    .status-err { color: var(--red); }
+    .mermaid { background: #fff; border-radius: 6px; padding: 12px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h1>Benefit Category CRUD</h1>
+      <div class="ticket">CAP-185145 · aidlc/CAP-185145</div>
+
+      <div class="nav-section">
+        <div class="nav-title">Phases</div>
+        <a class="nav-link complete" href="#phase-0"><span>0. Input Collection</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-3"><span>3. UI Extraction</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-6a"><span>6a. Impact Analysis</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-6b"><span>6b. Migration Planning</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-7"><span>7. Designer (LLD)</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-11"><span>11. Reviewer</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#phase-12"><span>12. Blueprint</span><span class="status-dot"></span></a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Quick Links</div>
+        <a class="nav-link" href="#qa"><span>BA Q&amp;A</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#architecture"><span>Architecture</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#api-contracts"><span>API Contracts</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#hld-diagrams"><span>HLD Diagrams</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#lld-diagrams"><span>LLD Diagrams</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#cross-repo"><span>Cross-Repo Map</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#implementation"><span>Implementation</span><span class="status-dot"></span></a>
+        <a class="nav-link" href="#review"><span>Review Findings</span><span class="status-dot"></span></a>
+      </div>
+    </aside>
+
+    <main>
+      <header class="page-header">
+        <h1>Benefit Category CRUD</h1>
+        <div class="meta">
+          CAP-185145 · Started 2026-04-17 · Pipeline v1.0 · Branch <code>aidlc/CAP-185145</code>
+        </div>
+        <div class="progress-bar">
+          <div class="segment complete"></div>
+          <div class="segment active"></div>
+          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div>
+        </div>
+        <div class="progress-stats">
+          <span><span class="stat-value">1</span> / 19 phases complete</span>
+          <span><span class="stat-value">6</span> artifacts generated</span>
+          <span><span class="stat-value">2</span> decisions made</span>
+          <span><span class="stat-value">0</span> code files written</span>
+        </div>
+      </header>
+
+      <section class="phase-section" id="phase-0">
+        <h2>Phase 0: Input Collection <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-17</p>
+        <p>All inputs validated, feature branches created across 5 repos, jdtls confirmed running, artifacts scaffolded.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">5</div><div class="label">Repos</div></div>
+          <div class="key-number"><div class="value">47</div><div class="label">BRD Pages</div></div>
+          <div class="key-number"><div class="value">2179</div><div class="label">BRD Lines</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">JDTLS Daemons</div></div>
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Repo Validation</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Repo</th><th>Default Branch</th><th>Feature Branch</th><th>JDTLS</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>kalpavriksha (current)</td><td>main</td><td>aidlc/CAP-185145</td><td>—</td><td class="status-ok">✅ ready</td></tr>
+            <tr><td>emf-parent</td><td>main</td><td>aidlc/CAP-185145</td><td class="status-ok">running</td><td class="status-ok">✅ ready</td></tr>
+            <tr><td>intouch-api-v3</td><td>main</td><td>aidlc/CAP-185145</td><td class="status-ok">running</td><td class="status-ok">✅ ready</td></tr>
+            <tr><td>cc-stack-crm</td><td>master</td><td>aidlc/CAP-185145</td><td class="status-ok">running</td><td class="status-ok">✅ ready</td></tr>
+            <tr><td>thrift-ifaces-pointsengine-rules</td><td>main</td><td>aidlc/CAP-185145</td><td class="status-ok">running</td><td class="status-ok">✅ ready</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Inputs</h3>
+        <table class="data-table">
+          <tbody>
+            <tr><th>BRD</th><td><code>/Users/anujgupta/Downloads/Tiers_Benefits_PRD_v3_Full.pdf</code> → extracted to <code>brd-raw.md</code></td></tr>
+            <tr><th>UI Source</th><td><a href="https://v0.app/chat/benefits-tiers-brainstorming-4lEe2941qm1" style="color: var(--accent);">v0.app prototype</a> (Chrome MCP unavailable — will request screenshots in Phase 3)</td></tr>
+            <tr><th>Artifacts Path</th><td><code>docs/pipeline/benefit-category-crud/</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Artifacts</h3>
+        <ul class="artifact-list">
+          <li>brd-raw.md</li>
+          <li>session-memory.md</li>
+          <li>process-log.md</li>
+          <li>approach-log.md</li>
+          <li>live-dashboard.html</li>
+          <li>pipeline-state.json</li>
+        </ul>
+      </section>
+
+      <section class="phase-section" id="phase-1">
+        <h2>Phase 1: BA + PRD + ProductEx (parallel) <span class="phase-badge active">In Progress</span></h2>
+        <p class="phase-time">Starting: 2026-04-17</p>
+        <span class="skill-tag">/ba</span><span class="skill-tag">/productex</span>
+        <p>BA deep-dive runs interactively; ProductEx reviews the BRD in parallel as a background subagent.</p>
+      </section>
+
+      <section class="phase-section" id="phase-2">
+        <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-3">
+        <h2>Phase 3: UI Extraction <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-4">
+        <h2>Phase 4: Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-5">
+        <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-6">
+        <h2>Phase 6: Architecture (HLD) <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-6a">
+        <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-6b">
+        <h2>Phase 6b: Migration Planning <span class="phase-badge pending">Pending (conditional)</span></h2>
+      </section>
+      <section class="phase-section" id="phase-7">
+        <h2>Phase 7: Designer (LLD) <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-8">
+        <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-8b">
+        <h2>Phase 8b: Business Test Generation <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-9">
+        <h2>Phase 9: SDET — RED <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-10">
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-10b">
+        <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-10c">
+        <h2>Phase 10c: Compliance (Architecture vs Code) <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-10d">
+        <h2>Phase 10d: Migration Validation <span class="phase-badge pending">Pending (conditional)</span></h2>
+      </section>
+      <section class="phase-section" id="phase-11">
+        <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
+      </section>
+      <section class="phase-section" id="phase-12">
+        <h2>Phase 12: Blueprint <span class="phase-badge pending">Pending</span></h2>
+      </section>
+
+      <!-- Quick link destinations (filled as phases complete) -->
+      <section class="phase-section" id="qa">
+        <h2>BA Q&amp;A <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="architecture">
+        <h2>Architecture <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="api-contracts">
+        <h2>API Contracts <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="hld-diagrams">
+        <h2>HLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="lld-diagrams">
+        <h2>LLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="cross-repo">
+        <h2>Cross-Repo Map <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="implementation">
+        <h2>Implementation <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+      <section class="phase-section" id="review">
+        <h2>Review Findings <span class="phase-badge pending">Not yet populated</span></h2>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
+</body>
+</html>

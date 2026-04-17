@@ -1,0 +1,60 @@
+{
+  "feature": "Benefit Category CRUD",
+  "ticket": "CAP-185145",
+  "artifacts_path": "docs/pipeline/benefit-category-crud/",
+  "started_at": "2026-04-17",
+  "pipeline_version": "1.0",
+  "dashboard_enabled": true,
+  "lsp_enabled": true,
+  "inputs": {
+    "brd_path": "/Users/anujgupta/Downloads/Tiers_Benefits_PRD_v3_Full.pdf",
+    "brd_raw_extracted": "docs/pipeline/benefit-category-crud/brd-raw.md",
+    "code_repos": [
+      "/Users/anujgupta/IdeaProjects/kalpavriksha",
+      "/Users/anujgupta/IdeaProjects/emf-parent",
+      "/Users/anujgupta/IdeaProjects/intouch-api-v3-2/intouch-api-v3",
+      "/Users/anujgupta/IdeaProjects/cc-stack-crm",
+      "/Users/anujgupta/IdeaProjects/thrift-ifaces-pointsengine-rules"
+    ],
+    "ui_source": {
+      "type": "url",
+      "url": "https://v0.app/chat/benefits-tiers-brainstorming-4lEe2941qm1?ref=8CQ1DC&b=v0-preview-b_beJe0cNTjk4&f=1&path=%2Fprogram%2Ftiers",
+      "chrome_mcp_available": false,
+      "note": "v0.app is client-side rendered; Chrome MCP not available this session. Phase 3 will request screenshots or fallback to WebFetch."
+    }
+  },
+  "git_branches": {
+    "/Users/anujgupta/IdeaProjects/kalpavriksha": {"default_branch": "main", "feature_branch": "aidlc/CAP-185145"},
+    "/Users/anujgupta/IdeaProjects/emf-parent": {"default_branch": "main", "feature_branch": "aidlc/CAP-185145"},
+    "/Users/anujgupta/IdeaProjects/intouch-api-v3-2/intouch-api-v3": {"default_branch": "main", "feature_branch": "aidlc/CAP-185145"},
+    "/Users/anujgupta/IdeaProjects/cc-stack-crm": {"default_branch": "master", "feature_branch": "aidlc/CAP-185145"},
+    "/Users/anujgupta/IdeaProjects/thrift-ifaces-pointsengine-rules": {"default_branch": "main", "feature_branch": "aidlc/CAP-185145"}
+  },
+  "phases": {
+    "0":   {"status": "complete", "completed_at": "2026-04-17", "artifacts": ["brd-raw.md", "session-memory.md", "process-log.md", "approach-log.md", "live-dashboard.html", "pipeline-state.json"]},
+    "1":   {"status": "pending", "name": "BA + PRD + ProductEx (parallel)"},
+    "2":   {"status": "pending", "name": "Critic + Gap Analysis"},
+    "3":   {"status": "pending", "name": "UI Requirements Extraction"},
+    "4":   {"status": "pending", "name": "Grooming + Blocker Resolution"},
+    "5":   {"status": "pending", "name": "Codebase Research + Cross-Repo Tracing"},
+    "6":   {"status": "pending", "name": "HLD — Architect"},
+    "6a":  {"status": "pending", "name": "Impact Analysis"},
+    "6b":  {"status": "pending", "name": "Migration Planning (conditional)"},
+    "7":   {"status": "pending", "name": "LLD — Designer"},
+    "8":   {"status": "pending", "name": "QA"},
+    "8b":  {"status": "pending", "name": "Business Test Generation"},
+    "9":   {"status": "pending", "name": "SDET — RED Phase"},
+    "10":  {"status": "pending", "name": "Developer — GREEN Phase"},
+    "10b": {"status": "pending", "name": "Backend Readiness"},
+    "10c": {"status": "pending", "name": "Gap Analysis — Architecture vs Code"},
+    "10d": {"status": "pending", "name": "Migration Validation (conditional)"},
+    "11":  {"status": "pending", "name": "Reviewer"},
+    "12":  {"status": "pending", "name": "Documentation + Blueprint"}
+  },
+  "git_tags": ["aidlc/CAP-185145/phase-00"],
+  "rework_cycles": [],
+  "confluence": {
+    "configured": false,
+    "note": "Not yet configured for this run — will publish when /confluence-publisher is invoked."
+  }
+}
