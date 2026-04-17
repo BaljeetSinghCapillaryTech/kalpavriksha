@@ -32,7 +32,7 @@
   },
   "phases": {
     "0":   {"status": "complete", "completed_at": "2026-04-17", "artifacts": ["brd-raw.md", "session-memory.md", "process-log.md", "approach-log.md", "live-dashboard.html", "pipeline-state.json"]},
-    "1":   {"status": "pending", "name": "BA + PRD + ProductEx (parallel)"},
+    "1":   {"status": "complete", "completed_at": "2026-04-18", "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md", "brdQnA.md", "../../../docs/product/registry.md"], "decisions_recorded": ["D-03","D-04","D-05","D-06","D-07","D-08","D-09","D-10","D-11","D-12","D-13","D-14","D-15","D-16"], "open_questions": ["OQ-4","OQ-12","OQ-15"], "blocking_for_phase_6": ["OQ-15"]},
     "2":   {"status": "pending", "name": "Critic + Gap Analysis"},
     "3":   {"status": "pending", "name": "UI Requirements Extraction"},
     "4":   {"status": "pending", "name": "Grooming + Blocker Resolution"},
@@ -51,7 +51,7 @@
     "11":  {"status": "pending", "name": "Reviewer"},
     "12":  {"status": "pending", "name": "Documentation + Blueprint"}
   },
-  "git_tags": ["aidlc/CAP-185145/phase-00"],
+  "git_tags": ["aidlc/CAP-185145/phase-00", "aidlc/CAP-185145/phase-01"],
   "rework_cycles": [],
   "confluence": {
     "configured": false,

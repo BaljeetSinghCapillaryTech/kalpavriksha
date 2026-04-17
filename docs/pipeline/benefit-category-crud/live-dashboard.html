@@ -139,8 +139,8 @@
       <div class="nav-section">
         <div class="nav-title">Phases</div>
         <a class="nav-link complete" href="#phase-0"><span>0. Input Collection</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-3"><span>3. UI Extraction</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
@@ -161,7 +161,7 @@
 
       <div class="nav-section">
         <div class="nav-title">Quick Links</div>
-        <a class="nav-link" href="#qa"><span>BA Q&amp;A</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#qa"><span>BA Q&amp;A</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#architecture"><span>Architecture</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#api-contracts"><span>API Contracts</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#hld-diagrams"><span>HLD Diagrams</span><span class="status-dot"></span></a>
@@ -180,8 +180,9 @@
         </div>
         <div class="progress-bar">
           <div class="segment complete"></div>
+          <div class="segment complete"></div>
           <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
@@ -189,9 +190,9 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">1</span> / 19 phases complete</span>
-          <span><span class="stat-value">6</span> artifacts generated</span>
-          <span><span class="stat-value">2</span> decisions made</span>
+          <span><span class="stat-value">2</span> / 19 phases complete</span>
+          <span><span class="stat-value">10</span> artifacts generated</span>
+          <span><span class="stat-value">14</span> decisions made</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -243,14 +244,151 @@
       </section>
 
       <section class="phase-section" id="phase-1">
-        <h2>Phase 1: BA + PRD + ProductEx (parallel) <span class="phase-badge active">In Progress</span></h2>
-        <p class="phase-time">Starting: 2026-04-17</p>
+        <h2>Phase 1: BA + PRD + ProductEx (parallel) <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
         <span class="skill-tag">/ba</span><span class="skill-tag">/productex</span>
-        <p>BA deep-dive runs interactively; ProductEx reviews the BRD in parallel as a background subagent.</p>
+        <p>BA deep-dive through 7 Q&amp;A rounds with the user; ProductEx ran in parallel as a background subagent, producing brdQnA.md and the product registry. Feature scope substantially simplified by user — thin config registry, no value payload, no trigger semantics, no maker-checker, strict coexistence with legacy Benefits.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">7</div><div class="label">Q&amp;A Rounds</div></div>
+          <div class="key-number"><div class="value">14</div><div class="label">Decisions</div></div>
+          <div class="key-number"><div class="value">10</div><div class="label">User Stories</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">In-scope ACs</div></div>
+          <div class="key-number"><div class="value">9</div><div class="label">Out-of-scope items</div></div>
+          <div class="key-number"><div class="value">3</div><div class="label">Open Questions</div></div>
+        </div>
+
+        <h3 id="qa" style="font-size: 14px; color: var(--accent);">BA Q&amp;A History</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Q#</th><th>Topic</th><th>User Answer</th><th>Decision</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td>Scope</td><td>2 — Category CRUD + Instance linking</td><td>D-03</td></tr>
+            <tr><td>Q2</td><td>isActive semantics</td><td>3 — Single explicit boolean flag</td><td>D-04</td></tr>
+            <tr><td>Q3</td><td>Maker-checker lifecycle</td><td>4 → A — <strong>Descoped entirely for MVP</strong></td><td>D-05</td></tr>
+            <tr><td>Q4</td><td>categoryType enum + triggerEvent</td><td>4 → e — Single <code>BENEFITS</code>, drop triggerEvent, instance has no value</td><td>D-06 to D-11</td></tr>
+            <tr><td>Q5</td><td>Coexistence with legacy Benefits</td><td>1 — Strict coexistence, zero FK/column changes</td><td>D-12</td></tr>
+            <tr><td>Q6</td><td>Delete + cascade</td><td>A2 + B1 — Soft-delete only + cascade deactivation</td><td>D-13, D-14</td></tr>
+            <tr><td>Q7</td><td>Uniqueness + tenancy</td><td>yes — Per-program name uniqueness, org_id + program_id on tables</td><td>D-15, D-16</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Scope Summary</h3>
+        <div class="mermaid">
+flowchart TB
+    subgraph IN["IN SCOPE (MVP)"]
+        C1[Category CRUD]
+        C2[Instance CRUD — pure association, no value]
+        C3[Soft-delete via is_active]
+        C4[Cascade deactivate]
+        C5[Per-program name uniqueness]
+        C6[Tenancy: org_id + program_id]
+    end
+    subgraph OUT["OUT OF SCOPE (deferred)"]
+        O1[9 category types & semantics]
+        O2[triggerEvent derivation]
+        O3[Per-type value schemas]
+        O4[Benefit awarding logic]
+        O5[Maker-checker approval]
+        O6[Hard-delete]
+        O7[aiRa mapping]
+        O8[Matrix View UI]
+        O9[Subscription picker]
+    end
+    EXTERN["External reader (TBD — likely EMF)"]
+    IN -->|"config consumed by"| EXTERN
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Data Model — Entities</h3>
+        <div class="mermaid">
+erDiagram
+    BENEFIT_CATEGORY ||--o{ BENEFIT_INSTANCE : "has many"
+    PROGRAM ||--o{ BENEFIT_CATEGORY : "contains"
+    PROGRAM ||--o{ TIER : "contains"
+    TIER ||--o{ BENEFIT_INSTANCE : "linked by"
+    ORG ||--o{ PROGRAM : "owns"
+    BENEFIT_CATEGORY {
+        long id PK
+        long org_id
+        long program_id
+        string name "unique per program"
+        enum category_type "BENEFITS only in MVP"
+        json tier_applicability
+        boolean is_active
+    }
+    BENEFIT_INSTANCE {
+        long id PK
+        long org_id
+        long program_id
+        long category_id FK
+        long tier_id FK
+        boolean is_active
+    }
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Deactivation Cascade</h3>
+        <div class="mermaid">
+sequenceDiagram
+    actor Maya
+    participant API
+    participant Svc as CategoryService
+    participant DB
+    Maya->>API: PATCH /category/{id} {is_active: false}
+    API->>Svc: deactivateCategory(id, userCtx)
+    Svc->>DB: BEGIN TXN
+    Svc->>DB: UPDATE benefit_category SET is_active=false
+    Svc->>DB: UPDATE benefit_instance SET is_active=false WHERE category_id=?
+    DB-->>Svc: COMMIT (or ROLLBACK on any failure)
+    Svc-->>API: 200 {category + affected_count}
+    API-->>Maya: 200
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">User Stories</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Epic</th><th>Story</th><th>Priority</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>US-1</td><td>E1 Category Mgmt</td><td>Create Benefit Category</td><td>P0</td></tr>
+            <tr><td>US-2</td><td>E1</td><td>List Categories (filter by isActive)</td><td>P0</td></tr>
+            <tr><td>US-3</td><td>E1</td><td>View Category details</td><td>P0</td></tr>
+            <tr><td>US-4</td><td>E1</td><td>Update Category (name, tierApplicability)</td><td>P0</td></tr>
+            <tr><td>US-5</td><td>E1</td><td>Deactivate Category (cascades)</td><td>P0</td></tr>
+            <tr><td>US-6</td><td>E1</td><td>Reactivate Category (instances stay off)</td><td>P1</td></tr>
+            <tr><td>US-7</td><td>E2 Instance Linking</td><td>Create Instance (link category → tier)</td><td>P0</td></tr>
+            <tr><td>US-8</td><td>E2</td><td>List Instances for a Category</td><td>P0</td></tr>
+            <tr><td>US-9</td><td>E2</td><td>Deactivate Instance</td><td>P0</td></tr>
+            <tr><td>US-10</td><td>E2</td><td>Reactivate Instance (parent must be active)</td><td>P1</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Open Questions (Carried Forward)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Question</th><th>Owner</th><th>Blocking?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>OQ-4</td><td>AC-BC04/05/06 missing in BRD — intentional gap?</td><td>Product</td><td>No</td></tr>
+            <tr><td>OQ-12</td><td>BRD epic numbering E2 vs E4 — which one does CAP-185145 belong to?</td><td>Product</td><td>No</td></tr>
+            <tr><td>OQ-15</td><td><strong>Which existing system CONSUMES this config and applies benefits?</strong></td><td>Engineering (Phase 5)</td><td class="status-warn">⚠️ Yes — blocks Phase 6 API freeze</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Artifacts</h3>
+        <ul class="artifact-list">
+          <li>00-ba.md — human-readable BA doc (scope, stories, ACs, data model, diagrams)</li>
+          <li>00-ba-machine.md — YAML frontmatter for downstream phases</li>
+          <li>00-prd.md — human-readable PRD (problem, goals, success metrics, follow-ups)</li>
+          <li>00-prd-machine.md — YAML frontmatter for PRD</li>
+          <li>brdQnA.md — ProductEx's BRD review (17 questions, 6 conflicts, 4 blocking gaps)</li>
+          <li>../../product/registry.md — Product knowledge base (created by ProductEx)</li>
+        </ul>
       </section>
 
       <section class="phase-section" id="phase-2">
-        <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge active">Up Next</span></h2>
+        <p>Two parallel subagents — Critic challenges BA/PRD claims; Analyst (compliance mode) verifies claims against codebase.</p>
       </section>
       <section class="phase-section" id="phase-3">
         <h2>Phase 3: UI Extraction <span class="phase-badge pending">Pending</span></h2>
