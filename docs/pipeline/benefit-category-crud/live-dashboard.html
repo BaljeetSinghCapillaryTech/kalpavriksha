@@ -140,8 +140,8 @@
         <div class="nav-title">Phases</div>
         <a class="nav-link complete" href="#phase-0"><span>0. Input Collection</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-3"><span>3. UI Extraction</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-3"><span>3. UI Extraction</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
@@ -181,8 +181,8 @@
         <div class="progress-bar">
           <div class="segment complete"></div>
           <div class="segment complete"></div>
-          <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div>
+          <div class="segment complete"></div>
+          <div class="segment active"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
@@ -190,9 +190,10 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">2</span> / 19 phases complete</span>
-          <span><span class="stat-value">10</span> artifacts generated</span>
+          <span><span class="stat-value">3</span> / 19 phases complete</span>
+          <span><span class="stat-value">12</span> artifacts generated</span>
           <span><span class="stat-value">14</span> decisions made</span>
+          <span><span class="stat-value">26</span> findings surfaced</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -387,8 +388,122 @@ sequenceDiagram
       </section>
 
       <section class="phase-section" id="phase-2">
-        <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge active">Up Next</span></h2>
-        <p>Two parallel subagents — Critic challenges BA/PRD claims; Analyst (compliance mode) verifies claims against codebase.</p>
+        <h2>Phase 2: Critic + Gap Analysis <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
+        <span class="skill-tag">Critic (principles.md)</span><span class="skill-tag">/analyst --compliance</span>
+        <p>Two parallel subagents (both opus). Critic produced 18 contradictions (adversarial review); Analyst verified 10 BA/PRD claims against the 5-repo codebase and found 11 gaps + 5 guardrail concerns. <strong>Bottom line: 9 BLOCKERS must be resolved in Phase 4 before Phase 6 (Architect) can freeze the design.</strong></p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">18</div><div class="label">Contradictions</div></div>
+          <div class="key-number"><div class="value">7</div><div class="label">Critic Blockers</div></div>
+          <div class="key-number"><div class="value">10</div><div class="label">Claims verified</div></div>
+          <div class="key-number"><div class="value">2</div><div class="label">Contradicted</div></div>
+          <div class="key-number"><div class="value">11</div><div class="label">Gaps found</div></div>
+          <div class="key-number"><div class="value">5</div><div class="label">Guardrail concerns</div></div>
+          <div class="key-number" style="background: #4a2730;"><div class="value" style="color: var(--red);">9</div><div class="label">Total Blockers</div></div>
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Findings Distribution</h3>
+        <div class="mermaid">
+pie showData
+    title Critic — 18 Contradictions by Severity
+    "BLOCKER (C-1..C-7)" : 7
+    "WARNING (C-8..C-15)" : 8
+    "NIT (C-16..C-18)" : 3
+        </div>
+
+        <div class="mermaid">
+pie showData
+    title Gap Analyser — 10 Claims Verified
+    "CONFIRMED (C6/C7)" : 5
+    "CONTRADICTED (C6/C7)" : 2
+    "PARTIAL (C3)" : 3
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">BA Claim vs Codebase Reality — Key Mismatches</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>BA/PRD Claim</th><th>Codebase Reality</th><th>Verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>V8</td><td>FK to existing <code>Tier</code> table</td><td>Entity is <code>ProgramSlab</code>, table <code>program_slabs</code>, composite PK <code>(id, org_id)</code></td><td class="status-err">CONTRADICTED</td></tr>
+            <tr><td>V9</td><td>Legacy Benefits has maker-checker workflow</td><td>Maker-checker lives in <code>UnifiedPromotion</code> (Mongo). Legacy <code>Benefits</code> has only <code>is_active</code></td><td class="status-err">CONTRADICTED</td></tr>
+            <tr><td>V5</td><td>EMF tier event forest is likely consumer</td><td>EMF helpers emit events; read NO benefit config today — integration is net-new</td><td class="status-warn">PARTIAL (C3)</td></tr>
+            <tr><td>G-1</td><td><code>long</code> PK on new tables</td><td>Platform-wide <code>int(11)</code> + <code>OrgEntityIntegerPKBase</code> composite PK. Thrift IDL <code>i32</code></td><td class="status-err">BLOCKER</td></tr>
+            <tr><td>G-3</td><td><code>updated_at</code>/<code>updated_by</code> columns</td><td>ZERO tables have <code>updated_at</code>. All use <code>created_on</code> + MySQL <code>auto_update_time TIMESTAMP ON UPDATE</code></td><td class="status-err">BLOCKER</td></tr>
+            <tr><td>G-4</td><td>Timestamps unspecified</td><td>Platform uses <code>java.util.Date</code> (violates G-01.3). G-01 vs G-12.2 tension</td><td class="status-warn">CRITICAL</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Top Blockers for Phase 4</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Source</th><th>Blocker</th><th>Why it blocks Phase 6</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>C-1 / OQ-15</td><td>Critic</td><td>Consumer identity unknown</td><td>API shape is consumer-driven; can't freeze without naming the consumer</td></tr>
+            <tr><td>C-2</td><td>Critic</td><td>MVP delivers no independent value</td><td>Descoped to a "tuple with a name" — product sign-off needed</td></tr>
+            <tr><td>C-3</td><td>Critic</td><td>Maker-checker descoping is a compliance decision</td><td>May require customer-org sign-off; reintroduction is a breaking change without a reserved column</td></tr>
+            <tr><td>C-4</td><td>Critic</td><td>BenefitInstance redundant with tier_applicability post-D-09</td><td>Data model has two-way ambiguity; lifecycle undefined</td></tr>
+            <tr><td>C-5</td><td>Critic</td><td>Cascade transaction unbounded</td><td>No row-cap, no batch strategy, consistency model wrt replicas unclear</td></tr>
+            <tr><td>C-6</td><td>Critic</td><td>Reactivation asymmetry is a UX trap</td><td>Undo doesn't work; recommend admin-choice at reactivation</td></tr>
+            <tr><td>C-7</td><td>Critic</td><td>AC-BC03' clause 3 embeds an open design question</td><td>POST duplicate = reactivate or 409? Affects data model + idempotency</td></tr>
+            <tr><td>Q-GAP-1</td><td>Analyst</td><td>PK type <code>long</code> vs platform's <code>int</code> composite</td><td>Wrong type breaks Thrift RPC, <code>OrgEntityIntegerPKBase</code> reuse, join parity</td></tr>
+            <tr><td>Q-GAP-2</td><td>Analyst</td><td>Tier vs Slab naming</td><td>FK target is <code>program_slabs</code>; needs ADR + DTO translation layer</td></tr>
+            <tr><td>Q-GAP-3</td><td>Analyst</td><td>Audit column pattern — invented vs platform-match</td><td>BA's <code>updated_at</code> doesn't exist anywhere in code</td></tr>
+            <tr><td>Q-GAP-4</td><td>Analyst</td><td>Timestamps — Date vs Instant</td><td>G-01 (CRITICAL guardrail) vs G-12.2 (follow existing) — explicit user decision required</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Guardrail Compliance</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Guardrail</th><th>Status</th><th>Severity</th><th>Concern</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>G-01 Timezone</td><td class="status-warn">WARN</td><td class="status-err">CRITICAL</td><td>Platform-wide <code>java.util.Date</code> violates G-01.3; G-12.2 says follow patterns. Tension.</td></tr>
+            <tr><td>G-07 Multi-Tenancy</td><td class="status-warn">WARN</td><td class="status-err">CRITICAL</td><td>No Hibernate <code>@Filter</code> for org_id enforcement — by-convention only</td></tr>
+            <tr><td>G-03 Security</td><td class="status-warn">WARN</td><td class="status-warn">HIGH</td><td>Bean Validation not prescribed on DTOs</td></tr>
+            <tr><td>G-05 Data Integrity</td><td class="status-warn">WARN</td><td class="status-warn">HIGH</td><td>No <code>@Version</code> optimistic locking; race on name-create needs explicit 409 handling</td></tr>
+            <tr><td>G-12 AI-specific</td><td class="status-ok">PASS</td><td>MEDIUM</td><td>Gap analysis IS the "read before write" pattern; G-01 tension flagged</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Confidence Calibration — BA Implicit vs Critic Calibrated</h3>
+        <div class="mermaid">
+flowchart LR
+    subgraph BA["BA Original (implicit)"]
+        BA1[Consumer = EMF C3]
+        BA2[MVP delivers value C5]
+        BA3[Descope maker-checker C5]
+        BA4[Two-entity design C5]
+        BA5[Cascade in single txn C5]
+        BA6[Reactivation asymmetry C5]
+        BA7[long PK C5]
+    end
+    subgraph CR["Critic Calibrated"]
+        CR1[C3 action needs C4+]
+        CR2[C3 no outcome metric]
+        CR3[C2 no compliance sign-off]
+        CR4[C2 semantic redundancy]
+        CR5[C3 no scale cap]
+        CR6[C3 option c not considered]
+        CR7[C2 vs composite PK]
+    end
+    BA1 -->|calibrated ⬇| CR1
+    BA2 -->|⬇⬇| CR2
+    BA3 -->|⬇⬇⬇| CR3
+    BA4 -->|⬇⬇⬇| CR4
+    BA5 -->|⬇⬇| CR5
+    BA6 -->|⬇⬇| CR6
+    BA7 -->|⬇⬇⬇| CR7
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Artifacts</h3>
+        <ul class="artifact-list">
+          <li>contradictions.md — 18 Critic findings (7 blockers, 8 warnings, 3 nits)</li>
+          <li>gap-analysis-brd.md — 10 claim verifications + 11 gaps + 5 guardrail concerns</li>
+        </ul>
       </section>
       <section class="phase-section" id="phase-3">
         <h2>Phase 3: UI Extraction <span class="phase-badge pending">Pending</span></h2>

@@ -119,6 +119,82 @@
 
 ---
 
+### Phase 2: Critic + Gap Analysis — 2026-04-18
+
+**Status**: ✅ Complete
+
+**Skills used**: Critic (principles.md — adversarial self-questioning, 5-Question Doubt Resolver, pre-mortem) + `/analyst --compliance` (BA/PRD claim verification against codebase + guardrail compliance check). Both subagents ran in parallel on **opus** model.
+
+**What was done**:
+
+1. **Critic subagent** — adversarial review of 00-ba.md + 00-prd.md + session-memory.md:
+   - Produced `contradictions.md` with 18 findings:
+     - 7 BLOCKERS (C-1 through C-7) — must resolve before Phase 6
+     - 8 WARNINGS (C-8 through C-15)
+     - 3 NITS (C-16 through C-18)
+   - Top 3 systemic concerns:
+     - C-1: Consumer identity unknown — proceeding to Phase 6 on C3 evidence violates Principle 2 (irreversible + below C4 = pause)
+     - C-2: MVP has been hollowed out to "a tuple with a name" — no independent product value
+     - C-3: Descoping maker-checker is a compliance decision, not a resourcing call — no evidence of product/compliance sign-off
+   - 11 explicit user questions compiled for Phase 4
+
+2. **Gap Analyser subagent** (analyst --compliance mode) — verified BA/PRD claims against the 5-repo codebase:
+   - Produced `gap-analysis-brd.md` with:
+     - 10 claim verifications: 5 CONFIRMED (C6/C7), 2 CONTRADICTED (C6/C7), 3 PARTIAL (C3)
+     - 11 gaps the BA missed (G-1 through G-11)
+     - 5 guardrail concerns (1 CRITICAL, 3 HIGH, 1 MEDIUM)
+   - Contradicted claims:
+     - **V8**: "Tier table" doesn't exist — entity is `ProgramSlab`, table `program_slabs`, composite PK `(id, org_id)`. BA's FK target needs renaming.
+     - **V9**: Legacy `Benefits` has NO maker-checker — that flow lives in `UnifiedPromotion` (MongoDB `@Document`). Legacy `Benefits` is just `is_active`.
+   - Partial claim:
+     - **V5**: EMF tier event forest is "likely consumer" is C3, not the C5/C6 the BA implied. Grep for `Benefits` in `eventForestModel/` returns 0 files — EMF helpers emit tier events but do NOT read benefit config. PRD §9 "EMF integration LOW risk" is wrong.
+   - Top gaps:
+     - **G-1 (BLOCKER)**: PK type — BA says `long`; platform uses `int(11)` + `OrgEntityIntegerPKBase` composite PK. Thrift IDL `SlabInfo` uses `i32`. ProductEx already flagged (CF-01/BE-01).
+     - **G-2 (BLOCKER)**: "Tier" naming vs `program_slabs` reality — FK column naming decision required.
+     - **G-3 (BLOCKER)**: `updated_at`/`updated_by` columns — NO existing table has them. Platform uses `created_on` + MySQL `auto_update_time TIMESTAMP ON UPDATE`. BA's audit-column claim contradicts codebase pattern.
+     - **G-4 (CRITICAL)**: G-01 vs G-12.2 tension — entire platform uses `java.util.Date`/`datetime` (G-01.3 violation). G-12.2 says follow existing. Explicit user decision required.
+     - **G-5 (HIGH)**: Multi-tenancy (G-07.1) — no Hibernate `@Filter` for `org_id`. Enforcement is by-convention, not framework-level.
+   - 8 Q-GAP questions (5 blocking) compiled for Phase 4
+
+3. **Post-phase enrichment**:
+   - Appended Mermaid diagrams to both artifacts (severity pie charts, confidence calibration flow, ready-for-architect gate)
+   - Updated live-dashboard.html with Phase 2 section (findings distribution, top blockers table, guardrail compliance table, confidence calibration)
+   - Added 8 new constraints (C-20 through C-26 + C-25 C-26) and 5 new codebase-verification rows + 18 new open questions (OQ-16 through OQ-33) to session-memory.md
+
+**Artifacts produced**:
+- `contradictions.md` — 18 Critic findings, 11 user questions, 8 assumptions noted
+- `gap-analysis-brd.md` — 10 claim verifications + 11 gaps + 5 guardrail concerns + 8 Q-GAP questions
+- Updated: `live-dashboard.html`, `session-memory.md`, `pipeline-state.json`
+
+**Key findings carried forward (consolidated Phase 4 blocker queue)**:
+
+| Source | ID | Blocker | Default recommendation |
+|--------|----|---------|------------------------|
+| Critic | C-1 / OQ-15 / OQ-16 | Consumer identity unknown | Phase 5 spike or pause pipeline |
+| Critic | C-2 / OQ-17 | MVP delivers no independent value | Product sign-off + drop UI dep until FU-1/2/3 |
+| Critic | C-3 / OQ-18 | Maker-checker descope is compliance decision | Compliance sign-off + reserve nullable `lifecycle_state` column |
+| Critic | C-4 / OQ-19 | BenefitInstance redundant with tier_applicability | Option A: drop Instance in MVP |
+| Critic | C-5 / OQ-20 | Cascade unbounded | Add row-count cap + explicit consistency model |
+| Critic | C-6 / OQ-21 | Reactivation asymmetry UX trap | Admin-choice at reactivation time |
+| Critic | C-7 / OQ-22 | AC-BC03' clause 3 open design question | Pick: POST reactivates OR 409+PATCH |
+| Gap | Q-GAP-1 / OQ-23 | PK type `long` vs platform `int` composite | `int(11) + OrgEntityIntegerPKBase` |
+| Gap | Q-GAP-2 / OQ-24 | Tier vs Slab naming | `slab_id` DB / `tierId` API DTO |
+| Gap | Q-GAP-3 / OQ-25 | Audit column pattern mismatch | Match existing (`created_on`, `last_updated_by`) |
+| Gap | Q-GAP-4 / OQ-26 | Date vs Instant — CRITICAL G-01 tension | Explicit user decision required |
+| Gap | Q-GAP-5 / OQ-27 | MySQL vs MongoDB | MySQL (cascade in txn) |
+
+**Notes**:
+- Both subagents flagged the `long` vs `int` PK type, but from different angles (Critic from "decided by default without discussion" = C-8; Analyst from "breaks Thrift + `OrgEntityIntegerPKBase` + join parity" = G-1). Combined, this moves from the BA's implicit C5 to an unambiguous BLOCKER.
+- The "Tier vs Slab" contradiction is particularly important: the BRD author was writing product-facing copy, not engineering copy. The platform has been calling this entity `slab` in code and `tier` in product language for years. This is not a bug — it's a convention — but the BA absorbed it naively. The fix is a translation layer in the DTO, which must be an ADR.
+- Critic's C-1 escalates OQ-15 from "blocking: phase-6" to "blocking: NOW" — consumer identity should have been resolved before Phase 1 finalised the API surface. Phase 4 must either name the consumer (with a real Jira link / commitment), or reduce scope to "internal registry only, no exposed read API."
+- Phase 5 research scope has expanded: beyond just "identify consumer", we now need to verify Hibernate `@Filter` patterns (G-5), inspect `ResponseWrapper<T>` error-envelope usage, and enumerate how other composite-PK entities handle `PathVariable id` -> `(id, org_id)` resolution.
+
+**Git**:
+- Artifacts committed on kalpavriksha: `contradictions.md`, `gap-analysis-brd.md`, updated session-memory/process-log/dashboard/state
+- Tag: `aidlc/CAP-185145/phase-02`
+
+---
+
 ## Rework History
 
 _(Populated if phases route back to earlier phases.)_
