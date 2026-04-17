@@ -256,3 +256,53 @@ _Tracks re-run cycles to detect unresolved loops._
 - **ProgramSlab status column REMOVED**: No SQL changes needed. SQL only contains ACTIVE tiers (synced via Thrift). No ACTIVE tier can be deleted. SlabInfo Thrift has no status field. Removed from: 03-designer.md Section 7, 01-architect.md Section 4.3, blocker-decisions.md HIGH #2, 01b-migrator.md (M-1, M-2). Deferred to future tier retirement epic.
 - **GUARDRAILS note**: G-01 originally said "use Instant not Date" — OVERRIDDEN to match existing codebase pattern (promotions use Date + @JsonFormat). Consistency with existing patterns takes priority over Java modernity preference.
 **What stayed the same**: State machine (already had REJECT→DRAFT), APIs, architecture, all other field structures.
+
+### Rework #5 — Unified read surface, dual write paths, schema cleanup (2026-04-17)
+**Trigger**: User rework spec — 9 coordinated changes to make the new tier system coexist with legacy tiers via a unified read surface, while keeping MC scoped to new-UI writes.
+**Scope**: BA, HLD, LLD, BTG, migrator, cross-repo-trace, api-handoff. Forward cascade to SDET, Developer, Reviewer pending.
+**Scoping doc**: `docs/pipeline/tier/rework-5-scope.md` (full decision record with worked examples).
+
+**Locked decisions (summary — full detail in rework-5-scope.md):**
+
+- **C-1 / ADR-06 REVERSED**: New API serves ALL tiers (legacy + new-UI-origin). "New programs only" restriction dropped. Read-only SQL→DTO converter bridges legacy SQL tiers into the new API's response shape. No bootstrap migration.
+
+- **Q-1b / Dual write paths**: Old UI continues legacy direct-SQL writes (no MC). New UI routes through Mongo DRAFT → MC → Thrift → SQL. MC scope is "any write from new UI", regardless of whether the tier was originally created via old UI.
+  - **Name collisions** on concurrent create: 3-layer defense — app-level check at DRAFT creation, re-check at approval, SQL `UNIQUE(program_id, name)` constraint as final backstop.
+  - **DRAFT creation timing**: only on Save Draft click in new UI. Never on view/open.
+
+- **Q-2a / Stale-block at approval**: DRAFTs capture a `meta.basisSqlSnapshot` at creation. Approval re-reads current SQL and blocks approval if drift detected. Approver is told why; must cancel or recreate DRAFT.
+  - Drift-detection granularity (full-tier vs changed-fields) deferred to Designer — recommended conservative (any drift blocks).
+  
+- **Q-2b / SNAPSHOT audit-only**: Mongo SNAPSHOT docs are the approval audit record, not current state. SNAPSHOT is never updated by legacy writes. History UI labels each SNAPSHOT with `approvedAt`/`approvedBy` and flags drift if legacy writes followed.
+
+- **Q-3 / Hybrid reads**: "LIVE tiers" (typo fix from original "LIVE promotions"). LIVE state ALWAYS from SQL — never from Mongo. GET response shape is an envelope: `{live: {...from SQL}, pendingDraft: {...from Mongo} | null}`. List avoids N+1 via two DB queries + in-memory join.
+  - **Mongo indexes** on `UnifiedTierConfig`: Index 1 `(orgId, programId, status)`, Index 2 `(orgId, programId, slabId)`. Index 2 upgraded to unique partial for Q-9 enforcement.
+
+- **Q-7 / Schema cleanup**:
+  - Drop `nudges` from `UnifiedTierConfig` (standalone `Nudges` entity with own endpoints is untouched — engine `notificationConfig` stays).
+  - Drop `benefitIds` (tiers have no knowledge of benefits).
+  - Drop `updatedViaNewUI` flag.
+  - Drop `basicDetails.startDate` / `basicDetails.endDate` + UI Duration column. `validity.startDate/endDate` stays (different semantic).
+  - Rename `unifiedTierId` → `tierUniqueId` (pure rename, format unchanged, e.g. `"ut-977-004"`).
+  - Hoist `basicDetails` and `metadata` to root — no wrapper objects. All tier fields live at top level of `UnifiedTierConfig`.
+
+- **SQL `program_slabs` audit columns**: ADD `updatedBy`, `approvedBy`, `approvedAt`. NOT adding `createdBy`. Flyway migration in Rework #5 set.
+
+- **Q-8 / Rename `sqlSlabId` → `slabId`**: Mechanical rename. After Q-7d hoist, lives at root (was `metadata.sqlSlabId`). Null for DRAFT of new tiers; populated once SQL write completes.
+
+- **Q-9 / Single active DRAFT per tier**: Scope = per tier (different tiers in same program can each have their own draft). Enforcement = both layers — app-level pre-insert check (friendly error) + Mongo partial unique index on `(orgId, programId, slabId)` filtered to `status IN [DRAFT, PENDING_APPROVAL]` (race backstop). Reuses Q-3c Index 2 fields.
+
+- **Q-6 / `parentId`**: Stores parent's `slabId` (SQL `program_slabs.id`). Parent must be LIVE (DRAFTs can't be parents). Self-ref prevented; cycle prevention deferred to Designer.
+
+**What stayed the same**: dual-storage pattern, Baljeet's makechecker/ framework, SAGA flow, Thrift `createSlabAndUpdateStrategies`, Strategy conversion, timezone handling.
+
+**Impact**:
+- HLD: ADR-06 flipped; new ADRs for stale-block, envelope response, SNAPSHOT-audit-only, dual write paths, new index design.
+- LLD: `UnifiedTierConfig` schema flattened (wrappers removed). New `meta.basisSqlSnapshot` field. `TierApprovalHandler.preApprove` gains drift-check. New SQL→DTO converter for legacy tiers.
+- Migrator: Flyway migration for 3 new audit columns; Mongo index creation scripts (2 indexes + 1 partial unique index).
+- Tests: Suspect-link triage per ISTQB — add BTs for dual-path write, drift-block at approval, SNAPSHOT labeling, envelope GET, single-active-draft enforcement (both layers), parentId validation, name-collision 3-layer defense.
+- API handoff: GET endpoints return envelope shape. New error codes for drift-block and single-active-draft.
+
+**Deferred to Designer (noted in LLD when rework cascades)**:
+- Drift-detection granularity (full-tier vs changed-fields).
+- `parentId` cycle prevention algorithm.
