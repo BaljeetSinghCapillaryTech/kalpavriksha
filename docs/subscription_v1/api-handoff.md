@@ -3,7 +3,7 @@
 > **Artifacts path**: `docs/subscription_v1/`
 > **Source phases read**: `00-ba.md`, `01-architect.md`, `03-designer.md`, `06-developer.md`, `session-memory.md`
 > **Code-verified**: `SubscriptionFacade.java`, `SubscriptionProgram.java`, `SubscriptionController.java` (skeleton), `ResponseWrapper.java`, all enums
-> **Date**: 2026-04-17 (Rework 3 — Thrift field coverage, source tracking)
+> **Date**: 2026-04-17 (Rework 4 session — disambiguation, rename, error scoping)
 >
 > **Implementation status**:
 > - ✅ `SubscriptionFacade` — fully implemented, all tests GREEN
@@ -28,7 +28,10 @@
 > - **`GET /v3/subscriptions/{id}`** — now requires `?status=` query param (default `ACTIVE`). During the edit window (ACTIVE + DRAFT fork coexist), you must specify which version to fetch. Without the param, `ACTIVE` is returned.
 > - **`GET /v3/subscriptions`** — `?statuses=` (multi-value, no default) replaced by `?status=` (single value, default `ACTIVE`). **Breaking change** for clients using multi-status queries.
 > - **New status: `SNAPSHOT`** — when an edit-of-ACTIVE is approved, the superseded ACTIVE doc transitions to `SNAPSHOT` (not `ARCHIVED`). SNAPSHOT is a read-only audit trail. It is excluded from the default listing (`?status=ACTIVE`) but retrievable with `?status=SNAPSHOT`.
-> - `mysqlPartnerProgramId` is now carried forward from ACTIVE → DRAFT fork on `editActiveSubscription()`, so re-approval triggers an UPDATE (not a duplicate INSERT) in MySQL.
+> - **`partnerProgramId` rename** (was `mysqlPartnerProgramId`) — the MySQL partner program ID field is now named `partnerProgramId` in all API responses. **Breaking change**: any client reading `mysqlPartnerProgramId` must update to `partnerProgramId`.
+> - **`PATCH /v3/subscriptions/{id}/status` — ARCHIVE with `targetStatus`** — the ARCHIVE action now accepts an optional `targetStatus` field (default `"ACTIVE"`). Required when both an ACTIVE and a DRAFT fork coexist, to specify which document to archive. Example: `{"action":"ARCHIVE","targetStatus":"DRAFT"}` to archive the in-flight edit.
+> - **`POST /v3/subscriptions/{id}/duplicate` — DRAFT-first source selection** — if an in-flight edit (DRAFT fork) exists for a subscription, duplicate uses that DRAFT as the source (user's latest work). Fallback to ACTIVE or PAUSED if no DRAFT exists.
+> - **Error handling scoped to `SubscriptionErrorAdvice`** — subscription domain exceptions (`SubscriptionNotFoundException`, `InvalidSubscriptionStateException`, `SubscriptionNameConflictException`, `EMFThriftException`) are now handled by `SubscriptionErrorAdvice` (scoped to subscription controllers), not the global `TargetGroupErrorAdvice`. The `EMFThriftException` during APPROVE returns HTTP 500 with a "retry" message and the subscription moves to `PUBLISH_FAILED`.
 
 ---
 
@@ -217,7 +220,7 @@ Response wraps a Spring `Page<T>` inside `data`:
     "status": "DRAFT",
     "version": 1,
     "parentId": null,
-    "mysqlPartnerProgramId": null,
+    "partnerProgramId": null,
     "name": "Gold Membership",
     "description": "Annual gold tier access with exclusive benefits",
     "subscriptionType": "TIER_BASED",
@@ -267,7 +270,7 @@ Response wraps a Spring `Page<T>` inside `data`:
 - `subscriptionProgramId` (UUID) is the immutable business key — use this in all subsequent calls
 - `objectId` is MongoDB internal — avoid exposing this in UI navigation
 - `orgId` is populated from JWT token, never sent by the client
-- `mysqlPartnerProgramId` is null until the subscription is Approved (MySQL write happens at approval)
+- `partnerProgramId` is null until the subscription is Approved (MySQL write happens at approval)
 - Name uniqueness is checked against MongoDB active statuses at create, and re-checked against MySQL at approval
 
 ---
@@ -363,7 +366,7 @@ Same shape as the POST 201 response body above. All fields returned.
           "groupTag": "premium-tier",
           "updatedAt": "2026-04-15T10:00:00Z",
           "updatedBy": "admin-user-id",
-          "mysqlPartnerProgramId": 42,
+          "partnerProgramId": 42,
           "version": 2
         }
       ],
@@ -389,14 +392,14 @@ Same shape as the POST 201 response body above. All fields returned.
 ```
 
 **Notes**:
-- `subscriberCount` is fetched in bulk from MySQL via Thrift — non-null only for ACTIVE subscriptions with `mysqlPartnerProgramId`
+- `subscriberCount` is fetched in bulk from MySQL via Thrift — non-null only for ACTIVE subscriptions with `partnerProgramId`
 - `headerStats.totalSubscribers` is the aggregate sum across all ACTIVE subscriptions for this org+program
 - Subscriber counts are **cached** (Caffeine, 60s TTL) — may be up to 60 seconds stale
 - `status` filter accepts multiple values in a single request
 
 ---
 
-#### PUT `/v3/subscriptions/{subscriptionProgramId}/status`
+#### PATCH `/v3/subscriptions/{subscriptionProgramId}/status`
 
 **Purpose**: Trigger a lifecycle state transition on a subscription. Handles four actions: submit for approval, pause, resume, and archive.
 
@@ -407,12 +410,22 @@ Same shape as the POST 201 response body above. All fields returned.
 | `subscriptionProgramId` | path | yes | Business UUID |
 | `action` | body | yes | One of: `SUBMIT_FOR_APPROVAL`, `PAUSE`, `RESUME`, `ARCHIVE` |
 | `comment` | body | no | Optional note (max 150 chars) |
+| `targetStatus` | body | no (ARCHIVE only) | Default `"ACTIVE"`. Required disambiguation when ACTIVE + DRAFT fork coexist. Pass `"DRAFT"` to archive the in-flight edit, `"ACTIVE"` (or omit) to archive the live version. Also accepts `"PAUSED"`. Invalid values return 422. |
 
 **Request Body**:
 ```json
 {
   "action": "SUBMIT_FOR_APPROVAL",
   "comment": "Ready for review"
+}
+```
+
+**ARCHIVE with disambiguation (when ACTIVE + DRAFT coexist)**:
+```json
+{
+  "action": "ARCHIVE",
+  "targetStatus": "DRAFT",
+  "comment": "Cancelling in-flight edit"
 }
 ```
 
@@ -443,9 +456,11 @@ Same shape as the POST 201 response body above. All fields returned.
 
 #### POST `/v3/subscriptions/{subscriptionProgramId}/duplicate`
 
-**Purpose**: Create an instant copy of a subscription as a new Draft. Useful for creating variations of an approved program.
+**Purpose**: Create an instant copy of a subscription as a new Draft with a new UUID. Useful for creating a new program with similar configuration. All fields are copied from the source; name gets a `" (Copy)"` suffix.
 
 **Maps to**: AC-12, OQ-17
+
+> **Rework 4**: Source selection is **DRAFT-first** — if an in-flight edit (DRAFT fork) exists for the subscription, the duplicate is created from that DRAFT (preserving the user's latest work). Falls back to ACTIVE or PAUSED if no DRAFT exists.
 
 | Parameter | Location | Required | Description |
 |-----------|----------|----------|-------------|
@@ -462,7 +477,7 @@ Same shape as the POST 201 response body above. All fields returned.
 | `status` | `DRAFT` |
 | `version` | `1` |
 | `parentId` | `null` |
-| `mysqlPartnerProgramId` | `null` |
+| `partnerProgramId` | `null` |
 | `createdAt` / `updatedAt` | Current timestamp |
 
 **Response — Error Cases**:
@@ -648,7 +663,7 @@ After **APPROVE** — key fields that change:
 ```json
 {
   "status": "ACTIVE",
-  "mysqlPartnerProgramId": 42,
+  "partnerProgramId": 42,
   "workflowMetadata": {
     "submittedBy": "creator-user-id",
     "submittedAt": "2026-04-14T09:00:00Z",
@@ -708,24 +723,24 @@ Always wrap both success and error:
 
 ### Error Handling
 
-Global exception handler (`TargetGroupErrorAdvice`) maps exceptions to HTTP status:
+Subscription endpoints use a **scoped** exception handler (`SubscriptionErrorAdvice`) which takes priority over the global `TargetGroupErrorAdvice`. This ensures subscription domain errors are handled predictably.
 
-| Exception | HTTP Status |
-|-----------|-------------|
-| `SubscriptionNotFoundException` | 404 |
-| `InvalidSubscriptionStateException` | 422 |
-| `SubscriptionNameConflictException` | 409 |
-| `InvalidInputException` | 400 |
-| `NotFoundException` | 404 |
-| Validation failure (`@Valid` bean validation) | 400 |
-| `EMFThriftException` (Thrift call failure) | 502 |
+| Exception | HTTP Status | Handler |
+|-----------|-------------|---------|
+| `SubscriptionNotFoundException` | 404 | `SubscriptionErrorAdvice` |
+| `InvalidSubscriptionStateException` | 422 | `SubscriptionErrorAdvice` |
+| `SubscriptionNameConflictException` | 409 | `SubscriptionErrorAdvice` |
+| `EMFThriftException` (APPROVE publish failure) | 500 | `SubscriptionErrorAdvice` — subscription moved to `PUBLISH_FAILED`, retry via approve endpoint |
+| `InvalidInputException` | 400 | `TargetGroupErrorAdvice` (global) |
+| `NotFoundException` | 404 | `TargetGroupErrorAdvice` (global) |
+| Validation failure (`@Valid` bean validation) | 400 | `TargetGroupErrorAdvice` (global) |
 
 ### Idempotency
 
 - **Create** is not idempotent (generates a new UUID each call)
 - **Approve** — two-layer idempotency:
   - **Pattern A (emf-parent, Thrift layer)**: A stable key `"sub-approve-" + subscriptionProgramId` is cached in Redis (1h TTL) after a successful MySQL write. If the same Thrift call is retried (e.g., from `PUBLISH_FAILED`), the cached `partnerProgramId` is returned immediately — no duplicate MySQL record is created.
-  - **Pattern B (intouch-api-v3 layer)**: If `mysqlPartnerProgramId` is already set on the MongoDB document (rare split-brain where MySQL succeeded and MongoDB update also succeeded), the Thrift call is skipped entirely.
+  - **Pattern B (intouch-api-v3 layer)**: If `partnerProgramId` is already set on the MongoDB document (rare split-brain where MySQL succeeded and MongoDB update also succeeded), the Thrift call is skipped entirely.
 - **Pause / Resume / Archive** — if the Thrift call fails, the MongoDB status is NOT updated, making these safe to retry
 
 ### Optimistic Locking
@@ -820,7 +835,7 @@ CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAU
 
 6. **Subscriber counts**: Present only for ACTIVE subscriptions in list views. Sourced from MySQL via Thrift batch call. Cached for 60 seconds. May be `null` for non-ACTIVE subscriptions.
 
-7. **Edit-of-ACTIVE**: When a user edits an ACTIVE subscription, a new DRAFT is created (the ACTIVE stays live). The DRAFT has `parentId` set to the ACTIVE document's `objectId`. On approval, the ACTIVE becomes ARCHIVED and the DRAFT becomes the new ACTIVE. The UI should surface this "pending edit" state — check `parentId != null` on a DRAFT to indicate it is an edit of an existing live subscription.
+7. **Edit-of-ACTIVE**: When a user edits an ACTIVE subscription, a new DRAFT is created (the ACTIVE stays live). The DRAFT has `parentId` set to the ACTIVE document's `objectId`. On approval, the ACTIVE becomes **SNAPSHOT** (not ARCHIVED — it is preserved as a read-only audit copy) and the DRAFT becomes the new ACTIVE. The UI should surface this "pending edit" state — check `parentId != null` on a DRAFT to indicate it is an edit of an existing live subscription. After approval, query `?status=SNAPSHOT` to see the pre-edit version in a "Version History" panel.
 
 8. **Approval latency**: The APPROVE action triggers a synchronous Thrift call to MySQL. This may take up to a few seconds. Display a loading indicator and handle 502 gracefully (with a retry prompt).
 
@@ -842,10 +857,10 @@ CREATE ──► DRAFT ──► PENDING_APPROVAL ──► ACTIVE ──► PAU
 | List subscriptions with filters | `GET /v3/subscriptions?programId=1` | Status filter, groupTag, search, sort |
 | View listing header stats | `GET /v3/subscriptions?programId=1` | `headerStats` included in list response |
 | Duplicate a subscription | `POST /v3/subscriptions/{id}/duplicate` | Creates new DRAFT copy |
-| Submit for approval | `PUT /v3/subscriptions/{id}/status` body: `{action: "SUBMIT_FOR_APPROVAL"}` | DRAFT → PENDING_APPROVAL |
-| Pause an active subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "PAUSE"}` | ACTIVE → PAUSED + MySQL deactivated |
-| Resume a paused subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "RESUME"}` | PAUSED → ACTIVE + MySQL activated |
-| Archive a subscription | `PUT /v3/subscriptions/{id}/status` body: `{action: "ARCHIVE"}` | ACTIVE/PAUSED/DRAFT → ARCHIVED |
+| Submit for approval | `PATCH /v3/subscriptions/{id}/status` body: `{action: "SUBMIT_FOR_APPROVAL"}` | DRAFT → PENDING_APPROVAL |
+| Pause an active subscription | `PATCH /v3/subscriptions/{id}/status` body: `{action: "PAUSE"}` | ACTIVE → PAUSED + MySQL deactivated |
+| Resume a paused subscription | `PATCH /v3/subscriptions/{id}/status` body: `{action: "RESUME"}` | PAUSED → ACTIVE + MySQL activated |
+| Archive a subscription | `PATCH /v3/subscriptions/{id}/status` body: `{action: "ARCHIVE"}` | ACTIVE/PAUSED/DRAFT → ARCHIVED |
 | Approver: view pending queue | `GET /v3/subscriptions/approvals?programId=1` | `PENDING_APPROVAL` and `PUBLISH_FAILED` docs |
 | Approver: approve subscription | `POST /v3/subscriptions/{id}/approve` body: `{approvalStatus: "APPROVE"}` | Triggers MySQL write SAGA |
 | Approver: reject submission | `POST /v3/subscriptions/{id}/approve` body: `{approvalStatus: "REJECT"}` | Returns to DRAFT |

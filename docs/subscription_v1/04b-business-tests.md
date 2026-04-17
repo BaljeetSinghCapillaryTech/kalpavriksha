@@ -57,8 +57,8 @@
 | BT-15 | shouldSetIsSyncFalseForNonTier | OQ-19 (resolved) | `buildPartnerProgramInfo({type:NON_TIER})` | `result.isSyncWithLoyaltyTierOnDowngrade == false` | TS-19 | `SubscriptionPublishService.buildPartnerProgramInfo()` | UT |
 | BT-16 | shouldSetIsSyncTrueWhenTierDowngradeEnabled | OQ-19 (resolved), AC-17 | `buildPartnerProgramInfo({type:TIER_BASED, tierDowngradeOnExit:true, downgradeTargetTierId:10})` | `isSyncWithLoyaltyTierOnDowngrade=true`, `loyaltySyncTiers populated` | TS-63 | `SubscriptionPublishService.buildPartnerProgramInfo()` | UT |
 | BT-17 | shouldSetPartnerProgramTypeSUPPLEMENTARY | AC-38 | Any valid `buildPartnerProgramInfo(...)` | `result.partnerProgramType == SUPPLEMENTARY` | TS-40 | `SubscriptionPublishService.buildPartnerProgramInfo()` | UT |
-| BT-18 | shouldThrowIllegalStateIfPublishIsActiveWithNullMysqlId | from method contract | `publishIsActive(sub{mysqlPartnerProgramId=null}, ...)` | `IllegalStateException` | TS-48 | `SubscriptionPublishService.publishIsActive()` | UT |
-| BT-19 | shouldSkipThriftOnPublishIfMysqlIdAlreadySet | ADR-03, RF-6 | `publishToMySQL(sub{mysqlPartnerProgramId=1001}, ...)` | Returns `PublishResult{externalId=1001, idempotent=true}`. Zero Thrift calls. | TS-42 | `SubscriptionPublishService.publishToMySQL()` | UT |
+| BT-18 | shouldThrowIllegalStateIfPublishIsActiveWithNullMysqlId | from method contract | `publishIsActive(sub{partnerProgramId=null}, ...)` | `IllegalStateException` | TS-48 | `SubscriptionPublishService.publishIsActive()` | UT |
+| BT-19 | shouldSkipThriftOnPublishIfMysqlIdAlreadySet | ADR-03, RF-6 | `publishToMySQL(sub{partnerProgramId=1001}, ...)` | Returns `PublishResult{externalId=1001, idempotent=true}`. Zero Thrift calls. | TS-42 | `SubscriptionPublishService.publishToMySQL()` | UT |
 
 #### Group C — Maker-Checker State Machine (MakerCheckerService pure logic)
 
@@ -81,8 +81,8 @@
 
 | ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
-| BT-27 | shouldSetStatusActiveAndStoreMysqlIdOnPostApprove | AC-38 | `postApprove(entity, PublishResult{externalId:1001})` | `entity.status=ACTIVE`, `entity.mysqlPartnerProgramId=1001` | TS-34 | `SubscriptionApprovalHandler.postApprove()` | UT |
-| BT-28 | shouldArchiveOldDocAndActivateNewOnVersionedApproval | AC-33 | `postApprove(editDraft{parentId="AAA"}, result)` (parentId non-null) | Old doc (AAA) set ARCHIVED. New doc set ACTIVE. `mysqlPartnerProgramId` carried from old doc. | TS-36 | `SubscriptionApprovalHandler.postApprove()` | UT |
+| BT-27 | shouldSetStatusActiveAndStoreMysqlIdOnPostApprove | AC-38 | `postApprove(entity, PublishResult{externalId:1001})` | `entity.status=ACTIVE`, `entity.partnerProgramId=1001` | TS-34 | `SubscriptionApprovalHandler.postApprove()` | UT |
+| BT-28 | shouldSnapshotOldDocAndActivateNewOnVersionedApproval | AC-33 | `postApprove(editDraft{parentId="AAA"}, result)` (parentId non-null) | Old doc (AAA) set **SNAPSHOT** (not ARCHIVED — read-only audit copy). New doc set ACTIVE. `partnerProgramId` carried from old doc. | TS-36 | `SubscriptionApprovalHandler.postApprove()` | UT |
 | BT-29 | shouldLeaveStatusUnchangedOnPublishFailure | ADR-03 | `onPublishFailure(entity, exception)` | `entity.status` unchanged (still PENDING_APPROVAL). No exception thrown. | TS-41 | `SubscriptionApprovalHandler.onPublishFailure()` | UT |
 | BT-30 | shouldSetStatusDraftAndStoreCommentOnReject | AC-34 | `postReject(entity, "Fix name")` | `entity.status=DRAFT`, `entity.comments="Fix name"` | TS-37 | `SubscriptionApprovalHandler.postReject()` | UT |
 
@@ -94,8 +94,8 @@
 | BT-32 | shouldReturnEmptyForWrongOrg | G-07 | `findBySubscriptionProgramIdAndOrgId("uuid-1", 999L)` (wrong org) | `Optional.empty()` | TS-67 | `SubscriptionProgramRepository.findBySubscriptionProgramIdAndOrgId()` | UT |
 | BT-33 | shouldFindPendingApprovalDocs | AC-36 | `findPendingApprovalByOrgIdAndProgramId(100L, 200, page)` | Only PENDING_APPROVAL docs returned | TS-38 | `SubscriptionProgramRepository.findPendingApprovalByOrgIdAndProgramId()` | UT |
 | BT-34 | shouldFindDraftByParentId | AC-32 | `findDraftByParentIdAndOrgId("active-objectId", 100L)` | Returns the forked DRAFT doc | TS-35 | `SubscriptionProgramRepository.findDraftByParentIdAndOrgId()` | UT |
-| BT-35 | shouldFindByMysqlPartnerProgramIdForSagaIdempotency | RF-6 | `findByMysqlPartnerProgramIdAndOrgId(1001, 100L)` | Returns subscription with that MySQL ID | TS-42 | `SubscriptionProgramRepository.findByMysqlPartnerProgramIdAndOrgId()` | UT |
-| BT-36 | shouldCollectActiveMysqlProgramIdsForBulkCount | AC-02 | `findActiveMysqlPartnerProgramIdsByOrgId(100L)` | List of subscriptions with non-null `mysqlPartnerProgramId`, status=ACTIVE | TS-71 | `SubscriptionProgramRepository.findActiveMysqlPartnerProgramIdsByOrgId()` | UT |
+| BT-35 | shouldFindByPartnerProgramIdForSagaIdempotency | RF-6 | `findByPartnerProgramIdAndOrgId(1001, 100L)` | Returns subscription with that MySQL ID | TS-42 | `SubscriptionProgramRepository.findByPartnerProgramIdAndOrgId()` | UT |
+| BT-36 | shouldCollectActiveMysqlProgramIdsForBulkCount | AC-02 | `findActivePartnerProgramIdsByOrgId(100L)` | List of subscriptions with non-null `partnerProgramId`, status=ACTIVE | TS-71 | `SubscriptionProgramRepository.findActivePartnerProgramIdsByOrgId()` | UT |
 
 ---
 
@@ -107,7 +107,7 @@
 
 | ID | Test Name | Verifies (BA Req) | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|----------|-------|-----------------|-------------|-------------------|-------|
-| BT-37 | shouldCreateNonTierSubscriptionAsDraftInMongoDB | AC-09, AC-10, AC-27, ADR-01 | Service → MongoDB | Valid `SubscriptionRequest{type:NON_TIER}` | MongoDB doc created: `status=DRAFT`, `mysqlPartnerProgramId=null`. Thrift NOT called. | TS-09, TS-29 | `SubscriptionFacade.createSubscription()` | IT |
+| BT-37 | shouldCreateNonTierSubscriptionAsDraftInMongoDB | AC-09, AC-10, AC-27, ADR-01 | Service → MongoDB | Valid `SubscriptionRequest{type:NON_TIER}` | MongoDB doc created: `status=DRAFT`, `partnerProgramId=null`. Thrift NOT called. | TS-09, TS-29 | `SubscriptionFacade.createSubscription()` | IT |
 | BT-38 | shouldCreateTierBasedSubscriptionAsDraft | AC-10, AC-16, AC-17 | Service → MongoDB | `{type:TIER_BASED, linkedTierId:42, tierDowngradeOnExit:true, downgradeTargetTierId:10}` | Doc stored with `tierConfig` fully populated. | TS-10 | `SubscriptionFacade.createSubscription()` | IT |
 | BT-39 | shouldRejectDuplicateNameViaThriftCheck | AC-09, KD-40, G-06 | Service → Thrift → name check | Name that conflicts with existing MySQL partner program | `SubscriptionNameConflictException`. MongoDB doc NOT saved. | TS-70, TS-74 | `SubscriptionFacade.createSubscription()` | IT |
 | BT-40 | shouldAssignNewUUIDAndObjectIdOnCreate | OQ-16 (resolved) | Service → MongoDB | Any valid create request | `subscriptionProgramId` is non-null UUID. `objectId` is MongoDB ObjectId (non-null). Both unique per create. | TS-09 | `SubscriptionFacade.createSubscription()` | IT |
@@ -117,7 +117,7 @@
 
 | ID | Test Name | Verifies (BA Req) | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|----------|-------|-----------------|-------------|-------------------|-------|
-| BT-42 | shouldReturn404ForNonExistentSubscription | AC-01 | Service → MongoDB | `getSubscription(100L, "nonexistent-uuid")` | `SubscriptionNotFoundException`. HTTP 404 via `TargetGroupErrorAdvice`. | TS-65 | `SubscriptionFacade.getSubscription()` | IT |
+| BT-42 | shouldReturn404ForNonExistentSubscription | AC-01 | Service → MongoDB | `getSubscription(100L, "nonexistent-uuid")` | `SubscriptionNotFoundException`. HTTP 404 via `SubscriptionErrorAdvice`. | TS-65 | `SubscriptionFacade.getSubscription()` | IT |
 | BT-43 | shouldListPaginatedSubscriptions | AC-01, AC-05 | Service → MongoDB | `listSubscriptions(orgId=100, programId=200, page=0, size=10)` | Page of subscriptions. `totalElements` correct. `sort=subscriberCount,desc` default. | TS-01 | `SubscriptionFacade.listSubscriptions()` | IT |
 | BT-44 | shouldFilterSubscriptionsByMultipleStatuses | AC-03 | Service → MongoDB | `{statuses=[ACTIVE,DRAFT]}` | Only ACTIVE and DRAFT docs returned. PAUSED/ARCHIVED excluded. | TS-03, TS-18 | `SubscriptionFacade.listSubscriptions()` | IT |
 | BT-45 | shouldFetchSubscriberCountsWithSingleBulkThriftCall | AC-02, G-04.1 | Service → Thrift (mock) | Listing 20 ACTIVE subscriptions | Exactly 1 call to `getSupplementaryEnrollmentCountsByProgramIds` with all 20 IDs. Counts merged into list items. | TS-02, TS-71 | `SubscriptionFacade.getHeaderStats()` + `listSubscriptions()` | IT |
@@ -127,7 +127,7 @@
 
 | ID | Test Name | Verifies (BA Req) | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|----------|-------|-----------------|-------------|-------------------|-------|
-| BT-47 | shouldDuplicateWithCopySuffix | AC-12 | Service → MongoDB | `duplicateSubscription(100L, "uuid-1", "user1")` | New doc: `name="Gold Plan (Copy)"`, `status=DRAFT`, `version=1`, `parentId=null`, `mysqlPartnerProgramId=null`, new UUID. | TS-13 | `SubscriptionFacade.duplicateSubscription()` | IT |
+| BT-47 | shouldDuplicateWithCopySuffix | AC-12 | Service → MongoDB | `duplicateSubscription(100L, "uuid-1", "user1")` | New doc: `name="Gold Plan (Copy)"`, `status=DRAFT`, `version=1`, `parentId=null`, `partnerProgramId=null`, new UUID. | TS-13 | `SubscriptionFacade.duplicateSubscription()` | IT |
 | BT-48 | shouldCopyAllConfigFieldsOnDuplicate | AC-12 | Service → MongoDB | Source with reminders, benefits, tierConfig | Duplicate has same reminders, benefitIds, tierConfig values. | TS-13 | `SubscriptionFacade.duplicateSubscription()` | IT |
 | BT-49 | shouldRejectDuplicateWhenCopyNameAlreadyExists | AC-12, KD-40 | Service → Thrift (name check) | Source "Gold Plan". "Gold Plan (Copy)" already exists in MySQL. | `SubscriptionNameConflictException`. No new doc saved. | TS-14 | `SubscriptionFacade.duplicateSubscription()` | IT |
 
@@ -160,13 +160,13 @@
 
 | ID | Test Name | Verifies (BA Req) | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|-------------------|----------|-------|-----------------|-------------|-------------------|-------|
-| BT-60 | shouldApproveAndWriteToMySQLViaSAGA | AC-38, ADR-03 | Service → Thrift (mock) → MongoDB | `handleApproval(APPROVE)` on PENDING_APPROVAL | Thrift `createOrUpdatePartnerProgram` called once. MongoDB: `status=ACTIVE`, `mysqlPartnerProgramId=<returned-id>`. | TS-40 | `SubscriptionFacade.handleApproval()` | IT |
-| BT-61 | shouldRemainPendingApprovalOnThriftFailure | ADR-03 | Service → Thrift (throws) → MongoDB | Thrift throws `EMFThriftException` | MongoDB status remains `PENDING_APPROVAL`. `mysqlPartnerProgramId=null`. No partial MySQL row visible via Thrift confirm. | TS-41 | `SubscriptionFacade.handleApproval()` | IT |
-| BT-62 | shouldRetryApprovalIdempotently | ADR-03, G-06.1 | Service → Thrift (mock) → MongoDB | Approve twice: first partially succeeds (mongo fails), second completes | Second call: `mysqlPartnerProgramId` already set → Thrift NOT called again → Only MongoDB updated. Final state: ACTIVE. | TS-42, TS-43 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-60 | shouldApproveAndWriteToMySQLViaSAGA | AC-38, ADR-03 | Service → Thrift (mock) → MongoDB | `handleApproval(APPROVE)` on PENDING_APPROVAL | Thrift `createOrUpdatePartnerProgram` called once. MongoDB: `status=ACTIVE`, `partnerProgramId=<returned-id>`. | TS-40 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-61 | shouldRemainPendingApprovalOnThriftFailure | ADR-03 | Service → Thrift (throws) → MongoDB | Thrift throws `EMFThriftException` | MongoDB status remains `PENDING_APPROVAL`. `partnerProgramId=null`. No partial MySQL row visible via Thrift confirm. | TS-41 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-62 | shouldRetryApprovalIdempotently | ADR-03, G-06.1 | Service → Thrift (mock) → MongoDB | Approve twice: first partially succeeds (mongo fails), second completes | Second call: `partnerProgramId` already set → Thrift NOT called again → Only MongoDB updated. Final state: ACTIVE. | TS-42, TS-43 | `SubscriptionFacade.handleApproval()` | IT |
 | BT-63 | shouldRejectDraftWithoutPendingApprovalStatus | AC-31 | Service → MongoDB | `handleApproval` on DRAFT subscription | `NotFoundException` (not in PENDING_APPROVAL). HTTP 404. | TS-34 | `SubscriptionFacade.handleApproval()` | IT |
 | BT-64 | shouldSendCorrectThriftPayloadOnApprove | AC-38, ADR-07 | Service → Thrift verify | Subscription with `cycleType=YEARS, cycleValue=2` | Thrift receives `{cycleType:MONTHS, cycleValue:24}`. `programToPartnerProgramPointsRatio=1.0`. `partnerProgramType=SUPPLEMENTARY`. | TS-40, TS-49 | `SubscriptionPublishService.buildPartnerProgramInfo()` | IT |
 | BT-65 | shouldNotWriteRemindersToMySQLOnApprove | ADR-06, AC-22 | Service → Thrift (verify mock not called for reminders) → MySQL-read | Subscription with 3 reminders approved | Thrift `createOrUpdateExpiryReminderForPartnerProgram` NOT called. MongoDB reminders array intact. | TS-50 | `SubscriptionApprovalHandler.publish()` | IT |
-| BT-66 | shouldArchiveOldActiveAndActivateNewOnVersionedApprove | AC-33 | Service → MongoDB | Approve a DRAFT with `parentId=<ACTIVE._id>` | Old ACTIVE doc: `status=ARCHIVED`. New doc: `status=ACTIVE`, `mysqlPartnerProgramId` carried from old. | TS-36 | `SubscriptionApprovalHandler.postApprove()` | IT |
+| BT-66 | shouldSnapshotOldActiveAndActivateNewOnVersionedApprove | AC-33 | Service → MongoDB | Approve a DRAFT with `parentId=<ACTIVE._id>` | Old ACTIVE doc: `status=SNAPSHOT` (not ARCHIVED — read-only audit copy, Rework 4). New doc: `status=ACTIVE`, `partnerProgramId` carried from old. | TS-36 | `SubscriptionApprovalHandler.postApprove()` | IT |
 
 #### Group N — Reject Flow
 
@@ -221,10 +221,10 @@
 |----|-----------|-------------------|----------|-------|-----------------|-------------|-------------------|-------|
 | BT-84 | shouldReturn201OnCreate | AC-09, AC-27 | HTTP POST /v3/subscriptions | Valid `SubscriptionRequest` body | HTTP 201. `ResponseWrapper<SubscriptionResponse>` with `status=DRAFT`. | TS-09 | `SubscriptionController.createSubscription()` | IT |
 | BT-85 | shouldReturn400OnInvalidRequest | AC-11 | HTTP POST /v3/subscriptions | Request missing required fields | HTTP 400. `ConstraintViolationException` mapped by `TargetGroupErrorAdvice`. | TS-11, TS-12 | `SubscriptionController.createSubscription()` | IT |
-| BT-86 | shouldReturn409OnNameConflict | AC-09, KD-40 | HTTP POST /v3/subscriptions | Conflicting name | HTTP 409. `SubscriptionNameConflictException` mapped by `TargetGroupErrorAdvice`. | TS-70 | `SubscriptionController.createSubscription()` | IT |
+| BT-86 | shouldReturn409OnNameConflict | AC-09, KD-40 | HTTP POST /v3/subscriptions | Conflicting name | HTTP 409. `SubscriptionNameConflictException` mapped by `SubscriptionErrorAdvice`. | TS-70 | `SubscriptionController.createSubscription()` | IT |
 | BT-87 | shouldReturn200OnGetSubscription | AC-01 | HTTP GET /v3/subscriptions/{id} | Existing subscription ID | HTTP 200. `ResponseWrapper<SubscriptionResponse>` with full subscription body. | TS-01 | `SubscriptionController.getSubscription()` | IT |
-| BT-88 | shouldReturn404OnGetNonExistentSubscription | AC-01 | HTTP GET /v3/subscriptions/{id} | Non-existent ID | HTTP 404 via `TargetGroupErrorAdvice`. | TS-65 | `SubscriptionController.getSubscription()` | IT |
-| BT-89 | shouldReturn422OnInvalidStateTransition | AC-31, AC-41 | HTTP PATCH /v3/subscriptions/{id}/status | Resume on ARCHIVED | HTTP 422 via `TargetGroupErrorAdvice`. | TS-56 | `SubscriptionController.changeStatus()` | IT |
+| BT-88 | shouldReturn404OnGetNonExistentSubscription | AC-01 | HTTP GET /v3/subscriptions/{id} | Non-existent ID | HTTP 404 via `SubscriptionErrorAdvice`. | TS-65 | `SubscriptionController.getSubscription()` | IT |
+| BT-89 | shouldReturn422OnInvalidStateTransition | AC-31, AC-41 | HTTP PATCH /v3/subscriptions/{id}/status | Resume on ARCHIVED | HTTP 422 via `SubscriptionErrorAdvice`. | TS-56 | `SubscriptionController.changeStatus()` | IT |
 
 ---
 
@@ -234,12 +234,12 @@
 
 | ID | Test Name | ADR | What it Verifies | QA Scenario | Layer |
 |----|-----------|-----|-----------------|-------------|-------|
-| BT-C01 | shouldNotWriteToMySQLDuringDraftLifecycle | ADR-01 | After create + update + submit: `mysqlPartnerProgramId=null` in MongoDB. `createOrUpdatePartnerProgram` Thrift mock NOT called. | TS-44 | IT |
+| BT-C01 | shouldNotWriteToMySQLDuringDraftLifecycle | ADR-01 | After create + update + submit: `partnerProgramId=null` in MongoDB. `createOrUpdatePartnerProgram` Thrift mock NOT called. | TS-44 | IT |
 | BT-C02 | shouldWriteMySQLExactlyOnceOnApprove | ADR-01 | After approve: Thrift called exactly 1 time. `partner_programs` has exactly 1 row (verified via Thrift mock `verify(times(1))`). | TS-45 | IT |
 | BT-C03 | shouldRouteSubscriptionRepoToEmfMongoTemplate | ADR-01, KD-41 | `EmfMongoConfig.includeFilters` contains `SubscriptionProgramRepository.class`. MongoDB save routes to `emfMongoTemplate` database (not default template). | TS-81 | IT |
 | BT-C04 | shouldUseMakerCheckerServiceWithoutSubscriptionImports | ADR-02 | `MakerCheckerService.java` class has zero imports from `com.capillary.intouchapiv3.unified.subscription.*` package. Subscription-specific code confined to `SubscriptionApprovalHandler`. | TS-39 | UT (ArchUnit or import scan) |
 | BT-C05 | shouldCompensateSAGAOnThriftFailure | ADR-03 | Thrift mock throws → `handleApproval` catches → `onPublishFailure` called → status remains `PENDING_APPROVAL`. | TS-41 | IT |
-| BT-C06 | shouldRetryApprovalWithoutDoubleThriftCall | ADR-03, RF-6 | `mysqlPartnerProgramId` set in MongoDB → second approve call → Thrift mock verify: called 0 times on retry. | TS-42 | IT |
+| BT-C06 | shouldRetryApprovalWithoutDoubleThriftCall | ADR-03, RF-6 | `partnerProgramId` set in MongoDB → second approve call → Thrift mock verify: called 0 times on retry. | TS-42 | IT |
 | BT-C07 | shouldStoreBenefitsAsIdArrayNotRelationalJoin | ADR-04 | After linking 3 benefits and approving: MongoDB `benefitIds=[101,102,103]`. Thrift mock: no call for benefit-join write. No call to any benefit MySQL table. | TS-46, TS-53 | IT |
 | BT-C08 | shouldNotWriteRemindersToMySQLOnApprove | ADR-06 | After approving subscription with 3 reminders: Thrift mock `createOrUpdateExpiryReminderForPartnerProgram` NOT called. MongoDB `reminders` array has 3 entries. | TS-50 | IT |
 | BT-C09 | shouldStoreYearsInMongoAndConvertToMonthsOnPublish | ADR-07 | Create with YEARS:2. After approve: Thrift mock `createOrUpdatePartnerProgram` captured arg: `cycle.type=MONTHS`, `cycle.value=24`. MongoDB doc still has `cycleType=YEARS, cycleValue=2`. | TS-49, TS-76 | IT |
@@ -260,7 +260,7 @@
 
 | ID | Test Name | Risk | What it Verifies | QA Scenario | Layer |
 |----|-----------|------|-----------------|-------------|-------|
-| BT-R01 | shouldPreventDoubleThriftCallUnderConcurrentSAGA | QA-RISK-05 (concurrent SAGA) | `mysqlPartnerProgramId` check + MongoDB `findAndModify` conditional: only one thread proceeds past the idempotency gate. Verify with `CountDownLatch` + 2 threads. | TS-43, TS-68 | IT |
+| BT-R01 | shouldPreventDoubleThriftCallUnderConcurrentSAGA | QA-RISK-05 (concurrent SAGA) | `partnerProgramId` check + MongoDB `findAndModify` conditional: only one thread proceeds past the idempotency gate. Verify with `CountDownLatch` + 2 threads. | TS-43, TS-68 | IT |
 | BT-R02 | shouldHandleDanglingBenefitIdWithoutException | QA-RISK-02 (dangling benefitId) | `getBenefits()` where one benefitId in array points to deleted benefit → response excludes deleted ID (or returns stub). No 500. Listing `benefitsCount` = actual valid count. | TS-80 | IT |
 | BT-R03 | shouldRouteSubscriptionRepoToCorrectMongoDatabase | QA-RISK-04 (EmfMongoConfig registration) | `EmfMongoConfig` explicitly lists `SubscriptionProgramRepository.class` in `includeFilters`. `@DataMongoTest` slice: save a subscription → verify it lands in the correct MongoDB database/collection. | TS-81 | IT |
 | BT-R04 | shouldNotAllowSecondSubmitWhenAlreadyPendingApproval | Session-memory risk (double submit) | `submitForApproval` on PENDING_APPROVAL subscription → `InvalidSubscriptionStateException` (already pending). State machine guard enforced. | TS-33 | IT |
@@ -379,8 +379,8 @@ These tests existed before Rework 2. Their expected outputs are now wrong and MU
 
 | ID | Test Name | Verifies | Boundary | Input | Expected Output | QA Scenario | Designer Interface | Layer |
 |----|-----------|---------|----------|-------|-----------------|-------------|-------------------|-------|
-| BT-PF-IT-01 | shouldPersistPublishFailedToMongoOnThriftError | R-16+R-17 | Service → Thrift (throws) → MongoDB | `handleApproval(APPROVE)` where Thrift throws `EMFThriftException` | MongoDB doc `status = PUBLISH_FAILED`. `comments` has error message. `mysqlPartnerProgramId = null`. Exception propagated to controller. | TS-SAGA-08 | `SubscriptionFacade.handleApproval()` | IT |
-| BT-PF-IT-02 | shouldRetryApprovalFromPublishFailedState | R-18 | Service → Thrift (mock success on retry) → MongoDB | Entity starts as PUBLISH_FAILED. `handleApproval(APPROVE)` again. | Thrift called. MongoDB `status = ACTIVE`. `mysqlPartnerProgramId` set. | TS-SAGA-05 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-PF-IT-01 | shouldPersistPublishFailedToMongoOnThriftError | R-16+R-17 | Service → Thrift (throws) → MongoDB | `handleApproval(APPROVE)` where Thrift throws `EMFThriftException` | MongoDB doc `status = PUBLISH_FAILED`. `comments` has error message. `partnerProgramId = null`. Exception propagated to controller. | TS-SAGA-08 | `SubscriptionFacade.handleApproval()` | IT |
+| BT-PF-IT-02 | shouldRetryApprovalFromPublishFailedState | R-18 | Service → Thrift (mock success on retry) → MongoDB | Entity starts as PUBLISH_FAILED. `handleApproval(APPROVE)` again. | Thrift called. MongoDB `status = ACTIVE`. `partnerProgramId` set. | TS-SAGA-05 | `SubscriptionFacade.handleApproval()` | IT |
 | BT-PF-IT-03 | shouldRejectToFromPublishFailedState | R-18 | Service → MongoDB | Entity starts as PUBLISH_FAILED. `handleApproval(REJECT, "fix config")`. | MongoDB `status = DRAFT`. `comments = "fix config"`. Thrift NOT called. | TS-SAGA-06 | `SubscriptionFacade.handleApproval()` | IT |
 
 #### Group PA-IT — Pattern A End-to-End
