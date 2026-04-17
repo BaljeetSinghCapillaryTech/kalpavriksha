@@ -142,8 +142,8 @@
         <a class="nav-link complete" href="#phase-1"><span>1. BA + PRD</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-2"><span>2. Critic + Gap</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-3"><span>3. UI Extraction (skipped)</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6a"><span>6a. Impact Analysis</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6b"><span>6b. Migration Planning</span><span class="status-dot"></span></a>
@@ -183,18 +183,19 @@
           <div class="segment complete"></div>
           <div class="segment complete"></div>
           <div class="segment complete" title="Phase 3 — skipped"></div>
+          <div class="segment complete"></div>
           <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">4</span> / 19 phases complete (1 skipped)</span>
-          <span><span class="stat-value">12</span> artifacts generated</span>
-          <span><span class="stat-value">15</span> decisions made</span>
-          <span><span class="stat-value">26</span> findings surfaced</span>
+          <span><span class="stat-value">5</span> / 19 phases complete (1 skipped)</span>
+          <span><span class="stat-value">14</span> artifacts generated</span>
+          <span><span class="stat-value">27</span> decisions made</span>
+          <span><span class="stat-value">38</span> findings surfaced</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -513,10 +514,150 @@ flowchart LR
         <p><strong>Follow-up trigger</strong>: If Phase 4 resolves OQ-17 = "public UI required" → invoke <code>/api-handoff</code> after Phase 7.</p>
       </section>
       <section class="phase-section" id="phase-4">
-        <h2>Phase 4: Blocker Resolution <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 4: Blocker Resolution <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
+        <span class="skill-tag">inline orchestrator</span>
+        <span class="skill-tag">opus</span>
+        <p>Interactive resolution of 12 blockers surfaced by Phase 1 (BA open questions) and Phase 2 (Critic contradictions + Analyst compliance gaps). Every blocker resolved via user dialogue with Principle 2 (reversibility) check. Produced 12 concrete decisions (D-18 through D-29), surfaced 10 new non-blocking OQs for Phase 5/7/9, and superseded 6 earlier constraints to reflect scope simplifications. <strong>Bottom line: 0 residual blockers — Phase 6 (Architect) is unblocked.</strong></p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">12</div><div class="label">Blockers resolved</div></div>
+          <div class="key-number"><div class="value">12</div><div class="label">New decisions (D-18..D-29)</div></div>
+          <div class="key-number"><div class="value">16</div><div class="label">Open Qs resolved</div></div>
+          <div class="key-number"><div class="value">10</div><div class="label">New non-blocking Qs</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">Constraints superseded</div></div>
+          <div class="key-number"><div class="value">1</div><div class="label">CRITICAL guardrail resolved</div></div>
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Blocker Resolution Flow</h3>
+        <div class="mermaid">
+flowchart TD
+  Start[12 Blockers from Phase 1 + 2] --> B1[#1 OQ-16: Consumer identity]
+  B1 --> D18[D-18: Client → intouch-api-v3 → EMF Thrift → MySQL]
+  D18 --> Cascade1[Auto-resolves OQ-23 PK type = i32<br/>Auto-resolves OQ-27 datastore = MySQL]
+  Start --> B2[#2-5 Batch: scope, naming, audit, FK]
+  B2 --> D20D21D22D23[D-20 API-only MVP<br/>D-21 junction table<br/>D-22 slab_id FK<br/>D-23 hybrid audit]
+  Start --> B6[#6 CRITICAL G-01 vs G-12.2 timestamps]
+  B6 --> D24[D-24: Three-boundary<br/>Date+DATETIME / i64 millis / ISO-8601 UTC]
+  Start --> B7[#7 MC descope]
+  B7 --> D25[D-25: No sign-off, no column — YAGNI]
+  Start --> B8[#8 Scale envelope]
+  B8 --> D26[D-26: SMALL — defer cache]
+  Start --> B9[#9 Reactivation cascade]
+  B9 --> D27[D-27: No reactivation — terminal deactivation]
+  Start --> B10[#10+11 Name reuse after soft-delete]
+  B10 --> D28D29[D-28 New row on inactive name<br/>D-29 App-layer uniqueness + GET_LOCK]
+  D18 --> Ready[Phase 6 READY: 0 blockers]
+  D20D21D22D23 --> Ready
+  D24 --> Ready
+  D25 --> Ready
+  D26 --> Ready
+  D27 --> Ready
+  D28D29 --> Ready
+  style Start fill:#2a2a3e,stroke:#00d4ff,color:#e0e0e0
+  style Ready fill:#1a4a2a,stroke:#00ff88,color:#e0e0e0
+  style D24 fill:#4a2a1a,stroke:#ff8800,color:#e0e0e0
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent); margin-top: 24px;">Decision → Downstream Impact</h3>
+        <div class="mermaid">
+mindmap
+  root((Phase 4<br/>Decisions))
+    Data model
+      D-21 Junction table
+      D-22 slab_id FK
+      D-23 Hybrid audit columns
+      C-10' schema
+      C-11' schema
+    API boundary
+      D-18 3-repo chain
+      D-20 API-only MVP
+      D-24 REST ISO-8601 UTC
+      D-24 Thrift i64 millis
+    Lifecycle
+      D-27 Terminal deactivation
+      D-28 Inactive rows as history
+      D-29 App-layer uniqueness
+      D-25 No lifecycle column
+    Scale
+      D-26 SMALL envelope
+      No cache day-1
+    Guardrails resolved
+      G-01 via D-24
+      G-12.2 via D-24
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent); margin-top: 24px;">Decision Ledger</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Decision</th><th>Resolves</th><th>Principle 2 check</th></tr></thead>
+          <tbody>
+            <tr><td>D-18</td><td>Consumer = Client → intouch-api-v3 REST → EMF Thrift → MySQL</td><td>OQ-16, OQ-23, OQ-27</td><td>C6 — verified from registry + Thrift IDL</td></tr>
+            <tr><td>D-19</td><td>Platform patterns: OrgEntityIntegerPKBase, created_on, ResponseWrapper</td><td>naming alignment</td><td>C6 — grep-verified across repos</td></tr>
+            <tr><td>D-20</td><td>API-only MVP; no admin UI; <code>/api-handoff</code> deferred</td><td>OQ-17</td><td>C5 — scope explicit, future UI reversible</td></tr>
+            <tr><td>D-21</td><td>Junction table <code>benefit_category_slab_mapping</code> (rename BenefitInstance)</td><td>OQ-19, OQ-28</td><td>C6 — explicit FK > JSON at SMALL scale</td></tr>
+            <tr><td>D-22</td><td><code>slab_id</code> FK name; entity <code>BenefitCategory</code> retained</td><td>OQ-24</td><td>C6 — matches existing program_slabs pattern</td></tr>
+            <tr><td>D-23</td><td>Hybrid audit: <code>created_on/by + updated_on/by + auto_update_time</code></td><td>OQ-25</td><td>C6 — platform standard</td></tr>
+            <tr><td>D-24 🔴</td><td>Three-boundary timestamps: Date+DATETIME / Thrift i64 millis / REST ISO-8601 UTC</td><td>OQ-26, G-01 vs G-12.2</td><td>C5 — honours both guardrails on their sides</td></tr>
+            <tr><td>D-25</td><td>No sign-off, no reserved lifecycle_state column — YAGNI</td><td>OQ-18</td><td>C5 — accept future migration cost</td></tr>
+            <tr><td>D-26</td><td>SMALL scale envelope: ≤50 cat, ≤20 slab/cat, &lt;10 QPS read, &lt;1 QPS write</td><td>OQ-20, OQ-30</td><td>C5 — bounded</td></tr>
+            <tr><td>D-27</td><td>No reactivation — deactivation terminal</td><td>OQ-21</td><td>C5 — simpler than any cascade policy</td></tr>
+            <tr><td>D-28</td><td>POST on inactive name creates new row; 409 only on active duplicate</td><td>OQ-22, OQ-29</td><td>C5 — inactive rows accumulate as history</td></tr>
+            <tr><td>D-29</td><td>App-layer uniqueness + MySQL <code>GET_LOCK</code> advisory lock</td><td>OQ-29 (race)</td><td>C4 — relaxes G-05.3 at SMALL scale; OQ-42 carries forward</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent); margin-top: 24px;">Residual Open Questions (10 non-blocking)</h3>
+        <table class="data-table">
+          <thead><tr><th>OQ#</th><th>Question</th><th>Owner</th><th>Priority</th></tr></thead>
+          <tbody>
+            <tr><td>OQ-34</td><td>Authz at Client boundary — who writes to this API?</td><td>Phase 6 Architect</td><td>HIGH</td></tr>
+            <tr><td>OQ-35</td><td>Existing EMF Thrift handler template (SlabService? BenefitsService?)</td><td>Phase 5 Research</td><td>HIGH</td></tr>
+            <tr><td>OQ-36</td><td>Error envelope Thrift ↔ REST mapping</td><td>Phase 7 Designer</td><td>MEDIUM</td></tr>
+            <tr><td>OQ-37</td><td>Validation layer placement (REST vs Thrift handler vs both)</td><td>Phase 7 Designer</td><td>MEDIUM</td></tr>
+            <tr><td>OQ-38</td><td>JVM default TZ in production (UTC vs IST)</td><td>Phase 5 ops-config</td><td>HIGH</td></tr>
+            <tr><td>OQ-39</td><td>Thrift i64 timestamp unit confirmation (ms default recorded)</td><td>Phase 7</td><td>LOW</td></tr>
+            <tr><td>OQ-40</td><td>ISO-8601 format pin (e.g., <code>2026-04-18T12:34:56Z</code>)</td><td>Phase 7</td><td>LOW</td></tr>
+            <tr><td>OQ-41</td><td>Thrift field naming convention for timestamps</td><td>Phase 5/7</td><td>LOW</td></tr>
+            <tr><td>OQ-42</td><td>Race-condition mitigation design (advisory lock specifics)</td><td>Phase 7 Designer</td><td>HIGH-principle / LOW-scale</td></tr>
+            <tr><td>OQ-43</td><td>String normalization for category name (trim? case-fold?)</td><td>Phase 7 Designer</td><td>LOW</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent); margin-top: 24px;">Guardrail Resolution</h3>
+        <div class="mermaid">
+flowchart LR
+  G01[G-01 Timezone<br/>no naked Date fields across boundaries] --> Tension{CRITICAL<br/>tension}
+  G122[G-12.2 Follow existing<br/>patterns — Date+DATETIME] --> Tension
+  Tension --> D24[D-24: Three-boundary pattern]
+  D24 --> S1[EMF internal<br/>Date + MySQL DATETIME]
+  D24 --> S2[Thrift boundary<br/>i64 epoch millis UTC]
+  D24 --> S3[REST boundary<br/>ISO-8601 UTC string]
+  S1 --> G122R[G-12.2 honoured<br/>inside service]
+  S2 --> G01R[G-01 honoured<br/>at service boundary]
+  S3 --> G01R
+  style Tension fill:#4a2a1a,stroke:#ff4444,color:#e0e0e0
+  style D24 fill:#1a4a2a,stroke:#00ff88,color:#e0e0e0
+        </div>
+
+        <p><strong>Artifacts produced</strong>:</p>
+        <ul class="artifact-list">
+          <li>grooming-questions.md — 12 BLOCKER + 4 SCOPE + 3 FEASIBILITY + 14 NON-BLOCKING resolutions</li>
+          <li>blocker-decisions.md — full decision ledger, 3 Mermaid diagrams, Phase 6 readiness verdict</li>
+          <li>session-memory.md — incrementally updated with D-18..D-29, new OQs, superseded constraints</li>
+          <li>approach-log.md — 6 user-dialogue entries with question/options/answer/reasoning</li>
+          <li>pipeline-state.json — Phase 4 marked complete with findings object</li>
+        </ul>
+
+        <p><strong>Phase 6 readiness verdict</strong>: <span style="color: #00ff88;">READY</span>. 0 residual blockers. All 10 new OQs have Phase-specific ownership and none block architecture decisions.</p>
+
+        <p><strong>Git</strong>: tag <code>aidlc/CAP-185145/phase-04</code> preserves revert point.</p>
       </section>
       <section class="phase-section" id="phase-5">
-        <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 5: Codebase Research + Cross-Repo Trace <span class="phase-badge pending">In Progress</span></h2>
+        <p class="phase-time">Started: 2026-04-18</p>
+        <span class="skill-tag">parallel per-repo exploration</span>
+        <span class="skill-tag">/cross-repo-tracer</span>
+        <p>Spawning 5 parallel subagents (one per repo: kalpavriksha, emf-parent, intouch-api-v3-2, cc-stack-crm, thrift-ifaces-pointsengine-rules) followed by 1 cross-repo tracer. Phase 5 MUST verify: OQ-35 (existing EMF Thrift handler template), OQ-38 (JVM default TZ in production), OQ-33 (legacy <code>/benefits</code> SLA baseline), C-25 (G-07 multi-tenancy enforcement), and raise Cross-Repo Coordination table from C5 to C6+ with evidence.</p>
       </section>
       <section class="phase-section" id="phase-6">
         <h2>Phase 6: Architecture (HLD) <span class="phase-badge pending">Pending</span></h2>

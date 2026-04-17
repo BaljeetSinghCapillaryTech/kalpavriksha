@@ -228,6 +228,96 @@
 
 ---
 
+### Phase 4: Grooming + Blocker Resolution
+**Time**: 2026-04-18
+**Skill(s)**: inline orchestrator (main context)
+**Model**: opus
+**Mode**: interactive Q&A — user resolves every blocker
+
+**What was done**:
+
+1. **Compiled 12 blockers** from Phase 1 (BA open questions) + Phase 2 (Critic contradictions + Analyst compliance gaps). Classification: BLOCKERS (12), SCOPE (4 — all pre-resolved in Phase 1), FEASIBILITY (3 — all pre-resolved in Phase 2/4), NON-BLOCKING (14 — open for Phase 5/7/9).
+2. **Ran interactive resolution loop**:
+   - Presented each blocker with framed options, tradeoffs, and Principle 2 (reversibility) check.
+   - User answered each blocker with concrete decisions. Where user invoked (d)/(e) meta-options, I expanded into structured sub-menus (d1..d7, e1..e7) on retry to converge.
+3. **Synthesised 12 decisions** (D-18 through D-29) — each with question, options considered, user answer, decision text, evidence, downstream impact, Principle 2 check.
+4. **Cascading resolutions** — three efficiencies realised:
+   - D-18 (Consumer identity = Client→intouch-api-v3→EMF Thrift→MySQL) auto-resolved OQ-23 (PK type — must be i32 for Thrift) and OQ-27 (MySQL vs MongoDB — MySQL because EMF Thrift-exposed entities are MySQL).
+   - D-26 (SMALL scale envelope) auto-resolved OQ-30 (cache defer — <10 QPS unjustifies cache).
+   - D-28 (app-layer uniqueness + advisory lock) + D-29 (inactive rows don't block reuse) fused BLOCKERS #10 and #11 into one decision.
+5. **Resolved the one CRITICAL guardrail tension** (G-01 date/timezone vs G-12.2 follow-existing-patterns) via user's three-boundary pattern (D-24): Date+DATETIME internal / Thrift i64 millis / REST ISO-8601 UTC. Both guardrails honoured on their respective sides.
+6. **Surfaced 10 new non-blocking OQs** (OQ-34 through OQ-43) with clear Phase 5/7/9 ownership — refusing to silently assume. Examples: OQ-34 (authz at Client boundary — Phase 6), OQ-35 (existing EMF Thrift handler template — Phase 5), OQ-38 (JVM default TZ in production — Phase 5 ops check).
+7. **Superseded 6 earlier constraints**:
+   - C-10 → C-10' (benefit_category_slab_mapping replaces BenefitInstance; junction table, not JSON)
+   - C-11 → C-11' (benefit_categories — tier_applicability dropped, full audit columns added, category_type ENUM)
+   - C-17 → C-17' (descoped lifecycle state machine — `is_active` only)
+   - C-18 → C-18' (descoped reserved lifecycle_state column — pure YAGNI, accept future migration cost)
+   - C-22 resolved into D-24 three-boundary pattern
+   - C-23 → C-23' (no tier_applicability JSON — junction table instead)
+8. **Generated 2 new artifacts**:
+   - `grooming-questions.md` — consolidated question ledger with resolutions and Phase owners
+   - `blocker-decisions.md` — full decision ledger with Mermaid flow diagrams (blocker resolution flow, decision→downstream impact mindmap, guardrail resolution flowchart)
+
+**Artifacts produced**:
+- `grooming-questions.md` — 91 lines; 12 BLOCKER + 4 SCOPE + 3 FEASIBILITY + 14 NON-BLOCKING resolutions table
+- `blocker-decisions.md` — executive summary, 12 full decision entries, residual OQs, Phase 6 readiness verdict, 3 Mermaid diagrams
+- `session-memory.md` updated (D-18..D-29 added, OQ-15..OQ-30 resolved, OQ-34..OQ-43 added, 6 constraints superseded, guardrails table reflects G-01 resolution)
+- `approach-log.md` updated (6 entries covering BLOCKERS #1, #2-5 batch, CLR-1/2/3, #6 CRITICAL, #7, #8, #9, #10+#11 batch)
+- `pipeline-state.json` — Phase 4 marked complete with findings object
+
+**Key numbers**:
+- Blockers resolved: **12 / 12** ✅
+- Decisions recorded: 12 (D-18 through D-29)
+- Open questions resolved: 16 (OQ-15 through OQ-30)
+- New open questions surfaced: 10 (OQ-34 through OQ-43, all non-blocking)
+- Constraints superseded: 6 (C-10/11/17/18/22/23 → C-10'/11'/17'/18'/23')
+- CRITICAL guardrail tensions resolved: 1 (G-01 vs G-12.2 via D-24)
+- Blocking-for-Phase-6 count: **0** ✅
+
+**Phase 6 readiness verdict**: READY. No residual blockers. All open questions have concrete Phase ownership (5, 6, 7, 9, or follow-up ticket) and none are blocking architecture decisions.
+
+**Decisions recorded in session-memory**:
+
+| # | Decision | Impact |
+|---|----------|--------|
+| D-18 | Consumer = Client → intouch-api-v3 REST → EMF Thrift → MySQL | Dictates PK type (i32), datastore (MySQL), 3-repo coordination |
+| D-19 | Platform-standard patterns: OrgEntityIntegerPKBase, created_on, ResponseWrapper | Anchors to existing project conventions |
+| D-20 | API-only MVP (public Client API, no admin UI) | Removes UI phase; future follow-up if UI needed |
+| D-21 | `benefit_category_slab_mapping` junction table (rename BenefitInstance) | Drops `tier_applicability` JSON from C-11' |
+| D-22 | `slab_id` FK column name (not tier_id); entity `BenefitCategory` retained | Matches existing program_slabs FK convention |
+| D-23 | Audit: `created_on + created_by + updated_on + updated_by + auto_update_time` | Hybrid — platform audit + app-tracked who |
+| D-24 | Timestamp three-boundary: Date+DATETIME / Thrift i64 millis / REST ISO-8601 UTC | Resolves CRITICAL G-01 vs G-12.2 tension |
+| D-25 | No sign-off, no reserved lifecycle_state column — YAGNI | Accepts future migration cost over present-day bloat |
+| D-26 | SMALL scale envelope: ≤50 cat, ≤20 slab/cat, ≤1k cascade, <10 QPS read, <1 QPS write | Defers cache; primary-reads OK |
+| D-27 | No reactivation at all — deactivation terminal | Eliminates cascade-policy debate; simpler |
+| D-28 | POST on inactive-name creates new row; 409 only on active duplicate | Inactive rows accumulate as history |
+| D-29 | App-layer uniqueness validation + MySQL `GET_LOCK` advisory lock | Race mitigation; accepts relaxation of G-05.3 at SMALL scale |
+
+**New non-blocking open questions**:
+| OQ# | Owner | Priority |
+|-----|-------|----------|
+| OQ-34 | Phase 6 Architect | HIGH (authz at Client boundary) |
+| OQ-35 | Phase 5 research | HIGH (existing EMF Thrift handler template) |
+| OQ-36 | Phase 7 Designer | MEDIUM (error envelope Thrift↔REST) |
+| OQ-37 | Phase 7 Designer | MEDIUM (validation layer placement) |
+| OQ-38 | Phase 5 ops-config | HIGH (JVM default TZ in production) |
+| OQ-39–41 | Phase 5/7 | LOW (Thrift field units/naming, ISO format) |
+| OQ-42 | Phase 7 Designer | HIGH-principle / LOW-scale (race-mitigation design) |
+| OQ-43 | Phase 7 Designer | LOW (string normalization for category name) |
+
+**Git**:
+- Artifacts committed to `aidlc/CAP-185145` branch in kalpavriksha
+- Tag: `aidlc/CAP-185145/phase-04` (preserves revert point)
+
+---
+
+### Phase 5: Codebase Research + Cross-Repo Tracing
+**Time**: in progress
+**Skill(s)**: parallel per-repo exploration + `/cross-repo-tracer`
+**Mode**: agent team (5 parallel subagents + 1 cross-repo tracer after)
+
+---
+
 ## Rework History
 
 _(Populated if phases route back to earlier phases.)_
