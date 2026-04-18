@@ -193,13 +193,13 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">7</span> / 19 phases complete (1 skipped) + Gate resolved</span>
-          <span><span class="stat-value">20</span> artifacts generated</span>
-          <span><span class="stat-value">40</span> decisions made</span>
+          <span><span class="stat-value">8</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen</span>
+          <span><span class="stat-value">21</span> artifacts generated</span>
+          <span><span class="stat-value">40</span> decisions made &middot; 17 patterns P-01..P-17</span>
           <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD)</span>
-          <span><span class="stat-value">59</span> findings surfaced</span>
-          <span><span class="stat-value">12</span> risks registered (2 CRITICAL, 2 HIGH — R-03 accepted)</span>
-          <span><span class="stat-value">0</span> code files written</span>
+          <span><span class="stat-value">64</span> findings surfaced (59 + 5 Designer Qs)</span>
+          <span><span class="stat-value">26</span> new types + 8 modified — LLD compile-safe</span>
+          <span><span class="stat-value">0</span> code files written (RED phase next)</span>
         </div>
       </header>
 
@@ -1195,7 +1195,197 @@ flowchart LR
         <h2>Phase 6b: Migration Planning <span class="phase-badge pending">Pending (conditional)</span></h2>
       </section>
       <section class="phase-section" id="phase-7">
-        <h2>Phase 7: Designer (LLD) <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 7: Designer (LLD) <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18 &middot; subagent (general-purpose, opus) &middot; 24 tool uses &middot; ~568s</p>
+        <span class="skill-tag">/designer</span>
+        <span class="skill-tag">Step 0 Codebase Pattern Discovery</span>
+
+        <p>LLD produced: <code>03-designer.md</code> (1230 lines, 7 sections A–G + appendix). Step 0 Codebase Pattern Discovery strictly applied — 17 patterns P-01..P-17 anchored to file:line exemplars. All 8 hard-constraint inputs (D-33..D-40 + C-32..C-34) reified in compile-safe signatures. <strong>RED-phase readiness: true</strong> — SDET Phase 9 can generate skeletons + failing tests directly.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">1230</div><div class="label">LLD lines</div></div>
+          <div class="key-number"><div class="value">26</div><div class="label">New types</div></div>
+          <div class="key-number"><div class="value">8</div><div class="label">Modified types</div></div>
+          <div class="key-number"><div class="value">17</div><div class="label">Patterns anchored</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">Thrift methods</div></div>
+          <div class="key-number"><div class="value">5</div><div class="label">Designer Qs</div></div>
+          <div class="key-number"><div class="value">13</div><div class="label">C5 assumptions</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">New constraints</div></div>
+        </div>
+
+        <h3>Type Inventory by Repo</h3>
+        <table class="data-table">
+          <thead><tr><th>Repo</th><th>NEW</th><th>MODIFIED</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td><code>thrift-ifaces-pointsengine-rules</code></td><td>4 structs + 6 methods</td><td>1 (pom 1.83→1.84)</td><td><code>enum BenefitCategoryType</code>, <code>struct BenefitCategoryDto</code>, <code>struct BenefitCategoryFilter</code>, <code>struct BenefitCategoryListResponse</code>; 6 methods on <code>PointsEngineRuleService</code></td></tr>
+            <tr><td><code>emf-parent</code></td><td>9 files</td><td>5 files</td><td>Entities (2 + embedded PKs), Enum, 2 DAOs, Tuple, 2 DDL NEW; handler/editor/service/pom/<code>.gitmodules</code> MODIFIED</td></tr>
+            <tr><td><code>intouch-api-v3</code></td><td>7 files</td><td>2 files</td><td>Controller, Facade, <code>ConflictException</code>, 4 DTOs NEW; <code>TargetGroupErrorAdvice</code> (+409) + pom MODIFIED</td></tr>
+            <tr><td><code>cc-stack-crm</code></td><td>2 DDL files</td><td>0</td><td><code>benefit_categories.sql</code>, <code>benefit_category_slab_mapping.sql</code></td></tr>
+            <tr><td><strong>Total</strong></td><td><strong>26 new + 6 IDL methods</strong></td><td><strong>8 modified</strong></td><td>—</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Pattern Exemplars (top 6 of 17)</h3>
+        <table class="data-table">
+          <thead><tr><th>P#</th><th>Exemplar</th><th>Applied To</th></tr></thead>
+          <tbody>
+            <tr><td>P-01</td><td><code>Benefits.java</code> (emf-parent)</td><td>New JPA entities: hand-written getters/setters, <code>OrgEntityIntegerPKBase</code>, <code>@Temporal</code></td></tr>
+            <tr><td>P-02</td><td><code>BenefitsDao</code></td><td>New DAOs with <code>orgId</code> explicit parameter (C-28 upheld)</td></tr>
+            <tr><td>P-03</td><td><code>PointsEngineRuleConfigThriftImpl.createOrUpdateBenefit</code></td><td>All 6 new Thrift handlers — <code>PointsEngineRuleServiceException</code> with <code>statusCode</code> wrapping</td></tr>
+            <tr><td>P-04</td><td><code>PointsEngineRuleService.createOrUpdateSlab</code></td><td>Service methods — <code>@Transactional(warehouse)</code> + <code>@DataSourceSpecification</code> inherited</td></tr>
+            <tr><td>P-05</td><td><code>TargetGroupController</code></td><td>New REST controller — <code>@RestController @RequestMapping("/v3/...")</code> + <code>ResponseEntity&lt;ResponseWrapper&lt;T&gt;&gt;</code></td></tr>
+            <tr><td>P-06</td><td><code>TargetGroupErrorAdvice</code></td><td><code>@ExceptionHandler(ConflictException)</code> → 409 (D-31 reified)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Hard-Constraint Honour Matrix</h3>
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Constraint</th><th>Designer Anchor</th></tr></thead>
+          <tbody>
+            <tr><td>D-33</td><td>No optimistic lock</td><td>Entity classes have NO <code>@Version</code> column</td></tr>
+            <tr><td>D-34 + D-36</td><td>Dedicated <code>/activate</code> + <code>/deactivate</code></td><td><code>BenefitCategoriesV3Controller.@PatchMapping("/{id}/activate")</code> + <code>/{id}/deactivate</code></td></tr>
+            <tr><td>D-35</td><td>Embedded slabIds + diff-apply</td><td><code>syncSlabMappings(categoryId, newIdSet)</code> pseudocode in §F; <code>LinkedHashSet</code> dedup at Facade entry</td></tr>
+            <tr><td>D-37</td><td>No admin-only gate</td><td>Controller has only <code>@SecuredResource</code> / BasicAndKey; no <code>@PreAuthorize</code></td></tr>
+            <tr><td>D-38</td><td>No advisory lock</td><td><code>BenefitCategoryFacade.create</code> does <code>findActiveByName → INSERT</code> only; no <code>GET_LOCK</code>; race accepted</td></tr>
+            <tr><td>D-39</td><td>Asymmetric response</td><td>Facade <code>Optional&lt;BenefitCategoryResponse&gt;</code>; Thrift IDL: <code>BenefitCategory activateBenefitCategory(...)</code> returns struct; deactivate void</td></tr>
+            <tr><td>D-40</td><td>Aurora version deferred</td><td>No dependency in Designer output</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Error Mapping Frozen (per ADR-009 + D-31 + D-38)</h3>
+        <table class="data-table">
+          <thead><tr><th>Code</th><th>HTTP</th><th>Trigger</th></tr></thead>
+          <tbody>
+            <tr><td><code>BC_NAME_TAKEN_ACTIVE</code></td><td>409</td><td>Active duplicate at POST (D-28)</td></tr>
+            <tr><td><code>BC_CROSS_PROGRAM_SLAB</code></td><td>409</td><td>Slab belongs to different program</td></tr>
+            <tr><td><code>BC_UNKNOWN_SLAB</code></td><td>409</td><td>Slab doesn't exist in org</td></tr>
+            <tr><td><code>BC_INACTIVE_WRITE_FORBIDDEN</code></td><td>409</td><td>PUT on soft-deleted category (D-27 amendment)</td></tr>
+            <tr><td><code>BC_NAME_TAKEN_ON_REACTIVATE</code></td><td>409</td><td>Reactivate when name taken by another active (D-34 clause e)</td></tr>
+            <tr><td><code>BC_NOT_FOUND</code></td><td>404</td><td>Category doesn't exist or wrong org</td></tr>
+            <tr><td><code>BC_PAGE_SIZE_EXCEEDED</code></td><td>400</td><td>List request size &gt; 100 (ADR-011)</td></tr>
+            <tr><td><s><code>BC_NAME_LOCK_TIMEOUT</code></s></td><td>—</td><td><strong>STRICKEN per D-38</strong> — no advisory lock, no lock timeout</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Designer Open Questions (Q7-11..Q7-15 — Non-blocking for Phase 9 SDET RED)</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Question</th><th>Designer Default</th><th>Confidence</th><th>Resolve Before</th></tr></thead>
+          <tbody>
+            <tr><td>Q7-11</td><td><code>PeProgramSlabDao.findMissingIdsForProgram</code> existence</td><td>Add new method if absent</td><td>C4</td><td>Phase 10 Developer</td></tr>
+            <tr><td>Q7-12</td><td>GET by id — active-only or audit-inclusive</td><td>Active-only; <code>?includeInactive=true</code> for audit</td><td>C4 (product)</td><td>Phase 10 Developer</td></tr>
+            <tr><td>Q7-13</td><td>Activate no-op signalling</td><td><code>Optional&lt;BenefitCategoryResponse&gt;</code> at Facade</td><td>C5 (Designer prefers)</td><td>Phase 10 Developer</td></tr>
+            <tr><td>Q7-14</td><td>Entity boilerplate</td><td>Hand-written getters/setters (no Lombok)</td><td>C5 (style)</td><td>Phase 10 Developer</td></tr>
+            <tr><td>Q7-15</td><td>DTO↔Thrift mapper placement</td><td>intouch-api-v3 facade package <code>*Mapper</code></td><td>C5 (style)</td><td>Phase 10 Developer</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Architect Questions Resolved by Designer</h3>
+        <table class="data-table">
+          <thead><tr><th>Q (Architect)</th><th>Designer Resolution</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td>Q7-03 Facade class name</td><td><code>BenefitCategoryFacade</code></td><td>intouch-api-v3 convention</td></tr>
+            <tr><td>Q7-04 Controller package</td><td><code>resources</code></td><td>code-analysis-intouch-api-v3</td></tr>
+            <tr><td>Q7-05 List wrapper</td><td><code>BenefitCategoryListPayload</code> inside <code>ResponseWrapper.data</code></td><td>Platform convention</td></tr>
+            <tr><td>Q7-06 Thrift timestamp names</td><td>bare <code>createdOn</code>/<code>updatedOn</code> (NOT <code>*InMillis</code>) → <strong>C-38</strong></td><td><code>pointsengine_rules.thrift</code> convention</td></tr>
+            <tr><td>Q7-07 Activate response</td><td>superseded by D-39</td><td>—</td></tr>
+            <tr><td>Q7-10 Audit write</td><td>manual <code>new Date()</code> in service → <strong>C-37</strong></td><td><code>Benefits.java</code> + platform convention</td></tr>
+            <tr><td>Q7-01 Name normalization (partial)</td><td><code>.trim()</code> + case-sensitive; max length TBD Phase 8</td><td>Platform convention</td></tr>
+            <tr><td>Q7-02 Advisory-lock key hashing</td><td>MOOT — killed by D-38</td><td>—</td></tr>
+            <tr><td>Q7-08 IT fixture strategy</td><td>Phase 9 SDET concern</td><td>—</td></tr>
+            <tr><td>Q7-09 Aurora version check</td><td>Deferred by D-40</td><td>—</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Designer Decision Flow</h3>
+        <div class="mermaid">
+flowchart TB
+  subgraph frozen[Hard-Constraint Inputs — Non-Negotiable]
+    D33[D-33 no @Version]
+    D34[D-34 PATCH /activate]
+    D35[D-35 embed slabIds + diff-apply]
+    D36[D-36 PATCH /deactivate]
+    D37[D-37 BasicAndKey only]
+    D38[D-38 no advisory lock]
+    D39[D-39 asymmetric 200+DTO / 204]
+    D40[D-40 Aurora version deferred]
+  end
+
+  subgraph step0[Designer Step 0 — Pattern Discovery]
+    E1[Benefits.java entity pattern]
+    E2[BenefitsDao DAO pattern]
+    E3[PointsEngineRuleConfigThriftImpl handler pattern]
+    E4[PointsEngineRuleService txn pattern]
+    E5[TargetGroupController REST pattern]
+    E6[TargetGroupErrorAdvice exception pattern]
+  end
+
+  subgraph output[03-designer.md — Compile-Safe Signatures]
+    T1[26 new types + 8 modified]
+    T2[17 patterns P-01..P-17]
+    T3[7 error codes frozen]
+    T4[Compile-safe Java in Section F]
+  end
+
+  subgraph qs[Designer Open Questions]
+    Q11[Q7-11 DAO batch method]
+    Q12[Q7-12 GET includeInactive]
+    Q13[Q7-13 Optional signalling]
+    Q14[Q7-14 Lombok style]
+    Q15[Q7-15 Mapper placement]
+  end
+
+  frozen --> step0
+  step0 --> output
+  output --> Q11
+  output --> Q12
+  output --> Q13
+  output --> Q14
+  output --> Q15
+  output --> P9[Phase 9 SDET RED<br/>unblocked]
+
+  style frozen fill:#2a2a4a,stroke:#00d4ff,color:#e0e0e0
+  style step0 fill:#1a3a3a,stroke:#00d4ff,color:#e0e0e0
+  style output fill:#1a3a2a,stroke:#00ff88,color:#e0e0e0
+  style qs fill:#3a2a1a,stroke:#ffaa00,color:#e0e0e0
+  style P9 fill:#1a3a1a,stroke:#00ff88,color:#e0e0e0
+        </div>
+
+        <h3>Cross-Boundary Contract Example — Create Flow (6 Operations in §B)</h3>
+        <div class="mermaid">
+sequenceDiagram
+  participant C as Client
+  participant R as intouch-api-v3<br/>BenefitCategoriesV3Controller
+  participant F as intouch-api-v3<br/>BenefitCategoryFacade
+  participant T as emf-parent<br/>Thrift Handler
+  participant S as emf-parent<br/>PointsEngineRuleService
+  participant D as emf-parent<br/>BenefitCategoryDao
+  participant P as emf-parent<br/>PeProgramSlabDao
+  participant DB as MySQL (warehouse)
+
+  C->>+R: POST /v3/benefitCategories<br/>{name, programId, slabIds[]}
+  R->>+F: createBenefitCategory(IntouchUser, request)
+  F->>F: LinkedHashSet<>(slabIds) dedup
+  F->>+T: createBenefitCategory(Thrift struct)
+  T->>+S: service method (@Transactional warehouse)
+  S->>D: findActiveByNameAndOrgAndProgram(orgId, programId, trim(name))
+  D-->>S: empty (no active dup) or ConflictException
+  S->>P: findMissingIdsForProgram(orgId, programId, slabIdSet)
+  P-->>S: empty (all exist) or {missing: [...]}
+  Note over S: if missing non-empty →<br/>BC_UNKNOWN_SLAB (409)
+  S->>D: insert(BenefitCategory) — no @Version
+  S->>S: syncSlabMappings(categoryId, slabIdSet) — INSERTs only on create
+  S-->>-T: BenefitCategoryDto
+  T-->>-F: Thrift struct
+  F-->>-R: BenefitCategoryResponse
+  R-->>-C: 201 Created + ResponseWrapper&lt;BenefitCategoryResponse&gt;
+
+  Note over C,DB: D-38 accepted-race window is between<br/>findActive SELECT and INSERT — no GET_LOCK
+        </div>
+
+        <h3>Phase 8 Readiness</h3>
+        <p>✅ <strong>PHASE 8 (QA) + PHASE 9 (SDET RED) UNBLOCKED.</strong> Designer open questions Q7-11..Q7-15 don't block test generation — they affect Phase 10 production-body specifics only (DAO method existence, audit semantics, signalling idiom, entity style, mapper placement). Phase 8 QA can proceed using <code>03-designer.md</code> §F compile-safe signatures as the authoritative contract surface.</p>
+
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-07</code></p>
       </section>
       <section class="phase-section" id="phase-8">
         <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
@@ -1239,7 +1429,8 @@ flowchart LR
         <h2>HLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
       </section>
       <section class="phase-section" id="lld-diagrams">
-        <h2>LLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>LLD Diagrams <span class="phase-badge complete">Populated by Phase 7</span></h2>
+        <p>The full LLD with compile-safe signatures is in <code>03-designer.md</code> §F (630+ lines of Java signatures). Quick-reference diagrams are embedded in the Phase 7 section above: <a href="#phase-7">Designer Decision Flow</a> (constraint→pattern→output) and <a href="#phase-7">Create Flow Cross-Boundary Sequence</a> (end-to-end trace for 1 of 6 operations). See <code>03-designer.md</code> §B for all 6 operation sequence diagrams.</p>
       </section>
       <section class="phase-section" id="cross-repo">
         <h2>Cross-Repo Map <span class="phase-badge pending">Not yet populated</span></h2>

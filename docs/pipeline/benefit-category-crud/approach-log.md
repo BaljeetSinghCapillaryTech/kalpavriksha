@@ -609,7 +609,51 @@ Architect produced `01-architect.md` (1012 lines, 13 ADRs — 4 frozen D-33..D-3
 
 ### Phase 7 (Designer) Decisions
 
-_Pending — launching `/designer` next with full HLD + amended ADRs + 4 new constraints as inputs._
+Designer ran as opus subagent, ~568s, 24 tool uses. Produced `03-designer.md` (1230 lines, 7 sections + appendix). Step 0 Codebase Pattern Discovery strictly applied — 17 patterns P-01..P-17 anchored to file:line exemplars.
+
+**Architect Phase-6 open questions resolved by Designer** (no user input required — pure codebase research):
+
+| Q | Resolution | Evidence Anchor | Confidence |
+|---|-----------|-----------------|-----------|
+| Q7-03 Facade class name | `BenefitCategoryFacade` (intouch-api-v3 convention) | code-analysis-intouch-api-v3 | C5 |
+| Q7-04 Controller package | `resources` | code-analysis-intouch-api-v3 | C5 |
+| Q7-05 List wrapper | `BenefitCategoryListPayload` inside `ResponseWrapper.data` | `ResponseWrapper<T>` platform convention | C5 |
+| Q7-06 Thrift timestamp names | bare `createdOn`/`updatedOn` (NOT `*InMillis`) | `pointsengine_rules.thrift` convention | C6 |
+| Q7-07 Activate response | superseded by D-39 — 200+DTO on state change / 204 idempotent | D-39 | C6 |
+| Q7-10 Audit timestamp write | manual `new Date()` in service (NOT `@PrePersist`) | `Benefits.java` + platform convention | C6 |
+| Q7-01 Name normalization (partial) | `.trim()` + case-sensitive; max length TBD Phase 8 | Platform convention | C5 (partial) |
+
+**Architect Phase-6 questions moot**:
+- Q7-02 (advisory-lock key hashing) — killed by D-38 (no lock)
+- Q7-08 (IT fixture strategy) — Phase 9 SDET concern
+- Q7-09 (Aurora version) — deferred by D-40
+
+**Designer assumptions flagged** (13 at C5, listed in §G of `03-designer.md` — mostly style-level, ready for user review at or before Phase 10): facade suffix, controller package, list payload naming, bare Thrift timestamps, manual Date, `.trim()`+case-sensitive, `isActive=all` sentinel, `Math.toIntExact` cast, 204 on idempotent activate, filter carries orgId, FK column name, `ConflictException(code, message)` ctor, `PeProgramSlabDao` batch method addition.
+
+**New Designer open questions Q7-11..Q7-15** (to be resolved before Phase 10 Developer; non-blocking for Phase 9 SDET RED):
+
+| Q | Question | Designer Default | Confidence |
+|---|----------|------------------|-----------|
+| Q7-11 | Does `PeProgramSlabDao.findMissingIdsForProgram` already exist? | Add new method if absent | C4 — needs verification |
+| Q7-12 | GET by id — active-only or active+inactive | Active-only; `?includeInactive=true` for audit | C4 — product decision |
+| Q7-13 | Activate no-op signalling | `Optional<BenefitCategoryResponse>` at Facade | C5 — Designer prefers |
+| Q7-14 | Entity boilerplate | Hand-written getters/setters (no Lombok) | C5 — style |
+| Q7-15 | DTO↔Thrift mapper placement | intouch-api-v3 facade package `*Mapper` | C5 — style |
+
+**New constraints**: C-35 (hand-written entity boilerplate), C-36 (mapper class placement), C-37 (manual `new Date()` — resolves Q7-10), C-38 (bare Thrift timestamp names — resolves Q7-06).
+
+**Hard-constraint honour verification** (all 8 pre-Designer frozen decisions reified in signatures):
+- D-33 → no `@Version` column on either entity
+- D-34 + D-36 → dedicated `/activate` + `/deactivate` endpoints
+- D-35 → `slabIds: List<Integer>` on Create/Update requests + `syncSlabMappings` pseudocode
+- D-37 → no `@PreAuthorize` annotations; `@SecuredResource` + BasicAndKey only
+- D-38 → `BenefitCategoryFacade.create` does `findActiveByNameAndOrgAndProgram → INSERT` only; no `GET_LOCK`
+- D-39 → Facade returns `Optional<BenefitCategoryResponse>`; Thrift IDL: `activateBenefitCategory` returns struct (not void); deactivate returns void
+- D-40 → no Aurora version dependency in Designer output
+
+**RED-phase readiness**: true. SDET Phase 9 can generate skeleton production classes + failing tests directly from `03-designer.md` §F compile-safe signatures.
+
+**Pause point for user review**: Q7-11..Q7-15 don't block Phase 9 SDET RED. Recommend: proceed to Phase 8 (QA) and Phase 9 (SDET) in sequence; present Q7-11..Q7-15 to user for decision before Phase 10 Developer starts writing production bodies.
 
 ### Phase 11 (Reviewer Gap Routing) Decisions
 

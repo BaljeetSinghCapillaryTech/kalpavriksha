@@ -687,3 +687,99 @@ Phase 7 Designer is BLOCKED until Q1..Q4 are answered. Each answer will be recor
 All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new constraints form the complete Designer input set. Proceeding to Phase 7 (LLD — Designer).
 
 ---
+
+### Phase 7: LLD — Designer — 2026-04-18
+
+**Status**: ✅ Complete (RED-phase readiness achieved)
+
+**Mode**: Subagent (general-purpose, opus) — 24 tool uses, ~568s duration.
+
+**Skill**: `/designer` (`.claude/skills/designer/SKILL.md`) with Step 0 Codebase Pattern Discovery strictly enforced.
+
+**Hard-constraint input set**: D-33..D-36 (pre-HLD frozen ADRs), D-37..D-40 (gate-resolved decisions), C-32..C-34 (new MVP constraints), 13 ADRs + 12 risks from amended HLD.
+
+**Artifact produced**: `03-designer.md` — 1230 lines, 7 sections A–G + appendix (§17 Evidence Anchors Quick Reference).
+
+**Type inventory (34 touchpoints)**:
+
+| Repo | NEW | MODIFIED | Details |
+|------|-----|----------|---------|
+| thrift-ifaces-pointsengine-rules | 4 IDL structs + 6 methods | 1 (pom 1.83→1.84) | `enum BenefitCategoryType`, `struct BenefitCategoryDto`, `struct BenefitCategoryFilter`, `struct BenefitCategoryListResponse`; 6 methods on `PointsEngineRuleService` |
+| emf-parent | 9 files | 5 files | Entities (2 + embedded PKs), Enum (1), DAOs (2), Tuple (1), DDL (2) NEW; handler/editor/service/pom/submodule MODIFIED |
+| intouch-api-v3 | 7 files | 2 files | Controller, Facade, `ConflictException`, 4 DTOs NEW; `TargetGroupErrorAdvice` (+409) + pom MODIFIED |
+| cc-stack-crm | 2 DDL files | 0 | `benefit_categories.sql`, `benefit_category_slab_mapping.sql` |
+| **Total** | **26 new + 6 IDL methods** | **8 modified** | — |
+
+**Pattern exemplars anchored (17 patterns P-01..P-17 — full citations in §D)**:
+
+| P# | Exemplar | Applied To |
+|----|----------|-----------|
+| P-01 | `Benefits.java` (emf-parent) | New JPA entities (hand-written getters/setters, `OrgEntityIntegerPKBase`, `@Temporal`) |
+| P-02 | `BenefitsDao` (emf-parent) | New DAOs with `orgId` explicit parameter (C-28 upheld) |
+| P-03 | `PointsEngineRuleConfigThriftImpl.createOrUpdateBenefit` | All 6 new Thrift handlers — `PointsEngineRuleServiceException` wrapping with `statusCode` |
+| P-04 | `PointsEngineRuleService.createOrUpdateSlab` | Service methods — `@Transactional(warehouse)` + `@DataSourceSpecification` inherited |
+| P-05 | `TargetGroupController` | New REST controller — `@RestController @RequestMapping("/v3/...")` + `ResponseEntity<ResponseWrapper<T>>` |
+| P-06 | `TargetGroupErrorAdvice` | `@ExceptionHandler(ConflictException)` → 409 (D-31 reified) |
+| P-07..P-17 | various | Audit columns, Thrift struct field IDs, DDL index patterns, exception codes, error-mapping, etc. (§D) |
+
+**Hard constraints honoured** (with Designer-§-anchor):
+- D-33 no `@Version` → entities have NO version column (§A.emf-parent entities; §F.001 class headers)
+- D-34 + D-36 dedicated `/activate` + `/deactivate` endpoints → §A.intouch-api-v3 `BenefitCategoriesV3Controller` §F.@PatchMapping
+- D-35 embedded `slabIds` + diff-apply → §B.operations 1,3; §F.BenefitCategoryFacade.syncSlabMappings pseudocode
+- D-37 no `@PreAuthorize` → §F.controller has only `@SecuredResource` / BasicAndKey annotations
+- D-38 no advisory lock → §F.BenefitCategoryFacade.create is `SELECT → INSERT` only; race accepted (no `GET_LOCK`)
+- D-39 asymmetric response → §F.Facade returns `Optional<BenefitCategoryResponse>` on activate (empty→204, populated→200+DTO); void on deactivate (→204); Thrift IDL: `BenefitCategory activateBenefitCategory(...)` returns struct
+- D-40 Aurora version deferred → no dependency in Designer output
+
+**Compile-safety level**: all type signatures in §F are copy-pasteable Java with fully qualified types, annotations, imports. SDET Phase 9 can invoke `mvn compile` on a skeleton set directly.
+
+**Designer assumptions flagged** (13 at C5 — see §G):
+- Facade class suffix = `Facade` (intouch-api-v3 convention)
+- Controller package = `resources` (matches code-analysis-intouch-api-v3)
+- List wrapper = `BenefitCategoryListPayload` inside `ResponseWrapper.data`
+- Bare Thrift timestamps — `createdOn` NOT `createdOnInMillis` (resolves Architect Q7-06)
+- Manual `new Date()` in service, NOT `@PrePersist` (resolves Architect Q7-10 + aligns with C-37)
+- `.trim()` + case-sensitive name check (LOW — stylistic, Q7-01 partial)
+- `isActive=all` sentinel for list filter
+- `Math.toIntExact(IntouchUser.orgId.toLong)` long→int cast at REST→Thrift boundary
+- 204 (not 304) on idempotent activate no-op
+- `BenefitCategoryFilter` carries `orgId` (cleaner contract)
+- `benefit_category_id` FK column name
+- `ConflictException(String code, String message)` ctor shape
+- `PeProgramSlabDao.findMissingIdsForProgram` gets a new method if absent (flagged in Q7-11)
+
+**Designer open questions Q7-11..Q7-15** (user input before Phase 8 QA, non-blocking for Phase 9 SDET):
+- Q7-11: `PeProgramSlabDao.findMissingIdsForProgram` existence — verify or add new method [C4]
+- Q7-12: GET by id — active-only default with `?includeInactive=true` audit flag [C4, product decision]
+- Q7-13: Activate no-op signalling — `Optional<BenefitCategoryResponse>` at Facade layer [C5, Designer prefers]
+- Q7-14: Entity boilerplate — hand-written getters/setters (platform convention) [C5, style]
+- Q7-15: DTO↔Thrift mapper class placement — intouch-api-v3 facade package [C5, style]
+
+**Architect Phase-6 open questions resolved by Designer**:
+- Q7-03 → Facade = `BenefitCategoryFacade` (Designer §F)
+- Q7-04 → Package = `resources` (Designer §F)
+- Q7-05 → List wrapper = `BenefitCategoryListPayload` inside `ResponseWrapper.data`
+- Q7-06 → Bare `createdOn`/`updatedOn` Thrift fields (Designer P-13 / C-38)
+- Q7-07 → Superseded by D-39 — asymmetric 200+DTO / 204
+- Q7-10 → Manual `new Date()` (Designer P-12 / C-37)
+- Q7-01 → Partial (`.trim()` + case-sensitive; max length TBD Phase 8)
+- Q7-02, Q7-08, Q7-09 → Moot (Q7-02 killed by D-38; Q7-08 is Phase 9 SDET concern; Q7-09 deferred by D-40)
+
+**New constraints C-35..C-38** (to session-memory):
+- C-35: Hand-written JPA entity getters/setters (no Lombok) — Q7-14 pending user confirm
+- C-36: DTO↔Thrift mappers live in intouch-api-v3 facade package — Q7-15 pending user confirm
+- C-37: Manual `new Date()` in service methods (resolves Q7-10)
+- C-38: Bare timestamp names in Thrift IDL (no `*InMillis` suffix; resolves Q7-06)
+
+**Artifacts touched**:
+- `03-designer.md` — NEW (1230 lines)
+- `session-memory.md` — Phase 7 Additions section appended (patterns, type inventory, facade decisions, error mapping, new constraints, Designer open questions)
+- `process-log.md` — this entry
+- `pipeline-state.json` — Phase 7 block populated; `blocking_for_phase_8` set to `false` (Q7-11..Q7-15 non-blocking for SDET RED)
+- `live-dashboard.html` — Phase 7 section added
+
+**Git snapshot**: `aidlc/CAP-185145/phase-07`
+
+**Phase 8 readiness**: Proceeding to Phase 8 (QA) — Q7-11..Q7-15 can be resolved in parallel or deferred to Phase 10 (Developer). RED-phase readiness confirmed: SDET Phase 9 has everything needed to generate skeletons + failing tests.
+
+---

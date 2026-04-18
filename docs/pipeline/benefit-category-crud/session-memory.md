@@ -317,6 +317,68 @@ _(Populated in Phase 5 — Cross-Repo Tracer. Verified via direct code reads acr
 - [ ] Q7-10: Audit-column write mechanism (manual `new Date()` in service vs `@PrePersist`/`@PreUpdate` — recommend manual per platform). _(Architect)_
 
 **New User-facing Questions (block Phase 7 until resolved)**:
-- [ ] Q1: Should writes on benefit categories require `@PreAuthorize('ADMIN_USER')` gate (admin-only), or any authenticated caller with BasicAndKey auth (ADR-010 default)? Product decision. _(Architect)_
-- [ ] Q2: Is the advisory-lock pattern (ADR-012) acceptable for app-level uniqueness race mitigation, or would you prefer option (iii) "accept the race at D-26 scale with monitoring" and revisit only if incidents occur? _(Architect)_
-- [ ] Q3: Activate-flow response — `204 No Content` (ADR-006 default, symmetric with deactivate) or `200 + updated BenefitCategoryResponse`? _(Architect)_
+- [x] Q1: ✅ **resolved by D-37** — BasicAndKey only, no admin-only gate in MVP (CONFIRMS ADR-010).
+- [x] Q2: ✅ **resolved by D-38** — accept the race at D-26 scale; no advisory lock, no partial unique index (OVERRIDES ADR-012).
+- [x] Q3: ✅ **resolved by D-39** — asymmetric: `PATCH /activate` = 200 + DTO on state change / 204 on idempotent; `PATCH /deactivate` = 204 always (OVERRIDES ADR-006 symmetric default).
+- [x] Q4: ✅ **resolved by D-40** — Aurora MySQL version confirmation deferred to Phase 12 Blueprint runbook.
+
+---
+
+## Designer Phase 7 — Additions
+
+**New Codebase Behaviour findings** (from Designer Step 0 pattern discovery):
+- `Benefits.java` (emf-parent) is the canonical JPA entity exemplar — hand-written getters/setters, `extends OrgEntityIntegerPKBase`, `@Embeddable` PK inner class, `@Temporal(TemporalType.TIMESTAMP)` on Date fields. Designer prescribes same pattern for `BenefitCategory` + `BenefitCategorySlabMapping`. _(Designer P-01)_
+- `BenefitsDao` (emf-parent) is the DAO exemplar — extends platform base DAO, takes `orgId` as explicit parameter on every method (C-28 upheld). _(Designer P-02)_
+- `PointsEngineRuleConfigThriftImpl.createOrUpdateBenefit` is the Thrift handler error-mapping exemplar — wraps business exceptions in `PointsEngineRuleServiceException` with `statusCode` set. Designer prescribes same wrapper pattern for all 6 BC handlers with `statusCode=409` for conflict errors. _(Designer P-03)_
+- `PointsEngineRuleService.createOrUpdateSlab` is the transactional service exemplar — `@Transactional(value="warehouse")` + `@DataSourceSpecification(schemaType=WAREHOUSE)` at class level. _(Designer P-04)_
+- `TargetGroupController` is the REST controller exemplar — `@RestController @RequestMapping("/v3/...")` + `ResponseEntity<ResponseWrapper<T>>` return type + `@Valid` on request body. _(Designer P-05)_
+- `TargetGroupErrorAdvice` is the exception-mapping exemplar — Designer prescribes adding `@ExceptionHandler(ConflictException.class)` → 409 (D-31 reified). _(Designer P-06)_
+- 17 patterns P-01..P-17 fully prescribed with file:line citations in `03-designer.md` §D. _(Designer)_
+
+**Type Inventory Decisions** (frozen by Designer, ready for SDET RED):
+- **IDL additions (Thrift repo)**: `enum BenefitCategoryType`, `struct BenefitCategoryDto`, `struct BenefitCategoryFilter`, `struct BenefitCategoryListResponse`, 6 methods on `PointsEngineRuleService`. Pom bump `1.83 → 1.84`. _(Designer §A)_
+- **emf-parent NEW (9 files)**: `BenefitCategory` + inner `@Embeddable` PK, `BenefitCategorySlabMapping` + inner PK, `BenefitCategoryType` enum, `BenefitCategoryDao`, `BenefitCategorySlabMappingDao`, `CategorySlabTuple` bulk-fetch tuple, 2 Flyway DDL files. _(Designer §A)_
+- **emf-parent MODIFIED (5 files)**: `PointsEngineRuleConfigThriftImpl` (+6 handlers), `PointsEngineRuleEditorImpl` (+6 editor methods), `PointsEngineRuleService` (+6 `@Transactional(warehouse)` methods), `pom.xml` (Thrift IDL bump), `.gitmodules` (cc-stack-crm submodule bump). _(Designer §A)_
+- **intouch-api-v3 NEW (7 files)**: `BenefitCategoriesV3Controller`, `BenefitCategoryFacade`, `ConflictException`, 4 DTOs (`CreateRequest`, `UpdateRequest`, `Response`, `ListPayload`). _(Designer §A)_
+- **intouch-api-v3 MODIFIED (2 files)**: `TargetGroupErrorAdvice` (+409 handler), `pom.xml`. _(Designer §A)_
+- **cc-stack-crm NEW (2 files)**: DDL files for `benefit_categories` and `benefit_category_slab_mapping`. _(Designer §A)_
+
+**Facade Contract Decisions** (resolves Architect open questions Q7-03, Q7-04, Q7-07 per D-39):
+- Facade class suffix = `Facade` (not `Service` in intouch-api-v3 — distinguishes from emf-parent's Service layer). Package = standard `facade` or nearest exemplar. _(Designer §F resolves Q7-03)_
+- Controller package = `resources` (matches platform convention per code-analysis-intouch-api-v3). _(Designer §F resolves Q7-04)_
+- `BenefitCategoryFacade.activate()` returns `Optional<BenefitCategoryResponse>` — empty on idempotent no-op (→204), populated on state change (→200+DTO). _(Designer §F — per D-39)_
+- `BenefitCategoryFacade.deactivate()` returns `void` — controller always returns 204. _(Designer §F — per D-39)_
+
+**Service/DAO Behaviour Decisions**:
+- Pre-insert uniqueness check = `dao.findActiveByNameAndOrgAndProgram(orgId, programId, name.trim())`. NO `GET_LOCK` — D-38 accepted-race posture. _(Designer §B — reifies D-38)_
+- Slab-existence validation: bulk `ProgramSlabDao.findMissingIdsForProgram(orgId, programId, Set<Integer>)` — if non-empty, throw `ConflictException(BC_UNKNOWN_SLAB)` with the offender list. _(Designer §B — O(1) DB round-trip)_
+- Cross-program slab check: `ProgramSlab.programId != category.programId` → `ConflictException(BC_CROSS_PROGRAM_SLAB)`. _(Designer §B)_
+- `syncSlabMappings(categoryId, newIdSet)` = 3-step diff-and-apply: (1) `findActiveSlabIdsForCategory` → current active set; (2) compute INSERT = new − current, SOFT-DELETE = current − new; (3) bulk INSERT + bulk UPDATE `SET is_active=false WHERE id IN (...)`. All within parent service method's `@Transactional(warehouse)`. _(Designer §B — reifies D-35)_
+- Idempotent-dedup: `LinkedHashSet<>(request.slabIds())` at facade entry drops duplicates silently (preserves insertion order for deterministic testing). _(Designer §F resolves D-35 dedup clause)_
+
+**Error Mapping Frozen** (per ADR-009, D-31, D-38):
+- `BC_NAME_TAKEN_ACTIVE` → 409 (D-28 active-duplicate). _(Designer §E)_
+- `BC_CROSS_PROGRAM_SLAB` → 409 (slab belongs to different program). _(Designer §E)_
+- `BC_UNKNOWN_SLAB` → 409 (slab doesn't exist in org). _(Designer §E)_
+- `BC_INACTIVE_WRITE_FORBIDDEN` → 409 (PUT on soft-deleted category per D-27 amendment). _(Designer §E)_
+- `BC_NAME_TAKEN_ON_REACTIVATE` → 409 (reactivate when name now taken by another active category per D-34 clause e). _(Designer §E)_
+- `BC_NOT_FOUND` → 404 (category doesn't exist or wrong org). _(Designer §E)_
+- `BC_PAGE_SIZE_EXCEEDED` → 400 (list request size > 100 per ADR-011). _(Designer §E)_
+- ~~`BC_NAME_LOCK_TIMEOUT`~~ **STRICKEN** per D-38 — no advisory lock, no lock timeout error. _(Designer §E aligned with D-38)_
+
+**New Constraints**:
+- C-35: All new JPA entities use hand-written getters/setters (NOT Lombok) — matches platform convention. Q7-14 flagged as Designer assumption pending user confirmation. _(Designer)_
+- C-36: DTO↔Thrift mapper classes live in intouch-api-v3 facade package (`*Mapper` suffix) — NOT in IDL repo. Q7-15 flagged as Designer assumption pending user confirmation. _(Designer)_
+- C-37: `created_on` / `updated_on` set via manual `new Date()` in service methods (NOT `@PrePersist`/`@PreUpdate`) — matches platform convention. Resolves Architect Q7-10. _(Designer P-12)_
+- C-38: All timestamp fields in Thrift IDL use bare names (`createdOn`, `updatedOn`) — NOT `*InMillis` suffix. Resolves Architect Q7-06. _(Designer P-13)_
+
+**Designer Open Questions** (to be resolved before Phase 8 QA — Q7-11..Q7-15):
+- [ ] Q7-11: Does `PeProgramSlabDao` already have a batch-existence method (e.g., `findMissingIdsForProgram` or similar)? If not, Designer adds a new method on `PeProgramSlabDao`. _(Confidence C4 — need to verify)_
+- [ ] Q7-12: GET by id — return active-only or active+inactive (i.e., can admin fetch a soft-deleted category for audit purposes)? Designer's C4 assumption: active-only by default, `?includeInactive=true` query param for audit. _(Confidence C4 — product decision)_
+- [ ] Q7-13: Activate no-op signalling — Designer's C5 assumption is `stateChanged` field on `BenefitCategoryResponse` DTO to let controller distinguish state-change vs idempotent. Alternative: facade returns `Optional` and controller uses presence/absence. Designer prefers Optional (cleaner contract). _(Confidence C5 — needs user confirm)_
+- [ ] Q7-14: Entity boilerplate — hand-written getters/setters (platform convention, Designer's C5 default) vs Lombok `@Getter @Setter`. _(Confidence C5 — style preference)_
+- [ ] Q7-15: DTO↔Thrift mapper class placement — intouch-api-v3 facade package `*Mapper` (Designer's C5 default) vs shared utility package. _(Confidence C5 — style preference)_
+
+**Phase 7 Artifact**: `03-designer.md` (1230 lines, 7 sections A–G + appendix, 17 patterns P-01..P-17, 26 new types + 8 modified types inventoried, full compile-safe signatures).
+
+**Phase 7 Confidence**: RED-phase readiness = **true**. Every interface signature is compile-safe; SDET Phase 9 can import the types, generate skeletons throwing `UnsupportedOperationException`, and write failing tests. Designer open questions Q7-11..Q7-15 impact Phase 10 bodies/IDL details only, NOT RED-phase test scaffolding.
