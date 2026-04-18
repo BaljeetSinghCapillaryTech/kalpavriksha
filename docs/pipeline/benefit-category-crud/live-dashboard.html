@@ -151,7 +151,7 @@
         <a class="nav-link complete" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
-        <a class="nav-link complete" href="#phase-10" title="Complete-with-debt: intouch-api-v3 GREEN (76/76); emf-parent GREEN (11 compliance + 30 Mockito UTs = 41); M5 Testcontainers IT queued"><span>10. Developer (GREEN)<sup style="color:#00d4ff;margin-left:0.3em;">M3a+M4</sup></span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10" title="Complete: intouch-api-v3 GREEN (76/76); emf-parent GREEN (11 compliance + 30 Mockito UTs = 41); M5 Testcontainers IT suite committed (runtime verify deferred to user)"><span>10. Developer (GREEN)<sup style="color:#00d4ff;margin-left:0.3em;">M3a+M4+M5</sup></span><span class="status-dot"></span></a>
         <a class="nav-link active" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
@@ -194,12 +194,12 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">12</span> / 19 phases complete-with-debt (1 skipped; Phase 10 M1+M2+M3+M3a+M4 landed — 76 GREEN intouch-api-v3 + 11 compliance + 30 Mockito UTs emf-parent = <strong>117 GREEN</strong>; M5 Testcontainers queued)</span>
+          <span><span class="stat-value">13</span> / 19 phases (1 skipped; Phase 10 M1+M2+M3+M3a+M4+M5 landed — 76 GREEN intouch-api-v3 + 11 compliance + 30 Mockito UTs + 10 Testcontainers ITs emf-parent = <strong>127 tests authored, 117 GREEN locally; 10 M5 ITs runtime-verify deferred</strong>)</span>
           <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
           <span><span class="stat-value">66</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED + <strong>TD-SDET-05 RETIRED post-M4</strong>) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; D-58 (M3 Thrift IT boundary) &middot; D-59 (M3a Java 8 classpath) &middot; <strong>D-27a (M4 drift accepted — 404 on PUT inactive) &middot; D-60 (M4 name uniqueness tightened across active+inactive)</strong></span>
           <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
           <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 40 ITs M3 intouch-api-v3 (100% behaviour-dim) · 11 compliance M3a emf-parent · <strong>30 Mockito UTs M4 emf-parent (15/15 service behaviours — D-60 enabled behaviour #5)</strong></span>
-          <span><span class="stat-value">7</span> cross-repo commits &middot; <code>aidlc/CAP-185145/phase-10-m3a</code> tagged (emf-parent <code>89f7043043</code>) &middot; <strong style="color:#4ec9b0">M4 committed <code>afab3d37fb</code> + tagged <code>aidlc/CAP-185145/phase-10-m4</code></strong></span>
+          <span><span class="stat-value">9</span> cross-repo commits &middot; M3a <code>89f7043043</code> &middot; M4 <code>afab3d37fb</code> &middot; <strong style="color:#4ec9b0">M5 emf-parent <code>0fbed773d7</code> tagged <code>phase-10-m5</code> + cc-stack-crm <code>f72fb689d</code> (D-47 utf8mb4_bin)</strong></span>
           <span><span class="stat-value">117</span> tests GREEN total · intouch-api-v3: 36 UT + 40 IT · emf-parent: 11 compliance + 23 service + 7 editor · wall-clock IT 44.5s</span>
         </div>
       </header>
@@ -2172,11 +2172,54 @@ flowchart LR
 
         <p><strong>M4 confidence</strong>: <strong>C6 behavioural</strong> (Mockito boundaries the DAO layer; JPA/query translation is not exercised). <strong>C7 after M5 Testcontainers</strong> closes the handler → DAO → real-MySQL round-trip, including BT-067 cross-repo end-to-end.</p>
 
-        <p><strong>Next</strong>: commit M4 pending user approval (Rule 3), then M5 Testcontainers IT subagent (10–15 ITs), then Phase 10b Backend Readiness.</p>
+        <h3 style="color: #00d4ff;">M5 — emf-parent Testcontainers ITs + D-47 Collation Fix (2026-04-19)</h3>
+
+        <p><strong>Trigger</strong>: User directive after M4 — "proceed to M5" — subagent authored the IT suite and surfaced <strong>Q-M5-02</strong> (MySQL 5.7 default <code>utf8mb4_unicode_ci</code> would silently defeat D-47 at the DB layer, which M4 Mockito UTs could not catch). User chose "a 1" — run ITs locally and fix the DDL. User then directed "I will verify IT later, continue to next phase" — M5 committed code-first, runtime verification tracked as user follow-up.</p>
+
+        <h4>M5 deliverables</h4>
+        <ul>
+          <li><code>integration-test/.../test/pointsengine/BenefitCategoryIntegrationTest.java</code> — <strong>NEW 10-IT suite</strong> (~575 lines) using <code>PointsEngineRuleService.Iface</code> Thrift embedded-server bean (resolves Q-BT-01 for emf-parent side)</li>
+          <li><code>integration-test/.../launcher/EmbeddedMysqlLauncher.java</code> — registered <code>benefit_categories.sql</code> + <code>benefit_category_slab_mapping.sql</code> DDL scripts</li>
+          <li><code>integration-test/.../db/warehouse/benefit_categories.sql</code> — added <code>CHARACTER SET utf8mb4 COLLATE utf8mb4_bin</code> on <code>name</code> column (D-47 enforcement in IT harness)</li>
+          <li><code>cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql</code> — same <code>utf8mb4_bin</code> amendment on the <strong>Flyway source-of-truth</strong> (so production matches IT harness)</li>
+        </ul>
+
+        <h4>M5 IT coverage</h4>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>IT</th><th>Decision / Guardrail anchor</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>BT-080 persistence (columns, audit, tenant/program/name)</td><td>BT-080, D-23</td></tr>
+            <tr><td>2</td><td>Slab diff-apply (add/remove without full replace)</td><td>D-35</td></tr>
+            <tr><td>3</td><td>Cascade deactivate sweeps mappings; re-activate leaves them off</td><td>D-14, D-36</td></tr>
+            <tr><td>4</td><td><strong>Real-DB name conflict — CREATE / UPDATE / ACTIVATE all 409 across active+inactive</strong></td><td>D-60</td></tr>
+            <tr><td>5</td><td><code>?includeInactive=true</code> audit path</td><td>D-42</td></tr>
+            <tr><td>6</td><td>Pagination bounds</td><td>G-04.1</td></tr>
+            <tr><td>7</td><td>Tenant isolation — read</td><td>G-07</td></tr>
+            <tr><td>8</td><td>Tenant isolation — write</td><td>G-07</td></tr>
+            <tr><td>9</td><td>DDL schema check (columns, types, defaults)</td><td>schema</td></tr>
+            <tr><td>10</td><td><strong>Case-sensitive uniqueness — "gold tier" and "Gold Tier" coexist under utf8mb4_bin</strong></td><td>D-47</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Q-M5-02 resolution — case-sensitive collation</h4>
+        <p>MySQL 5.7 defaults to <code>utf8mb4_unicode_ci</code>, which would collate <code>"Gold Tier"</code> and <code>"gold tier"</code> as equal and cause JPQL <code>findByProgramAndName</code> equality (used by the D-60 CREATE/UPDATE/ACTIVATE name-reservation path) to incorrectly 409 on distinct casings. <strong>M4 Mockito UTs could not detect this</strong> because the DAO was mocked. Fix: amend the <code>name</code> column on both the Flyway source-of-truth and the IT harness DDL to <code>COLLATE utf8mb4_bin</code>. The IT suite's <code>createBenefitCategory_caseSensitive_distinctCasingsCoexist</code> asserts both casings succeed with 201 under the amended collation.</p>
+
+        <h4>Build verification</h4>
+        <p>Subagent ran <code>mvn -pl integration-test -am test-compile</code> → BUILD SUCCESS. Full <code>mvn verify</code> runtime <strong>deferred</strong> per user directive; Docker (Rancher Desktop) confirmed available on user machine for later local run.</p>
+
+        <h4>M5 commits</h4>
+        <ul>
+          <li><strong>emf-parent</strong> <code>0fbed773d7</code> — IT suite + launcher wiring + IT DDL collation — tagged <code>aidlc/CAP-185145/phase-10-m5</code></li>
+          <li><strong>cc-stack-crm</strong> <code>f72fb689d</code> — Flyway DDL <code>utf8mb4_bin</code> on <code>name</code></li>
+        </ul>
+
+        <p><strong>M5 confidence</strong>: <strong>C6</strong> (code + compile + DDL correctness). Promotes to <strong>C7</strong> after user completes runtime <code>mvn verify</code> locally.</p>
+
+        <p><strong>Next</strong>: Phase 10b Backend Readiness.</p>
 
       </section>
       <section class="phase-section" id="phase-10b">
-        <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 10b: Backend Readiness <span class="phase-badge active">In Progress</span></h2>
       </section>
       <section class="phase-section" id="phase-10c">
         <h2>Phase 10c: Compliance (Architecture vs Code) <span class="phase-badge pending">Pending</span></h2>

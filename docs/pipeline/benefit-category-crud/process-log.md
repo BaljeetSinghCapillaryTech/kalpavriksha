@@ -1450,7 +1450,56 @@ mvn -pl pointsengine-emf,pointsengine-emf-ut -am test \
 ### Next actions
 
 1. ✅ emf-parent combined commit landed — `afab3d37fb`, tagged `aidlc/CAP-185145/phase-10-m4` (2026-04-19).
-2. Spawn M5 Testcontainers IT subagent (~10–15 ITs, handler→DAO→MySQL, includes BT-067 embedded-server).
-3. After M5: Phase 10b Backend Readiness.
+2. ✅ M5 completed — see next section.
+3. Phase 10b Backend Readiness.
+
+---
+
+## Phase 10 — Developer GREEN — M5 (emf-parent Testcontainers ITs)
+
+**Completed:** 2026-04-19
+**Trigger:** User directive after M4 — "4a 5a go" + proceed to M5 — then "a 1" after subagent surfaced Q-M5-02 — then "I will verify IT later, continue to next phase".
+**Mode:** Subagent authored IT suite + launcher wiring; orchestrator fixed D-47 collation in both DDL locations and flipped the case-sensitivity test accordingly.
+
+### Executive summary
+
+Ten Testcontainers ITs authored in emf-parent `integration-test` module covering BT-080 persistence, D-35 slab diff-apply, D-14/D-36 cascade, D-60 real-DB name conflict across active+inactive (3 paths), D-42 includeInactive audit, G-04.1 pagination, G-07 tenant isolation (read+write), DDL schema check, and D-47 case-sensitive uniqueness. Uses existing `PointsEngineRuleService.Iface` Thrift embedded-server bean — resolves Q-BT-01 on the emf-parent side.
+
+### Q-M5-02 — collation discovery + fix
+
+Subagent surfaced: MySQL 5.7 default `utf8mb4_unicode_ci` would treat `"Gold Tier"` ≡ `"gold tier"`, breaking D-47. M4 Mockito UTs could not detect this (DAO mocked). Fix: added `CHARACTER SET utf8mb4 COLLATE utf8mb4_bin` on the `name` column in both the Flyway source-of-truth (cc-stack-crm) and the IT harness DDL (emf-parent integration-test resources). The documenting-only test was replaced with `createBenefitCategory_caseSensitive_distinctCasingsCoexist` asserting 201 for both casings.
+
+### Code changes
+
+| File | Repo | Change |
+|---|---|---|
+| `integration-test/.../BenefitCategoryIntegrationTest.java` | emf-parent | NEW 10-IT suite (~575 lines) |
+| `integration-test/.../launcher/EmbeddedMysqlLauncher.java` | emf-parent | Register new DDL scripts |
+| `integration-test/.../db/warehouse/benefit_categories.sql` | emf-parent | Added utf8mb4_bin on `name` |
+| `schema/dbmaster/warehouse/benefit_categories.sql` | cc-stack-crm | Added utf8mb4_bin on `name` (Flyway source-of-truth) |
+
+### Build evidence
+
+Subagent ran `mvn -pl integration-test -am test-compile`: BUILD SUCCESS. Full `mvn verify` runtime deferred per user directive.
+
+### Commits
+
+- emf-parent `0fbed773d7` — IT suite + launcher + IT DDL collation — tagged `aidlc/CAP-185145/phase-10-m5`
+- cc-stack-crm `f72fb689d` — Flyway DDL utf8mb4_bin on `name`
+
+### Step A/B/C
+
+- **Step A (Mermaid)**: N/A (test artifact, not a new design).
+- **Step B (live-dashboard.html)**: updated inline with M5 subsection + stats bump (13/19 phases, 117 behaviours → 127 with M5 ITs, 68 decisions unchanged).
+- **Step C (Confluence)**: not configured for this run — skipped.
+
+### M5 confidence
+
+**C6** — code+compile+DDL verified. **C7** promotion after user completes runtime `mvn verify` locally.
+
+### Next actions
+
+1. ✅ M5 code landed. Runtime verification tracked as user follow-up.
+2. Phase 10b Backend Readiness.
 
 ---

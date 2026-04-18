@@ -1000,6 +1000,54 @@ mvn -pl pointsengine-emf,pointsengine-emf-ut -am test -Dtest='BenefitCategory*' 
 
 ### Remaining open items after M4
 
-- **M5** — Testcontainers ITs for emf-parent (handler → DAO → MySQL round-trip + BT-067 cross-repo embedded-server). Scope: 10–15 ITs. Recommended before Phase 10b so Backend Readiness exercises behavioural coverage rather than only structural compliance.
-- **Pipeline-artifact lag**: `04b-business-tests.md` still references D-28 active-only scope for BT-007/BT-020. Add a Post-M4 note pointing at D-60 + bt007b/bt020b. LOW priority (lag of one step is acceptable for a living doc).
+- **M5** — DONE (code-landed 2026-04-19). Runtime verification deferred to user. See M5 section below.
+- **Pipeline-artifact lag**: `04b-business-tests.md` still references D-28 active-only scope for BT-007/BT-020. LOW priority.
+
+---
+
+## Phase 10 — Developer GREEN — M5 (emf-parent Testcontainers ITs)
+
+### Deliverables (2026-04-19)
+
+**New IT suite** — `integration-test/src/test/java/com/capillary/shopbook/test/pointsengine/BenefitCategoryIntegrationTest.java` (~575 lines, 10 ITs):
+
+| # | IT | Anchors |
+|---|----|---------|
+| 1 | BT-080 persistence (columns, audit, tenant/program/name) | BT-080, D-23 |
+| 2 | D-35 slab diff-apply (add/remove without full replace) | D-35 |
+| 3 | D-14 / D-36 cascade (deactivate sweeps mappings) | D-14, D-36 |
+| 4 | D-60 real-DB name conflict (CREATE / UPDATE / ACTIVATE — all 409 across active+inactive) | D-60 |
+| 5 | D-42 ?includeInactive=true audit path | D-42 |
+| 6 | G-04.1 pagination bounds | G-04.1 |
+| 7 | G-07 tenant isolation — read | G-07 |
+| 8 | G-07 tenant isolation — write | G-07 |
+| 9 | DDL schema check | schema |
+| 10 | **D-47 case-sensitive uniqueness — "gold tier" and "Gold Tier" coexist** | D-47 |
+
+**Test infrastructure**:
+- `EmbeddedMysqlLauncher.java` — registered `benefit_categories.sql` + `benefit_category_slab_mapping.sql` DDL scripts into warehouse schema.
+- Uses existing `PointsEngineRuleService.Iface` Thrift embedded-server bean from `IntegrationStarterConfig` (resolves Q-BT-01 for emf-parent side).
+
+### Q-M5-02 resolution (D-47 vs MySQL default CI collation)
+
+Discovered during IT authoring: MySQL 5.7 default `utf8mb4_unicode_ci` would treat `"Gold Tier"` and `"gold tier"` as equal, collapsing D-47 at the DB layer. M4 Mockito UTs could not catch this (DAO was mocked).
+
+**Fix**: amended `name` column on both DDLs to `CHARACTER SET utf8mb4 COLLATE utf8mb4_bin`:
+- `cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql` (Flyway source-of-truth)
+- `emf-parent/integration-test/src/test/resources/db/warehouse/benefit_categories.sql` (IT harness mirror)
+
+IT #10 (`createBenefitCategory_caseSensitive_distinctCasingsCoexist`) asserts both casings create successfully under utf8mb4_bin.
+
+### Runtime verification
+
+Compile-verified by subagent. **Runtime `mvn -pl integration-test verify -Dit.test='BenefitCategoryIntegrationTest'` deferred to user-driven local run** (user directive: "I will verify IT later, continue to next phase"). Docker (Rancher Desktop) confirmed available on user machine.
+
+### Commits
+
+- emf-parent `0fbed773d7` — IT suite + launcher wiring + utf8mb4_bin on IT DDL — tagged `aidlc/CAP-185145/phase-10-m5`
+- cc-stack-crm `f72fb689d` — Flyway DDL utf8mb4_bin on `name`
+
+### Confidence
+
+**C6** on code + compile + DDL correctness. Promotes to **C7** once user runs `mvn verify` locally and all 10 ITs pass.
 
