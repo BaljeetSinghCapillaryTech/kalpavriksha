@@ -193,12 +193,12 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">8</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen</span>
+          <span><span class="stat-value">8</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + Designer Qs resolved</span>
           <span><span class="stat-value">21</span> artifacts generated</span>
-          <span><span class="stat-value">40</span> decisions made &middot; 17 patterns P-01..P-17</span>
+          <span><span class="stat-value">45</span> decisions made &middot; 17 patterns P-01..P-17</span>
           <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD)</span>
-          <span><span class="stat-value">64</span> findings surfaced (59 + 5 Designer Qs)</span>
-          <span><span class="stat-value">26</span> new types + 8 modified — LLD compile-safe</span>
+          <span><span class="stat-value">64</span> findings surfaced (59 resolved + 5 Designer Qs resolved)</span>
+          <span><span class="stat-value">27</span> new types + 8 modified — LLD compile-safe (mapper added)</span>
           <span><span class="stat-value">0</span> code files written (RED phase next)</span>
         </div>
       </header>
@@ -1267,17 +1267,32 @@ flowchart LR
           </tbody>
         </table>
 
-        <h3>Designer Open Questions (Q7-11..Q7-15 — Non-blocking for Phase 9 SDET RED)</h3>
+        <h3>Designer Open Questions (Q7-11..Q7-15 — <span style="color:#00ff88;">ALL RESOLVED 2026-04-18</span>)</h3>
         <table class="data-table">
-          <thead><tr><th>#</th><th>Question</th><th>Designer Default</th><th>Confidence</th><th>Resolve Before</th></tr></thead>
+          <thead><tr><th>#</th><th>Question</th><th>User Answer</th><th>Decision</th><th>Match Reco?</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>Q7-11</td><td><code>PeProgramSlabDao.findMissingIdsForProgram</code> existence</td><td>Add new method if absent</td><td>C4</td><td>Phase 10 Developer</td></tr>
-            <tr><td>Q7-12</td><td>GET by id — active-only or audit-inclusive</td><td>Active-only; <code>?includeInactive=true</code> for audit</td><td>C4 (product)</td><td>Phase 10 Developer</td></tr>
-            <tr><td>Q7-13</td><td>Activate no-op signalling</td><td><code>Optional&lt;BenefitCategoryResponse&gt;</code> at Facade</td><td>C5 (Designer prefers)</td><td>Phase 10 Developer</td></tr>
-            <tr><td>Q7-14</td><td>Entity boilerplate</td><td>Hand-written getters/setters (no Lombok)</td><td>C5 (style)</td><td>Phase 10 Developer</td></tr>
-            <tr><td>Q7-15</td><td>DTO↔Thrift mapper placement</td><td>intouch-api-v3 facade package <code>*Mapper</code></td><td>C5 (style)</td><td>Phase 10 Developer</td></tr>
+            <tr><td>Q7-11</td><td><code>PeProgramSlabDao</code> batch-existence method</td><td>C — Reuse <code>findByProgram</code> + in-memory Set diff</td><td><strong>D-41</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q7-12</td><td>GET by id — active-only or audit-inclusive</td><td>A — Active-only default + <code>?includeInactive=true</code> audit override</td><td><strong>D-42</strong></td><td>⚠ Override (reco was B)</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q7-13</td><td>Activate no-op signalling</td><td>A — <code>stateChanged: bool</code> Thrift field 12</td><td><strong>D-43</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q7-14</td><td>DTO boilerplate style</td><td>A — Lombok for intouch-api-v3 DTOs, hand-written for emf-parent JPA entities</td><td><strong>D-44</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q7-15</td><td>Mapper placement</td><td>A — Dedicated <code>mapper/</code> subpackage, <code>@Component</code> stateless</td><td><strong>D-45</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
           </tbody>
         </table>
+
+        <h3>Designer Resolution Amendments (D-41..D-45 — 2026-04-18)</h3>
+        <p>Five Designer open questions resolved via orchestrator protocol (evidence-first, options+recommendation, user answer, traceability). <strong>§18 of <code>03-designer.md</code> is authoritative on any divergence</strong> from earlier sections. All amendments propagated across 5 layers (controller → facade → Thrift IDL → service → DAO) preserving compile-safety.</p>
+        <table class="data-table">
+          <thead><tr><th>Decision</th><th>Change</th><th>Affected Layers</th><th>Evidence Anchor</th></tr></thead>
+          <tbody>
+            <tr><td><strong>D-41</strong></td><td>Reuse <code>PeProgramSlabDao.findByProgram</code> — no new DAO method</td><td>emf-parent service (in-memory Set diff)</td><td><code>PeProgramSlabDao.java</code> C7 — only 3 methods exist, no batch lookup</td></tr>
+            <tr><td><strong>D-42</strong></td><td>GET by id: active-only default; <code>?includeInactive=true</code> audit override</td><td>Controller · Facade · Service · Thrift IDL (<code>3: optional bool includeInactive</code>) · DAO split (<code>findByOrgIdAndId</code> + <code>findActiveByOrgIdAndId</code>)</td><td>User override of orchestrator reco B (active-only always)</td></tr>
+            <tr><td><strong>D-43</strong></td><td>Activate no-op signalling via Thrift field 12 <code>stateChanged: bool</code></td><td>Thrift IDL · Handler · Facade · Controller (200+DTO on change, 204 on no-op per D-39)</td><td>Preserves D-39 asymmetric activate/deactivate contract</td></tr>
+            <tr><td><strong>D-44</strong></td><td>Split Lombok convention: intouch-api-v3 DTOs = <code>@Getter @Setter</code>; emf-parent JPA entities = hand-written</td><td>DTOs (<code>BenefitCategoryCreateRequest/UpdateRequest/Response/ListPayload</code>)</td><td><code>grep -l "@Getter\|@Setter"</code> intouch-api-v3 = 305 files (P-01 precedent); emf-parent JPA = 0 Lombok files</td></tr>
+            <tr><td><strong>D-45</strong></td><td>Dedicated <code>facade/benefitCategory/mapper/BenefitCategoryResponseMapper</code> <code>@Component</code> stateless</td><td>intouch-api-v3 new type (#27 artifact — DTO↔Thrift + millis↔Date conversion)</td><td>Cleaner separation vs inline Facade mapping; reusable across methods</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Constraint amendments:</strong> C-35 narrowed (<code>findByProgram</code> reuse only), C-36 refined (split Lombok rule by repo), <strong>C-39 NEW</strong> (mapper subpackage convention). <strong>Assumption superseded:</strong> A7-13 <s>struck</s> by D-41 (no new DAO method needed).</p>
+        <p><strong>Artifact amendments:</strong> <code>03-designer.md</code> §A.3 (+ row 27a mapper), §A.5 (26→27 types), §B.3 (DAO split), §F.3/F.5/F.6 (<code>includeInactive</code> signatures), §F.6a NEW (mapper class), §F.7 (controller query param), §F.8 (Lombok annotations on DTOs), §F.10 (Thrift IDL field 3), §G.1-G.3 (resolution table + A7-13 superseded), §18 NEW (authoritative delta).</p>
 
         <h3>Architect Questions Resolved by Designer</h3>
         <table class="data-table">
@@ -1326,12 +1341,12 @@ flowchart TB
     T4[Compile-safe Java in Section F]
   end
 
-  subgraph qs[Designer Open Questions]
-    Q11[Q7-11 DAO batch method]
-    Q12[Q7-12 GET includeInactive]
-    Q13[Q7-13 Optional signalling]
-    Q14[Q7-14 Lombok style]
-    Q15[Q7-15 Mapper placement]
+  subgraph qs[Designer Questions — RESOLVED 2026-04-18]
+    Q11[Q7-11 → D-41<br/>Reuse findByProgram]
+    Q12[Q7-12 → D-42<br/>?includeInactive=true]
+    Q13[Q7-13 → D-43<br/>stateChanged field 12]
+    Q14[Q7-14 → D-44<br/>Lombok DTOs only]
+    Q15[Q7-15 → D-45<br/>mapper/ subpackage]
   end
 
   frozen --> step0
@@ -1341,13 +1356,17 @@ flowchart TB
   output --> Q13
   output --> Q14
   output --> Q15
-  output --> P9[Phase 9 SDET RED<br/>unblocked]
+  Q11 --> P8[Phase 8 QA<br/>unblocked]
+  Q12 --> P8
+  Q13 --> P8
+  Q14 --> P8
+  Q15 --> P8
 
   style frozen fill:#2a2a4a,stroke:#00d4ff,color:#e0e0e0
   style step0 fill:#1a3a3a,stroke:#00d4ff,color:#e0e0e0
   style output fill:#1a3a2a,stroke:#00ff88,color:#e0e0e0
-  style qs fill:#3a2a1a,stroke:#ffaa00,color:#e0e0e0
-  style P9 fill:#1a3a1a,stroke:#00ff88,color:#e0e0e0
+  style qs fill:#1a3a2a,stroke:#00ff88,color:#e0e0e0
+  style P8 fill:#1a3a1a,stroke:#00ff88,color:#e0e0e0
         </div>
 
         <h3>Cross-Boundary Contract Example — Create Flow (6 Operations in §B)</h3>
@@ -1383,9 +1402,9 @@ sequenceDiagram
         </div>
 
         <h3>Phase 8 Readiness</h3>
-        <p>✅ <strong>PHASE 8 (QA) + PHASE 9 (SDET RED) UNBLOCKED.</strong> Designer open questions Q7-11..Q7-15 don't block test generation — they affect Phase 10 production-body specifics only (DAO method existence, audit semantics, signalling idiom, entity style, mapper placement). Phase 8 QA can proceed using <code>03-designer.md</code> §F compile-safe signatures as the authoritative contract surface.</p>
+        <p>✅ <strong>PHASE 8 (QA) + PHASE 9 (SDET RED) FULLY UNBLOCKED.</strong> All 5 Designer open questions resolved (D-41..D-45) with compile-safe amendments propagated across all layers. <code>03-designer.md</code> §F + §18 (authoritative delta) are the contract surface for Phase 8 QA scenario generation and Phase 9 test code writing.</p>
 
-        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-07</code></p>
+        <p class="phase-time">🏷️ Git snapshots: <code>aidlc/CAP-185145/phase-07</code> · <code>aidlc/CAP-185145/phase-07-resolved</code></p>
       </section>
       <section class="phase-section" id="phase-8">
         <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>

@@ -382,3 +382,47 @@ _(Populated in Phase 5 — Cross-Repo Tracer. Verified via direct code reads acr
 **Phase 7 Artifact**: `03-designer.md` (1230 lines, 7 sections A–G + appendix, 17 patterns P-01..P-17, 26 new types + 8 modified types inventoried, full compile-safe signatures).
 
 **Phase 7 Confidence**: RED-phase readiness = **true**. Every interface signature is compile-safe; SDET Phase 9 can import the types, generate skeletons throwing `UnsupportedOperationException`, and write failing tests. Designer open questions Q7-11..Q7-15 impact Phase 10 bodies/IDL details only, NOT RED-phase test scaffolding.
+
+---
+
+## Designer Phase 7 — Question Resolutions (2026-04-18)
+
+User answered all 5 Designer open questions as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A`. Details in §18 of `03-designer.md`. New decisions below.
+
+**Designer Open Questions — all now RESOLVED**:
+- [x] Q7-11 → **D-41**: **C** — Reuse existing `PeProgramSlabDao.findByProgram(orgId, programId)` + in-memory Set ops. NO cross-repo DAO modification. Justified by D-26 SMALL-scale envelope (≤10 slabs typical, hard cap small). Service layer:
+  ```java
+  Set<Integer> existing = programSlabDao.findByProgram(orgId, programId).stream()
+                             .map(ps -> ps.getPk().getId()).collect(toSet());
+  Set<Integer> missing = new HashSet<>(candidateSlabIds); missing.removeAll(existing);
+  if (!missing.isEmpty()) throw BC_UNKNOWN_SLAB(missing);
+  ```
+  Evidence C7: `pointsengine-emf/.../PeProgramSlabDao.java:27` has only `findByProgram(orgId, programId) → List<ProgramSlab>`; no batch-existence variant.
+- [x] Q7-12 → **D-42**: **A** (user OVERRIDES Designer recommendation B). `GET /v3/benefitCategories/{id}` supports `?includeInactive=true` audit query param. Default (`false`) returns active-only (404 on soft-deleted). Opt-in (`true`) returns any state. DAO split: `findByOrgIdAndId` (any state) + `findActiveByOrgIdAndId` (active only; used by default GET AND all mutation paths per D-27).
+- [x] Q7-13 → **D-43**: **A** — `BenefitCategoryDto` Thrift struct field 12 `optional bool stateChanged = true`. On idempotent no-op, EMF returns DTO with `stateChanged=false`; facade detects this → `Optional.empty()` → controller emits 204. On state change, DTO populated → 200 + wrapper.
+- [x] Q7-14 → **D-44**: **A** — split convention. JPA entities hand-written (match `Benefits.java` P-01 exemplar; JPA providers can be sensitive to Lombok on `@Embeddable` PK). DTOs in intouch-api-v3 use Lombok `@Getter @Setter` (grep evidence: 305 files in intouch-api-v3 use `@Getter`/`@Setter`).
+- [x] Q7-15 → **D-45**: **A** — dedicated `BenefitCategoryResponseMapper` in `com.capillary.intouchapiv3.facade.benefitCategory.mapper` subpackage. `@Component`, stateless, SDET-unit-testable in isolation. Exemplar: `intouch-api-v3/.../unified/promotion/mapper/CustomerPromotionResponseMapper.java`.
+
+**New Key Decisions (D-41..D-45)** — appended to the Key Decisions table:
+
+| # | Decision | Rationale | Phase | Date |
+|---|----------|-----------|-------|------|
+| D-41 | **Reuse existing `PeProgramSlabDao.findByProgram(orgId, programId)` + in-memory Set ops for slab existence/cross-program validation (Q7-11=C)**. NO cross-repo DAO modification. Service layer iterates/collects into a Set<Integer> and subtracts the candidate list to find missing slabIds; wrong-program slabs naturally fall out of the in-memory set (same BC_UNKNOWN_SLAB error path). Supersedes A7-13 which assumed we would need to add a new DAO method. | D-26 SMALL-scale envelope makes in-memory filtering negligible (~5-10 rows typical per program); avoids cross-repo blast radius | Phase 7→8 gate | 2026-04-18 |
+| D-42 | **GET /{id} supports `?includeInactive=true` audit query param (Q7-12=A — OVERRIDES Designer rec B)**. Default active-only (404 on soft-deleted). Opt-in returns any state. Two DAO methods on `BenefitCategoryDao`: `findByOrgIdAndId` (any state) + `findActiveByOrgIdAndId` (active only; also used by all mutation paths per D-27). Thrift IDL `getBenefitCategory` gains optional `bool includeInactive=false` parameter. | Richer API surface supports audit access without requiring a follow-up endpoint; user explicitly preferred this over YAGNI active-only-always. | Phase 7→8 gate | 2026-04-18 |
+| D-43 | **Activate no-op signalling via `BenefitCategoryDto.stateChanged` field (Q7-13=A)**. Thrift struct `BenefitCategoryDto` field 12 = `optional bool stateChanged = true`. On idempotent already-active, EMF returns the DTO populated EXCEPT `stateChanged=false`; facade sees that and returns `Optional.empty()` → controller emits 204 No Content. On true state change, `stateChanged=true` (default) → facade returns populated Optional → 200 + wrapper. | Least-invasive option: HTTP 304 is not idiomatic on PATCH (rejected b); null return violates Thrift `required` return semantics (rejected c); sentinel field is explicit and single-method-scoped. | Phase 7→8 gate | 2026-04-18 |
+| D-44 | **DTO/Entity boilerplate split (Q7-14=A)**. JPA entities (emf-parent: `BenefitCategory`, `BenefitCategorySlabMapping`, inner `@Embeddable` PK classes) use HAND-WRITTEN getters/setters/equals/hashCode per P-01 `Benefits.java` exemplar. REST DTOs (intouch-api-v3: `BenefitCategoryCreateRequest`, `*UpdateRequest`, `*Response`, `*ListPayload`) use Lombok `@Getter @Setter` per established intouch-api-v3 pattern (grep evidence: 305 Lombok files in repo). | JPA providers can be sensitive to Lombok on `@Embeddable` PK classes (equality/hash contract); DTOs are plain POJOs where Lombok is platform convention. | Phase 7→8 gate | 2026-04-18 |
+| D-45 | **Dedicated mapper class in `mapper/` subpackage (Q7-15=A)**. NEW class `BenefitCategoryResponseMapper` in `com.capillary.intouchapiv3.facade.benefitCategory.mapper`. `@Component`, stateless; owns Thrift DTO ↔ REST response DTO, REST request DTOs → Thrift DTO, list unwrap/rewrap, plus static helpers `millisToDate` / `dateToMillis` (ADR-008 UTC conversion). SDET-unit-testable without Spring context. Exemplar verified: `intouch-api-v3/.../unified/promotion/mapper/CustomerPromotionResponseMapper.java`. Supersedes C-36's tentative location (was "facade package with `*Mapper` suffix"). | Dedicated stateless mapper is SDET-preferred (clean isolated unit test for mapping rules incl. UTC timestamp conversion); established platform pattern. | Phase 7→8 gate | 2026-04-18 |
+
+**Constraint updates**:
+- ~~C-35~~ **AMENDED** (Q7-14 resolved via split): C-35 now reads "**emf-parent JPA entities** use hand-written getters/setters/equals/hashCode (matches `Benefits.java` P-01). intouch-api-v3 DTOs use Lombok `@Getter @Setter` per D-44." Supersedes prior wording.
+- ~~C-36~~ **AMENDED** (Q7-15 resolved): C-36 now reads "DTO↔Thrift mapper lives in dedicated `com.capillary.intouchapiv3.facade.benefitCategory.mapper` subpackage as `BenefitCategoryResponseMapper` per D-45. Exemplar `CustomerPromotionResponseMapper`." Supersedes prior wording.
+- **C-39 (NEW)**: `GET /v3/benefitCategories/{id}` MUST accept `?includeInactive=true` query parameter. When absent or `false`, soft-deleted categories return 404. When `true`, soft-deleted categories return 200 with `isActive=false` in the body. Audit path is read-only and does NOT bypass tenant `orgId` scoping (G-07). Source: D-42.
+
+**Downstream phase obligations (resolved)**:
+- Phase 8 (QA): include scenarios for `?includeInactive=true` audit path (200 + inactive DTO) vs default path (404 on inactive); mapper unit tests; `stateChanged=false` → 204 idempotency.
+- Phase 9 (SDET, RED): test files for `BenefitCategoryResponseMapper` in isolation; `?includeInactive=true` integration test branching; two-DAO-method wiring (`findByOrgIdAndId` vs `findActiveByOrgIdAndId`); activate idempotency assertions on `stateChanged`.
+- Phase 10 (Dev, GREEN): implement in-memory Set op for D-41 slab validation; implement mapper in `mapper/` subpackage; implement `stateChanged` flip in activate service method.
+
+**Phase 7 Artifact updated**: `03-designer.md` — in-place amendments to §A, §B.3, §F.6/F.6a/F.7/F.8/F.10; new §18 Post-LLD Amendments section documenting D-41..D-45 + C-39; §G.1 questions marked RESOLVED; §G.2 A7-13 struck.
+
+**Phase 7 Confidence (updated)**: RED-phase readiness still **true**. All amendments preserve compile-safety. SDET Phase 9 can proceed.

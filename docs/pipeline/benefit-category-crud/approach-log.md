@@ -655,6 +655,173 @@ Designer ran as opus subagent, ~568s, 24 tool uses. Produced `03-designer.md` (1
 
 **Pause point for user review**: Q7-11..Q7-15 don't block Phase 9 SDET RED. Recommend: proceed to Phase 8 (QA) and Phase 9 (SDET) in sequence; present Q7-11..Q7-15 to user for decision before Phase 10 Developer starts writing production bodies.
 
+### Phase 7 Designer Question Resolutions (2026-04-18)
+
+User input: `resolve Q7-NN` → `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A`.
+
+Each resolution below records: the question, evidence gathered before presenting options, options table, orchestrator recommendation with rationale, user answer, match-with-recommendation flag, resulting decision ID, and amendments.
+
+---
+
+#### Q7-11 — `PeProgramSlabDao` — batch-existence method?
+
+**Question**: Does `PeProgramSlabDao` already expose a batch "given a set of candidate slabIds, return which exist for this (orgId, programId)" method? If not, add one on that DAO as [MODIFIED].
+
+**Evidence gathered (before asking user)**:
+- Read `/Users/anujgupta/IdeaProjects/emf-parent/pointsengine-emf/src/main/java/com/capillary/shopbook/points/dao/PeProgramSlabDao.java` — confirmed only 3 methods exist:
+  - `findByProgram(int orgId, int programId) → List<ProgramSlab>` — returns ALL slabs
+  - `findByProgramSlabNumber(int orgId, int programId, int serial) → ProgramSlab`
+  - `findNumberOfSlabs(int orgId, int programId) → Long`
+  - **NO batch-existence variant**. Evidence C7.
+- Cross-referenced D-26 (SMALL-scale envelope: ≤10 slabs typical, hard cap small).
+
+**Options presented**:
+
+| Option | Mechanism | Pros | Cons |
+|--------|-----------|------|------|
+| **A** | Add new DAO method `findMissingIdsForProgram(orgId, programId, List<Integer> candidates) → List<Integer>` via JPQL `IN (:candidates)` | Single DB round-trip; O(candidates) memory | Cross-repo modification; more surface area to test |
+| **B** | Use Spring Data derived query `findByPkOrgIdAndProgramPkIdAndPkIdIn(...)` | No custom @Query | Still cross-repo modification |
+| **C** | Reuse existing `findByProgram` + in-memory Set ops | Zero cross-repo modification; reuses proven method | Transfers N slabs (≤ hard cap, typically ≤10) instead of O(candidates); still O(1) round-trip |
+
+**Orchestrator recommendation**: **C**.
+
+**Rationale**: D-26 SMALL-scale envelope makes in-memory filtering negligible. Avoids cross-repo blast radius. If future programs ever exceed 100 slabs, revisit with A or B.
+
+**User answer**: **C**.
+**Match with recommendation**: ✅ Match.
+**Decision ID**: **D-41**.
+
+**Amendments to 03-designer.md**: §B.1 create-slab-validation pseudocode rewritten to use `findByProgram` + `Set<Integer>` subtraction; §G.2 A7-13 struck; §A.2 DAO row 14 unchanged.
+
+---
+
+#### Q7-12 — GET /{id}: active-only vs active+inactive?
+
+**Question**: For `GET /v3/benefitCategories/{id}`, does the endpoint return (a) active-only by default with `?includeInactive=true` opt-in, (b) active-only always (no query param), or (c) active+inactive always?
+
+**Evidence gathered**:
+- D-27 (writes on inactive forbidden — 409), D-28 (uniqueness among active), D-26 (SMALL scale). None directly answer the GET visibility question.
+- ADR-010/D-37 (auth): no role-based gate; any authenticated caller can GET. An audit path would be accessible to any admin with API key.
+- Designer's §G.1 C4 default: active+inactive on GET; active-only for mutations.
+
+**Options presented**:
+
+| Option | Default | Audit path | YAGNI verdict |
+|--------|---------|-----------|----------------|
+| **A** | Active-only | `?includeInactive=true` opt-in | Richer; supports audit without new endpoint later |
+| **B** | Active-only always | Not supported; add endpoint later if needed | Simplest; MVP-posture |
+| **C** | Active+inactive always | N/A | Exposes soft-deleted as first-class |
+
+**Orchestrator recommendation**: **B** (active-only always, no query param).
+
+**Rationale**: YAGNI at D-26 SMALL scale. No audit requirement surfaced in BRD/PRD. Opt-in can be added later as additive non-breaking change.
+
+**User answer**: **A**.
+**Match with recommendation**: ❌ **OVERRIDE**. User preferred the richer API surface. Inferred reasoning: audit access is a likely operational need; deferring to a future ticket introduces friction for support teams.
+**Decision ID**: **D-42**.
+
+**Amendments to 03-designer.md**:
+- §B.3 → controller `get()` gains `@RequestParam includeInactive` (default false); facade `get(orgId, id, includeInactive)`; Thrift IDL `getBenefitCategory` gains optional `bool includeInactive = false` (field 3); DAO split into `findByOrgIdAndId` (any state) + `findActiveByOrgIdAndId` (active only).
+- §F.3 service, §F.5 handler, §F.6 facade, §F.7 controller, §F.10 IDL signatures all updated.
+- **Mutation paths unchanged** — update/activate/deactivate still use `findActiveByOrgIdAndId` per D-27.
+- New constraint **C-39** captures the rule.
+
+---
+
+#### Q7-13 — Activate idempotent no-op signalling?
+
+**Question**: How does EMF signal "no state change" on `activateBenefitCategory` so the facade can return `Optional.empty()` → controller emits 204?
+
+**Options presented**:
+
+| Option | Mechanism | Pros | Cons |
+|--------|-----------|------|------|
+| **A** | `BenefitCategoryDto.stateChanged: bool` field (Thrift field 12, `optional bool stateChanged = true`). EMF sets false on no-op; facade detects → `Optional.empty()`. | Single-return-type Thrift method; explicit sentinel; default-true keeps future clients working. | Field used only by this one method. |
+| **B** | EMF throws `PointsEngineRuleServiceException(statusCode=304, errorMessage="ALREADY_ACTIVE")`. Facade catches → `Optional.empty()`. | Reuses exception infrastructure. | HTTP 304 is not idiomatic on PATCH; conflates success-no-op with error-like path. |
+| **C** | EMF returns `null`. Facade checks `result == null` → `Optional.empty()`. | Minimal surface area. | Violates Thrift `required` return semantics — `BenefitCategoryDto` is declared non-nullable in Thrift Java generation. |
+
+**Orchestrator recommendation**: **A**.
+
+**Rationale**: Least-invasive while preserving Thrift contract correctness. Clean additive IDL change.
+
+**User answer**: **A**.
+**Match with recommendation**: ✅ Match.
+**Decision ID**: **D-43**.
+
+**Amendments to 03-designer.md**: §F.10 IDL already contains `12: optional bool stateChanged = true`; §B.5 already describes the sentinel. Confirmed authoritative — no further edits needed.
+
+---
+
+#### Q7-14 — Entity/DTO boilerplate: hand-written vs Lombok?
+
+**Question**: Should JPA entities (emf-parent) and/or REST DTOs (intouch-api-v3) use Lombok `@Getter @Setter`, or hand-written getters/setters?
+
+**Evidence gathered**:
+- `grep -l "@Getter\|@Setter" <intouch-api-v3>` → **305 files** use Lombok. Established platform pattern.
+- Inspection of `Benefits.java` + other emf-parent JPA entities → **0 Lombok annotations**. Hand-written is the emf-parent JPA convention.
+- Known JPA-provider concern: Lombok on `@Embeddable` PK classes has historically caused equality/hash contract issues.
+
+**Options presented**:
+
+| Option | JPA entities (emf-parent) | REST DTOs (intouch-api-v3) | Rationale |
+|--------|---------------------------|----------------------------|-----------|
+| **A** | Hand-written | Lombok | Split convention — matches each repo's established platform pattern. Safest for JPA `@Embeddable` PKs. |
+| **B** | Lombok | Lombok | Uniform Lombok; less code. Deviates from emf-parent JPA convention. |
+| **C** | Hand-written | Hand-written | Uniform hand-written; deviates from 305-file intouch-api-v3 precedent. Most verbose. |
+
+**Orchestrator recommendation**: **A**.
+
+**Rationale**: Each repo's established pattern preserved. JPA stays safely hand-written around `@Embeddable` PK contract. DTOs leverage existing 305-file Lombok precedent.
+
+**User answer**: **A**.
+**Match with recommendation**: ✅ Match.
+**Decision ID**: **D-44**.
+
+**Amendments to 03-designer.md**:
+- §A.3 rows 22-25 → annotations column lists `@Getter @Setter` (Lombok — D-44).
+- §F.8 DTO code block → `import lombok.Getter; import lombok.Setter;`; each DTO class annotated `@Getter @Setter`; "// getters + setters" comments dropped.
+- emf-parent entities (§A.2 rows 8-12, §F.2) unchanged — stays hand-written per P-01.
+- Constraint **C-35** amended in session-memory to reflect the split convention.
+
+---
+
+#### Q7-15 — DTO↔Thrift mapper placement?
+
+**Question**: Where does the DTO↔Thrift mapper class live? Options: (a) dedicated `mapper/` subpackage with `@Component` class, (b) inline static methods on facade, (c) facade package with `*Mapper` suffix.
+
+**Evidence gathered**:
+- Located existing platform exemplar: `intouch-api-v3/.../unified/promotion/mapper/CustomerPromotionResponseMapper.java` — dedicated mapper in `mapper/` subpackage, `@Component`, stateless.
+- Designer's C5 default was "dedicated `*Mapper` in facade package" (option C — close but wrong package).
+
+**Options presented**:
+
+| Option | Location | SDET-testability | Pattern match |
+|--------|----------|------------------|---------------|
+| **A** | Dedicated `com.capillary.intouchapiv3.facade.benefitCategory.mapper.BenefitCategoryResponseMapper` | Excellent — unit-testable without Spring context | Matches `CustomerPromotionResponseMapper` exemplar |
+| **B** | Inline static methods on `BenefitCategoryFacade` | Poor — facade has RPC wiring; mapping is hard to unit-test independently | No exemplar |
+| **C** | `com.capillary.intouchapiv3.facade.benefitCategory.BenefitCategoryMapper` (facade package, not sub-package) | Good | Matches Designer's earlier default but NOT the verified exemplar |
+
+**Orchestrator recommendation**: **A**.
+
+**Rationale**: Exemplar match (`CustomerPromotionResponseMapper`) is the current platform pattern. Clean isolated unit test for UTC timestamp conversion (ADR-008), critical for multi-timezone requirements (G-01.7).
+
+**User answer**: **A**.
+**Match with recommendation**: ✅ Match.
+**Decision ID**: **D-45**.
+
+**Amendments to 03-designer.md**:
+- §A.3 → NEW row 27a for `BenefitCategoryResponseMapper` in `mapper/` subpackage.
+- §A.5 summary: 26 → 27 new artifacts.
+- §F.6 facade constructor comment updated to reference dedicated mapper.
+- NEW §F.6a: mapper class contract with full method signatures (toResponse, toCreateDto, toUpdateDto, toListPayload, millisToDate, dateToMillis helpers).
+- Constraint **C-36** amended in session-memory to reflect dedicated `mapper/` subpackage.
+
+---
+
+### Phase 7 Gap Routing Decisions (Designer questions)
+
+None applicable — all 5 questions went directly to user for explicit decision. No "accept risk" paths taken.
+
 ### Phase 11 (Reviewer Gap Routing) Decisions
 
 _Pending._

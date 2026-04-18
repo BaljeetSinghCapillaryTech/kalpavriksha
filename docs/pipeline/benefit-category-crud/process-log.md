@@ -783,3 +783,56 @@ All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new con
 **Phase 8 readiness**: Proceeding to Phase 8 (QA) — Q7-11..Q7-15 can be resolved in parallel or deferred to Phase 10 (Developer). RED-phase readiness confirmed: SDET Phase 9 has everything needed to generate skeletons + failing tests.
 
 ---
+
+## Phase 7 — Designer Question Resolution (2026-04-18)
+
+**Trigger**: User command `resolve Q7-NN`, then batched answer `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A`.
+
+**Orchestrator protocol**:
+1. For each open question, gathered evidence BEFORE presenting options:
+   - Q7-11: Read `pointsengine-emf/.../PeProgramSlabDao.java` → confirmed only `findByProgram(orgId, programId) → List<ProgramSlab>` exists (no batch-existence variant). Evidence C7.
+   - Q7-12: Cross-checked ADR-010/D-37 (auth posture) + D-26 (SMALL scale) + D-27 (inactive-mutation posture). Revised Designer's C4 "?includeInactive audit" recommendation to "active-only always (B)" on YAGNI grounds.
+   - Q7-13: Re-read §B.5 Thrift DTO `stateChanged` field + Designer's §F.10 IDL definition. Evaluated 3 options (DTO field / exception-tagged 304 / null return).
+   - Q7-14: `grep -l "@Getter\|@Setter"` across intouch-api-v3 → 305 files. Separately across emf-parent JPA entities → 0 files (all hand-written per `Benefits.java`). Revised Designer's C5 blanket "hand-written" to split convention.
+   - Q7-15: Found existing mapper `CustomerPromotionResponseMapper.java` in `unified/promotion/mapper/` subpackage → established platform pattern.
+2. Presented options table per question with recommendation + evidence anchor + tradeoff notes.
+3. User answered `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A` — positional mapping to Q7-11..Q7-15.
+4. Q7-12 user choice = A **OVERRIDES** orchestrator recommendation B. Override logged in approach-log.md.
+
+**User answers → Decisions**:
+| # | User | Decision | Match with recommendation? |
+|---|------|----------|----------------------------|
+| Q7-11 | C | **D-41** — Reuse `findByProgram` + in-memory Set ops | ✅ Match |
+| Q7-12 | A | **D-42** — `?includeInactive=true` audit query param | ❌ **OVERRIDE** (rec was B) |
+| Q7-13 | A | **D-43** — `stateChanged: bool` field on DTO | ✅ Match |
+| Q7-14 | A | **D-44** — Split: entities hand-written, DTOs Lombok | ✅ Match |
+| Q7-15 | A | **D-45** — Dedicated `mapper/` subpackage | ✅ Match |
+
+**Amendments to Phase 7 artifacts**:
+- **`03-designer.md`** (in-place edits):
+  - §A.3 DTO rows 22-25 → added `@Getter @Setter` (Lombok) per D-44
+  - §A.3 NEW row 27a → `BenefitCategoryResponseMapper` in `mapper/` subpackage per D-45
+  - §A.5 summary: 26 → 27 new artifacts
+  - §B.1 create-slab-validation → replaced with in-memory Set ops pseudocode per D-41
+  - §B.3 GET by id → `?includeInactive=true` query param + DAO split (`findByOrgIdAndId` + `findActiveByOrgIdAndId`) per D-42
+  - §F.3 service `getBenefitCategory` → `boolean includeInactive` 3rd param
+  - §F.5 handler `getBenefitCategory` → `boolean includeInactive` 3rd param
+  - §F.6 facade: constructor comment updated to reference dedicated mapper; `get()` signature gains `boolean includeInactive`
+  - NEW §F.6a: `BenefitCategoryResponseMapper` contract (method signatures)
+  - §F.7 controller `get()` → `@RequestParam includeInactive`
+  - §F.8 DTOs → `@Getter @Setter` Lombok annotations
+  - §F.10 IDL: `getBenefitCategory` gains `3: optional bool includeInactive = false`
+  - §G.1 → all 5 questions marked RESOLVED with D-41..D-45 references
+  - §G.2 A7-13 → struck (superseded by D-41)
+  - §G.3 → RED-phase readiness re-confirmed
+  - NEW §18 Post-LLD Amendments → full delta (D-41..D-45 + C-39)
+- **`session-memory.md`** → Designer Phase 7 Question Resolutions section appended (D-41..D-45, constraint updates C-35/C-36 amended, C-39 new)
+- **`approach-log.md`** → Q&A records for all 5 questions with evidence, options, recommendations, user answers, override flag on Q7-12
+- **`pipeline-state.json`** → 7-resolved sub-phase block
+- **`live-dashboard.html`** → Designer Qs table → RESOLVED state; new amendments subsection; stats bumped (45 decisions)
+
+**Git snapshot**: `aidlc/CAP-185145/phase-07-resolved`
+
+**Phase 8 readiness**: Every Designer blocker cleared. SDET Phase 9 can proceed with RED-phase test scaffolding using the amended `03-designer.md` §18 as authoritative over earlier sections on any divergence. Phase 8 QA can now include scenarios for the audit path (`?includeInactive=true`), mapper unit tests, and `stateChanged=false` idempotency.
+
+---

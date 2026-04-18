@@ -76,10 +76,10 @@ Full type list, grouped by repo → layer. Types flagged **[NEW]** are created i
 
 | # | Type | Status | Key annotations |
 |---|------|--------|-----------------|
-| 22 | `BenefitCategoryCreateRequest` | [NEW] | `@JsonIgnoreProperties(ignoreUnknown=true)` ; fields carry Bean Validation: `@NotNull` `programId`, `@NotBlank @Size(max=255)` `name`, `@NotNull @Size(min=1) List<@NotNull @Positive Integer> slabIds`. |
-| 23 | `BenefitCategoryUpdateRequest` | [NEW] | `@NotBlank @Size(max=255)` `name`, `@NotNull List<@NotNull @Positive Integer> slabIds` (empty list permitted → clears all mappings). |
-| 24 | `BenefitCategoryResponse` | [NEW] | Jackson `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone="UTC")` on `createdOn` / `updatedOn` (ADR-008 / G-01.6). |
-| 25 | `BenefitCategoryListPayload` | [NEW] | `{ data: List<BenefitCategoryResponse>, page, size, total }` — inside `ResponseWrapper.data` (Q7-05 assumption C5). |
+| 22 | `BenefitCategoryCreateRequest` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `@JsonIgnoreProperties(ignoreUnknown=true)` ; fields carry Bean Validation: `@NotNull` `programId`, `@NotBlank @Size(max=255)` `name`, `@NotNull @Size(min=1) List<@NotNull @Positive Integer> slabIds`. |
+| 23 | `BenefitCategoryUpdateRequest` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `@NotBlank @Size(max=255)` `name`, `@NotNull List<@NotNull @Positive Integer> slabIds` (empty list permitted → clears all mappings). |
+| 24 | `BenefitCategoryResponse` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; Jackson `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone="UTC")` on `createdOn` / `updatedOn` (ADR-008 / G-01.6). |
+| 25 | `BenefitCategoryListPayload` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `{ data: List<BenefitCategoryResponse>, page, size, total }` — inside `ResponseWrapper.data` (Q7-05 assumption C5). |
 
 **Controller** (package `com.capillary.intouchapiv3.resources` — *proposed, Q7-04*):
 
@@ -91,7 +91,13 @@ Full type list, grouped by repo → layer. Types flagged **[NEW]** are created i
 
 | # | Type | Status | Notes |
 |---|------|--------|-------|
-| 27 | `BenefitCategoryFacade` | [NEW] | `@Component` ; constructor-injects Thrift client via `RPCService.rpcClient(PointsEngineRuleService.Iface.class, "emf-thrift-service", 9199, 60000)`. Returns `Optional<BenefitCategoryResponse>` on activate (D-39). |
+| 27 | `BenefitCategoryFacade` | [NEW] | `@Component` ; constructor-injects Thrift client via `RPCService.rpcClient(PointsEngineRuleService.Iface.class, "emf-thrift-service", 9199, 60000)` + `BenefitCategoryResponseMapper`. Returns `Optional<BenefitCategoryResponse>` on activate (D-39). |
+
+**Mapper** (package `com.capillary.intouchapiv3.facade.benefitCategory.mapper` — D-45 / Q7-15 resolution):
+
+| # | Type | Status | Notes |
+|---|------|--------|-------|
+| 27a | `BenefitCategoryResponseMapper` | [NEW] | `@Component` ; stateless bidirectional mapper `BenefitCategoryDto ↔ BenefitCategoryResponse`, `BenefitCategoryCreateRequest → BenefitCategoryDto`, `BenefitCategoryUpdateRequest → BenefitCategoryDto`. Unit-testable in isolation (resolves UTC-millis ↔ Date conversion per ADR-008). Exemplar: `intouch-api-v3/.../unified/promotion/mapper/CustomerPromotionResponseMapper.java`. |
 
 **Exception + advice**:
 
@@ -110,7 +116,7 @@ Full type list, grouped by repo → layer. Types flagged **[NEW]** are created i
 
 ### A.5 Summary counts
 
-- **NEW**: 15 Java types + 4 DTO + 2 DDL + 1 exception + 4 thrift structs/enum = **26 top-level new artifacts**.
+- **NEW**: 15 Java types + 4 DTO + 1 Mapper (D-45) + 2 DDL + 1 exception + 4 thrift structs/enum = **27 top-level new artifacts**.
 - **MODIFIED**: 3 emf-parent Java files + 1 IDL file + 2 pom.xml files + 1 .gitmodules + 1 Advice class = **8 modified artifacts**.
 
 ---
@@ -202,10 +208,20 @@ BenefitCategory save(BenefitCategory entity);     // inherited from JpaRepositor
 List<BenefitCategorySlabMapping> saveAll(Iterable<BenefitCategorySlabMapping> mappings);
 // C7 — JpaRepository standard.
 
-// PeProgramSlabDao (existing — no new method; reuse)
-List<Integer> findExistingSlabIdsForProgram(int orgId, int programId, List<Integer> candidateSlabIds);
-// C4 — method name proposed; may already exist in different form. Designer verifies against existing PeProgramSlabDao
-//      before Phase 9; if absent, add as [MODIFIED] DAO method. See Q7-11.
+// PeProgramSlabDao (existing — REUSED AS-IS per D-41; NO modification)
+List<ProgramSlab> findByProgram(int orgId, int programId);
+// C7 — method exists in PeProgramSlabDao:27. Returns ALL ProgramSlab rows for (orgId, programId).
+// Service layer does slab-existence validation in-memory via Set operations:
+//   Set<Integer> existingIds = programSlabDao.findByProgram(orgId, programId)
+//       .stream().map(ps -> ps.getPk().getId()).collect(toSet());
+//   Set<Integer> missing = new HashSet<>(candidateSlabIds);
+//   missing.removeAll(existingIds);        // → unknown slabs
+//   if (!missing.isEmpty()) throw BC_UNKNOWN_SLAB(missing);
+// Cross-program check: if a slab belongs to a DIFFERENT program (program_id ≠ request.programId),
+// the slab won't appear in findByProgram results → same path as BC_UNKNOWN_SLAB → unified error.
+// Rationale: D-26 SMALL-scale envelope (≤10 slabs typical per program, hard cap small) makes
+// in-memory filtering negligible; avoids cross-repo DAO modification. Revisit if any program
+// ever carries >100 slabs. (See D-41.)
 ```
 
 **Error semantics**
@@ -270,27 +286,32 @@ int bulkSoftDeleteByCategoryAndSlabs(int orgId, int catId, List<Integer> slabIds
 // C5 — matches BenefitsDao bulk update patterns.
 ```
 
-### B.3 Get by id — `GET /v3/benefitCategories/{id}`
+### B.3 Get by id — `GET /v3/benefitCategories/{id}` (AMENDED by D-42 — `?includeInactive=true` audit flag)
 
 ```java
 @GetMapping("/{id}")
 public ResponseEntity<ResponseWrapper<BenefitCategoryResponse>> get(
     @PathVariable("id") int id,
+    @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive,
     AbstractBaseAuthenticationToken user
 );
 // C6. Authorizes KeyOnly OR BasicAndKey (ADR-010 / D-37) — via existing auth filter chain.
+// AMENDED per D-42: includeInactive=false (default) returns 404 on soft-deleted rows — strict
+// admin view; includeInactive=true returns the row even if is_active=false (audit access).
 
 // Facade
-public BenefitCategoryResponse get(int orgId, int id) throws NotFoundException, EMFThriftException;
-// C6.
+public BenefitCategoryResponse get(int orgId, int id, boolean includeInactive)
+    throws NotFoundException, EMFThriftException;
+// C6. Branches DAO lookup on includeInactive flag.
 ```
 
-**Thrift**
+**Thrift** (no IDL change — filter flag lives inside the request struct)
 
 ```thrift
 BenefitCategoryDto getBenefitCategory(
     1: required i32 orgId,
-    2: required i32 categoryId
+    2: required i32 categoryId,
+    3: optional bool includeInactive = false    // D-42 — audit-inclusive read
 ) throws (1: PointsEngineRuleServiceException ex);
 ```
 
@@ -298,13 +319,19 @@ BenefitCategoryDto getBenefitCategory(
 
 ```java
 @Transactional(value = "warehouse", propagation = Propagation.SUPPORTS, readOnly = true)
-public BenefitCategoryDto getBenefitCategory(int orgId, int categoryId)
+public BenefitCategoryDto getBenefitCategory(int orgId, int categoryId, boolean includeInactive)
     throws PointsEngineRuleServiceException;
 // C5 — readOnly=true appropriate for pure read (pattern: PointsEngineRuleService.getSlabsByProgramId code-analysis-emf §5).
+// Branches on includeInactive: true → findByOrgIdAndId (any state); false → findActiveByOrgIdAndId.
 
-// BenefitCategoryDao
+// BenefitCategoryDao — TWO methods per D-42
 Optional<BenefitCategory> findByOrgIdAndId(int orgId, int id);
-// C6 — active + inactive; service decides. Method name may differ by Spring Data convention — see Q7-12.
+// C6 — returns row regardless of is_active; used when includeInactive=true (audit path).
+
+Optional<BenefitCategory> findActiveByOrgIdAndId(int orgId, int id);
+// C6 — returns row only if is_active=true; used when includeInactive=false (default GET);
+//      ALSO used by all mutation paths (update, activate→load-for-reactivation, deactivate) —
+//      aligns with D-27 (writes on inactive forbidden) + D-28 (uniqueness among active).
 
 // BenefitCategorySlabMappingDao
 List<Integer> findActiveSlabIdsByCategoryId(int orgId, int benefitCategoryId);
@@ -823,7 +850,7 @@ public interface PointsEngineRuleServiceBenefitCategoryFacet {    // documentati
             throws PointsEngineRuleServiceException;
 
     @Transactional(value = "warehouse", propagation = Propagation.SUPPORTS, readOnly = true)
-    BenefitCategoryDto getBenefitCategory(int orgId, int categoryId)
+    BenefitCategoryDto getBenefitCategory(int orgId, int categoryId, boolean includeInactive)   // D-42
             throws PointsEngineRuleServiceException;
 
     @Transactional(value = "warehouse", propagation = Propagation.SUPPORTS, readOnly = true)
@@ -865,7 +892,7 @@ public BenefitCategoryDto updateBenefitCategory(int orgId, int categoryId,
 @Override
 @Trace(dispatcher = true)
 @MDCData(orgId = "#orgId", requestId = "#serverReqId")
-public BenefitCategoryDto getBenefitCategory(int orgId, int categoryId)
+public BenefitCategoryDto getBenefitCategory(int orgId, int categoryId, boolean includeInactive)   // D-42
         throws PointsEngineRuleServiceException, TException;
 
 @Override
@@ -903,8 +930,9 @@ import java.util.Optional;
 @Component
 public class BenefitCategoryFacade {
 
-    // Constructor-injection of Thrift client + Jackson-free Mapper helper (Q7-15 — mapper class name).
-    public BenefitCategoryFacade(/* RPCService wiring + mapper */) {}
+    // Constructor-injects Thrift client + dedicated BenefitCategoryResponseMapper (D-45 / Q7-15).
+    // Mapper lives in com.capillary.intouchapiv3.facade.benefitCategory.mapper — see §F.6a below.
+    public BenefitCategoryFacade(/* RPCService wiring + BenefitCategoryResponseMapper */) {}
 
     public BenefitCategoryResponse create(int orgId, int actorUserId, BenefitCategoryCreateRequest request)
             throws ConflictException, InvalidInputException, EMFThriftException;
@@ -912,7 +940,7 @@ public class BenefitCategoryFacade {
     public BenefitCategoryResponse update(int orgId, int actorUserId, int categoryId, BenefitCategoryUpdateRequest request)
             throws ConflictException, NotFoundException, InvalidInputException, EMFThriftException;
 
-    public BenefitCategoryResponse get(int orgId, int categoryId)
+    public BenefitCategoryResponse get(int orgId, int categoryId, boolean includeInactive)   // D-42
             throws NotFoundException, EMFThriftException;
 
     public BenefitCategoryListPayload list(int orgId, Integer programId, String isActiveFilter, int page, int size)
@@ -925,6 +953,43 @@ public class BenefitCategoryFacade {
             throws NotFoundException, EMFThriftException;
 }
 // Confidence: C6 — signature set pinned by ADR-006 amendment + D-39.
+```
+
+### F.6a Mapper (D-45 / Q7-15 resolution — dedicated `mapper/` subpackage)
+
+```java
+// intouch-api-v3
+package com.capillary.intouchapiv3.facade.benefitCategory.mapper;
+
+import com.capillary.intouchapiv3.dto.benefitCategory.*;
+import com.capillary.pointsengine.rules.thrift.*;   // generated from IDL
+import org.springframework.stereotype.Component;
+import java.util.Date;
+
+@Component
+public class BenefitCategoryResponseMapper {
+
+    // Thrift DTO → REST response DTO (millis i64 → Date @JsonFormat UTC per ADR-008).
+    public BenefitCategoryResponse toResponse(BenefitCategoryDto dto);
+
+    // REST create request → Thrift DTO (id unset; server fills).
+    public BenefitCategoryDto toCreateDto(int orgId, BenefitCategoryCreateRequest request);
+
+    // REST update request → Thrift DTO (id=categoryId from path; programId unchanged — carried in loaded entity).
+    public BenefitCategoryDto toUpdateDto(int orgId, int categoryId, BenefitCategoryUpdateRequest request);
+
+    // List: converts Thrift list response → REST list payload.
+    public BenefitCategoryListPayload toListPayload(BenefitCategoryListResponse thriftResp);
+
+    // Helper: Thrift millis → java.util.Date (UTC); null/0L → null.
+    static Date millisToDate(long millis);
+
+    // Helper: java.util.Date → Thrift i64 millis; null → 0L.
+    static long dateToMillis(Date d);
+}
+// Confidence: C6 — dedicated mapper pattern confirmed via
+//   intouch-api-v3/.../unified/promotion/mapper/CustomerPromotionResponseMapper.java (exemplar).
+// Stateless; SDET unit-tests directly (no Spring context).
 ```
 
 ### F.7 Controller
@@ -967,6 +1032,7 @@ public class BenefitCategoriesV3Controller {
     @GetMapping("/{id}")
     public ResponseEntity<ResponseWrapper<BenefitCategoryResponse>> get(
             @PathVariable("id") int id,
+            @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive,   // D-42
             AbstractBaseAuthenticationToken user);
 
     @GetMapping
@@ -1001,17 +1067,23 @@ package com.capillary.intouchapiv3.dto.benefitCategory;
 
 import com.fasterxml.jackson.annotation.*;
 import javax.validation.constraints.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.util.Date;
 import java.util.List;
 
+// D-44 (Q7-14=A) — DTO split convention: intouch-api-v3 DTOs use Lombok (305 precedent files);
+// emf-parent JPA entities remain hand-written (P-01 Benefits.java pattern preserved).
+
+@Getter @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BenefitCategoryCreateRequest {
     @NotNull @Positive                      private Integer programId;
     @NotBlank @Size(max = 255)              private String name;
     @NotNull @Size(min = 1)                 private List<@NotNull @Positive Integer> slabIds;
-    // getters + setters
 }
 
+@Getter @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BenefitCategoryUpdateRequest {
     @NotBlank @Size(max = 255)              private String name;
@@ -1019,6 +1091,7 @@ public class BenefitCategoryUpdateRequest {
     // Empty list permissible → clears all mappings.
 }
 
+@Getter @Setter
 public class BenefitCategoryResponse {
     private int id;
     private int orgId;
@@ -1033,17 +1106,17 @@ public class BenefitCategoryResponse {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     private Date updatedOn;
     private Integer updatedBy;
-    // getters + setters
 }
 
+@Getter @Setter
 public class BenefitCategoryListPayload {
     private List<BenefitCategoryResponse> data;
     private int page;
     private int size;
     private long total;
-    // getters + setters
 }
-// Confidence: C6 — mirrors code-analysis-intouch §4 DTO patterns.
+// Confidence: C6 — mirrors code-analysis-intouch §4 DTO patterns; Lombok usage pattern
+//   verified via grep (305 files in intouch-api-v3 use @Getter/@Setter). D-44 / Q7-14=A.
 ```
 
 ### F.9 Exception + Advice delta
@@ -1126,7 +1199,8 @@ struct BenefitCategoryListResponse {
 
   BenefitCategoryDto getBenefitCategory(
       1: required i32 orgId,
-      2: required i32 categoryId
+      2: required i32 categoryId,
+      3: optional bool includeInactive = false         // D-42 — audit-inclusive read (Q7-12=A)
   ) throws (1: PointsEngineRuleServiceException ex);
 
   BenefitCategoryListResponse listBenefitCategories(
@@ -1155,15 +1229,18 @@ struct BenefitCategoryListResponse {
 
 ## G. Open Questions for User + Assumptions Made
 
-### G.1 QUESTIONS FOR USER (confidence < C5 — please decide before Phase 9)
+### G.1 QUESTIONS FOR USER — ALL RESOLVED (2026-04-18)
 
-| # | Question | Default proposed | Confidence | Why escalated |
-|---|----------|------------------|------------|---------------|
-| Q7-11 | Does `PeProgramSlabDao` already expose a batch "given a set of candidate slabIds, return which exist for this (orgId, programId)" method? If yes, its exact signature; if no, we [MODIFY] `PeProgramSlabDao` to add `findExistingSlabIdsForProgram(int orgId, int programId, List<Integer> candidateSlabIds)`. | Add new method on existing DAO. | C4 | LSP/grep on `PeProgramSlabDao` not executed in this phase; exact existing API unknown. If the method exists in a different shape, Phase 10 will adapt — but RED-phase skeleton test for facade's cross-program-slab rejection depends on it. |
-| Q7-12 | For `GET by id`, do we read active+inactive together (service decides based on endpoint semantics) or strictly active-only? ADR stages are ambiguous — GET returns active + inactive, but the reactivation check needs both. | Active+inactive on GET; `findActiveById` for mutation paths only. | C4 | BRD silent on whether inactive categories appear in GET by id alongside active. If product requires GET to hide inactive, `BenefitCategoryDao.findByOrgIdAndId` changes to `findActiveByOrgIdAndId`. |
-| Q7-13 | How should EMF signal "no state change" on `activateBenefitCategory` to let the facade return `Optional.empty()`? Options: (a) Thrift DTO gets `stateChanged: bool` field (proposed, C5 assumption); (b) EMF throws `PointsEngineRuleServiceException(statusCode=304)` as a tagged no-op, facade catches → `Optional.empty()`; (c) null return (Java client sees null). | (a) `stateChanged` field on DTO. | C4 | Novel Thrift contract — no existing platform pattern for "success-but-no-change" signalling. Option (a) is least invasive but adds a field ONLY used for this method; (b) piggybacks on exception infra but 304 is HTTP-specific; (c) violates Thrift `required` return semantics since `BenefitCategoryDto` is the declared return. |
-| Q7-14 | Entity boilerplate (getters/setters/equals/hashCode) — hand-written (matching `Benefits.java` pattern code-analysis-emf §3) or Lombok (`@Data`/`@Getter`/`@Setter`)? | Hand-written — matches existing pattern. | C4 | emf-parent usage of Lombok on entities not verified; safer to match existing explicit style unless user confirms Lombok is in use. |
-| Q7-15 | DTO ↔ Thrift mapper class: new `BenefitCategoryThriftMapper` as `@Component` (stateless, unit-testable) vs inline static methods inside facade? | Dedicated `@Component` mapper — more testable. | C4 | Platform has both patterns. Dedicated mapper is SDET-preferred (clean unit test for mapping rules including UTC timestamp conversion). |
+All 5 Designer open questions were resolved by the user as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A`.
+Resolutions are recorded as **D-41..D-45** in `session-memory.md` and as amendments in §18 below.
+
+| # | Question (summary) | User answer | Recorded as | Status |
+|---|--------------------|-------------|-------------|--------|
+| Q7-11 | Add batch-existence method on `PeProgramSlabDao` vs reuse existing `findByProgram` + in-memory Set ops? | **C** — reuse existing `findByProgram` (no cross-repo DAO modification) | **D-41** | ✅ RESOLVED |
+| Q7-12 | GET /{id} active-only vs active+inactive vs explicit opt-in? | **A** — default active-only; `?includeInactive=true` opt-in for audit access | **D-42** | ✅ RESOLVED (overrides Designer recommendation B) |
+| Q7-13 | How does EMF signal "no state change" on activate? | **A** — `stateChanged: bool` field on `BenefitCategoryDto` (Thrift field 12); facade detects `stateChanged=false` → `Optional.empty()` | **D-43** | ✅ RESOLVED |
+| Q7-14 | Hand-written vs Lombok for DTO/entity boilerplate? | **A** — split: JPA entities hand-written (`Benefits.java` P-01 pattern); DTOs use `@Getter @Setter` (305 Lombok files in intouch-api-v3) | **D-44** | ✅ RESOLVED |
+| Q7-15 | Dedicated mapper class vs inline static? | **A** — dedicated `BenefitCategoryResponseMapper` in `com.capillary.intouchapiv3.facade.benefitCategory.mapper` subpackage (matches `CustomerPromotionResponseMapper` exemplar) | **D-45** | ✅ RESOLVED |
 
 ### G.2 ASSUMPTIONS MADE (C5 — documented; user may override)
 
@@ -1181,16 +1258,24 @@ struct BenefitCategoryListResponse {
 | A7-10 | Thrift method `listBenefitCategories` takes `BenefitCategoryFilter` (no separate `orgId` arg) — orgId travels inside the filter struct. `@MDCData(orgId="#filter.orgId")` SpEL expression. | C5 | Matches §9 IDL + SpEL path-traversal support in `@MDCData` (code-analysis-emf §2 aspect section). |
 | A7-11 | `benefit_category_id` (not `category_id`) is the FK column name on the mapping table — matches the proposed JPA field name and the §7.2 DDL. | C5 | ADR-007 DDL §7.2 line 744 pins the column name. |
 | A7-12 | `ConflictException` carries both `code` (machine-readable, e.g., `BC_NAME_TAKEN_ACTIVE`) and `message` (human-readable). Advice surfaces `code` as `ApiError.code`, `message` as `ApiError.message`. | C5 | Matches existing `InvalidInputException` pattern from code-analysis-intouch §6. |
-| A7-13 | `PeProgramSlabDao` — if the batch-existence method does not exist (Q7-11), Phase 7 Designer considers adding it to that DAO an [MODIFIED] change on emf-parent. Authority: Phase 10 Developer implements. | C5 | Conservative assumption; facade must cross-check `slab_id` presence per ADR-003. |
+| ~~A7-13~~ | ~~`PeProgramSlabDao` — if the batch-existence method does not exist (Q7-11), Phase 7 Designer considers adding it to that DAO an [MODIFIED] change on emf-parent.~~ | ~~C5~~ | **SUPERSEDED by D-41** (Q7-11=C): no DAO modification; reuse existing `findByProgram(orgId, programId)` + in-memory Set ops. See §18.1 below. |
 
 ### G.3 RED-phase readiness
 
-**Verdict**: `true` — every signature is compile-safe. SDET Phase 9 can import types, create skeleton classes with method bodies throwing `UnsupportedOperationException`, and write tests that fail RED. The 5 QUESTIONS FOR USER in §G.1 are non-blocking for RED-phase test writing — they all concern implementation details inside method bodies (Q7-11, Q7-12) or Thrift DTO fields (Q7-13) that if/when flipped only affect Phase 10 bodies and Thrift regeneration, not the test skeletons themselves.
+**Verdict**: `true` — every signature is compile-safe, and all 5 Designer open questions have been resolved
+by user (D-41..D-45, 2026-04-18). SDET Phase 9 can import types, create skeleton classes with method bodies
+throwing `UnsupportedOperationException`, and write tests that fail RED.
 
-**Conditions that would flip readiness to `false`**:
-- User overrides A7-04 (Thrift timestamp naming) — triggers IDL rewrite.
-- User overrides A7-03 (list wrapper shape) — triggers DTO rewrite + controller return-type change.
-- User answers Q7-13 option (b) — eliminates `stateChanged` DTO field, Thrift IDL delta shrinks by 1 field.
+**Resolution-driven amendments now baked into §A..§F**:
+- Q7-11=C → D-41: no cross-repo DAO modification; `PeProgramSlabDao.findByProgram` reused with in-memory Set ops (see §18.1).
+- Q7-12=A → D-42: GET /{id} signature takes `boolean includeInactive`; DAO split into `findByOrgIdAndId` + `findActiveByOrgIdAndId` (see §B.3, §F.6, §F.7, §F.10).
+- Q7-13=A → D-43: `BenefitCategoryDto` Thrift field 12 `stateChanged: bool` retained; facade returns `Optional.empty()` when `stateChanged=false` (§B.5, §F.10).
+- Q7-14=A → D-44: DTOs carry `@Getter @Setter` Lombok; entities stay hand-written (§A.3 rows 22-25, §F.8).
+- Q7-15=A → D-45: dedicated `BenefitCategoryResponseMapper` in `facade.benefitCategory.mapper` subpackage (§A.3 row 27a, §F.6a).
+
+**Conditions that would flip readiness to `false`** (none currently triggered):
+- User overrides A7-04 (Thrift timestamp naming) — would trigger IDL rewrite.
+- User overrides A7-03 (list wrapper shape) — would trigger DTO rewrite + controller return-type change.
 
 **Phase 9 SDET receives**:
 - The 6 operations with exact method signatures across 5 layers.
@@ -1198,6 +1283,7 @@ struct BenefitCategoryListResponse {
 - Entity column mapping for DDL-integration tests.
 - Error mapping table for `@ExceptionHandler` + Thrift-exception tests.
 - Pattern exemplars with evidence anchors for mirror-style testing.
+- The dedicated `BenefitCategoryResponseMapper` contract — SDET writes pure-unit mapping tests.
 
 ---
 
@@ -1224,6 +1310,145 @@ struct BenefitCategoryListResponse {
 | No advisory lock / app-level uniqueness only | `01-architect.md` ADR-012 amended; `session-memory.md` D-38 |
 | Asymmetric activate response | `01-architect.md` ADR-006 amended; `session-memory.md` D-39 |
 | No `@PreAuthorize` on MVP endpoints | `01-architect.md` ADR-010; `session-memory.md` D-37 |
+
+---
+
+## 18. Post-LLD Amendments — Designer Question Resolutions (2026-04-18)
+
+> **Context**: User resolved all 5 Designer open questions (Q7-11..Q7-15) after the initial LLD
+> was produced. This section is the authoritative delta from §A..§G. The preceding sections
+> have been amended in-place to reflect these decisions. Any divergence between earlier
+> sections and §18 is a bug — §18 wins.
+>
+> **User inputs (2026-04-18)**: `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A`.
+
+### 18.1 D-41 — `PeProgramSlabDao` reuse (Q7-11=C)
+
+**Decision**: NO modification to `PeProgramSlabDao`. Reuse existing method:
+
+```java
+// Existing method — PeProgramSlabDao:27 (VERIFIED C7 via Read)
+@Query("SELECT s FROM ProgramSlab s WHERE s.pk.orgId = ?1 AND s.program.pk.id = ?2")
+List<ProgramSlab> findByProgram(int orgId, int programId);
+```
+
+Service-layer validation for "all request slabIds exist AND belong to request.programId" runs in-memory:
+
+```java
+Set<Integer> existingIds = programSlabDao.findByProgram(orgId, programId)
+    .stream()
+    .map(ps -> ps.getPk().getId())
+    .collect(toSet());
+
+Set<Integer> missing = new HashSet<>(requestSlabIds);
+missing.removeAll(existingIds);
+if (!missing.isEmpty()) {
+    throw new PointsEngineRuleServiceException(
+        "BC_UNKNOWN_SLAB", 400, "Unknown slab ids: " + missing);
+}
+// Cross-program check: if a slab belongs to a DIFFERENT program,
+// it won't appear in findByProgram(orgId, programId) → same path as BC_UNKNOWN_SLAB (unified error).
+```
+
+**Rationale**:
+- D-26 scale envelope (SMALL: ≤10 slabs typical per program, hard cap small) makes in-memory filtering negligible.
+- Avoids cross-repo DAO modification and the associated ripple (unit tests, QueryDSL, migration risk).
+- If any future program ever carries > 100 slabs, revisit with a JPQL `IN (:candidateIds)` variant.
+
+**Effect on artifacts**: A7-13 in §G.2 is struck (superseded). §A.2 DAO row 14 unchanged
+(no new method on `PeProgramSlabDao`). §B.1 create-slab-validation pseudocode (lines ~200-220)
+amended to use `findByProgram` + Set ops — see in-line.
+
+### 18.2 D-42 — GET /{id} `?includeInactive=true` audit flag (Q7-12=A — **OVERRIDES Designer recommendation B**)
+
+**Decision**: GET /{id} defaults to active-only (404 on soft-deleted rows), with explicit
+`?includeInactive=true` opt-in for audit/support access.
+
+**Designer's original recommendation was B** ("active-only-always, no query param") on YAGNI grounds.
+**User overrides** to A, preferring a richer API surface that supports audit access without requiring a
+follow-up endpoint later.
+
+**Contract delta**:
+
+| Layer | Signature change |
+|-------|------------------|
+| REST Controller | `get(int id, @RequestParam(name="includeInactive", defaultValue="false") boolean includeInactive, user)` — §F.7 |
+| Facade | `get(int orgId, int id, boolean includeInactive)` — §F.6 |
+| Thrift IDL | `getBenefitCategory(orgId, categoryId, 3: optional bool includeInactive=false)` — §F.10 |
+| Service | `getBenefitCategory(int orgId, int categoryId, boolean includeInactive)` — §F.3 |
+| DAO | **TWO** methods: `findByOrgIdAndId(int,int)` (any state) + `findActiveByOrgIdAndId(int,int)` (active only) — §B.3 |
+
+**Routing rule**:
+- Default path (`includeInactive=false`) → `findActiveByOrgIdAndId` → 404 on is_active=false rows.
+- Audit path (`includeInactive=true`) → `findByOrgIdAndId` → 200 on any row.
+- **All mutation paths** (update, activate→load-for-reactivation, deactivate→load-if-active) use
+  `findActiveByOrgIdAndId` unconditionally (aligns with D-27 "writes on inactive forbidden").
+
+### 18.3 D-43 — `stateChanged` signalling on activate no-op (Q7-13=A)
+
+**Decision**: `BenefitCategoryDto` Thrift struct field 12 `optional bool stateChanged = true` is retained.
+On idempotent no-op, EMF returns the DTO with `stateChanged=false`; facade detects this and returns
+`Optional.empty()` → controller emits 204. On actual state change, `stateChanged` is absent or true, DTO
+is populated → 200 + wrapper.
+
+**Rationale**: Least-invasive option. No new exception code (b was rejected: HTTP 304 is not idiomatic on
+PATCH). No null-return (c was rejected: violates Thrift `required` return semantics). The extra field
+lives only on this DTO and defaults true, so unused by other Thrift consumers.
+
+**Artifact status**: §F.10 IDL already contains `12: optional bool stateChanged = true`; §B.5
+already describes this sentinel. No further amendment needed — this is pinned as authoritative.
+
+### 18.4 D-44 — DTO/Entity boilerplate split (Q7-14=A)
+
+**Decision** (split convention):
+
+| Artifact | Convention | Rationale |
+|----------|------------|-----------|
+| emf-parent JPA entities (`BenefitCategory`, `BenefitCategorySlabMapping`, inner PK classes) | **Hand-written** getters/setters/equals/hashCode | Matches `Benefits.java` P-01 exemplar. JPA providers can be sensitive to Lombok on `@Embeddable` PK classes; hand-written preserves equality/hash contract explicitly. |
+| intouch-api-v3 DTOs (`BenefitCategoryCreateRequest`, `BenefitCategoryUpdateRequest`, `BenefitCategoryResponse`, `BenefitCategoryListPayload`) | `@Getter @Setter` (Lombok) | Evidence: `grep -r "@Getter\|@Setter" intouch-api-v3` → 305 files use Lombok. Fresh DTOs should follow established platform convention. |
+
+**Effect on artifacts**: §A.3 rows 22-25 show `@Getter @Setter` annotation. §F.8 DTO class bodies
+rewritten with Lombok annotations, getters/setters comments dropped. emf-parent entities unchanged.
+
+### 18.5 D-45 — Dedicated mapper in `mapper/` subpackage (Q7-15=A)
+
+**Decision**: Single dedicated mapper class `BenefitCategoryResponseMapper` in
+`com.capillary.intouchapiv3.facade.benefitCategory.mapper` subpackage. `@Component`, stateless,
+SDET-unit-testable in isolation.
+
+**Evidence**: Exemplar verified at
+`intouch-api-v3/intouch-api-v3/src/main/java/com/capillary/intouchapiv3/facade/unified/promotion/mapper/CustomerPromotionResponseMapper.java`
+— established platform pattern.
+
+**Scope** (method signatures in §F.6a):
+- Thrift DTO ↔ REST response DTO (Date ↔ i64 millis UTC per ADR-008).
+- REST request DTOs → Thrift DTOs for write operations.
+- List response unwrap/rewrap.
+- Two static helpers (`millisToDate`, `dateToMillis`).
+
+**Effect on artifacts**: §A.3 new row 27a. §F.6 Facade constructor injects the mapper. §F.6a new section
+defines the mapper contract.
+
+### 18.6 New Constraint: C-39
+
+**C-39 (NEW)**: `GET /v3/benefitCategories/{id}` MUST support `?includeInactive=true` audit query
+parameter. When absent or `false`, soft-deleted categories return 404. When `true`, soft-deleted
+categories return 200 with `isActive=false` in the response. The audit path is read-only and does
+**not** bypass tenant `orgId` scoping (G-07). (Source: D-42.)
+
+### 18.7 Summary of decisions added
+
+| Decision | Source question | User answer | Match with Designer recommendation? |
+|----------|-----------------|-------------|-------------------------------------|
+| D-41 | Q7-11 | C (reuse `findByProgram` + in-memory Set ops) | Match |
+| D-42 | Q7-12 | A (`?includeInactive=true` audit flag) | **Override** (Designer recommended B — active-only always) |
+| D-43 | Q7-13 | A (`stateChanged` field) | Match |
+| D-44 | Q7-14 | A (split: entities hand-written, DTOs Lombok) | Match |
+| D-45 | Q7-15 | A (dedicated `mapper/` subpackage) | Match |
+
+### 18.8 RED-phase readiness after §18
+
+**Readiness**: `true`. Every amendment in §18 preserves compile-safety. SDET Phase 9 can proceed.
 
 ---
 
