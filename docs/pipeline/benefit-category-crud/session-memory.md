@@ -423,6 +423,41 @@ User answered all 5 Designer open questions as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A
 - Phase 9 (SDET, RED): test files for `BenefitCategoryResponseMapper` in isolation; `?includeInactive=true` integration test branching; two-DAO-method wiring (`findByOrgIdAndId` vs `findActiveByOrgIdAndId`); activate idempotency assertions on `stateChanged`.
 - Phase 10 (Dev, GREEN): implement in-memory Set op for D-41 slab validation; implement mapper in `mapper/` subpackage; implement `stateChanged` flip in activate service method.
 
+---
+
+## QA Phase 8 — Additions
+
+**Phase 8 Artifact**: `04-qa.md` (77 scenarios across 6 operations + 9 edge cases + 8 guardrail tests + 4 audit trail tests; 47 P0 / 23 P1 / 7 P2; 1,102 lines, ~48KB).
+
+**New Risks & Concerns**:
+- [risk] `BC_BAD_ACTIVE_FILTER` (400 on invalid `?isActive=foo` value) is implied by Designer Assumption A7-07 but the error code string is not confirmed in ADR-009. SDET needs this string before Phase 9. _(QA)_ — Status: open
+- [risk] `NotFoundException → HTTP 200` platform quirk (OQ-45): 10+ QA scenarios assert HTTP 200 + error body for "not found". If product fixes this to HTTP 404 in a concurrent ticket, all these assertions will break. _(QA)_ — Status: open
+- [risk] `BenefitCategoryUpdateRequest.slabIds` allows empty list (`[]`) based on `@NotNull` without `@Size(min=1)` in Designer §F.8. If product requires "at least one active slab at all times" for an active category, this is a gap. _(QA)_ — Status: open
+
+**New Open Questions**:
+- [ ] Q8-01: Is empty `slabIds` on PUT allowed (clears all mappings) or rejected with 400? _(QA)_
+- [ ] Q8-02: Is name uniqueness check case-sensitive or case-insensitive? _(QA)_
+- [ ] Q8-03: Confirm `BC_BAD_ACTIVE_FILTER` error code string for `?isActive=foo` validation error. _(QA)_
+
+**Resolved from QA analysis**:
+- [x] D-38 (accepted race) — documented in QA-061/QA-073 as non-asserting behaviour scenarios. _(resolved by QA)_
+- [x] D-39 (asymmetric activate) — covered by QA-047 (200+DTO on state change) and QA-048 (204 on no-op). _(resolved by QA)_
+- [x] D-43 (stateChanged field) — QA-048 asserts 204 No Content on already-active activate with `stateChanged=false`. _(resolved by QA)_
+- [x] D-42 (?includeInactive) — QA-017 (default active-only 404) and QA-018 (audit path 200+inactive DTO) cover both branches. _(resolved by QA)_
+
+**Key QA Scenario IDs by operation** (for cross-reference in SDET/Developer phases):
+- CREATE: QA-001..QA-013
+- GET-BY-ID: QA-014..QA-019
+- LIST: QA-020..QA-027
+- UPDATE: QA-028..QA-041
+- ACTIVATE: QA-042..QA-050 + QA-065
+- DEACTIVATE: QA-051..QA-056
+- Edge Cases: QA-057..QA-065
+- Guardrail Tests: QA-066..QA-073
+- Audit Trail: QA-074..QA-077
+
+**Phase 8 Confidence**: C6 — all scenarios anchored to source decisions D-01..D-45, ADR-001..013, and AC-BC01'..AC-BC12 with traceability matrix. Three open questions (Q8-01..Q8-03) at C4 need resolution before Phase 9 SDET writes assertions for those areas.
+
 **Phase 7 Artifact updated**: `03-designer.md` — in-place amendments to §A, §B.3, §F.6/F.6a/F.7/F.8/F.10; new §18 Post-LLD Amendments section documenting D-41..D-45 + C-39; §G.1 questions marked RESOLVED; §G.2 A7-13 struck.
 
 **Phase 7 Confidence (updated)**: RED-phase readiness still **true**. All amendments preserve compile-safety. SDET Phase 9 can proceed.

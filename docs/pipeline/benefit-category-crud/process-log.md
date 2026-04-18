@@ -836,3 +836,78 @@ All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new con
 **Phase 8 readiness**: Every Designer blocker cleared. SDET Phase 9 can proceed with RED-phase test scaffolding using the amended `03-designer.md` §18 as authoritative over earlier sections on any divergence. Phase 8 QA can now include scenarios for the audit path (`?includeInactive=true`), mapper unit tests, and `stateChanged=false` idempotency.
 
 ---
+
+### Phase 8: QA — 2026-04-18
+
+**Skill**: `/qa` (subagent mode, sonnet)
+**Inputs**: 03-designer.md §F + §18 (authoritative delta), 00-ba.md, 00-ba-machine.md, 00-prd.md, 01-architect.md, session-memory.md, blocker-decisions.md, GUARDRAILS.md
+**Output**: 04-qa.md (1,102 lines, 49 KB, 4 Mermaid diagrams appended)
+
+**Deliverable**: 77 test scenarios anchored on BA/PRD acceptance criteria + all 45 frozen decisions + 7 error codes + 4 guardrails.
+
+**Scenario breakdown**:
+| Operation       | Scenarios | ID Range      | Priority Distribution |
+|-----------------|-----------|---------------|----------------------|
+| CREATE          | 13        | QA-001..013   | 9 P0, 4 P1           |
+| GET-BY-ID       | 6         | QA-014..019   | 4 P0, 2 P1           |
+| LIST            | 8         | QA-020..027   | 5 P0, 3 P1           |
+| UPDATE          | 14        | QA-028..041   | 10 P0, 4 P1          |
+| ACTIVATE        | 9         | QA-042..050   | 6 P0, 3 P1           |
+| DEACTIVATE      | 6         | QA-051..056   | 4 P0, 2 P1           |
+| Edge Cases      | 9         | QA-057..065   | 2 P0, 4 P1, 3 P2     |
+| Guardrail       | 8         | QA-066..073   | 5 P0, 1 P1, 2 P2     |
+| Audit Trail     | 4         | QA-074..077   | 2 P0, 0 P1, 2 P2     |
+| **TOTAL**       | **77**    | —             | **47 P0, 23 P1, 7 P2**|
+
+**Frozen-decision traceability coverage**:
+- D-33 (no @Version) → QA-041 documents LWW concurrent PUT behaviour
+- D-34 clause e (reactivate name collision) → QA-046
+- D-35 (embedded slabIds diff-apply) → QA-028..QA-033
+- D-36 (PATCH /deactivate) → QA-051..QA-056
+- D-37 (BasicAndKey auth only) → QA-050, QA-065 assert KeyOnly rejection
+- D-38 (accepted race) → QA-061 documents, does not assert (P2)
+- D-39 (asymmetric activate response) → QA-047 (200+DTO) vs QA-048 (204)
+- D-42 (?includeInactive=true audit path) → QA-017 (default active-only) vs QA-018 (audit)
+- D-43 (Thrift stateChanged field 12) → QA-048 asserts 204 on no-op
+- D-45 (dedicated mapper) → Phase 9 SDET will add mapper unit tests
+
+**Guardrail tests (G-01, G-05, G-07, G-10)**: 8 scenarios covering UTC correctness, txn atomicity, multi-tenant isolation, and accepted concurrency deviation.
+
+**Audit trail tests (QA-074..QA-077)**: createdOn/updatedOn correctly populated and advanced on create / update / activate / deactivate.
+
+**QUESTIONS FOR USER (3)** — require user input before Phase 8b Business Test Gen:
+- Q8-01: Is empty `slabIds: []` on PUT allowed (clears all mappings) or rejected with 400?
+- Q8-02: Is name uniqueness check case-sensitive or case-insensitive?
+- Q8-03: Exact error code string for `?isActive=foo` invalid filter value?
+
+**ASSUMPTIONS MADE (4, all C5+)**:
+- A8-01 (C5): Empty slabIds on PUT is valid — derived from `@NotNull` without `@Size(min=1)` on BenefitCategoryUpdateRequest
+- A8-02 (C5): Name uniqueness is case-sensitive (no LOWER() — derived from A7-06)
+- A8-03 (C6): All "not found" paths return HTTP 200 + error body (platform quirk OQ-45)
+- A8-04 (C5): stateChanged=false in Thrift DTO signals idempotent no-op → facade returns Optional.empty() → 204
+
+**Risks surfaced**:
+- BC_BAD_ACTIVE_FILTER code string undefined in ADR-009 → needs confirmation before SDET RED
+- NotFoundException → HTTP 200 platform quirk creates test fragility across 10+ scenarios
+- `@NotNull` without `@Size(min=1)` on Update.slabIds allows clearing mappings (may be unintended)
+
+**Out-of-scope (explicitly NOT covered)**:
+- Aurora version check (D-40 deferred)
+- Admin-role gate (D-37 BasicAndKey only)
+- Partial unique index (D-38 accepted race)
+- Optimistic locking race resolution (D-33 accepted LWW)
+
+**Downstream phase obligations**:
+- **Phase 8b Business Test Gen**: map all 77 QA-xxx → BT-xx IDs with BA/Designer/QA traceability matrix
+- **Phase 9 SDET RED**: implement 77 test scenarios + 4 mapper unit tests → confirm RED; write skeleton production classes
+
+**Artifacts amended**:
+- `04-qa.md` — 1,102 lines with 4 Mermaid diagrams (Scenario Distribution, Priority, Error Code Coverage, Activate Asymmetry)
+- `session-memory.md` — "QA Phase 8 — Additions" section with risks, open questions, and resolved decision references
+- `live-dashboard.html` — Phase 8 section populated with scenario table, guardrail table, open questions, Mermaid charts; stats bar updated (9/19 phases, 22 artifacts, 77 scenarios)
+
+**Git snapshot**: `aidlc/CAP-185145/phase-08`
+
+**Phase 8b readiness**: PENDING user answers to Q8-01..Q8-03. Recommend resolving questions first to avoid assumption drift in Phase 8b BT-xx traceability matrix.
+
+---

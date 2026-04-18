@@ -193,11 +193,11 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">8</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + Designer Qs resolved</span>
-          <span><span class="stat-value">21</span> artifacts generated</span>
+          <span><span class="stat-value">9</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA scenarios generated</span>
+          <span><span class="stat-value">22</span> artifacts generated</span>
           <span><span class="stat-value">45</span> decisions made &middot; 17 patterns P-01..P-17</span>
           <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD)</span>
-          <span><span class="stat-value">64</span> findings surfaced (59 resolved + 5 Designer Qs resolved)</span>
+          <span><span class="stat-value">77</span> QA scenarios (47 P0 · 23 P1 · 7 P2) &middot; 3 open questions Q8-01..Q8-03</span>
           <span><span class="stat-value">27</span> new types + 8 modified — LLD compile-safe (mapper added)</span>
           <span><span class="stat-value">0</span> code files written (RED phase next)</span>
         </div>
@@ -1407,7 +1407,104 @@ sequenceDiagram
         <p class="phase-time">🏷️ Git snapshots: <code>aidlc/CAP-185145/phase-07</code> · <code>aidlc/CAP-185145/phase-07-resolved</code></p>
       </section>
       <section class="phase-section" id="phase-8">
-        <h2>Phase 8: QA <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 8: QA <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
+        <span class="skill-tag">/qa</span>
+        <p>Generated <strong>77 test scenarios</strong> across 6 operations + edge cases + guardrails + audit trail, with full traceability back to BA/PRD acceptance criteria and frozen decisions D-01..D-45. LLD §F + §18 are the authoritative contract surface for scenario inputs. Three open questions (Q8-01..Q8-03) surfaced for user resolution before Phase 8b Business Test Gen.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">77</div><div class="label">Scenarios</div></div>
+          <div class="key-number"><div class="value">47</div><div class="label">P0 (must-pass)</div></div>
+          <div class="key-number"><div class="value">23</div><div class="label">P1 (regression)</div></div>
+          <div class="key-number"><div class="value">7</div><div class="label">P2 (doc deviation)</div></div>
+          <div class="key-number"><div class="value">8</div><div class="label">Guardrail tests</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">Audit trail tests</div></div>
+          <div class="key-number"><div class="value">3</div><div class="label">Open Qs (Q8-01..03)</div></div>
+        </div>
+
+        <h3>Scenario Distribution by Operation</h3>
+        <table class="data-table">
+          <thead><tr><th>Operation</th><th>Count</th><th>ID Range</th><th>Key Scenarios</th></tr></thead>
+          <tbody>
+            <tr><td><strong>CREATE</strong></td><td>13</td><td>QA-001..013</td><td>Happy path · dedup slabIds · name collision (409) · cross-program slab (409) · unknown slab (409) · multi-tenant isolation</td></tr>
+            <tr><td><strong>GET-BY-ID</strong></td><td>6</td><td>QA-014..019</td><td>Active default · not-found (platform 200+error) · wrong-org · <strong>soft-deleted hidden by default (QA-017)</strong> · <strong>?includeInactive=true audit path (QA-018 — D-42)</strong></td></tr>
+            <tr><td><strong>LIST</strong></td><td>8</td><td>QA-020..027</td><td>Pagination · page size limit (400) · isActive filter · multi-tenant · empty program</td></tr>
+            <tr><td><strong>UPDATE</strong></td><td>14</td><td>QA-028..041</td><td>Rename · slabIds diff (add/remove/replace/clear) · re-add soft-deleted inserts NEW row (D-35) · inactive write forbidden (409 per D-27) · name collision (409) · LWW concurrent PUT</td></tr>
+            <tr><td><strong>ACTIVATE</strong></td><td>9</td><td>QA-042..050</td><td><strong>QA-047: state-change → 200+DTO (D-39)</strong> · <strong>QA-048: no-op → 204 (D-43 stateChanged=false)</strong> · QA-046: reactivate with name taken (409 per D-34e) · mappings NOT auto-reactivated (D-34b)</td></tr>
+            <tr><td><strong>DEACTIVATE</strong></td><td>6</td><td>QA-051..056</td><td>Idempotent 204 · cascade mappings → inactive in same txn (D-06) · wrong-org · not-found</td></tr>
+            <tr><td><strong>Edge Cases</strong></td><td>9</td><td>QA-057..065</td><td>Whitespace-only name · very long name · extreme pagination · D-38 accepted race (QA-061 documents, does not assert)</td></tr>
+            <tr><td><strong>Guardrail</strong></td><td>8</td><td>QA-066..073</td><td>G-01 UTC (QA-066..067) · G-05 txn atomicity (QA-068) · G-07 tenant isolation (QA-069..071) · G-10 accepted concurrency deviation (QA-072..073)</td></tr>
+            <tr><td><strong>Audit Trail</strong></td><td>4</td><td>QA-074..077</td><td>createdOn/updatedOn populated and advanced correctly on create / update / activate / deactivate</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Guardrail Compliance Coverage</h3>
+        <table class="data-table">
+          <thead><tr><th>Guardrail</th><th>Concern</th><th>Scenario IDs</th><th>Priority</th></tr></thead>
+          <tbody>
+            <tr><td><strong>G-01</strong></td><td>Multi-timezone / UTC correctness of createdOn/updatedOn</td><td>QA-062, QA-063, QA-066, QA-067</td><td>P0</td></tr>
+            <tr><td><strong>G-05</strong></td><td>Transaction atomicity — category + mappings roll back together on failure</td><td>QA-068</td><td>P0</td></tr>
+            <tr><td><strong>G-07</strong></td><td>Multi-tenant isolation — orgA cannot access orgB resources</td><td>QA-069, QA-070, QA-071</td><td>P0</td></tr>
+            <tr><td><strong>G-10</strong></td><td>Concurrency (accepted deviation per D-33/D-38) — documents LWW + race posture without asserting a fix</td><td>QA-072, QA-073</td><td>P2</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Open Questions (surfaced by QA — require user input before Phase 8b)</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Question</th><th>Affects</th><th>QA Assumption (C5+)</th></tr></thead>
+          <tbody>
+            <tr><td>Q8-01</td><td>Is empty <code>slabIds: []</code> on PUT allowed (clears all mappings) or rejected with 400?</td><td>QA-032 behaviour</td><td>A8-01: empty allowed (no <code>@Size(min=1)</code> on UpdateRequest)</td></tr>
+            <tr><td>Q8-02</td><td>Is name uniqueness check case-sensitive or case-insensitive?</td><td>QA-004, QA-036</td><td>A8-02: case-sensitive (no LOWER() — matches A7-06)</td></tr>
+            <tr><td>Q8-03</td><td>Exact error code string for <code>?isActive=foo</code> invalid filter value?</td><td>SDET assertion precision</td><td>A-8-03 pending</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Scenario Distribution</h3>
+        <div class="mermaid">
+pie title 77 QA Scenarios by Operation
+    "CREATE (13)" : 13
+    "GET-BY-ID (6)" : 6
+    "LIST (8)" : 8
+    "UPDATE (14)" : 14
+    "ACTIVATE (9)" : 9
+    "DEACTIVATE (6)" : 6
+    "Edge Cases (9)" : 9
+    "Guardrail (8)" : 8
+    "Audit Trail (4)" : 4
+        </div>
+
+        <h3>Activate Asymmetry Test Matrix (D-39 + D-43)</h3>
+        <div class="mermaid">
+flowchart TB
+  start([PATCH /id/activate]) --> check{isActive==true?}
+  check -->|false → state changes| path200[Flip isActive=true<br/>Set updatedOn<br/>Thrift stateChanged=true<br/>Facade returns Optional of DTO<br/>Controller → 200 + body]
+  check -->|true → idempotent no-op| path204[No DB write<br/>Thrift stateChanged=false<br/>Facade returns Optional.empty<br/>Controller → 204 No Content]
+
+  path200 --> T1[QA-042 happy activate<br/>QA-047 200+DTO asserted<br/>QA-049 updatedOn advances<br/>QA-074 audit trail]
+  path204 --> T2[QA-048 no-op asserts 204<br/>QA-073 stateChanged=false]
+
+  style check fill:#2a2a4a,stroke:#00d4ff,color:#e0e0e0
+  style path200 fill:#1a3a2a,stroke:#00ff88,color:#e0e0e0
+  style path204 fill:#1a3a3a,stroke:#00d4ff,color:#e0e0e0
+  style T1 fill:#1a3a1a,stroke:#00ff88,color:#e0e0e0
+  style T2 fill:#1a3a1a,stroke:#00d4ff,color:#e0e0e0
+        </div>
+
+        <h3>Out-of-Scope (Documented in 04-qa.md)</h3>
+        <ul>
+          <li>Aurora version check — deferred by D-40</li>
+          <li>Admin-role gate — deferred by D-37 (BasicAndKey only)</li>
+          <li>Partial unique index — superseded by D-38 (app-layer check only)</li>
+          <li>Optimistic locking race resolution — accepted by D-33 (LWW, no <code>@Version</code>)</li>
+        </ul>
+
+        <h3>Phase 8b (Business Test Gen) + Phase 9 (SDET RED) Readiness</h3>
+        <p>✅ <strong>77 QA scenarios + 8 guardrail tests + 4 audit trail tests</strong> form the input corpus for Phase 8b Business Test Gen (BT-xx traceability matrix) and Phase 9 SDET RED (test code implementation). <strong>Pending user input on Q8-01..Q8-03</strong> before Phase 8b to avoid assumption drift in BT-xx mapping.</p>
+
+        <ul class="artifact-list">
+          <li>04-qa.md (1,102 lines, 49 KB, 4 Mermaid diagrams appended)</li>
+        </ul>
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-08</code></p>
       </section>
       <section class="phase-section" id="phase-8b">
         <h2>Phase 8b: Business Test Generation <span class="phase-badge pending">Pending</span></h2>
