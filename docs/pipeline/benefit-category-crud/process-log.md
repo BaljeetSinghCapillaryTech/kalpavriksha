@@ -560,3 +560,81 @@ D-33..D-36 are **non-debatable, frozen inputs** for `/architect`. The subagent M
 Phase 6 (HLD — Architect) ready to launch with frozen inputs.
 
 ---
+
+### Phase 6: HLD — Architect (Complete) — 2026-04-18
+
+**Skill**: `/architect` (+ brainstorming + writing-plans superpowers)
+**Model**: opus
+**Mode**: subagent (general-purpose)
+
+**Inputs consumed (frozen)**:
+- 4 ADRs pre-committed in Phase 5h (D-33..D-36) — incorporated verbatim as ADR-001..ADR-004 without re-debate.
+- Full session-memory (D-01..D-36, constraints C-01..C-26, 5 code-analysis docs, cross-repo-trace).
+
+**Output**: `01-architect.md` — 1012 lines, 15 sections, 13 ADRs, 9+ Mermaid diagrams.
+
+#### ADR inventory (13 total)
+
+| # | Topic | Source | Confidence |
+|---|-------|--------|-----------|
+| 001 | No optimistic lock (G-10 deviation) | Frozen D-33 | user-decided |
+| 002 | PATCH /{id}/activate for US-6 | Frozen D-34 | user-decided |
+| 003 | Embed slabIds + diff-and-apply | Frozen D-35 | user-decided |
+| 004 | PATCH /{id}/deactivate + cascade | Frozen D-36 | user-decided |
+| 005 | Attach 6 methods to PointsEngineRuleConfigThriftImpl | New | C7 |
+| 006 | Idempotency: 204 on both activate/deactivate | New | C6 |
+| 007 | Data model (no `version` column, audit pattern, soft-delete) | New | C7 |
+| 008 | Three-boundary timestamp (BIGINT ms ↔ Instant ↔ i64) | New | C6 |
+| 009 | Error contract: ConflictException → 409 with code taxonomy | New | C7 |
+| 010 | Authorization: BasicAndKey (admin-only gate deferred; ⚠️ Q1) | New | C5 |
+| 011 | Pagination: offset, default 50, max 100 | New | C5 |
+| 012 | Uniqueness-among-active race: MySQL GET_LOCK advisory lock (⚠️ Q2) | New | C4 |
+| 013 | Deployment order: cc-stack-crm → thrift-ifaces → emf-parent → intouch-api-v3 | New | C7 |
+
+#### Key design outcomes
+
+- **6 REST endpoints** on `/v3/benefitCategories` (POST, PUT, GET by id, GET list, PATCH /activate, PATCH /deactivate).
+- **6 Thrift methods** — corrected from Phase 5's estimate of 8; ADR-003 absorbed mapping CRUD into parent DTO so mapping-specific methods dropped.
+- **2 DDL tables** — `benefit_categories`, `benefit_category_slab_mapping`. NO `version` column (per ADR-001). NO database-level UNIQUE on (org_id, program_id, name) — enforced at app layer + advisory lock per ADR-012.
+- **12 risks** registered — 2 CRITICAL (R-02 IDL sequencing, R-05 cross-tenant leak), 3 HIGH (R-03 uniqueness race, R-04 JVM TZ, R-01 LWW accepted deviation), 4 MEDIUM, 3 LOW.
+- **Guardrail posture**: G-01/G-05/G-07/G-10 explicitly addressed; G-10 partial (accepted deviation per ADR-001 with revisit-triggers + G-10.5 mitigated via advisory lock).
+
+#### User Qs flagged (blocking for Phase 7)
+
+| # | Question | ADR | Confidence |
+|---|----------|-----|-----------|
+| Q1 | Writes = admin-only (`@PreAuthorize`) or any authenticated BasicAndKey caller? | ADR-010 | C5 |
+| Q2 | Accept MySQL `GET_LOCK` advisory-lock pattern, or accept the race at D-26 SMALL scale? | ADR-012 | C4 |
+| Q3 | `PATCH /activate` response — 204 (symmetric with /deactivate) or 200 + DTO (client convenience)? | ADR-006 | C5 |
+| Q4 | Confirm Aurora MySQL ≥ 8.0.13 for partial-unique-index fallback to ADR-012? | ADR-012 | C4 |
+
+#### Assumptions flagged (user should verify)
+
+- A1: BasicAndKey on writes, KeyOnly+BasicAndKey on reads (pattern-matches legacy).
+- A2: JVM TZ not guaranteed UTC — all Date↔i64 conversions explicitly force UTC; multi-TZ IT mandatory Phase 9.
+- A3: Aurora DDL prod apply deferred to Phase 12 Blueprint runbook.
+- A4: GET list default 50, max 100; fixed ORDER BY created_on DESC, id DESC.
+- A5: Advisory-lock timeout 2s; exceed → 409 `BC_NAME_LOCK_TIMEOUT`.
+- A6: Facade class `BenefitCategoryFacade` — confirmed in Phase 7.
+- A7: All 6 Thrift handlers attach to existing `PointsEngineRuleConfigThriftImpl` (no new handler class).
+- A8: Thrift method count = 6 (not 8 as earlier cross-repo trace estimated).
+
+#### Designer open questions (for Phase 7)
+
+Q7-01 through Q7-10 — captured in session-memory.md Phase 6 additions section. Non-blocking for HLD; Phase 7 Designer will resolve during LLD.
+
+#### Artifacts touched
+
+- `01-architect.md` — NEW (primary output)
+- `session-memory.md` — ADR table populated (13 rows); Phase 6 additions section appended with Q7-01..Q7-10, C-27..C-31 constraints.
+- `pipeline-state.json` — Phase 6 complete block with ADR inventory, risk summary, guardrail posture, blocking_for_phase_7.
+- `live-dashboard.html` — stats bar bumped; Phase 6 section populated with ADR inventory table, risk pie chart, user Qs table, cross-repo change map.
+- `process-log.md` — this entry.
+
+**Git snapshot**: `aidlc/CAP-185145/phase-06`
+
+#### Phase 7 gate
+
+Phase 7 Designer is BLOCKED until Q1..Q4 are answered. Each answer will be recorded as a new decision (D-37..D-40) and amend the relevant ADR.
+
+---

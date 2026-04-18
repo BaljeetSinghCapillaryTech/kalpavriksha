@@ -208,6 +208,19 @@ _(Populated in Phase 6 — Architect. Each row links to the full ADR in `01-arch
 
 | ADR | Title | Status | Phase |
 |-----|-------|--------|-------|
+| ADR-001 | No optimistic locking on BenefitCategory (last-write-wins) — from D-33 | Accepted (frozen) | 6 |
+| ADR-002 | Reactivation via dedicated `PATCH /v3/benefitCategories/{id}/activate` — from D-34 | Accepted (frozen) | 6 |
+| ADR-003 | `slabIds` embedded in parent DTO; server-side diff-and-apply; NO mapping sub-resource — from D-35 | Accepted (frozen) | 6 |
+| ADR-004 | Deactivation verb `PATCH /v3/benefitCategories/{id}/deactivate` with cascade — from D-36 | Accepted (frozen) | 6 |
+| ADR-005 | Thrift handler assignment — extend existing `PointsEngineRuleConfigThriftImpl` (no new handler class) | Accepted (C7) | 6 |
+| ADR-006 | Idempotency response codes — `204 No Content` for already-active activate AND already-inactive deactivate | Accepted (C6) | 6 |
+| ADR-007 | Data model — column types, audit columns, indexes, NO `version` column, NO DB UNIQUE, logical FKs only | Accepted (C7) | 6 |
+| ADR-008 | Timestamp three-boundary pattern (carry-forward of D-24) — Date+DATETIME (EMF) / i64 millis (Thrift) / ISO-8601 UTC (REST) | Accepted (C6) | 6 |
+| ADR-009 | Error contract — new `ConflictException → 409` in intouch-api-v3; specific error codes per 409/400 path | Accepted (C7) | 6 |
+| ADR-010 | Authorization — GETs on KeyOnly/BasicAndKey; writes on BasicAndKey; no `@PreAuthorize('ADMIN_USER')` gate in MVP | Accepted pending Q1 (C5) | 6 |
+| ADR-011 | Pagination — offset-based `?page=&size=&isActive=&programId=`; default size 50 max 100 | Accepted (C5) | 6 |
+| ADR-012 | Uniqueness race mitigation — app-level check + MySQL `GET_LOCK` advisory lock; partial unique index fallback on MySQL ≥ 8.0.13 | Accepted pending Q2 (C4) | 6 |
+| ADR-013 | Deployment sequence — cc-stack-crm → thrift-ifaces → emf-parent → intouch-api-v3 | Accepted (C7) | 6 |
 
 ---
 
@@ -259,3 +272,47 @@ _(Populated in Phase 5 — Cross-Repo Tracer. Verified via direct code reads acr
 | RF-7 | JVM TZ not pinned — residual risk for any `SimpleDateFormat` use. | LOW (with D-24 `Date.getTime()`) | D-24 avoids format-based ops. OQ-38 still open — confirm prod TZ. |
 | RF-8 | `NotFoundException → HTTP 200` (platform quirk) on GET-by-id. | LOW | Follow platform convention; document in `/api-handoff`. (OQ-45) |
 | RF-9 | Thrift method name collision check — 0 matches for all 8 proposed method names in existing IDL. | LOW | N/A — no collision. |
+
+---
+
+## Architect Phase 6 — Additions
+
+**New Codebase Behaviour findings**:
+- `PointsEngineRuleConfigThriftImpl` is the canonical CRUD Thrift handler template — C7, evidence `code-analysis-emf-parent.md` §2 + `PointsEngineRuleConfigThriftImpl.java`. New 6 methods attach here (ADR-005). _(Architect)_
+- `PointsEngineRuleService` uses class-level `@Transactional(value="warehouse", propagation=Propagation.REQUIRED)` — all new service methods (create/update/activate/deactivate/syncSlabMappings) inherit this. _(Architect)_
+- Cascade-deactivate is a single-shot bulk UPDATE `SET is_active=false WHERE category_id=? AND org_id=? AND is_active=true` within the same `@Transactional(warehouse)` boundary — safe at D-26 scale (≤20 mappings/cat). _(Architect)_
+
+**New Key Decisions** (beyond frozen ADR-001..004):
+- ADR-005: Attach new Thrift methods to existing `PointsEngineRuleConfigThriftImpl` — no new handler class. _(Architect)_
+- ADR-006: Idempotency response `204 No Content` for both "activate already-active" and "deactivate already-inactive". _(Architect)_
+- ADR-007: Schema indexes: `(org_id, program_id)` + `(org_id, program_id, is_active)` on `benefit_categories`; `(org_id, benefit_category_id, is_active)` + `(org_id, slab_id, is_active)` on `benefit_category_slab_mapping`. NO declared FK. _(Architect)_
+- ADR-009: Error codes defined — `BC_NAME_TAKEN_ACTIVE`, `BC_CROSS_PROGRAM_SLAB`, `BC_UNKNOWN_SLAB`, `BC_INACTIVE_WRITE_FORBIDDEN`, `BC_NAME_TAKEN_ON_REACTIVATE`, `BC_NOT_FOUND`, `BC_PAGE_SIZE_EXCEEDED`, `BC_NAME_LOCK_TIMEOUT`. _(Architect)_
+- ADR-010: Writes require `BasicAndKey`; GETs accept `KeyOnly` or `BasicAndKey`; no `@PreAuthorize('ADMIN_USER')` unless product opts in (Q1). _(Architect)_
+- ADR-011: GET list defaults `size=50`, max `100`, fixed `ORDER BY created_on DESC, id DESC`. _(Architect)_
+- ADR-012: Advisory lock `GET_LOCK('bc_uniq_{orgId}_{programId}_{md5(name)}', 2)` around uniqueness check-then-insert; timeout exceeds → 409 `BC_NAME_LOCK_TIMEOUT`. _(Architect)_
+- ADR-013: Deployment order cc-stack-crm (DDL) → thrift-ifaces (IDL v1.84) → emf-parent → intouch-api-v3. _(Architect)_
+- Thrift method count: 6 total (`createBenefitCategory`, `updateBenefitCategory`, `getBenefitCategory`, `listBenefitCategories`, `activateBenefitCategory`, `deactivateBenefitCategory`) — supersedes earlier "8 new methods" count from Phase 5 cross-repo trace (ADR-003 subsumed mapping CRUD into parent DTO). _(Architect)_
+
+**New Constraints**:
+- C-27: NO `version` column on either table; NO `@Version` on entities; NO `version` in DTO — propagates from ADR-001. _(Architect)_
+- C-28: Every DAO method takes `orgId` as explicit parameter (G-07.1 mitigation). Cross-tenant IT mandatory in Phase 9 (G-11.8). _(Architect)_
+- C-29: Cascade-deactivate MUST be executed in the same `@Transactional(warehouse)` boundary as the parent `is_active=false` update. _(Architect)_
+- C-30: GET list MUST use bulk mapping fetch (`findActiveSlabIdsForCategories(orgId, List<Integer>)`) — NO N+1 (G-04.1). _(Architect)_
+- C-31: All `Date ↔ i64` conversions in the EMF Thrift handler MUST use explicit UTC TimeZone (not JVM default). OQ-38 still open for prod TZ confirmation. _(Architect)_
+
+**New Open Questions for Phase 7 (Designer)** — all numbered Q7-01..Q7-10 as listed in `01-architect.md` §12:
+- [ ] Q7-01: Name normalization (trim, case sensitivity, max length, empty/NULL, NFC). _(Architect)_
+- [ ] Q7-02: Advisory-lock key hashing format (md5 length vs MySQL lock-name limit). _(Architect)_
+- [ ] Q7-03: Facade class name (`BenefitCategoryFacade` vs `BenefitCategoryService` — platform naming). _(Architect)_
+- [ ] Q7-04: Controller package path (`resources` vs `controllers` convention). _(Architect)_
+- [ ] Q7-05: GET list wrapper shape (pagination fields inside `ResponseWrapper.data` or alongside). _(Architect)_
+- [ ] Q7-06: Thrift field naming — bare `createdOn` (recommended, pointsengine_rules.thrift convention) vs `*InMillis` (emf.thrift convention). _(Architect)_
+- [ ] Q7-07: Activate-flow response body `204` vs `200 + dto`. _(Architect)_
+- [ ] Q7-08: Cross-tenant IT fixture strategy (Testcontainers multi-org vs H2). _(Architect)_
+- [ ] Q7-09: Aurora MySQL version ≥ 8.0.13 for partial unique index fallback. _(Architect)_
+- [ ] Q7-10: Audit-column write mechanism (manual `new Date()` in service vs `@PrePersist`/`@PreUpdate` — recommend manual per platform). _(Architect)_
+
+**New User-facing Questions (block Phase 7 until resolved)**:
+- [ ] Q1: Should writes on benefit categories require `@PreAuthorize('ADMIN_USER')` gate (admin-only), or any authenticated caller with BasicAndKey auth (ADR-010 default)? Product decision. _(Architect)_
+- [ ] Q2: Is the advisory-lock pattern (ADR-012) acceptable for app-level uniqueness race mitigation, or would you prefer option (iii) "accept the race at D-26 scale with monitoring" and revisit only if incidents occur? _(Architect)_
+- [ ] Q3: Activate-flow response — `204 No Content` (ADR-006 default, symmetric with deactivate) or `200 + updated BenefitCategoryResponse`? _(Architect)_

@@ -193,11 +193,12 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">6</span> / 19 phases complete (1 skipped) + Pre-HLD ADRs frozen</span>
-          <span><span class="stat-value">19</span> artifacts generated</span>
+          <span><span class="stat-value">7</span> / 19 phases complete (1 skipped)</span>
+          <span><span class="stat-value">20</span> artifacts generated</span>
           <span><span class="stat-value">36</span> decisions made</span>
-          <span><span class="stat-value">47</span> findings surfaced (3 HIGH pre-resolved)</span>
-          <span><span class="stat-value">4</span> ADRs frozen pre-HLD (D-33..D-36)</span>
+          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 new in HLD)</span>
+          <span><span class="stat-value">59</span> findings surfaced</span>
+          <span><span class="stat-value">12</span> risks registered (2 CRITICAL, 3 HIGH)</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -1043,8 +1044,112 @@ flowchart LR
       </section>
 
       <section class="phase-section" id="phase-6">
-        <h2>Phase 6: Architecture (HLD) <span class="phase-badge active">In Progress</span></h2>
-        <p>Launching <code>/architect</code> with D-33..D-36 as <strong>frozen, non-debatable ADR inputs</strong>. HLD will be designed around the user's architectural choices rather than re-deriving them.</p>
+        <h2>Phase 6: Architecture (HLD) <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
+        <span class="skill-tag">/architect</span>
+        <span class="skill-tag">brainstorming</span>
+        <span class="skill-tag">writing-plans</span>
+        <span class="skill-tag">opus</span>
+        <p>HLD produced with 13 ADRs (4 frozen from Phase 5h + 9 new), 1012 lines, 15 sections. Architecture designed <em>around</em> user-frozen decisions D-33..D-36, not over them. Write/read sequence diagrams, DDL, API contracts, Thrift IDL delta, cross-repo change map, 12-risk register, and full G-01..G-12 guardrail compliance matrix. 4 user questions flagged for sign-off before Phase 7 proceeds (authz gate, advisory-lock acceptability, /activate response body, Aurora version).</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">13</div><div class="label">ADRs in HLD</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">Frozen ADRs</div></div>
+          <div class="key-number"><div class="value">9</div><div class="label">New ADRs</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">REST endpoints</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">Thrift methods</div></div>
+          <div class="key-number"><div class="value">2</div><div class="label">DDL tables</div></div>
+          <div class="key-number"><div class="value">12</div><div class="label">Risks registered</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">User Qs for sign-off</div></div>
+          <div class="key-number"><div class="value">1012</div><div class="label">HLD lines</div></div>
+        </div>
+
+        <h3>ADR Inventory</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>ADR</th><th>Topic</th><th>Status</th><th>Confidence</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>ADR-001</strong></td><td>No optimistic locking; G-10 deviation accepted</td><td>🔒 Frozen (D-33)</td><td>user-decided</td></tr>
+            <tr><td><strong>ADR-002</strong></td><td>PATCH /{id}/activate for US-6 reactivation</td><td>🔒 Frozen (D-34)</td><td>user-decided</td></tr>
+            <tr><td><strong>ADR-003</strong></td><td>Embed slabIds in parent DTO + diff-and-apply</td><td>🔒 Frozen (D-35)</td><td>user-decided</td></tr>
+            <tr><td><strong>ADR-004</strong></td><td>PATCH /{id}/deactivate with cascade</td><td>🔒 Frozen (D-36)</td><td>user-decided</td></tr>
+            <tr><td><strong>ADR-005</strong></td><td>Attach 6 methods to <code>PointsEngineRuleConfigThriftImpl</code></td><td>✅ New</td><td>C7 (evidence)</td></tr>
+            <tr><td><strong>ADR-006</strong></td><td>Idempotency: 204 on both activate/deactivate</td><td>✅ New</td><td>C6</td></tr>
+            <tr><td><strong>ADR-007</strong></td><td>Data model: columns, indexes, audit, no <code>version</code></td><td>✅ New</td><td>C7 (evidence)</td></tr>
+            <tr><td><strong>ADR-008</strong></td><td>Three-boundary timestamp (DB BIGINT ms / facade Instant / IDL i64)</td><td>✅ New</td><td>C6</td></tr>
+            <tr><td><strong>ADR-009</strong></td><td>Error contract: ConflictException → 409 with code taxonomy</td><td>✅ New</td><td>C7 (evidence)</td></tr>
+            <tr><td><strong>ADR-010</strong></td><td>Authorization: BasicAndKey on writes (no admin-only gate in MVP)</td><td>⚠️ User Q1</td><td>C5 (pending)</td></tr>
+            <tr><td><strong>ADR-011</strong></td><td>Pagination: offset; default 50; max 100</td><td>✅ New</td><td>C5</td></tr>
+            <tr><td><strong>ADR-012</strong></td><td>Uniqueness race mitigation: MySQL GET_LOCK advisory lock</td><td>⚠️ User Q2</td><td>C4 (pending)</td></tr>
+            <tr><td><strong>ADR-013</strong></td><td>Deployment order: cc-stack-crm → thrift-ifaces → emf-parent → intouch-api-v3</td><td>✅ New</td><td>C7 (evidence)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Mermaid — Architect Decision Map</h3>
+        <div class="mermaid">
+flowchart TD
+  Frozen["🔒 Frozen ADRs (Phase 5h)<br/>ADR-001 / 002 / 003 / 004"] --> HLD["01-architect.md<br/>(13 ADRs, 1012 lines)"]
+  ThriftHandler[ADR-005<br/>PointsEngineRuleConfigThriftImpl] --> HLD
+  Idempotency[ADR-006<br/>204 on both verbs] --> HLD
+  DataModel[ADR-007<br/>BenefitCategory + mapping tables<br/>NO version column] --> HLD
+  Timestamp[ADR-008<br/>Three-boundary ms epoch] --> HLD
+  Errors[ADR-009<br/>ConflictException → 409] --> HLD
+  Authz[ADR-010<br/>BasicAndKey<br/>⚠️ Q1 pending] --> HLD
+  Paging[ADR-011<br/>Offset pagination] --> HLD
+  RaceGuard[ADR-012<br/>GET_LOCK 2s<br/>⚠️ Q2 pending] --> HLD
+  Deploy[ADR-013<br/>4-step release] --> HLD
+  HLD --> P7[Phase 7 /designer<br/>Non-negotiable constraints]
+  style Frozen fill:#1a3a1a,color:#fff
+  style HLD fill:#203040,color:#fff
+  style Authz fill:#3a3a1a,color:#fff
+  style RaceGuard fill:#3a3a1a,color:#fff
+  style P7 fill:#2a2a4a,color:#fff
+        </div>
+
+        <h3>Mermaid — HLD Risk Severity</h3>
+        <div class="mermaid">
+pie title 12 Risks by Severity
+  "CRITICAL" : 2
+  "HIGH" : 3
+  "MEDIUM" : 4
+  "LOW" : 3
+        </div>
+
+        <h3>User Questions (Phase 7 blocked until answered)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Question</th><th>Context</th><th>Confidence</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Q1</strong></td><td>Writes = admin-only (<code>@PreAuthorize('ADMIN_USER')</code>) or any authenticated BasicAndKey caller?</td><td>ADR-010 default = BasicAndKey (pattern-matches <code>UnifiedPromotionController</code>). Product/UX decision.</td><td>C5</td></tr>
+            <tr><td><strong>Q2</strong></td><td>MySQL <code>GET_LOCK</code> advisory-lock pattern (ADR-012) acceptable, or accept the race at D-26 SMALL scale with monitoring and revisit only if incidents occur?</td><td>Uniqueness-among-active race (D-28) — minor window; D-26 traffic is low so incidents improbable.</td><td>C4</td></tr>
+            <tr><td><strong>Q3</strong></td><td><code>PATCH /activate</code> response body — 204 No Content (ADR-006 default, symmetric) or 200 + <code>BenefitCategoryResponse</code> DTO?</td><td>Client convenience (DTO saves a GET round-trip) vs symmetry with <code>/deactivate</code>.</td><td>C5</td></tr>
+            <tr><td><strong>Q4</strong></td><td>Confirm production Aurora MySQL ≥ 8.0.13 so partial unique index on (org_id, program_id, name) WHERE is_active=1 is a future fallback to ADR-012's advisory lock?</td><td>Only matters if ADR-012 proves insufficient. Aurora version unknown from Phase 5.</td><td>C4</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Cross-Repo Change Map</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Repo</th><th>New Files</th><th>Modified Files</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>thrift-ifaces-pointsengine-rules</code></td><td>1 (IDL delta — 6 methods, 2 structs)</td><td>0</td><td>Cross-service contract</td></tr>
+            <tr><td><code>emf-parent</code></td><td>6+ (entity, DAO, facade, handler attachment, IT tests)</td><td>1 (<code>PointsEngineRuleConfigThriftImpl</code>)</td><td>Business logic + Thrift handlers</td></tr>
+            <tr><td><code>intouch-api-v3</code></td><td>5+ (<code>BenefitCategoriesV3Controller</code>, Request/Response DTOs, <code>ConflictException</code>, handler)</td><td>1 (<code>TargetGroupErrorAdvice</code>)</td><td>REST gateway + 409 mapping</td></tr>
+            <tr><td><code>cc-stack-crm</code></td><td>2 (<code>benefit_categories.sql</code>, <code>benefit_category_slab_mapping.sql</code>)</td><td>0</td><td>DDL source-of-truth</td></tr>
+            <tr><td><code>kalpavriksha</code> (docs)</td><td>0</td><td>5 (pipeline artifacts)</td><td>Documentation only</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Artifacts Produced</h3>
+        <ul class="artifact-list">
+          <li><code>01-architect.md</code> — 1012 lines, 13 ADRs, 15 sections, 9+ Mermaid diagrams</li>
+          <li><code>session-memory.md</code> — ADR table populated; Phase 6 additions section with Q7-01..Q7-10 Designer open questions + C-27..C-31 new constraints</li>
+        </ul>
+
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-06</code></p>
       </section>
       <section class="phase-section" id="phase-6a">
         <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>
