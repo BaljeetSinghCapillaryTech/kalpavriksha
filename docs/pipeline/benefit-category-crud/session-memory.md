@@ -877,3 +877,71 @@ intouch-api-v3-2/intouch-api-v3   <commit>   CAP-185145: Phase 10 M3 GREEN — T
 
 **C7** on intouch-api-v3 boundary (36 UT + 40 IT = 76/76 GREEN, evidence: `mvn surefire:test -Dtest='BenefitCategory*Test'` + `mvn failsafe:integration-test -Dit.test='BenefitCategory*IT'`). emf-parent M2 code-level behaviour exercised indirectly through mocked Thrift seam; emf-parent-internal IT coverage remains a separate follow-up (tracked under Phase 10b/c/d and BT-067 remainder). Phase 10 GREEN gate is **MET** for intouch-api-v3 boundary; pipeline unblocked for Phase 10b Backend Readiness.
 
+---
+
+## Phase 10 M3a — emf-parent Reality Correction (2026-04-19)
+
+> **Trigger**: user challenges — (1) "what about EMF test cases and IT?"; (2) "EMF runs on java8". Both landed. The second invalidates TD-SDET-05 as stated.
+
+### D-59 ⚠ — emf-parent classpath realities (supersedes TD-SDET-05)
+
+| # | Decision | Rationale | Confidence |
+|---|----------|-----------|-----------|
+| D-59 | **emf-parent runs on Java 8; SLF4J 1.6.4; Spring Data 1.x — these are real classpath constraints, not "offline build blockers". TD-SDET-05 is INVALIDATED as written.** | Three coupled facts discovered by re-running Phase 10 M2 build with the correct JDK: (1) **Java 8** — `emf-parent/pom.xml` inherits from `mvn3-jdk8-parent`; compile + test-compile + unit tests all SUCCESS under `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home` (evidence: `mvn -pl pointsengine-emf -am test -Dtest='BenefitCategory*' -DfailIfNoTests=false` → **BUILD SUCCESS, 11/11 compliance tests GREEN, 1:12 min total**). TD-SDET-05's "AspectJ 1.7 + Java 17 + missing `nrules.*` deps" diagnosis was me running with Java 17 as default; there is no missing-dep problem. (2) **SLF4J 1.6.4** — the version on this classpath has `info(String)`, `info(String, Object)`, `info(String, Object, Object)`, `info(String, Object[])` but **NO** `info(String, Object...)` varargs overload. My Phase 10 M2 log calls with 3+ placeholder args (e.g. `logger.info("... orgId={} id={} programId={} slabCount={}", ...)`) compiled fine on SLF4J 1.7+ in principle but here the compiler, unable to match the Object[] overload after autoboxing four int primitives, picked `info(Marker, String, Object, Object)` and produced `incompatible types: java.lang.String cannot be converted to org.slf4j.Marker`. (3) **Spring Data 1.x** — `PageRequest.of(int, int)` (2.x static factory) does not exist; codebase convention is `new PageRequest(page, size, ...)` across 10+ call sites (`InfoLookupService.java`, `PointsViewServiceImpl.java`, etc.). | C7 (verified by successful build + test run) |
+
+### Fixes landed in emf-parent (not yet committed)
+
+**`PointsEngineRuleService.java`** — 7 sites:
+- 6 log-call sites with 3+ placeholders: wrapped in `String.format("... orgId=%d id=%d ...", ...)` producing a single-arg `logger.info(String)` / `logger.warn(String)` call. Kept 1 two-arg log call as SLF4J `{}` form (compiles cleanly).
+- 1 `PageRequest.of(page, size)` → `new org.springframework.data.domain.PageRequest(page, size)` (matches repo convention).
+
+**`PointsEngineRuleConfigThriftImpl.java`** — 6 sites:
+- All 6 Thrift handler method entry-logs converted from `{}` to `String.format` pattern. `listBenefitCategories` uses `String.valueOf(...)` for nullable `filter.orgId` + `filter.programId`.
+
+**`BenefitCategoryComplianceTest.java`** — BT-098 rewritten:
+- OLD: `bt098_benefitCategoryDto_stateChangedDefaultsToTrue` — asserted `dto.isStateChanged() == true` on a fresh DTO. **Contradicts IDL** (`12: optional bool stateChanged;` with no default → primitive Java `false`).
+- NEW: `bt098_benefitCategoryDto_stateChangedIsOptionalSentinel` — asserts correct Thrift-optional semantics: fresh DTO → `isSetStateChanged()=false`, `isStateChanged()=false`; after `setStateChanged(true)` → both true; after `setStateChanged(false)` → isSet=true, getter=false (explicit no-op per D-43).
+- Rationale: Phase 9 SDET encoded an incorrect premise about D-43; the IDL is the authority. Session-memory D-43 (`stateChanged` is a sentinel, set explicitly only on activate/deactivate responses) is unchanged; the test was simply wrong.
+
+### Build + test evidence (JAVA_HOME=temurin-8.jdk, ran 2026-04-19 01:32 IST)
+
+```
+mvn -pl pointsengine-emf -am test -Dtest='BenefitCategory*' -DfailIfNoTests=false
+[INFO] Running com.capillary.shopbook.pointsengine.benefitcategory.BenefitCategoryComplianceTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.192 s
+[INFO] BUILD SUCCESS (1:12 min)
+[INFO]   emf-parent 7.86-SNAPSHOT ...... SUCCESS [  0.541 s]
+[INFO]   emf ........................... SUCCESS [ 44.289 s]
+[INFO]   PointsEngine-EMF 7.86-SNAPSHOT  SUCCESS [ 26.707 s]
+```
+
+### Phase 10 scope — now reconsidered
+
+What we honestly have as of 2026-04-19:
+
+| Boundary | UT | IT | Build-verified locally | Status |
+|----------|----|----|------------------------|--------|
+| intouch-api-v3 (REST → Facade → Thrift-client seam, Thrift mocked) | 36 UT | 40 IT | YES — `mvn test` + `mvn failsafe:integration-test` passed | GREEN (M3 committed `7bdc46a34`) |
+| emf-parent (Thrift handler → Service → DAO → MySQL) | **0 UT** | **0 IT** | YES (production compile) + **11 compliance tests GREEN** | **compliance-only — no behavioural coverage** |
+| Cross-repo end-to-end (BT-067) | — | 0 IT | — | deferred |
+
+The 11 emf-parent compliance tests are **structural assertions** (reflection-based: no `@Version`, audit fields exist, all 6 Thrift methods present, `stateChanged` field exists & is optional sentinel, `auto_update_time` column annotations, expected column names). They prove the M2 code has the right *shape*, not that it *behaves* correctly. Real Mockito-based UTs + Testcontainers ITs for `PointsEngineRuleService` + `PointsEngineRuleEditorImpl` are still **missing**.
+
+**D-58 still holds** (the intouch-api-v3 IT decision to mock `PointsEngineRulesThriftService`); the architectural separation of the two services remains correct. What D-59 changes is: emf-parent **can** be tested locally and the previous "not buildable offline" excuse is gone.
+
+### Re-scoping options (awaiting user decision)
+
+- **Option A — Retain Phase 10 `complete` as-is**; log D-59 + emf-parent test gap as KNOWN DEBT; proceed to Phase 10b (Backend Readiness) which will naturally call out the missing emf-parent behavioural tests. Pro: forward motion, the 11 compliance tests do catch ADR/D-33/D-43 violations structurally. Con: dishonest — "Phase 10 GREEN" usually means behavioural tests pass, and the emf-parent side has none.
+- **Option B — Reopen Phase 10 as M3a (compile+compliance landed — this commit) → M4 (emf-parent UTs, Mockito) → M5 (emf-parent ITs, Testcontainers + MySQL)**. Pro: honest test pyramid on both sides; closes BT-067 on emf-parent side. Con: 2–3 more days of M4/M5 work before Phase 10b.
+- **Option C — Commit the compile fixes + BT-098 rewrite as M3a**, mark Phase 10 `complete-with-debt` (explicit flag in pipeline-state.json), write a ticket/issue for the emf-parent behavioural test backfill, and proceed. Pro: balance between A and B; debt is explicit and trackable. Con: debt often slips; need user agreement that this is acceptable.
+
+**Recommendation**: **Option C** if the broader programme is time-pressed; **Option B** if this feature is the reference exemplar the other 6 tickets will pattern-match against. User to choose.
+
+### Open questions / TODOs from D-59
+
+- [ ] Commit emf-parent fixes (PointsEngineRuleService + PointsEngineRuleConfigThriftImpl + BenefitCategoryComplianceTest.BT-098 rewrite) with message referencing D-59.
+- [ ] Update pipeline-state.json: either revise Phase 10 `"status"` based on option chosen, OR add an M3a block mirroring M3's shape.
+- [ ] Update live-dashboard.html with the same correction + D-59 callout.
+- [ ] Append D-59 summary row to the Key Decisions section at top of session-memory.md (cross-reference this addendum).
+- [ ] Retire TD-SDET-05 from the technical-debt register (it was false); re-evaluate any downstream decisions that leaned on it.
+

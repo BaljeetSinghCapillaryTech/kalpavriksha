@@ -151,7 +151,7 @@
         <a class="nav-link complete" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
-        <a class="nav-link complete" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10" title="Complete-with-debt: intouch-api-v3 GREEN; emf-parent compile+compliance GREEN; emf-parent behavioural tests queued as M4/M5"><span>10. Developer (GREEN)<sup style="color:#ffb454;margin-left:0.3em;">⚠ M3a</sup></span><span class="status-dot"></span></a>
         <a class="nav-link active" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
@@ -194,12 +194,12 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">12</span> / 19 phases complete (1 skipped; Phase 10 M1+M2+M3 all landed — 76 tests GREEN)</span>
+          <span><span class="stat-value">12</span> / 19 phases complete-with-debt (1 skipped; Phase 10 M1+M2+M3+M3a landed — 76 GREEN intouch-api-v3 + 11 GREEN emf-parent compliance; emf-parent behavioural M4/M5 queued)</span>
           <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
-          <span><span class="stat-value">63</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; <strong>D-58 (Phase 10 M3 — Thrift IT boundary)</strong></span>
+          <span><span class="stat-value">64</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED + <strong>TD-SDET-05 INVALIDATED by D-59</strong>) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; D-58 (Phase 10 M3 — Thrift IT boundary) &middot; <strong>D-59 (Phase 10 M3a — Java 8 classpath reality)</strong></span>
           <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
-          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 40 ITs landed Phase 10 M3 (100% behaviour-dim coverage)</span>
-          <span><span class="stat-value">7</span> cross-repo commits · <code>aidlc/CAP-185145/phase-10</code> tagged · M3 commit <code>CAP-185145: Phase 10 M3 GREEN</code> (intouch-api-v3)</span>
+          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 40 ITs landed Phase 10 M3 (100% behaviour-dim intouch-api-v3) · 11 compliance GREEN on emf-parent Phase 10 M3a (structural only — no Mockito UT, no Testcontainers IT yet)</span>
+          <span><span class="stat-value">7</span> cross-repo commits · <code>aidlc/CAP-185145/phase-10</code> tagged · M3 commit <code>CAP-185145: Phase 10 M3 GREEN</code> (intouch-api-v3) · <strong style="color:#ffb454">M3a emf-parent fixes uncommitted — awaiting user scope decision A/B/C</strong></span>
           <span><span class="stat-value">76</span> tests GREEN in intouch-api-v3 · 36 UT + 40 IT · wall-clock IT 44.5s</span>
         </div>
       </header>
@@ -1827,7 +1827,7 @@ flowchart LR
         <p><strong>Phase 10 readiness:</strong> UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests. 4 cross-repo commits tagged. 9 explicit Phase 10 obligations enumerated.</p>
       </section>
       <section class="phase-section" id="phase-10">
-        <h2>Phase 10: Developer — GREEN <span class="phase-badge complete">Complete (M1 + M2 + M3)</span></h2>
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge complete">Complete-with-Debt (M1 + M2 + M3 + M3a)</span></h2>
         <p class="phase-time">M3 completed: 2026-04-18</p>
         <span class="skill-tag">/developer</span>
         <span class="skill-tag">executing-plans</span>
@@ -1956,6 +1956,124 @@ flowchart LR
     style emf-parent fill:#1e3a52,stroke:#00d4ff
     style intouch fill:#3a1e52,stroke:#00d4ff
         </div>
+
+        <hr style="border: 1px dashed var(--accent); margin: 2em 0 1em;">
+
+        <h3 style="color: #ffb454;">M3a — emf-parent Reality Correction (2026-04-19)</h3>
+
+        <p style="background: #4a2a1a; border-left: 3px solid #ffb454; padding: 0.75em 1em;">
+          <strong>Trigger.</strong> User challenges — (1) <em>"what about EMF test cases and IT?"</em> and (2) <em>"EMF runs on java8"</em>. The second invalidates <code>TD-SDET-05</code> (the "emf-parent not buildable offline" claim). This section records the correction.
+        </p>
+
+        <h4>D-59 — Three coupled classpath realities (supersedes TD-SDET-05)</h4>
+
+        <table class="data-table">
+          <thead><tr><th>Fact</th><th>Implication</th><th>Fix applied</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>emf-parent runs on Java 8</strong><br>(inherits <code>mvn3-jdk8-parent</code>)</td>
+              <td><code>TD-SDET-05</code> "not buildable offline" was me running with Java 17 as default. Under <code>JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home</code>, the module compiles + tests pass locally.</td>
+              <td>Retire TD-SDET-05 from the technical-debt register; document the correct JDK requirement.</td>
+            </tr>
+            <tr>
+              <td><strong>SLF4J 1.6.4 on classpath</strong> — has <code>info(String, Object)</code> / <code>info(String, Object, Object)</code> / <code>info(String, Object[])</code> but <strong>no</strong> <code>info(String, Object...)</code> varargs</td>
+              <td>My Phase 10 M2 log calls with 3+ <code>{}</code> placeholders (4 autoboxed int args) failed to match the Object[] overload; compiler picked <code>info(Marker, String, Object, Object)</code> instead, producing <em>"java.lang.String cannot be converted to org.slf4j.Marker"</em>.</td>
+              <td>Wrapped 12 log call sites in <code>String.format(...)</code> producing single-arg <code>info(String)</code> — unambiguous overload match. Files: <code>PointsEngineRuleService.java</code> (6 sites), <code>PointsEngineRuleConfigThriftImpl.java</code> (6 sites).</td>
+            </tr>
+            <tr>
+              <td><strong>Spring Data 1.x</strong> — <code>PageRequest.of(int, int)</code> (2.x static factory) does not exist</td>
+              <td>Grep confirms repo uses <code>new PageRequest(offset, limit, ...)</code> across 10+ sites (<code>InfoLookupService</code>, <code>PointsViewServiceImpl</code>, etc.).</td>
+              <td>Changed 1 site at <code>PointsEngineRuleService.java:4696</code> from <code>PageRequest.of(page, size)</code> to <code>new org.springframework.data.domain.PageRequest(page, size)</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4>BT-098 test rewrite</h4>
+
+        <table class="data-table">
+          <thead><tr><th>Aspect</th><th>Before (Phase 9 SDET)</th><th>After (Phase 10 M3a)</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Test name</td>
+              <td><code>bt098_benefitCategoryDto_stateChangedDefaultsToTrue</code></td>
+              <td><code>bt098_benefitCategoryDto_stateChangedIsOptionalSentinel</code></td>
+            </tr>
+            <tr>
+              <td>Premise</td>
+              <td><em>Asserted</em> <code>dto.isStateChanged() == true</code> on a freshly-constructed DTO.</td>
+              <td><em>Asserts</em> optional-sentinel semantics: fresh DTO → <code>isSetStateChanged()=false</code>, getter primitive default <code>false</code>; after <code>setStateChanged(true)</code> → both true; after <code>setStateChanged(false)</code> → isSet=true, getter=false (explicit no-op per D-43).</td>
+            </tr>
+            <tr>
+              <td>IDL authority</td>
+              <td>Contradicted IDL (<code>12: optional bool stateChanged</code> has no default — Thrift Java-codegen gives primitive <code>boolean</code> + separate <code>isSet*()</code> tracking bit).</td>
+              <td>Aligned with IDL + D-43 semantics: <code>stateChanged</code> is populated only by activate/deactivate response writers; unset on every other path; reader must gate on <code>isSetStateChanged()</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4>Build + test evidence (Java 8 Temurin, 2026-04-19 01:32 IST)</h4>
+
+        <pre style="background: #0e1a2b; color: #d0e8ff; padding: 0.9em; border-left: 3px solid #00d4ff; overflow-x: auto;"><code>$ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home
+$ mvn -pl pointsengine-emf -am test -Dtest='BenefitCategory*' -DfailIfNoTests=false
+
+[INFO] Running com.capillary.shopbook.pointsengine.benefitcategory.BenefitCategoryComplianceTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.192 s
+
+[INFO] Reactor Summary:
+[INFO]   emf-parent 7.86-SNAPSHOT ........... SUCCESS [  0.541 s]
+[INFO]   emf ................................ SUCCESS [ 44.289 s]
+[INFO]   PointsEngine-EMF 7.86-SNAPSHOT ..... SUCCESS [ 26.707 s]
+[INFO] BUILD SUCCESS (Total time: 01:12 min)</code></pre>
+
+        <h4>Honest coverage picture after M3a</h4>
+
+        <table class="data-table">
+          <thead><tr><th>Boundary</th><th>UT</th><th>IT</th><th>Local build-verified</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>intouch-api-v3 (REST → Facade → Thrift-client seam, Thrift mocked)</td>
+              <td>36 UT</td>
+              <td>40 IT</td>
+              <td><span style="color:#5fff5f">✓</span> <code>mvn test</code> + <code>mvn failsafe:integration-test</code></td>
+              <td><strong style="color:#5fff5f">GREEN</strong> (M3, commit <code>7bdc46a34</code>)</td>
+            </tr>
+            <tr>
+              <td>emf-parent (Thrift handler → Service → Editor → DAO → MySQL)</td>
+              <td><strong style="color:#ff8c69">0 UT</strong></td>
+              <td><strong style="color:#ff8c69">0 IT</strong></td>
+              <td><span style="color:#5fff5f">✓</span> production compile + <strong>11 compliance tests GREEN</strong> (reflection-based structural only)</td>
+              <td><strong style="color:#ffb454">DEBT — compliance only, no behavioural coverage</strong></td>
+            </tr>
+            <tr>
+              <td>Cross-repo end-to-end (BT-067 — Thrift server + MySQL)</td>
+              <td>—</td>
+              <td>0 IT</td>
+              <td>—</td>
+              <td>Deferred (D-58 + Q-BT-01)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4>Re-scoping options (user decision pending)</h4>
+
+        <div class="mermaid">
+flowchart LR
+    C0["emf-parent M3a landed<br/>11 compliance GREEN · code fixed<br/>(uncommitted)"]
+    C0 --> OPT{"User choice?"}
+    OPT -->|Option A| OA["Retain Phase 10 'complete'<br/>log emf-parent debt<br/>proceed to Phase 10b"]
+    OPT -->|Option B| OB["Reopen Phase 10<br/>M4 = emf-parent Mockito UTs<br/>M5 = emf-parent Testcontainers ITs<br/>then Phase 10b"]
+    OPT -->|Option C| OC["Commit M3a as-is<br/>mark Phase 10 'complete-with-debt'<br/>track M4/M5 as follow-up tickets<br/>proceed to Phase 10b"]
+    OA --> BB["Phase 10b Backend Readiness<br/>will surface the gap anyway"]
+    OB --> RR["Honest test pyramid<br/>closes BT-067 on emf-parent side<br/>+2–3 days work"]
+    OC --> CC["Current default — reflected in<br/>pipeline-state.json and this dashboard"]
+    style OC fill:#4a2a1a,stroke:#ffb454
+    style OPT fill:#1e3a52,stroke:#00d4ff
+        </div>
+
+        <p><strong>Current default</strong>: Phase 10 marked <code>complete-with-debt</code> in <code>pipeline-state.json</code> (Option C posture). Awaiting explicit user sign-off on <strong>A / B / C</strong> before Phase 10b spawns. See <code>session-memory.md</code> § "Phase 10 M3a — emf-parent Reality Correction" for the full D-59 addendum.</p>
+
+        <p><strong>M3a confidence</strong>: <strong>C7</strong> on compile + 11 compliance tests GREEN under Java 8 (direct verification). <strong>C5</strong> on behavioural correctness of the M2 production code (no Mockito UTs or Testcontainers ITs on emf-parent side yet — the 11 compliance tests are reflection-based structural assertions only).</p>
+
       </section>
       <section class="phase-section" id="phase-10b">
         <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>

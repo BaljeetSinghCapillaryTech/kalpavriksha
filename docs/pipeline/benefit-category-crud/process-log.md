@@ -1309,3 +1309,81 @@ mvn failsafe:integration-test -Dit.test='BenefitCategory*IT'  (integration)
 - `kalpavriksha` — tag `aidlc/CAP-185145/phase-10`
 
 ---
+
+### Phase 10 — Developer GREEN (M3a: emf-parent Reality Correction) — 2026-04-19
+
+**Trigger**: user challenges landed in sequence —
+1. *"what about EMF test cases and IT?"* — forced honest acknowledgement that the emf-parent side had zero behavioural UT/IT coverage (Phase 9 UOE-shim test deleted in M2) while Phase 10 was prematurely marked `complete`.
+2. *"EMF runs on java8"* — invalidated the `TD-SDET-05` "emf-parent not buildable offline" claim (I had been running `mvn` with Java 17 as the default JDK; emf-parent inherits `mvn3-jdk8-parent` and needs Java 8).
+
+**What this milestone delivers**: compile+compliance verification of the Phase 10 M2 emf-parent code on its real JVM, and fixes for three M2-era defects exposed by that verification.
+
+#### Build verification that invalidates TD-SDET-05
+
+```
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home
+cd /Users/anujgupta/IdeaProjects/emf-parent
+mvn -pl pointsengine-emf -am test -Dtest='BenefitCategory*' -DfailIfNoTests=false
+```
+
+Result: **BUILD SUCCESS** (01:12 min total)
+- `emf-parent 7.86-SNAPSHOT` — 0.541s
+- `emf` — 44.289s
+- `PointsEngine-EMF 7.86-SNAPSHOT` — 26.707s (1693 files compiled)
+- `BenefitCategoryComplianceTest`: **Tests run: 11, Failures: 0, Errors: 0, Skipped: 0** (0.192s)
+
+`TD-SDET-05` is retired. No "missing `nrules.*` dep", no "AspectJ 1.7 incompatibility" — just a wrong JDK. The previous M3 D-58 rationale that cited TD-SDET-05 as justification for mocking the Thrift boundary in intouch-api-v3 is still **correct for architectural reasons** (the two services live in different JVMs in production; an IT that runs both violates deployment topology), but no longer has to lean on "can't build offline" — it stands on the separation-of-JVMs argument alone.
+
+#### D-59 — emf-parent classpath realities (recorded)
+
+Three coupled facts discovered when running the build with the correct JDK:
+
+| Fact | Symptom in M2 code | Fix |
+|---|---|---|
+| **Java 8** target | AspectJ + processor warnings benign; full compile OK | confirm `JAVA_HOME` points at Temurin 8 |
+| **SLF4J 1.6.4** — no `info(String, Object...)` varargs | 11 log calls with 3+ `{}` placeholders produced `"java.lang.String cannot be converted to org.slf4j.Marker"` because the compiler picked `info(Marker, String, Object, Object)` after autoboxing 4 int args | Wrapped in `String.format("... orgId=%d id=%d ...", ...)` producing unambiguous single-arg `info(String)` |
+| **Spring Data 1.x** — `PageRequest.of(int,int)` does not exist (2.x API) | 1 call at `PointsEngineRuleService.java:4696` | `new org.springframework.data.domain.PageRequest(page, size)` — matches 10+ existing sites in `InfoLookupService.java`, `PointsViewServiceImpl.java` |
+
+#### Code changes (uncommitted as of this log entry)
+
+- **`PointsEngineRuleService.java`** — 6 log-call sites converted to `String.format`; 1 `PageRequest.of(...)` → `new PageRequest(...)`; kept 1 two-arg SLF4J call as-is (compiles cleanly)
+- **`PointsEngineRuleConfigThriftImpl.java`** — all 6 Thrift handler entry-logs converted to `String.format`; `listBenefitCategories` uses `String.valueOf(...)` for nullable filter fields
+- **`BenefitCategoryComplianceTest.java`** — BT-098 rewritten from `bt098_benefitCategoryDto_stateChangedDefaultsToTrue` (asserted `isStateChanged()==true` on a fresh DTO — contradicts IDL) to `bt098_benefitCategoryDto_stateChangedIsOptionalSentinel` (asserts correct Thrift-optional semantics: fresh DTO `isSet=false`, after `setStateChanged(true)` both true, after `setStateChanged(false)` `isSet=true` but getter false)
+
+The BT-098 rewrite corrects a Phase 9 SDET error where the test premise diverged from the IDL and from session-memory D-43. D-43 itself is unchanged — the decision was right, only the assertion encoding it was wrong.
+
+#### Honest coverage picture after M3a
+
+| Boundary | UT | IT | Verdict |
+|---|---|---|---|
+| intouch-api-v3 (REST → Facade → Thrift-client, Thrift mocked) | 36 | 40 | **GREEN** — M3 closed, commit `7bdc46a34` |
+| emf-parent (Thrift handler → Service → Editor → DAO → MySQL) | **0** | **0** | compile + 11 reflection-based compliance tests GREEN; **no behavioural coverage** |
+| Cross-repo E2E (BT-067 Thrift server + MySQL) | — | 0 | deferred (D-58 + Q-BT-01) |
+
+#### Phase 10 status — reconsidered
+
+Changed `pipeline-state.json` Phase 10 `status` from `complete` to `complete-with-debt`. The emf-parent behavioural-test gap is recorded as MEDIUM debt with proposed milestones:
+- **M4**: emf-parent Mockito UTs for `PointsEngineRuleService` + `PointsEngineRuleEditorImpl` + `PointsEngineRuleConfigThriftImpl` (20–30 UTs)
+- **M5**: emf-parent Testcontainers ITs for handler → DAO → MySQL round-trip, including BT-067 cross-repo (10–15 ITs)
+
+Neither M4 nor M5 blocks Phase 10b Backend Readiness or Phase 11 Reviewer — both can run against current code and will naturally flag the coverage gap. User to choose between:
+- **Option A**: retain `complete-with-debt`, log and move on
+- **Option B**: reopen as M4 + M5 before Phase 10b (+2–3 days)
+- **Option C**: commit M3a fixes, track M4/M5 as separate follow-up tickets (current posture reflected in pipeline-state.json + live-dashboard.html)
+
+#### Artifact updates (this entry)
+
+- **session-memory.md** — D-59 addendum + Phase 10 M3a section + open TODO list + TD-SDET-05 retirement flag
+- **pipeline-state.json** — Phase 10 status → `complete-with-debt`; M3a milestone block added; `debt` block with M4/M5 proposals; D-59 added to `decisions_recorded_overall`; M2 block gained `known_defects_discovered_in_M3a` field
+- **live-dashboard.html** — stats bar (64 decisions, TD-SDET-05 invalidated callout, M3a row in test counts, uncommitted-fixes warning); Phase 10 section badge → `Complete-with-Debt (M1 + M2 + M3 + M3a)`; M3a subsection with 3 tables (D-59 reality, BT-098 rewrite, coverage picture) + build evidence pre + re-scoping Mermaid flow
+- **process-log.md** — this entry
+
+**Git snapshots**: none new yet. Tag `aidlc/CAP-185145/phase-10` on emf-parent has NOT been updated (would require either a second tag `aidlc/CAP-185145/phase-10-m3a` or a force-move of the existing tag). Deferred until the user picks A/B/C.
+
+**Step A — Mermaid diagrams**: 1 new flow in live-dashboard.html (M3a re-scoping options). No new fenced-block diagrams in .md files (tables carry the information here).
+**Step B — `live-dashboard.html` updated**: M3a subsection appended to Phase 10 section; stats bar updated.
+**Step C — Confluence**: not configured; skipped.
+
+**Phase 10 M3a confidence**: **C7** on compile + 11 compliance tests GREEN (direct local verification). **C5** on behavioural correctness of M2 production code (no Mockito UTs or Testcontainers ITs on emf-parent side yet — the 11 compliance tests are reflection-based structural assertions).
+
+---
