@@ -949,3 +949,17 @@ Protocol: Phase 8 QA subagent produced 77 scenarios + 3 open questions (Q8-01..Q
 
 **Impact on scenario count**: 77 → **79** (added QA-004b case-distinct dup, QA-022b platform validation).
 **Impact on priority distribution**: 47 P0 → **48 P0** (QA-032 bumped P1→P0); 23 P1 → **23 P1** (QA-032 out, QA-004b in); 7 P2 → **8 P2** (QA-022b added).
+
+---
+
+## Phase 10b — Backend Readiness Findings (2026-04-19)
+
+Audit verdict: **NOT READY** — 3 HIGH blockers surfaced; 29 PASS · 6 WARN · 3 FAIL. User triaged all three blockers as **[M] Manual** — will fix outside the pipeline. Pipeline proceeds to Phase 10c on the user's directive.
+
+| ID | Severity | Finding | Anchor | Routing | Status |
+|---|---|---|---|---|---|
+| B1 | HIGH | Production DDL missing `idx_bc_org_program_name` index; every D-60 name-reservation lookup full-scans the (org, program) partition | `cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql:16` | **[M] Manual** | pending user fix |
+| B2 | HIGH | Production DDL uses bare `CREATE TABLE`; re-deploy / rollback-forward will fail with "table already exists". IT DDL already uses `IF NOT EXISTS` | `benefit_categories.sql:3`, `benefit_category_slab_mapping.sql:3` | **[M] Manual** | pending user fix |
+| B3 | HIGH | `BenefitCategoryResponse.active` serializes as JSON `"active"`; API contract + Thrift DTO use `"isActive"`. UI consumers silently receive null | `intouch-api-v3 .../BenefitCategoryResponse.java:27` | **[M] Manual** | pending user fix |
+
+**Rationale for Manual over Re-run**: user chose to fix all three outside the pipeline rather than spawn another Developer round. All three are 1-line changes with clear evidence; no design ambiguity. Tracked as outstanding items for Phase 11 Reviewer verification.

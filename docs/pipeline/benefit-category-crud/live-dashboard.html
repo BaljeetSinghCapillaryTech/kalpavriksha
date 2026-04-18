@@ -152,8 +152,8 @@
         <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-10" title="Complete: intouch-api-v3 GREEN (76/76); emf-parent GREEN (11 compliance + 30 Mockito UTs = 41); M5 Testcontainers IT suite committed (runtime verify deferred to user)"><span>10. Developer (GREEN)<sup style="color:#00d4ff;margin-left:0.3em;">M3a+M4+M5</sup></span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10b" title="Complete — 29 PASS · 6 WARN · 3 HIGH blockers routed as Manual"><span>10b. Backend Readiness <sup style="color:#f56c6c;margin-left:0.3em;">3 M</sup></span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-11"><span>11. Reviewer</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-12"><span>12. Blueprint</span><span class="status-dot"></span></a>
@@ -2219,7 +2219,49 @@ flowchart LR
 
       </section>
       <section class="phase-section" id="phase-10b">
-        <h2>Phase 10b: Backend Readiness <span class="phase-badge active">In Progress</span></h2>
+        <h2>Phase 10b: Backend Readiness <span class="phase-badge complete">Complete — Manual Fixes Pending</span></h2>
+        <p class="phase-time">Completed: 2026-04-19 · Skill: <span class="skill-tag">/backend-readiness</span> · Model: sonnet · Subagent audit</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">38</div><div class="label">Checks</div></div>
+          <div class="key-number"><div class="value" style="color:#4ec9b0">29</div><div class="label">PASS</div></div>
+          <div class="key-number"><div class="value" style="color:#e6a23c">6</div><div class="label">WARN</div></div>
+          <div class="key-number"><div class="value" style="color:#f56c6c">3</div><div class="label">FAIL (HIGH)</div></div>
+        </div>
+
+        <p><strong>Verdict</strong>: <span style="color:#f56c6c">NOT READY</span> — 3 HIGH blockers surfaced. User triaged all three as <strong>[M] Manual fix pending</strong> — will resolve outside the pipeline. Pipeline proceeds to Phase 10c on user directive.</p>
+
+        <h3>Blockers — pending manual fix</h3>
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Severity</th><th>Finding</th><th>Anchor</th><th>Routing</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>B1</strong></td>
+              <td style="color:#f56c6c">HIGH</td>
+              <td>Production DDL missing <code>idx_bc_org_program_name</code>; every D-60 name-reservation lookup (CREATE/UPDATE/ACTIVATE) full-scans the (org, program) partition</td>
+              <td><code>cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql:16</code></td>
+              <td><strong>M (manual)</strong></td>
+            </tr>
+            <tr>
+              <td><strong>B2</strong></td>
+              <td style="color:#f56c6c">HIGH</td>
+              <td>Production DDL uses bare <code>CREATE TABLE</code>; re-deploy / rollback will fail with "table already exists". IT harness already uses <code>IF NOT EXISTS</code></td>
+              <td><code>benefit_categories.sql:3</code> + <code>benefit_category_slab_mapping.sql:3</code></td>
+              <td><strong>M (manual)</strong></td>
+            </tr>
+            <tr>
+              <td><strong>B3</strong></td>
+              <td style="color:#f56c6c">HIGH</td>
+              <td><code>BenefitCategoryResponse.active</code> serializes as JSON <code>"active"</code>; API contract + Thrift DTO use <code>"isActive"</code>. UI consumers silently receive <code>null</code></td>
+              <td><code>intouch-api-v3/.../BenefitCategoryResponse.java:27</code></td>
+              <td><strong>M (manual)</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p><strong>Outstanding for Phase 11 Reviewer</strong>: verify B1/B2/B3 resolution before final approval. Full audit detail in <code>backend-readiness.md</code>.</p>
+
+        <p><strong>Confidence</strong>: <strong>C6</strong> on audit evidence (every FAIL has a file:line anchor).</p>
       </section>
       <section class="phase-section" id="phase-10c">
         <h2>Phase 10c: Compliance (Architecture vs Code) <span class="phase-badge pending">Pending</span></h2>

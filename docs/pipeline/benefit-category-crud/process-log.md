@@ -1503,3 +1503,45 @@ Subagent ran `mvn -pl integration-test -am test-compile`: BUILD SUCCESS. Full `m
 2. Phase 10b Backend Readiness.
 
 ---
+
+## Phase 10b — Backend Readiness
+
+**Completed:** 2026-04-19
+**Skill:** `/backend-readiness`
+**Mode:** Subagent (general-purpose, sonnet)
+**Artifact:** `backend-readiness.md`
+
+### Verdict
+
+**NOT READY** — 38 checks (29 PASS · 6 WARN · 3 FAIL). 3 HIGH blockers routed to user as **[M] Manual fix pending**.
+
+### Blockers
+
+1. **B1** — Missing `idx_bc_org_program_name` on production Flyway DDL. Every D-60 name-reservation lookup (CREATE / UPDATE / ACTIVATE) full-scans the (org, program) partition.
+2. **B2** — Production DDLs use bare `CREATE TABLE`; re-deploy will fail with "table already exists". IT harness already uses `IF NOT EXISTS`.
+3. **B3** — `BenefitCategoryResponse.active` serializes as JSON `"active"`; API contract + Thrift DTO use `"isActive"`. Silent null on UI consumers.
+
+### Routing
+
+User: **`B1:M B2:M B3:M`** — manual fix outside the pipeline. Pipeline proceeds to Phase 10c on the user's directive.
+
+### Outstanding for Phase 11 Reviewer
+
+Three findings logged in `approach-log.md` — Phase 11 should verify resolution before approving production readiness.
+
+### Step A/B/C
+
+- **Step A (Mermaid)**: N/A — audit report uses tables.
+- **Step B (live-dashboard.html)**: 10b section flipped from "In Progress" to "Complete with Manual Fixes Pending"; B1/B2/B3 table added.
+- **Step C (Confluence)**: skipped — not configured.
+
+### Confidence
+
+**C6** on the audit itself (evidence-based findings with file:line anchors). Phase 11 Reviewer will re-verify after user completes manual fixes.
+
+### Next actions
+
+1. User completes B1/B2/B3 fixes outside the pipeline.
+2. Phase 10c — Gap Analysis (Architecture vs Code).
+
+---
