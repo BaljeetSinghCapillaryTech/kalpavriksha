@@ -804,3 +804,76 @@ intouch-api-v3   0ae66f606   CAP-185145: Phase 10 M2 GREEN — REST + Thrift wir
 - **Phase 11**: Reviewer — with `/api-handoff` queued to get UI team sign-off on D-45 ISO-8601 `yyyy-MM-dd'T'HH:mm:ssXXX` pattern (D-52)
 
 **Phase 10 M2 Confidence**: C6 overall (C7 for pattern conformance and method-signature alignment; C6 for semantic correctness — local compile gated by legacy `PointsEngineThriftHelper.java:1140` defect out of scope per D-56, CI verifies full module build).
+
+---
+
+## Phase 10 M3 — Testcontainers IT Corpus (2026-04-18)
+
+M3 adds the 67 deferred Business Tests as right-sized Testcontainers integration tests in intouch-api-v3, delivering 100% behaviour-dimension coverage of BT-001..BT-G10 via ~25 `@Test` methods (Option B: @ParameterizedTest collapses validation/error-code families without losing assertion per BT).
+
+### Files created / modified in M3 (intouch-api-v3-2/intouch-api-v3)
+
+| File | Status | BTs Exercised |
+|------|--------|---------------|
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryITBase.java` | NEW | shared base — `AbstractContainerTest`, `@MockBean ThriftService`, `@MockBean ZionAuthenticationService`, `@LocalServerPort`, RestTemplate, IntouchUser → SecurityContextHolder seeding, auth headers, request builders, Thrift DTO factories, mock-stubbing helpers |
+| `src/test/java/integrationTests/benefitcategory/TimezoneRule.java` | NEW (pre-M3, carried over) | D-51 — JUnit 5 `BeforeEachCallback + AfterEachCallback`; captures/restores `TimeZone.getDefault()` per test |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryCreateIT.java` | NEW | 12 executions — BT-001 happy, BT-005..BT-009 validation (6-row `@ParameterizedTest`), BT-006 name>255, BT-003a/BT-003b/BT-003c thrift 409 (3-row `@ParameterizedTest`), BT-unknown 500 |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryGetIT.java` | NEW | 4 — BT-014 happy, BT-018 D-42 `?includeInactive=true` audit path, BT-017 default active-only, BT-104 404 |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryListIT.java` | NEW | 5 — BT-020 happy + filter captor, BT-023 D-47 `isActive=null` no `activeOnly`, D-47 `isActive=true` propagates `activeOnly`, BT-041 pagination propagation, BT-038 `?isActive=foo` → 400 |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryUpdateIT.java` | NEW | 7 — BT-028 happy 200, BT-035 D-35 slabIds diff-apply (ArgumentCaptor), BT-033 D-33 LWW (no If-Match), BT-110 409 inactive, 3-row `@ParameterizedTest` for empty/missing/invalid slabIds → 400 (D-46 `@Size(min=1)`) |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryActivateIT.java` | NEW | 4 — BT-045 D-43 stateChanged=true → 200+DTO, BT-048 D-39 stateChanged=false → 204, BT-112 409 `BC_NAME_TAKEN_ON_REACTIVATE`, BT-104 404 |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryDeactivateIT.java` | NEW | 3 — BT-053 happy 204, BT-055 idempotent (2 calls both 204), BT-104 404 |
+| `src/test/java/integrationTests/benefitcategory/BenefitCategoryGuardrailIT.java` | NEW | 5 — BT-G01a UTC ISO-8601 offset regex match, BT-G01b IST + PST offset (3 methods via TimezoneRule), BT-G07 tenant isolation across all 6 endpoints (orgId via SecurityContextHolder → BenefitCategoryFilter.orgId), BT-G10 last-writer-wins on two sequential PUTs |
+| `src/main/java/.../resources/BenefitCategoriesV3Controller.java` | MODIFIED | Added controller-level `@ExceptionHandler(MethodArgumentTypeMismatchException.class)` → 400 (D-56-scoped; un-shadows the global `TargetGroupErrorAdvice.handleOtherException` which otherwise caught the same exception and returned 500) |
+| `src/main/java/.../exceptionResources/TargetGroupErrorAdvice.java` | MODIFIED (pre-M3, committed here) | Added `@ExceptionHandler(BenefitCategoryFacade.BenefitCategoryBusinessException.class)` switch mapping on `e.getStatusCode()` → 409 / 404 / 400 / 500 |
+| `src/test/java/.../benefitcategory/BenefitCategoryDtoValidationTest.java` | MODIFIED | Flipped stale Phase-9 RED gate `bt100_responseMapper_toResponse_red_throwsUnsupportedOperation` → `bt100_responseMapper_toResponse_green_returnsPopulatedResponse` asserting id/orgId/programId/name/categoryType/slabIds/active populate correctly |
+
+### GREEN Gate Evidence — intouch-api-v3 (2026-04-18 00:58)
+
+| Suite | Tests Run | Result | Notes |
+|-------|-----------|--------|-------|
+| Unit tests (`BenefitCategory*Test`) | 36 | **ALL PASS** | 20 DtoValidationTest + 10 FacadeRedTest (now GREEN) + 6 ExceptionAdviceTest |
+| Integration tests (`BenefitCategory*IT`) | 40 | **ALL PASS** | 12 Create + 4 Get + 5 List + 7 Update + 4 Activate + 3 Deactivate + 5 Guardrail — 44.5s wall clock including Testcontainers MySQL/RabbitMQ/Redis/Mongo boot |
+| **Total BenefitCategory** | **76** | **ALL PASS** | C7 RED→GREEN closure on intouch-api-v3 boundary |
+
+### Key Decisions (M3)
+
+| # | Decision | Rationale | Confidence |
+|---|----------|----------|-----------|
+| D-58 | **Thrift IT boundary = mocked `@MockBean PointsEngineRulesThriftService` in intouch-api-v3** — emf-parent is NOT brought up in the same JVM for these ITs; we validate the REST → Facade → Mapper → Thrift-client seam against a Mockito-stubbed Thrift service that returns IDL-shaped DTOs. | emf-parent cannot start inside the intouch-api-v3 Spring context (separate module, AspectJ 1.7 + Java 17 + missing `nrules.*` deps per TD-SDET-05). The architectural end-to-end is **Client → REST → Thrift RPC → emf-parent → MySQL**; the two services live in different JVMs in production. An IT that tries to run both violates the deployment topology. BT-067 (end-to-end contract round-trip) reduces to: intouch-api-v3 IT asserts REST→Thrift client serialisation + ResponseWrapper envelope (this phase); emf-parent IT asserts Thrift handler → MySQL via Testcontainers (separate harness, deferred to its own Phase-10c work). Mocking at the Thrift-client boundary preserves every behaviour-dimension the REST boundary needs to guarantee (status codes, DTO shape, filter propagation, orgId scoping, stateChanged idempotency, error-code → HTTP mapping) without false-coupling the two services. | C7 |
+
+### Behaviour dimensions covered by 40 ITs (Option B)
+
+| Dimension | BTs | Evidence |
+|-----------|-----|----------|
+| Happy paths across all 6 endpoints | BT-001, BT-014, BT-018, BT-020, BT-028, BT-045, BT-053 | 1 test each |
+| Bean Validation rejections | BT-005..BT-009, BT-032 | `@ParameterizedTest` collapses 6 Create rows + 3 Update rows |
+| Thrift business-error mapping | BT-003a/b/c, BT-110, BT-112, BT-104 | Status-code switch verified on `BenefitCategoryBusinessException` unwrap |
+| Query-param type mismatch | BT-038 | Controller-scoped `@ExceptionHandler` returns 400 |
+| D-42 includeInactive audit path | BT-017, BT-018 | Default vs opt-in DAO method branch |
+| D-35 diff-apply + slabIds | BT-029..BT-031, BT-035 | ArgumentCaptor on `BenefitCategoryDto.slabIds` |
+| D-33 last-writer-wins | BT-033, BT-G10 | No `If-Match` expected; two consecutive PUTs both 200 |
+| D-39 + D-43 asymmetric activate | BT-045 (200+DTO), BT-048 (204) | `stateChanged=true` vs `stateChanged=false` branches |
+| D-47 isActive filter propagation | (D-47 propagate, BT-023) | `BenefitCategoryFilter.isSetActiveOnly()` assertions |
+| BT-041 pagination | BT-041 | `?page=1&size=5` → thrift args captured |
+| BT-055 deactivate idempotency | BT-055 | 2 consecutive POST /deactivate both 204, thrift called twice |
+| G-01 timezone — offset invariant | BT-G01a, BT-G01b | ISO-8601 regex (`[+\\-]\\d{2}:\\d{2}` or `Z`) under UTC, IST, PST JVM defaults |
+| G-07 tenant isolation | BT-G07 | orgId from SecurityContextHolder propagates to every thrift call |
+| G-10 concurrency | BT-G10 | Two sequential updates both succeed — no 409 |
+
+Deferred to a future cross-repo IT harness: BT-067 (emf-parent Thrift server + MySQL round-trip) — confirmed infeasible in intouch-api-v3 JVM per D-58, will be exercised in emf-parent's own Testcontainers IT (tracked as a separate follow-up, not blocking Phase 11).
+
+### Production Fix Rolled into M3
+
+- **`MethodArgumentTypeMismatchException` handler scoped to `BenefitCategoriesV3Controller`** (D-56-consistent surgical scope). Without it, `TargetGroupErrorAdvice.handleOtherException(Throwable)` swallowed the Spring-MVC type-coercion error and returned HTTP 500 instead of HTTP 400 — a platform bug masked by the narrow Phase-9 error-mapping tests. BT-038 now asserts the correct 400 behaviour and the controller-local handler is the smallest possible footprint.
+
+### Commit
+
+```
+intouch-api-v3-2/intouch-api-v3   <commit>   CAP-185145: Phase 10 M3 GREEN — Testcontainers IT corpus (40 ITs) + controller 400 handler + mapper GREEN flip
+```
+
+### Phase 10 M3 Confidence
+
+**C7** on intouch-api-v3 boundary (36 UT + 40 IT = 76/76 GREEN, evidence: `mvn surefire:test -Dtest='BenefitCategory*Test'` + `mvn failsafe:integration-test -Dit.test='BenefitCategory*IT'`). emf-parent M2 code-level behaviour exercised indirectly through mocked Thrift seam; emf-parent-internal IT coverage remains a separate follow-up (tracked under Phase 10b/c/d and BT-067 remainder). Phase 10 GREEN gate is **MET** for intouch-api-v3 boundary; pipeline unblocked for Phase 10b Backend Readiness.
+

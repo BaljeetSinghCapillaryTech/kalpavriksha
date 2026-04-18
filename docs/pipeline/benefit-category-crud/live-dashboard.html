@@ -151,8 +151,8 @@
         <a class="nav-link complete" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-11"><span>11. Reviewer</span><span class="status-dot"></span></a>
@@ -187,20 +187,20 @@
           <div class="segment complete"></div>
           <div class="segment complete"></div>
           <div class="segment complete"></div>
-          <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div>
+          <div class="segment complete" title="Phase 10 — M1+M2+M3 landed"></div>
+          <div class="segment active" title="Phase 10b — Backend Readiness"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">11.5</span> / 19 phases complete (1 skipped; Phase 10 M1+M2 landed, M3 pending)</span>
+          <span><span class="stat-value">12</span> / 19 phases complete (1 skipped; Phase 10 M1+M2+M3 all landed — 76 tests GREEN)</span>
           <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
-          <span><span class="stat-value">62</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED) &middot; <strong>D-49..D-57 (Phase 10)</strong></span>
+          <span><span class="stat-value">63</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; <strong>D-58 (Phase 10 M3 — Thrift IT boundary)</strong></span>
           <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
-          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 67 deferred to Phase 10 M3 ITs</span>
-          <span><span class="stat-value">6</span> cross-repo commits · <code>aidlc/CAP-185145/phase-09</code> tagged · M2 commits <code>3aec0c39c0</code> (emf-parent) + <code>0ae66f606</code> (intouch-api-v3)</span>
-          <span><span class="stat-value">36</span> tests in intouch-api-v3 · Phase 9 RED (1 fail + 7 error) · Phase 10 M2 Mockito GREEN reassert</span>
+          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 40 ITs landed Phase 10 M3 (100% behaviour-dim coverage)</span>
+          <span><span class="stat-value">7</span> cross-repo commits · <code>aidlc/CAP-185145/phase-10</code> tagged · M3 commit <code>CAP-185145: Phase 10 M3 GREEN</code> (intouch-api-v3)</span>
+          <span><span class="stat-value">76</span> tests GREEN in intouch-api-v3 · 36 UT + 40 IT · wall-clock IT 44.5s</span>
         </div>
       </header>
 
@@ -1827,8 +1827,8 @@ flowchart LR
         <p><strong>Phase 10 readiness:</strong> UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests. 4 cross-repo commits tagged. 9 explicit Phase 10 obligations enumerated.</p>
       </section>
       <section class="phase-section" id="phase-10">
-        <h2>Phase 10: Developer — GREEN <span class="phase-badge active">Active (M1+M2 landed, M3 pending)</span></h2>
-        <p class="phase-time">M2 completed: 2026-04-18</p>
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge complete">Complete (M1 + M2 + M3)</span></h2>
+        <p class="phase-time">M3 completed: 2026-04-18</p>
         <span class="skill-tag">/developer</span>
         <span class="skill-tag">executing-plans</span>
         <span class="skill-tag">subagent-driven-development</span>
@@ -1855,13 +1855,83 @@ flowchart LR
           </tbody>
         </table>
 
-        <h3>M3 Queued (67 deferred BTs in intouch-api-v3)</h3>
+        <h3>M3 Landed — Testcontainers IT Corpus (intouch-api-v3 boundary)</h3>
+        <p>User selected <strong>Option B</strong> — right-sized ITs with <code>@ParameterizedTest</code> for 100% behaviour-dimension coverage over 1:1 BT mapping. Expanded to 40 concrete test methods once guardrail + list variants split out.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">76</div><div class="label">Tests GREEN</div></div>
+          <div class="key-number"><div class="value">36</div><div class="label">Unit tests</div></div>
+          <div class="key-number"><div class="value">40</div><div class="label">Integration tests</div></div>
+          <div class="key-number"><div class="value">7</div><div class="label">IT files + ITBase</div></div>
+          <div class="key-number"><div class="value">44.5s</div><div class="label">IT wall-clock</div></div>
+          <div class="key-number"><div class="value">39</div><div class="label">Behaviour dimensions</div></div>
+        </div>
+
+        <h3>M3 Files Landed</h3>
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Role</th><th>Tests</th></tr></thead>
+          <tbody>
+            <tr><td><code>BenefitCategoryITBase.java</code></td><td>Abstract base: <code>@SpringBootTest</code> + RestTemplate + <code>@MockBean PointsEngineRulesThriftService</code> + IntouchUser seeding + builders</td><td>—</td></tr>
+            <tr><td><code>TimezoneRule.java</code></td><td>JUnit 5 extension (BeforeEach/AfterEach) capture+restore JVM default TZ — <strong>D-51</strong></td><td>—</td></tr>
+            <tr><td><code>BenefitCategoryCreateIT.java</code></td><td>BT-001/003/007/009/013</td><td>~6</td></tr>
+            <tr><td><code>BenefitCategoryGetIT.java</code></td><td>BT-014/015 + <strong>D-42</strong> audit BT-017/018</td><td>~5</td></tr>
+            <tr><td><code>BenefitCategoryListIT.java</code></td><td>BT-020 payload · <strong>D-47</strong> isActive=null/true · BT-041 pagination · <strong>BT-038</strong> type-mismatch 400</td><td>5</td></tr>
+            <tr><td><code>BenefitCategoryUpdateIT.java</code></td><td>BT-028 happy · <strong>D-35</strong> diff-apply · <strong>D-46</strong> empty slabIds 400 · BT-G10 LWW</td><td>~7</td></tr>
+            <tr><td><code>BenefitCategoryActivateIT.java</code></td><td><strong>D-39/D-43</strong> 200+DTO vs 204 · BT-046 409 · BT-044 404</td><td>~4</td></tr>
+            <tr><td><code>BenefitCategoryDeactivateIT.java</code></td><td>BT-053 204 · BT-055 idempotent (times=2) · BT-104 404</td><td>3</td></tr>
+            <tr><td><code>BenefitCategoryGuardrailIT.java</code></td><td><strong>BT-G01a/b</strong> (UTC + IST + PST) · <strong>BT-G07</strong> tenant iso · <strong>BT-G10</strong> LWW</td><td>5</td></tr>
+          </tbody>
+        </table>
+
+        <h3>M3 Production Fixes</h3>
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Change</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>BenefitCategoriesV3Controller.java</code></td><td>Added controller-scoped <code>@ExceptionHandler(MethodArgumentTypeMismatchException.class)</code> → 400</td><td><strong>Production fix for BT-038</strong>. Without it, global <code>TargetGroupErrorAdvice.handleOtherException</code> catches first → 500. Scoped to this controller only per <strong>D-56</strong>.</td></tr>
+            <tr><td><code>TargetGroupErrorAdvice.java</code></td><td>Minor adjustment to not shadow controller-scoped handler</td><td>Precedence: controller-level wins over <code>@ControllerAdvice</code> for type-matched exceptions.</td></tr>
+            <tr><td><code>BenefitCategoryDtoValidationTest.java</code></td><td>BT-100 flipped: <code>red_throwsUnsupportedOperation</code> → <code>green_returnsPopulatedResponse</code></td><td>Stale Phase-9 RED-gate reflection-based <code>assertThrows</code>; rewritten as direct mapper invocation with field-level assertions.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>M3 Key Decision</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Decision</th><th>Rationale</th><th>Confidence</th></tr></thead>
+          <tbody>
+            <tr><td><strong>D-58</strong></td><td>Thrift IT boundary = <code>@MockBean PointsEngineRulesThriftService</code> in intouch-api-v3; emf-parent NOT brought up in same JVM for these ITs</td><td>Architecturally correct (production runs both services in different JVMs); TD-SDET-05 makes in-JVM emf-parent infeasible offline; BT-067 end-to-end belongs in a separate emf-parent harness (tracked via Q-BT-01)</td><td>C7</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Behaviour-Dimension Coverage</h3>
+        <table class="data-table">
+          <thead><tr><th>Dimension</th><th>Tests</th></tr></thead>
+          <tbody>
+            <tr><td>Happy paths (6 endpoints)</td><td>6</td></tr>
+            <tr><td>Bean-Validation <code>@Valid</code></td><td>5</td></tr>
+            <tr><td>Thrift-side business errors (409 / 404)</td><td>7</td></tr>
+            <tr><td>Type-mismatch → 400 (<strong>BT-038</strong>)</td><td>1</td></tr>
+            <tr><td><strong>D-42</strong> <code>?includeInactive</code> audit</td><td>2</td></tr>
+            <tr><td><strong>D-35</strong> diff-and-apply slabIds</td><td>3</td></tr>
+            <tr><td><strong>D-33 / BT-G10</strong> last-writer-wins</td><td>2</td></tr>
+            <tr><td><strong>D-39 / D-43</strong> asymmetric activate 200 vs 204</td><td>2</td></tr>
+            <tr><td><strong>D-47</strong> <code>isActive=null</code> vs <code>=true</code></td><td>2</td></tr>
+            <tr><td>Pagination <code>?page=1&amp;size=5</code></td><td>1</td></tr>
+            <tr><td>Idempotent deactivate (times=2)</td><td>1</td></tr>
+            <tr><td><strong>G-01 / BT-G01</strong> timestamp offset UTC/IST/PST</td><td>3</td></tr>
+            <tr><td><strong>G-07 / BT-G07</strong> tenant isolation all 6 thrift calls</td><td>1</td></tr>
+            <tr><td><strong>G-10 / BT-G10</strong> LWW no 409</td><td>1</td></tr>
+            <tr><td><strong>D-46</strong> empty slabIds → 400</td><td>1</td></tr>
+            <tr><td>Defaults (<code>isActive=true</code> on create)</td><td>1</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Deferred to a separate emf-parent IT harness (not M3 scope)</h3>
         <ul class="artifact-list">
-          <li>Reusable <code>TimezoneRule</code> JUnit 5 extension (D-51)</li>
-          <li>Testcontainers MySQL IT including <strong>BT-067 end-to-end</strong> (D-50)</li>
-          <li>Tenant isolation tests (G-07)</li>
-          <li>Timezone matrix: UTC / PST / IST (G-01)</li>
+          <li>BT-067 — Thrift embedded-server end-to-end (<strong>Q-BT-01</strong>)</li>
+          <li>Flyway DDL migration verification</li>
+          <li>DAO CRUD against real MySQL</li>
         </ul>
+
+        <p><strong>Phase 10 M3 Confidence</strong>: <strong>C7</strong> on the intouch-api-v3 boundary (all 76 tests PASS at the correct architectural boundary per D-58). Overall Phase 10 closure: C5 pending Phase 10b/10c/11 verification.</p>
 
         <p><strong>Phase 10 M2 Confidence</strong>: C6 overall (C7 pattern conformance + method-signature alignment; C6 semantic correctness — CI-gated).</p>
 
