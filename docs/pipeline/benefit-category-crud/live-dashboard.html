@@ -193,11 +193,11 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">9</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA scenarios generated</span>
+          <span><span class="stat-value">9</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA Qs resolved</span>
           <span><span class="stat-value">22</span> artifacts generated</span>
-          <span><span class="stat-value">45</span> decisions made &middot; 17 patterns P-01..P-17</span>
-          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD)</span>
-          <span><span class="stat-value">77</span> QA scenarios (47 P0 · 23 P1 · 7 P2) &middot; 3 open questions Q8-01..Q8-03</span>
+          <span><span class="stat-value">48</span> decisions made &middot; 17 patterns P-01..P-17</span>
+          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD; ADR-009 pending Phase 11)</span>
+          <span><span class="stat-value">79</span> QA scenarios (48 P0 · 23 P1 · 8 P2) &middot; all open Qs resolved</span>
           <span><span class="stat-value">27</span> new types + 8 modified — LLD compile-safe (mapper added)</span>
           <span><span class="stat-value">0</span> code files written (RED phase next)</span>
         </div>
@@ -1449,15 +1449,28 @@ sequenceDiagram
           </tbody>
         </table>
 
-        <h3>Open Questions (surfaced by QA — require user input before Phase 8b)</h3>
+        <h3>Open Questions Q8-01..Q8-03 — <span style="color:#00ff88;">ALL RESOLVED 2026-04-18</span></h3>
         <table class="data-table">
-          <thead><tr><th>#</th><th>Question</th><th>Affects</th><th>QA Assumption (C5+)</th></tr></thead>
+          <thead><tr><th>#</th><th>Question</th><th>User Answer</th><th>Decision</th><th>Match Reco?</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>Q8-01</td><td>Is empty <code>slabIds: []</code> on PUT allowed (clears all mappings) or rejected with 400?</td><td>QA-032 behaviour</td><td>A8-01: empty allowed (no <code>@Size(min=1)</code> on UpdateRequest)</td></tr>
-            <tr><td>Q8-02</td><td>Is name uniqueness check case-sensitive or case-insensitive?</td><td>QA-004, QA-036</td><td>A8-02: case-sensitive (no LOWER() — matches A7-06)</td></tr>
-            <tr><td>Q8-03</td><td>Exact error code string for <code>?isActive=foo</code> invalid filter value?</td><td>SDET assertion precision</td><td>A-8-03 pending</td></tr>
+            <tr><td>Q8-01</td><td>Empty <code>slabIds: []</code> on PUT: allow or reject?</td><td>b — Reject 400 (<code>@Size(min=1)</code>)</td><td><strong>D-46</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q8-02</td><td>Name uniqueness case-sensitive or insensitive?</td><td>a — Case-sensitive (zero code change)</td><td><strong>D-47</strong></td><td>⚠ Override (reco was b)</td><td style="color:#00ff88;">RESOLVED</td></tr>
+            <tr><td>Q8-03</td><td>Error code for <code>?isActive=foo</code>?</td><td>c — Platform <code>VALIDATION_FAILED</code></td><td><strong>D-48</strong></td><td>✅ Matched</td><td style="color:#00ff88;">RESOLVED</td></tr>
           </tbody>
         </table>
+
+        <h3>QA Resolution Amendments (D-46..D-48 — 2026-04-18)</h3>
+        <p>Three QA open questions resolved via orchestrator protocol (evidence → options → recommendation → user answer → traceability). <strong>§19 of <code>03-designer.md</code> is authoritative on any divergence with §F.8/§E</strong> (error taxonomy). Amendments propagate to Designer DTO annotations, QA scenarios, and seed SDET tasks for Phase 9.</p>
+        <table class="data-table">
+          <thead><tr><th>Decision</th><th>Change</th><th>Artifact Impact</th><th>Evidence Anchor</th></tr></thead>
+          <tbody>
+            <tr><td><strong>D-46</strong></td><td>UpdateRequest.slabIds gains <code>@Size(min=1)</code> — symmetric with CreateRequest; empty rejected 400</td><td>Designer §A.3 row 23 · §F.8 code block · QA-032 expectation flipped (P1→P0, 200→400 VALIDATION_FAILED)</td><td>CreateRequest already <code>@Size(min=1)</code>; semantic "category with 0 slabs" is meaningless</td></tr>
+            <tr><td><strong>D-47</strong></td><td>Name uniqueness is <strong>case-sensitive</strong> — <em>user override of reco b</em>. Zero code change (DAO query and DDL index already byte-comparison)</td><td>QA-004 note added; <strong>QA-004b NEW</strong> seeded for SDET Phase 9 (case-distinct dup succeeds 201)</td><td>Designer A7-06 (C5) promoted to D-47 (C6). Revisit trigger: ≥1 "subtle-case dup" support ticket post-GA</td></tr>
+            <tr><td><strong>D-48</strong></td><td>Reuse platform <code>VALIDATION_FAILED</code> via <code>TargetGroupErrorAdvice</code> — no bespoke <code>BC_BAD_ACTIVE_FILTER</code></td><td>Error Coverage Matrix row replaced; <strong>QA-022b NEW</strong> seeded for SDET; ADR-009 amendment deferred to Phase 11 Reviewer</td><td>Spring MVC <code>MethodArgumentTypeMismatchException</code> already maps to platform VALIDATION_FAILED; YAGNI</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Constraint added:</strong> C-40 NEW — UpdateRequest.slabIds MUST carry <code>@Size(min=1)</code>. <strong>Assumption superseded:</strong> A8-01 <s>struck</s> by D-46. <strong>Assumption promoted:</strong> A8-02 (C5) → D-47 (C6).</p>
+        <p><strong>Scenario count:</strong> 77 → <strong>79</strong> (added QA-004b, QA-022b). <strong>Priority distribution:</strong> 48 P0 · 23 P1 · 8 P2.</p>
 
         <h3>Scenario Distribution</h3>
         <div class="mermaid">
@@ -1499,12 +1512,12 @@ flowchart TB
         </ul>
 
         <h3>Phase 8b (Business Test Gen) + Phase 9 (SDET RED) Readiness</h3>
-        <p>✅ <strong>77 QA scenarios + 8 guardrail tests + 4 audit trail tests</strong> form the input corpus for Phase 8b Business Test Gen (BT-xx traceability matrix) and Phase 9 SDET RED (test code implementation). <strong>Pending user input on Q8-01..Q8-03</strong> before Phase 8b to avoid assumption drift in BT-xx mapping.</p>
+        <p>✅ <strong>79 QA scenarios + 8 guardrail tests + 4 audit trail tests</strong> form the input corpus for Phase 8b Business Test Gen (BT-xx traceability matrix) and Phase 9 SDET RED (test code implementation). All Q8 open questions resolved; 48 total decisions captured; D-46..D-48 added as additional hard-constraint inputs for Phase 8b.</p>
 
         <ul class="artifact-list">
-          <li>04-qa.md (1,102 lines, 49 KB, 4 Mermaid diagrams appended)</li>
+          <li>04-qa.md (1,102 → ~1,180 lines with §13 Post-QA Amendments; 4 Mermaid diagrams)</li>
         </ul>
-        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-08</code></p>
+        <p class="phase-time">🏷️ Git snapshots: <code>aidlc/CAP-185145/phase-08</code> · <code>aidlc/CAP-185145/phase-08-resolved</code></p>
       </section>
       <section class="phase-section" id="phase-8b">
         <h2>Phase 8b: Business Test Generation <span class="phase-badge pending">Pending</span></h2>

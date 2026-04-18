@@ -461,3 +461,32 @@ User answered all 5 Designer open questions as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A
 **Phase 7 Artifact updated**: `03-designer.md` — in-place amendments to §A, §B.3, §F.6/F.6a/F.7/F.8/F.10; new §18 Post-LLD Amendments section documenting D-41..D-45 + C-39; §G.1 questions marked RESOLVED; §G.2 A7-13 struck.
 
 **Phase 7 Confidence (updated)**: RED-phase readiness still **true**. All amendments preserve compile-safety. SDET Phase 9 can proceed.
+
+## QA Phase 8 — Question Resolutions (2026-04-18)
+
+### Key Decisions (D-46..D-48)
+
+| # | Decision | Source | Phase | Date |
+|---|---|---|---|---|
+| D-46 | **`BenefitCategoryUpdateRequest.slabIds` requires `@Size(min=1)` (Q8-01=b — matches orchestrator reco)**. Empty list `[]` on PUT is rejected at Bean Validation with HTTP 200 + platform `VALIDATION_FAILED` envelope (OQ-45 quirk). Symmetric with CreateRequest; a benefit category with zero active slab mappings is semantically meaningless. Admin wanting to "clear all slabs" must `PATCH /{id}/deactivate` the entire category instead — the soft-delete path cascades mapping soft-delete per D-06. **Designer §F.8 artifact**: `@Size(min=1)` annotation added to Update request slabIds field. **Service layer simplification**: no longer needs to handle "empty incoming set → soft-delete all active mappings" edge case in `syncSlabMappings()`. **Phase 8 QA obligation**: QA-032 amended — was "empty slabIds permitted, 200 OK" (P1), is now "empty slabIds rejected 400" (P0). **Phase 9 SDET obligation**: add Bean Validation unit test asserting `@Size(min=1)` rejection with correct field path in envelope. **Confidence**: C6 — user decision, consistent with D-35 Create validation, Phase 8 QA assumption A8-01 superseded. | User choice b on Phase 8 Q8-01 | Phase 8→8b | 2026-04-18 |
+| D-47 | **Name uniqueness check is CASE-SENSITIVE (Q8-02=a — USER OVERRIDE of orchestrator reco b)**. `"Gold Tier"` and `"gold tier"` coexist as distinct active categories within same `(orgId, programId)`. **Rationale**: (a) backward compatibility with loyalty platform byte-comparison convention (no `LOWER()` in existing queries per A7-06); (b) avoids a DDL change to add a functional unique index on `LOWER(name)` — which would require Aurora/MySQL version check (Q4/D-40 deferred); (c) preserves admin ability to disambiguate legacy data via casing if ever needed; (d) if case-insensitivity becomes a product requirement post-GA, adding `LOWER()` is a straightforward forward migration with no breaking impact on existing data. **Designer code impact: ZERO** — DAO query `findActiveByNameAndOrgAndProgram(orgId, programId, name)` already uses `name = ?` without `LOWER()`; unique index on `benefit_categories (org_id, program_id, name)` remains byte-comparison. **Promotes A8-02 (C5 assumption) → D-47 (C6 decision)** — no longer a soft assumption. **Phase 8 QA obligation**: QA-004 amended with case-sensitivity note; **QA-004b** NEW — "POST with `name:'gold tier'` succeeds 201 when `'Gold Tier'` exists active in same program". **Phase 9 SDET obligation**: SDET implements QA-004b alongside QA-004. **Risk note**: if a product team member raises "VIP Perks vs vip perks collision" as a support ticket post-GA, revisit-trigger → migration to case-insensitive index (single ALTER + backfill-dedupe pass). **Confidence**: C6 — user decision, code already aligns, revisit path clear. | User choice a on Phase 8 Q8-02 (override of reco b) | Phase 8→8b | 2026-04-18 |
+| D-48 | **`?isActive=foo` (invalid filter value) uses platform `VALIDATION_FAILED`, no bespoke `BC_*` code (Q8-03=c — matches orchestrator reco)**. Spring MVC's `@RequestParam` type coercion on `boolean isActive` field fails with a `MethodArgumentTypeMismatchException` for unrecognised values (`"foo"`, `"yes"`, `"1"` outside true/false). `TargetGroupErrorAdvice` platform exception handler already maps this to the standard `VALIDATION_FAILED` code in the `ResponseWrapper.errors[]` envelope — no new code needed. **Rationale**: YAGNI; exactly one filter param with one failure mode; existing platform infrastructure handles it cleanly. **ADR-009 amendment (Phase 11 Reviewer)**: error taxonomy row for `BC_BAD_ACTIVE_FILTER` removed; replaced with "invalid `isActive` value → platform standard `VALIDATION_FAILED` via `TargetGroupErrorAdvice`". **Phase 8 QA obligation**: Error Coverage Matrix (§11) row for `BC_BAD_ACTIVE_FILTER` removed; `VALIDATION_FAILED` row added referencing new QA-022b. **Phase 9 SDET obligation**: add QA-022b — "`GET /v3/benefitCategories?isActive=foo` → HTTP 200 + `VALIDATION_FAILED` code with field path `isActive`". **Phase 10 Developer obligation**: no new error code constant; controller just declares `@RequestParam(required=false) Boolean isActive` and lets Spring's converter throw. **Confidence**: C6 — user decision; reuses existing platform pattern; no new code footprint. | User choice c on Phase 8 Q8-03 | Phase 8→8b | 2026-04-18 |
+
+### Constraint Amendments (2026-04-18 — Phase 8 resolution)
+
+- **C-40 (NEW)**: `BenefitCategoryUpdateRequest.slabIds` MUST carry `@Size(min=1)` (not just `@NotNull`) — symmetric with CreateRequest (per D-46). Enforced at Bean Validation layer before service logic runs.
+
+### Superseded Assumptions
+
+- **A8-01 (Phase 8 QA C5 assumption — "empty slabIds on PUT permitted")**: SUPERSEDED by D-46. No longer a soft assumption; Designer §F.8 amended; QA-032 expectation flipped from "200 state change" to "400 Bean Validation reject".
+
+### Promoted Assumptions
+
+- **A8-02 (Phase 8 QA C5 assumption — "name uniqueness case-sensitive")**: PROMOTED to D-47 (C6 decision) via user confirmation. No code change — DAO query already byte-comparison; DDL index already byte-comparison.
+
+### Downstream Phase Obligations
+
+- **Phase 8b Business Test Gen**: map all 79 scenarios (77 original + QA-004b case-distinct + QA-022b platform validation) → BT-xx traceability matrix. Use D-46..D-48 as additional hard-constraint inputs alongside D-01..D-45.
+- **Phase 9 SDET RED**: implement 79 scenarios + mapper unit tests + `@Size(min=1)` Bean Validation UT + `VALIDATION_FAILED` platform integration UT.
+- **Phase 10 Developer**: apply `@Size(min=1)` on UpdateRequest.slabIds (single-line change); no new error code constants for `BC_BAD_ACTIVE_FILTER` (D-48).
+- **Phase 11 Reviewer**: amend ADR-009 error taxonomy (strike `BC_BAD_ACTIVE_FILTER`; note platform `VALIDATION_FAILED` used instead).

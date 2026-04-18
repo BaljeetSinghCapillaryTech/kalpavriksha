@@ -911,3 +911,31 @@ All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new con
 **Phase 8b readiness**: PENDING user answers to Q8-01..Q8-03. Recommend resolving questions first to avoid assumption drift in Phase 8b BT-xx traceability matrix.
 
 ---
+
+### Phase 8 — QA Question Resolution — 2026-04-18
+
+**Protocol**: Mandatory question checkpoint after Phase 8 QA (pipeline rule). Orchestrator presented Q8-01..Q8-03 with evidence-gathered options + recommendations. User answered batched `Q8-01: b, Q8-02: a, Q8-03: c`.
+
+**User Decisions**:
+| Q# | Answer | Decision | Match with Reco | Amendments |
+|----|--------|----------|-----------------|------------|
+| Q8-01 | b (reject empty slabIds 400) | **D-46** | ✅ Matched | Designer §F.8 `@Size(min=1)`, QA-032 behaviour flipped |
+| Q8-02 | a (case-sensitive) | **D-47** | ⚠ **OVERRIDE** (reco was b) | Zero code change; QA-004 note + QA-004b added for SDET |
+| Q8-03 | c (platform VALIDATION_FAILED) | **D-48** | ✅ Matched | ADR-009 amendment deferred to Phase 11; QA-022b seeded for SDET |
+
+**Artifacts amended**:
+- `03-designer.md` → §A.3 row 23, §F.8 UpdateRequest with `@Size(min=1)` + D-46 comment, §19 NEW (Post-QA Amendments D-46..D-48)
+- `04-qa.md` → QA-004 case-sensitivity note + QA-004b trigger for SDET, QA-032 expectation flipped (P1→P0, 200 → 400/VALIDATION_FAILED), §11 Error Coverage Matrix (BC_BAD_ACTIVE_FILTER → VALIDATION_FAILED row referencing QA-022b), §13 NEW Post-QA Amendments section
+- `session-memory.md` → D-46/D-47/D-48 Key Decisions rows + C-40 NEW constraint + A8-01 superseded + A8-02 promoted to D-47
+- `approach-log.md` → Phase 8 QA Question Resolutions section with 3 full Q&A records (evidence, options, reco, user answer, override flag on Q8-02, decision ID, amendments)
+- `pipeline-state.json` → "8-resolved" sub-phase block
+- `live-dashboard.html` → Q8 resolution table + amendment subsection + stats (48 decisions)
+
+**Scenario count update**: 77 → **79** (+QA-004b +QA-022b)
+**Priority distribution update**: 48 P0 · 23 P1 · 8 P2
+
+**Git snapshot**: `aidlc/CAP-185145/phase-08-resolved`
+
+**Phase 8b readiness**: FULLY UNBLOCKED — all QA questions resolved, all assumptions either promoted to decisions (A8-02 → D-47) or superseded (A8-01). Phase 8b Business Test Gen can now map 79 scenarios → BT-xx traceability matrix with D-46..D-48 as additional hard-constraint inputs.
+
+---

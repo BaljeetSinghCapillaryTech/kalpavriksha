@@ -834,3 +834,118 @@ _(If user chose [A] Accept during Phase 11 findings routing, logged here with re
 
 | # | Finding | User Reasoning | Phase |
 |---|---------|----------------|-------|
+
+## Phase 8 QA Question Resolutions (2026-04-18)
+
+Protocol: Phase 8 QA subagent produced 77 scenarios + 3 open questions (Q8-01..Q8-03) + 4 C5+ assumptions (A8-01..A8-04). Orchestrator presented the 3 questions with evidence-gathered options and recommendations. User answered in batch `Q8-01: b, Q8-02: a, Q8-03: c`.
+
+---
+
+### Q8-01 — Empty slabIds on PUT: allowed (clears mappings) or rejected with 400?
+
+**Evidence gathered**:
+- Designer §F.8 `BenefitCategoryUpdateRequest.slabIds` annotated `@NotNull` without `@Size(min=1)` (asymmetric with CreateRequest which has `@Size(min=1)`)
+- BA/PRD do not explicitly call out "category must have ≥1 slab" invariant
+- D-35 (HLD) diff-and-apply behaviour would technically permit "diff to empty set → soft-delete all"
+- QA-032 was originally written to document the permissive behaviour
+
+**Options presented**:
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| a | Allow empty (current DTO annotations) | Admin can temporarily zero out a category | A category with 0 slabs is semantically meaningless; divergent from Create |
+| b | Reject 400 (add `@Size(min=1)`) | Symmetric with Create; enforces invariant | Admin cannot "clear slabs" via PUT — must use `PATCH /deactivate` |
+| c | Reject 409 (`BC_EMPTY_MAPPING` code) | Explicit business rule violation | Yet another error code; adds complexity |
+
+**Orchestrator recommendation**: **(b) Reject 400** — semantic integrity + validation symmetry + simpler service logic.
+
+**User answer**: **b — Reject with 400** ✅ Matches recommendation.
+
+**Decision ID**: **D-46**
+
+**Amendments applied**:
+- `03-designer.md` §A.3 row 23 — annotation updated to `@NotNull @Size(min=1)` on UpdateRequest.slabIds
+- `03-designer.md` §F.8 — code block updated with `@Size(min=1)` and D-46 comment
+- `03-designer.md` §19.1 — new subsection documenting D-46
+- `04-qa.md` QA-032 — expected behaviour flipped from "200 state change" to "HTTP 200 + VALIDATION_FAILED envelope" (platform quirk OQ-45); priority bumped P1 → P0
+- Session memory — C-40 (NEW) added as constraint; A8-01 superseded
+
+---
+
+### Q8-02 — Name uniqueness: case-sensitive or case-insensitive?
+
+**Evidence gathered**:
+- Designer A7-06 (C5 assumption): case-sensitive; no `LOWER()` wrapper in DAO query
+- Current query: `findActiveByNameAndOrgAndProgram(orgId, programId, name)` uses `name = ?`
+- Unique index on `benefit_categories (org_id, program_id, name)` is byte-comparison (default MySQL collation)
+- BA/PRD user stories do not specify casing convention for category names
+- Aurora/MySQL functional index on `LOWER(name)` requires version check (Q4/D-40 deferred)
+
+**Options presented**:
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| a | Case-sensitive (current) | Zero code change; matches Designer; defers Aurora version check | "VIP" vs "vip" subtle dupes possible — admin UX friction |
+| b | Case-insensitive (LOWER wrapper) | Cleaner admin UX; prevents confusion | Requires DDL change (`ALTER TABLE ... LOWER(name)` index); Aurora version check needed; larger scope |
+
+**Orchestrator recommendation**: **(b) Case-insensitive** — admin UX priority for user-facing names.
+
+**User answer**: **a — Case-sensitive** ⚠ **OVERRIDE of orchestrator recommendation b**.
+
+**Inferred rationale (user did not state)**:
+- Backward compatibility with loyalty platform byte-comparison convention across the codebase
+- Keeps ticket scope narrow (no DDL, no Aurora version dependency)
+- If case-insensitivity becomes a product requirement post-GA, forward migration (ALTER INDEX + backfill-dedupe) is straightforward
+- Loyalty admins are typically more disciplined with their naming than generic CRUD consumers
+
+**Decision ID**: **D-47**
+
+**Amendments applied**:
+- `03-designer.md` §19.2 — new subsection documenting D-47 (user override)
+- `04-qa.md` QA-004 — case-sensitivity note added; SDET triggered to add QA-004b (case-distinct dup succeeds 201)
+- Session memory — A8-02 promoted from C5 assumption to C6 decision D-47
+- No code changes needed — DAO query and index already case-sensitive
+
+**Revisit trigger** (logged in session memory): if admin support team raises ≥1 "subtle-case duplicate name" ticket post-GA, migrate to case-insensitive index in a follow-up ticket.
+
+---
+
+### Q8-03 — Error code for `?isActive=foo` invalid filter value?
+
+**Evidence gathered**:
+- A7-07 (Designer C5 assumption): HTTP 400 with `BC_BAD_ACTIVE_FILTER` code — but the exact string was never confirmed
+- ADR-009 (HLD error taxonomy): no row for this scenario
+- `TargetGroupErrorAdvice` platform exception handler exists and maps `MethodArgumentTypeMismatchException` → `VALIDATION_FAILED` envelope
+- Spring MVC's `@RequestParam` boolean coercion throws `MethodArgumentTypeMismatchException` for non-`true`/`false` values
+
+**Options presented**:
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| a | `BC_BAD_ACTIVE_FILTER` (bespoke) | Descriptive, follows BC_* convention | Yet another error constant; YAGNI |
+| b | `BC_INVALID_QUERY_PARAM` (generic) | Reusable for future filters | Still bespoke; no current reuse need |
+| c | Platform `VALIDATION_FAILED` (reuse `TargetGroupErrorAdvice`) | No new code; leverages existing infra | Error code less descriptive |
+
+**Orchestrator recommendation**: **(c) Reuse platform `VALIDATION_FAILED`** — YAGNI; only one filter, one failure mode.
+
+**User answer**: **c — Platform `VALIDATION_FAILED`** ✅ Matches recommendation.
+
+**Decision ID**: **D-48**
+
+**Amendments applied**:
+- `03-designer.md` §19.3 — new subsection documenting D-48
+- `03-designer.md` §E (error taxonomy) — Phase 11 Reviewer task to strike `BC_BAD_ACTIVE_FILTER`; note platform `VALIDATION_FAILED` used
+- `04-qa.md` §11 Error Coverage Matrix — `BC_BAD_ACTIVE_FILTER` row replaced with `VALIDATION_FAILED` row referencing QA-022b
+- `04-qa.md` §13 — new QA-022b scenario ("?isActive=foo → VALIDATION_FAILED") seeded for SDET Phase 9
+- ADR-009 amendment deferred to Phase 11 Reviewer per standard pipeline protocol
+- Phase 10 Developer: no new error code constant needed; controller declares `@RequestParam(required=false) Boolean isActive` and lets Spring converter throw
+
+---
+
+### Summary
+
+| Q# | Answer | Decision | Match Reco? |
+|----|--------|----------|-------------|
+| Q8-01 | b | D-46 | ✅ Matched |
+| Q8-02 | a | D-47 | ⚠ Override |
+| Q8-03 | c | D-48 | ✅ Matched |
+
+**Impact on scenario count**: 77 → **79** (added QA-004b case-distinct dup, QA-022b platform validation).
+**Impact on priority distribution**: 47 P0 → **48 P0** (QA-032 bumped P1→P0); 23 P1 → **23 P1** (QA-032 out, QA-004b in); 7 P2 → **8 P2** (QA-022b added).

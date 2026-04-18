@@ -77,7 +77,7 @@ Full type list, grouped by repo → layer. Types flagged **[NEW]** are created i
 | # | Type | Status | Key annotations |
 |---|------|--------|-----------------|
 | 22 | `BenefitCategoryCreateRequest` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `@JsonIgnoreProperties(ignoreUnknown=true)` ; fields carry Bean Validation: `@NotNull` `programId`, `@NotBlank @Size(max=255)` `name`, `@NotNull @Size(min=1) List<@NotNull @Positive Integer> slabIds`. |
-| 23 | `BenefitCategoryUpdateRequest` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `@NotBlank @Size(max=255)` `name`, `@NotNull List<@NotNull @Positive Integer> slabIds` (empty list permitted → clears all mappings). |
+| 23 | `BenefitCategoryUpdateRequest` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `@NotBlank @Size(max=255)` `name`, `@NotNull @Size(min=1) List<@NotNull @Positive Integer> slabIds` (empty list rejected 400 per **D-46** — symmetric with CreateRequest). |
 | 24 | `BenefitCategoryResponse` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; Jackson `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone="UTC")` on `createdOn` / `updatedOn` (ADR-008 / G-01.6). |
 | 25 | `BenefitCategoryListPayload` | [NEW] | `@Getter @Setter` (Lombok — D-44) ; `{ data: List<BenefitCategoryResponse>, page, size, total }` — inside `ResponseWrapper.data` (Q7-05 assumption C5). |
 
@@ -1087,8 +1087,10 @@ public class BenefitCategoryCreateRequest {
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BenefitCategoryUpdateRequest {
     @NotBlank @Size(max = 255)              private String name;
-    @NotNull                                private List<@NotNull @Positive Integer> slabIds;
-    // Empty list permissible → clears all mappings.
+    @NotNull @Size(min = 1)                 private List<@NotNull @Positive Integer> slabIds;
+    // D-46 (Q8-01=b): Empty list rejected at Bean Validation → HTTP 200 + VALIDATION_FAILED
+    // envelope. Symmetric with CreateRequest. Admin wanting to "clear all slabs" must
+    // PATCH /deactivate instead.
 }
 
 @Getter @Setter
@@ -1452,4 +1454,45 @@ categories return 200 with `isActive=false` in the response. The audit path is r
 
 ---
 
-**End of Designer (Phase 7) — CAP-185145.**
+## 19. Post-QA Amendments — Phase 8 Question Resolutions (2026-04-18)
+
+This section records decisions that originated in Phase 8 QA but mutated Designer §F.8 and/or §D (error taxonomy). **§19 wins on any divergence with §F.8 or §E.**
+
+### 19.1 D-46 — `BenefitCategoryUpdateRequest.slabIds` requires `@Size(min=1)` (Q8-01=b)
+
+- **Before**: `@NotNull` only — empty list permitted, clearing all mappings on PUT.
+- **After**: `@NotNull @Size(min=1)` — symmetric with CreateRequest.
+- **Rationale**: A benefit category with zero active slab mappings is semantically meaningless; empty `slabIds:[]` rejected at Bean Validation (HTTP 200 + `VALIDATION_FAILED` envelope per platform quirk OQ-45). Admin wanting to "clear all slabs" must `PATCH /deactivate` the entire category instead.
+- **Artifact change**: §A.3 row 23 updated; §F.8 `BenefitCategoryUpdateRequest` updated; §B.4 update flow remains — just no longer needs to handle the empty-list edge case in service layer.
+- **Phase 9 SDET obligation**: unit test for `@Size(min=1)` on UpdateRequest; amended QA-032 expects 400 (HTTP 200 + envelope).
+
+### 19.2 D-47 — Name uniqueness is CASE-SENSITIVE (Q8-02=a — **USER OVERRIDE**)
+
+- **User override of orchestrator recommendation B** (case-insensitive).
+- **Rationale**: preserves backward compat with loyalty platform byte-comparison convention; admins can disambiguate via casing if ever needed; avoids a DDL change to add `LOWER()` functional index.
+- **Designer code impact**: **zero** — DAO query `findActiveByNameAndOrgAndProgram(orgId, programId, name)` already uses `name = ?` without `LOWER()`. Unique index `(org_id, program_id, name)` on `benefit_categories` table remains byte-comparison.
+- **Promotes A8-02 (C5 assumption) → D-47 (C6 decision)**.
+- **Phase 9 SDET obligation**: add **QA-004b** scenario — `POST` with `name:"gold tier"` succeeds 201 when `"Gold Tier"` already exists active (proves case-distinct dup allowed).
+
+### 19.3 D-48 — `?isActive=foo` uses platform `VALIDATION_FAILED`, no bespoke code (Q8-03=c)
+
+- **Error taxonomy change in §E**: strike `BC_BAD_ACTIVE_FILTER`; replace with row "`VALIDATION_FAILED` (platform standard) — invalid `@RequestParam` type coercion via `TargetGroupErrorAdvice`".
+- **Rationale**: YAGNI; only one filter param with one failure mode; platform already handles it.
+- **ADR-009 obligation**: Phase 11 Reviewer to amend ADR-009 error taxonomy accordingly; Phase 10 Developer adds no new error code constant.
+- **Phase 9 SDET obligation**: add **QA-022b** scenario — `GET /v3/benefitCategories?isActive=foo` → HTTP 200 + `VALIDATION_FAILED` envelope with field path.
+
+### 19.4 Summary of decisions added in Phase 8 resolution
+
+| Decision | Source question | User answer | Match with Orchestrator recommendation? | Artifact mutated |
+|----------|-----------------|-------------|------------------------------------------|------------------|
+| D-46 | Q8-01 | b (reject empty slabIds on PUT with 400) | ✅ Match | §A.3 row 23, §F.8 |
+| D-47 | Q8-02 | a (case-sensitive) | ⚠ **Override** (orchestrator recommended b) | None (already the case); doc note only |
+| D-48 | Q8-03 | c (platform `VALIDATION_FAILED`) | ✅ Match | §E (error taxonomy); ADR-009 downstream |
+
+### 19.5 RED-phase readiness after §19
+
+**Readiness**: `true`. Amendments preserve compile-safety. SDET Phase 9 inputs now include 79 QA scenarios (77 original + QA-004b case-distinct + QA-022b platform validation).
+
+---
+
+**End of Designer (Phase 7) — CAP-185145** (Amended Phase 7 Post-LLD §18 and Phase 8 Post-QA §19.)
