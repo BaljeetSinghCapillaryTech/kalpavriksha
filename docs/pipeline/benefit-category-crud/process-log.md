@@ -939,3 +939,105 @@ All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new con
 **Phase 8b readiness**: FULLY UNBLOCKED — all QA questions resolved, all assumptions either promoted to decisions (A8-02 → D-47) or superseded (A8-01). Phase 8b Business Test Gen can now map 79 scenarios → BT-xx traceability matrix with D-46..D-48 as additional hard-constraint inputs.
 
 ---
+
+### Phase 8b: Business Test Generation — 2026-04-18
+
+**Command**: `continue` (after Phase 8-resolved pause prompt)
+**Skill**: `/business-test-gen`
+**Mode**: Subagent (general-purpose, sonnet)
+**Artifact**: `04b-business-tests.md` (1,618 lines, 86 KB, 7 sections + 7 Mermaid diagrams appended at post-phase enrichment)
+
+#### Inputs Consumed
+
+- **`session-memory.md`** — 48 decisions (D-01..D-48), 16 frozen ADRs, 6 guardrails, constraints C-01..C-40
+- **`00-ba.md` + `00-ba-machine.md`** — Epic E2, 4 in-scope ACs (AC-BC01'..12)
+- **`brdQnA.md`** — product clarifications
+- **`03-designer.md`** (inc. §18 + §19) — compile-safe signatures for 17 patterns, 7 error codes
+- **`04-qa.md`** (inc. §13 amendments) — 79 scenarios (77 + QA-004b + QA-022b)
+- **`01-architect.md`** — 13 ADRs
+- **`GUARDRAILS.md`** — G-01, G-05, G-07, G-10 (+ sub-guardrails G-01.7, G-05.2, G-07.4, G-10.5)
+
+#### Output — BT Count Breakdown
+
+| Dimension | Count | Detail |
+|---|---|---|
+| **Total BTs** | **107** | 101 numbered + 6 BT-G guardrail |
+| Unit Tests | 28 | Bean Validation + mapper + ArchUnit structural |
+| Integration Tests | 73 | Testcontainers MySQL for all HTTP/DB/Thrift |
+| Compliance (ArchUnit) | 6 | BT-G01a, BT-G01b, BT-G05, BT-G07a, BT-G07b, BT-G10 |
+| P0 (smoke) | 52 | Must pass in CI |
+| P1 (regression) | 33 | Nightly |
+| P2 (edge / compliance) | 22 | Weekly |
+
+#### Coverage Verification — 100% All Dimensions
+
+| Dimension | Covered / Total |
+|---|---|
+| In-scope ACs | 4 / 4 |
+| Error codes (11 distinct incl. VALIDATION_FAILED) | 11 / 11 |
+| ADRs (ADR-001..013) | 13 / 13 |
+| Frozen Decisions (D-33..D-48) | 16 / 16 |
+| Guardrails (G-01, G-05, G-07, G-10) | 4 / 4 |
+| QA Scenarios (QA-001..077 + 004b + 022b) | 79 / 79 |
+
+#### Mandatory Decision Coverage
+
+| Decision | Required BT(s) | Status |
+|---|---|---|
+| D-47 (case-sensitive) | BT-004b (case-distinct → 201) | ✅ |
+| D-48 (VALIDATION_FAILED) | BT-022b (`?isActive=foo`) | ✅ |
+| D-46 (`@Size(min=1)`) | BT-032 (IT empty → 400) + BT-101 (UT Bean Validation) | ✅ |
+| D-42 (includeInactive) | BT-017 (404 default) + BT-018 (200 audit) | ✅ |
+| D-39 + D-43 (asymmetric activate) | BT-047 (200+DTO) + BT-048 (204) | ✅ |
+| D-35 (diff-apply) | BT-029 (add) + BT-030 (remove) + BT-031 (replace) + BT-033 (re-add INSERT) | ✅ |
+
+#### New Decisions Recorded (test strategy)
+
+| # | Decision | Confidence |
+|---|---|---|
+| `test-01` | 28 UTs (Bean Validation + mapper + ArchUnit) + 73 ITs (Testcontainers MySQL) | C6 |
+| `test-02` | D-43 stateChanged tested via BT-047 (true → 200+DTO) + BT-048 (false → 204) independently | C6 |
+| `test-03` | D-47 case-sensitive — BT-004b mandatory alongside BT-004 collision | C6 |
+
+#### New Open Questions (C4 — non-blocking for Phase 9)
+
+- **Q-BT-01**: Does emf-parent IT harness support direct Thrift embedded server for BT-067? If not, BT-067 implemented as REST→DB end-to-end IT without direct Thrift assertion. Fallback plan documented.
+- **Q-BT-02**: Timezone test isolation — confirm `TimeZone.setDefault()` in BT-G01b runs single-threaded. JUnit 5 parallel or Surefire fork-per-test may be required. SDET can default to fork-per-test if uncertain.
+
+#### Assumptions Made (C5+)
+
+- **A-BT-01** C6: `BenefitCategoryResponseMapper` is the mapper under test (per D-45). No fallback.
+- **A-BT-02** C6: Testcontainers MySQL matches production Aurora MySQL 5.7 behavior (D-40 deferred version confirmation does not block IT assertions).
+- **A-BT-03** C5: `TargetGroupErrorAdvice` platform handler is reused for `VALIDATION_FAILED` (D-48) — BT-022b asserts the platform envelope shape.
+- **A-BT-04** C6: JUnit 4 assumed (per emf-parent + intouch-api-v3 project conventions).
+- **A-BT-05** C6: UpdateRequest has NO `isActive` field (per D-34 — state change only via `/activate`/`/deactivate`). BT-094 verifies this structurally.
+
+#### Resolved (from prior phases)
+
+- [x] Q8-01 → D-46 → BT-032 asserts 400 Bean Validation failure
+- [x] Q8-02 → D-47 → BT-004b added for case-distinct permitted
+- [x] Q8-03 → D-48 → BT-022b added for VALIDATION_FAILED envelope
+
+#### Downstream Phase Obligations
+
+- **Phase 9 SDET RED**: implement ALL 107 BTs as JUnit 4 methods. UTs no Spring context; ITs Testcontainers MySQL. Priority order P0 → P1 → P2 per §6 of `04b-business-tests.md`. All assertions RED-first; `mvn compile` PASS, `mvn test` FAIL.
+- **Phase 10 Developer GREEN**: make all 107 RED tests pass; no new tests unless gap discovered.
+- **Phase 11 Reviewer**: verify BT → QA → Designer → BA traceability closure; BT-G must have explicit assertion evidence.
+
+#### Post-phase Enrichment
+
+- **Step A — Mermaid diagrams appended to `04b-business-tests.md`**: D1 priority pie, D2 layer split pie, D3 BT-by-operation flowchart, D4 traceability chain, D5 decision→BT mapping, D6 execution order, D7 coverage completeness.
+- **Step B — `live-dashboard.html` updated**: Phase 8b section populated (BT counts, coverage, mandatory decisions, new decisions, open questions, downstream obligations); stats bar bumped to 10/19 phases, 23 artifacts, 51 decisions, 107 BTs; sidebar Phase 8b marked complete, Phase 9 marked active.
+- **Step C — Confluence**: not configured (`confluence.configured = false`); skipped.
+
+#### Session Memory Updates
+
+- New Key Decisions appended: test-01, test-02, test-03
+- New Open Questions appended: Q-BT-01, Q-BT-02
+- Resolved checklist updated: Q8-01..Q8-03 confirmed (via D-46..D-48 anchoring in BT-032, BT-004b, BT-022b)
+
+**Git snapshot**: `aidlc/CAP-185145/phase-08b`
+
+**Phase 9 readiness**: UNBLOCKED — 107 BTs are the authoritative input corpus for SDET RED. All coverage dimensions 100%. 2 open questions (Q-BT-01 Thrift harness, Q-BT-02 timezone isolation) surfaced but non-blocking — SDET has documented fallback paths.
+
+---

@@ -490,3 +490,83 @@ User answered all 5 Designer open questions as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A
 - **Phase 9 SDET RED**: implement 79 scenarios + mapper unit tests + `@Size(min=1)` Bean Validation UT + `VALIDATION_FAILED` platform integration UT.
 - **Phase 10 Developer**: apply `@Size(min=1)` on UpdateRequest.slabIds (single-line change); no new error code constants for `BC_BAD_ACTIVE_FILTER` (D-48).
 - **Phase 11 Reviewer**: amend ADR-009 error taxonomy (strike `BC_BAD_ACTIVE_FILTER`; note platform `VALIDATION_FAILED` used instead).
+
+---
+
+## Business Test Gen Phase 8b — Additions
+
+**Phase 8b Artifact**: `04b-business-tests.md` (101 BT cases + 6 guardrail BT-G tests; 7 sections; full traceability matrix BA→Designer→QA→BT).
+
+### Summary Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total BT cases | 101 (BT-001..BT-101) + 6 guardrail (BT-G01a, BT-G01b, BT-G05, BT-G07a, BT-G07b, BT-G10) |
+| Unit Tests (UT) | 28 — Bean Validation, mapper, ArchUnit structural checks |
+| Integration Tests (IT) | 73 — HTTP/DB/Thrift flows with Testcontainers |
+| P0 (smoke) | 52 |
+| P1 (regression) | 33 |
+| P2 (edge/compliance) | 16 |
+
+### BT Case Ranges by Operation
+
+| Operation | BT Range | Count |
+|-----------|----------|-------|
+| CREATE | BT-001..BT-013 | 13 |
+| GET-BY-ID | BT-014..BT-019 | 6 |
+| LIST | BT-020..BT-027 + BT-022b | 9 |
+| UPDATE | BT-028..BT-041 | 14 |
+| ACTIVATE | BT-042..BT-050 | 9 |
+| DEACTIVATE | BT-051..BT-056 | 6 |
+| EDGE CASES | BT-057..BT-063 | 7 |
+| INTEGRATION (cross-boundary) | BT-064..BT-079 | 16 |
+| COMPLIANCE (ADR/Decision/Guardrail) | BT-080..BT-101 + BT-G01a/b/G05/G07a/b/G10 | 22+6=28 |
+
+### New Key Decisions (test strategy)
+
+| # | Decision | Rationale | Phase | Date |
+|---|----------|-----------|-------|------|
+| test-01 | **Business test classification: 28 UTs for pure logic + 73 ITs for all HTTP/DB/Thrift interactions**. UTs cover Bean Validation (field-level constraints, null/size guards), mapper (`BenefitCategoryResponseMapper` — millis↔UTC string, Thrift→REST, REST→Thrift), and ArchUnit structural checks (`@Transactional(warehouse)` + `orgId` parameter convention). ITs use Testcontainers for all DB + Thrift assertions. | Platform Thrift RPC chain requires a real MySQL container for meaningful integration assertions. Testcontainers mandatory per G-11.3. Pure logic in mapper/validators is test-free without container overhead. | Phase 8b | 2026-04-18 |
+| test-02 | **D-43 stateChanged sentinel — tested in BT-047 and BT-048 independently**. BT-047 asserts `stateChanged=true` path: `PATCH /activate` on inactive category → 200 + full DTO. BT-048 asserts `stateChanged=false` path: `PATCH /activate` on already-active category → 204 No Content with empty body. Facade `Optional.empty()` branch must be tested separately from Thrift struct field inspection. | The two branches exercise structurally different code paths: one returns a populated DTO, the other returns empty. A single happy-path test would leave the idempotency branch unexercised at the IT level. | Phase 8b | 2026-04-18 |
+| test-03 | **D-47 case-sensitive uniqueness — BT-004b added as explicit mandatory case alongside BT-004 (collision)**. BT-004 asserts POST with existing `name="Gold Tier"` in same program → 409. BT-004b asserts POST with `name="gold tier"` when `"Gold Tier"` already active in same program → 201 Created. These are distinct test cases with opposite expected outcomes. | Case-sensitive uniqueness (D-47, user override) allows casing variants to coexist; a test asserting only collision would leave this user override unvalidated. BT-004b is the only test that proves the byte-comparison semantics are operative. | Phase 8b | 2026-04-18 |
+
+### Coverage Verification (all dimensions 100%)
+
+| Coverage Dimension | Covered | Total |
+|--------------------|---------|-------|
+| In-scope ACs (AC-BC01'..AC-BC12) | 4 | 4 |
+| Error codes (BC_NAME_TAKEN_ACTIVE, BC_CROSS_PROGRAM_SLAB, BC_UNKNOWN_SLAB, BC_INACTIVE_WRITE_FORBIDDEN, BC_NAME_TAKEN_ON_REACTIVATE, BC_NOT_FOUND, BC_PAGE_SIZE_EXCEEDED, VALIDATION_FAILED, BC_DEACTIVATED_ALREADY, BC_ACTIVATED_ALREADY, server error) | 11 | 11 |
+| ADRs (ADR-001..ADR-013) | 13 | 13 |
+| Frozen Decisions (D-33..D-48) | 16 | 16 |
+| Guardrails (G-01/G-05/G-07/G-10) | 4 | 4 |
+| QA Scenarios (QA-001..QA-077 + QA-004b + QA-022b) | 79 | 79 |
+
+### Mandatory Coverage (Critical Rules from SKILL.md — all satisfied)
+
+| Decision | Mandatory BT | Status |
+|----------|-------------|--------|
+| D-47 (case-sensitive uniqueness) | BT-004b — case-distinct name POST succeeds when other casing active | COVERED |
+| D-48 (VALIDATION_FAILED for bad isActive) | BT-022b — `?isActive=foo` → HTTP 200 + VALIDATION_FAILED | COVERED |
+| D-46 (UpdateRequest.slabIds @Size(min=1)) | BT-032 (IT: empty list → 400) + BT-101 (UT: Bean Validation constraint) | COVERED |
+| D-42 (includeInactive paths) | BT-017 (active-only default → 404 on inactive) + BT-018 (includeInactive=true → 200+inactive DTO) | COVERED |
+| D-39 + D-43 (asymmetric activate) | BT-047 (stateChanged=true → 200+DTO) + BT-048 (stateChanged=false → 204) | COVERED |
+| D-35 (diff-apply cases) | BT-029 (add new slabs), BT-030 (remove slabs), BT-031 (replace full set), BT-033 (re-add previously removed = INSERT not reactivate) | COVERED |
+
+### New Open Questions
+
+- [ ] Q-BT-01: Does emf-parent IT harness support direct Thrift embedded server for BT-067 (Thrift contract roundtrip test)? If not, BT-067 must be implemented as a REST-to-DB end-to-end IT without direct Thrift assertion. _(Business Test Gen)_
+- [ ] Q-BT-02: Timezone test isolation — confirm `TimeZone.setDefault()` calls in BT-G01b (IST timezone shift) run in a single-threaded context to avoid polluting parallel test threads. JUnit 5 parallel execution or Surefire fork-per-test may be required for isolation. _(Business Test Gen)_
+
+### Resolved Questions
+
+- [x] **Q8-01 (D-46)**: Empty `slabIds` on PUT rejected → BT-032 asserts 400 Bean Validation failure. _(resolved entering Phase 8b)_
+- [x] **Q8-02 (D-47)**: Case-sensitive name uniqueness → BT-004b added (case-distinct name permitted). _(resolved entering Phase 8b)_
+- [x] **Q8-03 (D-48)**: `VALIDATION_FAILED` for bad `isActive` filter → BT-022b added. _(resolved entering Phase 8b)_
+
+### Downstream Phase Obligations
+
+- **Phase 9 SDET RED**: Implement ALL 107 BT cases (101 numbered + 6 BT-G) as JUnit 4 test methods. Write all as RED-first (assertions before production code). UTs run without Spring context; ITs use Testcontainers for MySQL. Priority execution order: P0 (52) → P1 (33) → P2 (16) per §6 Priority Summary in `04b-business-tests.md`.
+- **Phase 10 Developer GREEN**: Make all 107 RED tests pass. No extra tests unless gap found during implementation.
+- **Phase 11 Reviewer**: Verify BT→QA→Designer→BA traceability closure. Check BT-G guardrail tests have explicit assertion evidence.
+
+**Phase 8b Confidence**: C6 — 100% coverage on all 6 dimensions verified mechanically; all 79 QA scenarios traced to BT; all 6 SKILL.md critical rules satisfied with named BT IDs.

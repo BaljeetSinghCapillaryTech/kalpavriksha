@@ -144,13 +144,13 @@
         <a class="nav-link complete" href="#phase-3"><span>3. UI Extraction (skipped)</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-4"><span>4. Blocker Resolution</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-5"><span>5. Codebase Research</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-6"><span>6. Architecture (HLD)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6a"><span>6a. Impact Analysis</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-6b"><span>6b. Migration Planning</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-7"><span>7. Designer (LLD)</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-7"><span>7. Designer (LLD)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
@@ -185,21 +185,21 @@
           <div class="segment complete" title="Phase 3 — skipped"></div>
           <div class="segment complete"></div>
           <div class="segment complete"></div>
+          <div class="segment complete"></div>
           <div class="segment active"></div>
-          <div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">9</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA Qs resolved</span>
-          <span><span class="stat-value">22</span> artifacts generated</span>
-          <span><span class="stat-value">48</span> decisions made &middot; 17 patterns P-01..P-17</span>
+          <span><span class="stat-value">10</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA Qs resolved + Business Tests</span>
+          <span><span class="stat-value">23</span> artifacts generated</span>
+          <span><span class="stat-value">51</span> decisions made &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy (test-01..03)</span>
           <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD; ADR-009 pending Phase 11)</span>
-          <span><span class="stat-value">79</span> QA scenarios (48 P0 · 23 P1 · 8 P2) &middot; all open Qs resolved</span>
-          <span><span class="stat-value">27</span> new types + 8 modified — LLD compile-safe (mapper added)</span>
-          <span><span class="stat-value">0</span> code files written (RED phase next)</span>
+          <span><span class="stat-value">107</span> Business Tests (28 UT · 73 IT · 6 BT-G) · 100% coverage · all dims closed</span>
+          <span><span class="stat-value">79</span> QA scenarios → 107 BTs (52 P0 · 33 P1 · 22 P2)</span>
+          <span><span class="stat-value">0</span> code files written (Phase 9 SDET RED next)</span>
         </div>
       </header>
 
@@ -1520,7 +1520,152 @@ flowchart TB
         <p class="phase-time">🏷️ Git snapshots: <code>aidlc/CAP-185145/phase-08</code> · <code>aidlc/CAP-185145/phase-08-resolved</code></p>
       </section>
       <section class="phase-section" id="phase-8b">
-        <h2>Phase 8b: Business Test Generation <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 8b: Business Test Generation <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18 &middot; Subagent: general-purpose (sonnet) &middot; Skill: /business-test-gen</p>
+        <span class="skill-tag">/business-test-gen</span>
+        <p>Mapped 79 QA scenarios + 4 in-scope ACs + 16 frozen decisions + 13 ADRs + 4 guardrails into <strong>107 executable Business Tests</strong> (101 numbered + 6 BT-G guardrail) with full BA→Designer→QA→BT traceability. Output: <code>04b-business-tests.md</code> — 1,618 lines, 86 KB, 7 sections. <strong>100% coverage</strong> verified across every dimension. 3 new test-strategy decisions (test-01..test-03). 2 new open questions (Q-BT-01 Thrift embedded server, Q-BT-02 timezone isolation) surfaced at C4 — non-blocking for Phase 9 RED.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">107</div><div class="label">Business Tests</div></div>
+          <div class="key-number"><div class="value">28</div><div class="label">Unit Tests</div></div>
+          <div class="key-number"><div class="value">73</div><div class="label">Integration Tests</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">BT-G Guardrail</div></div>
+          <div class="key-number"><div class="value">100%</div><div class="label">Coverage (all dims)</div></div>
+          <div class="key-number"><div class="value">3</div><div class="label">New Decisions</div></div>
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">BT Count by Operation</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Operation</th><th>BT Range</th><th>Count</th><th>Write / Read</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CREATE</td><td><code>BT-001..013</code></td><td>13</td><td>Write</td></tr>
+            <tr><td>GET-BY-ID</td><td><code>BT-014..019</code></td><td>6</td><td>Read</td></tr>
+            <tr><td>LIST</td><td><code>BT-020..027 + BT-022b</code></td><td>9</td><td>Read</td></tr>
+            <tr><td>UPDATE</td><td><code>BT-028..041</code></td><td>14</td><td>Write</td></tr>
+            <tr><td>ACTIVATE</td><td><code>BT-042..050</code></td><td>9</td><td>Write</td></tr>
+            <tr><td>DEACTIVATE</td><td><code>BT-051..056</code></td><td>6</td><td>Write</td></tr>
+            <tr><td>EDGE CASES</td><td><code>BT-057..063</code></td><td>7</td><td>Mixed</td></tr>
+            <tr><td>INTEGRATION (cross-boundary)</td><td><code>BT-064..079</code></td><td>16</td><td>Mixed</td></tr>
+            <tr><td>COMPLIANCE (ADR/Decision)</td><td><code>BT-080..101</code></td><td>22</td><td>Structural</td></tr>
+            <tr><td>GUARDRAIL (G-01/G-05/G-07/G-10)</td><td><code>BT-G01a/b, G05, G07a/b, G10</code></td><td>6</td><td>Structural</td></tr>
+            <tr class="status-ok"><th>TOTAL</th><th>—</th><th>107</th><th>—</th></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Coverage Verification (100% all dimensions)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Dimension</th><th>Covered</th><th>Total</th><th>Gap</th></tr>
+          </thead>
+          <tbody>
+            <tr class="status-ok"><td>In-scope Acceptance Criteria (AC-BC01'..12)</td><td>4</td><td>4</td><td>0</td></tr>
+            <tr class="status-ok"><td>Error Codes (BC_* + VALIDATION_FAILED + server)</td><td>11</td><td>11</td><td>0</td></tr>
+            <tr class="status-ok"><td>ADRs (ADR-001..013)</td><td>13</td><td>13</td><td>0</td></tr>
+            <tr class="status-ok"><td>Frozen Decisions (D-33..D-48)</td><td>16</td><td>16</td><td>0</td></tr>
+            <tr class="status-ok"><td>Guardrails (G-01, G-05, G-07, G-10)</td><td>4</td><td>4</td><td>0</td></tr>
+            <tr class="status-ok"><td>QA Scenarios (QA-001..077 + 004b + 022b)</td><td>79</td><td>79</td><td>0</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Mandatory Decision → BT Coverage</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Decision</th><th>Required BT(s)</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>D-47 (case-sensitive name uniqueness)</td><td>BT-004b (case-distinct → 201)</td><td class="status-ok">✅ covered</td></tr>
+            <tr><td>D-48 (VALIDATION_FAILED for bad <code>isActive</code>)</td><td>BT-022b (<code>?isActive=foo</code>)</td><td class="status-ok">✅ covered</td></tr>
+            <tr><td>D-46 (<code>@Size(min=1)</code> on UpdateRequest.slabIds)</td><td>BT-032 (IT empty list → 400) + BT-101 (UT Bean Validation)</td><td class="status-ok">✅ covered</td></tr>
+            <tr><td>D-42 (<code>?includeInactive=true</code> audit path)</td><td>BT-017 (404 active-only default) + BT-018 (200 + inactive DTO)</td><td class="status-ok">✅ covered</td></tr>
+            <tr><td>D-39 + D-43 (asymmetric activate + stateChanged)</td><td>BT-047 (200+DTO) + BT-048 (204 no-op)</td><td class="status-ok">✅ covered</td></tr>
+            <tr><td>D-35 (embedded slabIds diff-apply)</td><td>BT-029 (add), BT-030 (remove), BT-031 (replace), BT-033 (re-add INSERT)</td><td class="status-ok">✅ covered</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">New Decisions Recorded</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Decision</th><th>Confidence</th></tr></thead>
+          <tbody>
+            <tr><td><code>test-01</code></td><td>28 UTs (Bean Validation + mapper + ArchUnit) + 73 ITs (Testcontainers MySQL for all HTTP/DB/Thrift)</td><td>C6</td></tr>
+            <tr><td><code>test-02</code></td><td>D-43 stateChanged sentinel tested independently via BT-047 (true → 200+DTO) and BT-048 (false → 204)</td><td>C6</td></tr>
+            <tr><td><code>test-03</code></td><td>D-47 case-sensitive uniqueness mandates BT-004b (case-distinct succeeds) alongside BT-004 (collision fails)</td><td>C6</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Priority Distribution</h3>
+        <div class="mermaid">
+pie showData title BT Priority Distribution (107 total = 101 numbered + 6 BT-G)
+    "P0 smoke — must pass in CI" : 52
+    "P1 regression — nightly" : 33
+    "P2 edge / compliance — weekly" : 22
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Test Layer Split</h3>
+        <div class="mermaid">
+pie showData title Test Layer Split (107 tests)
+    "Unit Tests — no Spring no DB" : 28
+    "Integration Tests — Testcontainers MySQL" : 73
+    "Compliance / ArchUnit structural" : 6
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">BA → Designer → QA → BT Traceability</h3>
+        <div class="mermaid">
+flowchart LR
+    BA["BA / PRD<br/>Epic E2 + 4 ACs"]
+    HLD["HLD / ADRs<br/>13 ADRs"]
+    DEC["Frozen Decisions<br/>D-33..D-48<br/>16 decisions"]
+    LLD["Designer §F+§18+§19<br/>17 patterns"]
+    QA["QA Scenarios<br/>79 scenarios"]
+    BT["Business Tests<br/>107 BTs · 100% coverage"]
+    SDET["Phase 9 SDET RED<br/>107 JUnit 4 methods"]
+    BA --> HLD
+    BA --> QA
+    HLD --> LLD
+    DEC --> LLD
+    DEC --> QA
+    LLD --> QA
+    QA --> BT
+    DEC --> BT
+    LLD --> BT
+    BT --> SDET
+    classDef req fill:#1a4a7a,stroke:#00d4ff,color:#fff;
+    classDef spec fill:#3a2a6a,stroke:#aa88ff,color:#fff;
+    classDef test fill:#2a5a3a,stroke:#00ff88,color:#fff;
+    classDef code fill:#5a2a2a,stroke:#ff6688,color:#fff;
+    class BA,HLD,DEC req;
+    class LLD,QA spec;
+    class BT test;
+    class SDET code;
+        </div>
+
+        <h3 style="font-size: 14px; color: var(--accent);">New Open Questions (non-blocking for Phase 9)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Question</th><th>Confidence</th><th>Blocks Phase 9?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q-BT-01</td><td>Does emf-parent IT harness support direct Thrift embedded server for BT-067? Fallback: REST→DB end-to-end without direct Thrift assertion.</td><td>C4</td><td class="status-ok">No — BT-067 has fallback plan</td></tr>
+            <tr><td>Q-BT-02</td><td>Timezone test isolation — confirm <code>TimeZone.setDefault()</code> in BT-G01b runs single-threaded (JUnit 5 parallel or Surefire fork-per-test may be required).</td><td>C4</td><td class="status-ok">No — SDET can default to fork-per-test</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Downstream Phase Obligations</h3>
+        <ul>
+          <li><strong>Phase 9 SDET RED</strong>: implement ALL 107 BTs as JUnit 4 methods (UTs no Spring context; ITs Testcontainers MySQL). Execution order: P0 (52) → P1 (33) → P2 (22). All assertions RED-first before skeleton production stubs. <code>mvn compile</code> must PASS; <code>mvn test</code> must FAIL (RED gate).</li>
+          <li><strong>Phase 10 Developer GREEN</strong>: make all 107 RED tests pass. No new tests unless genuine gap discovered during implementation.</li>
+          <li><strong>Phase 11 Reviewer</strong>: verify BT → QA → Designer → BA traceability closure; BT-G guardrail tests must have explicit assertion evidence.</li>
+        </ul>
+
+        <h3 style="font-size: 14px; color: var(--accent);">Artifacts</h3>
+        <ul class="artifact-list">
+          <li>04b-business-tests.md (1,618 lines, 86 KB, 7 sections + 7 Mermaid diagrams)</li>
+          <li>session-memory.md (Business Test Gen Phase 8b — Additions section)</li>
+          <li>process-log.md (Phase 8b entry)</li>
+          <li>pipeline-state.json (phase 8b block)</li>
+        </ul>
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-08b</code></p>
       </section>
       <section class="phase-section" id="phase-9">
         <h2>Phase 9: SDET — RED <span class="phase-badge pending">Pending</span></h2>
