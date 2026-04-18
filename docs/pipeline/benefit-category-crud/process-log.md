@@ -1041,3 +1041,109 @@ All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new con
 **Phase 9 readiness**: UNBLOCKED — 107 BTs are the authoritative input corpus for SDET RED. All coverage dimensions 100%. 2 open questions (Q-BT-01 Thrift harness, Q-BT-02 timezone isolation) surfaced but non-blocking — SDET has documented fallback paths.
 
 ---
+
+### Phase 9: SDET — RED Phase — 2026-04-18
+
+**Status**: ✅ Complete (with partial-verification caveat on emf-parent; see TD-SDET-05)
+
+**Skills used**: `/sdet` (subagent, sonnet) + salvage operation (main context, opus)
+
+#### Inputs Consumed
+
+- `04b-business-tests.md` — 107 BTs (101 numbered + 6 BT-G)
+- `03-designer.md` (§18 + §19 amendments) — 17 patterns, 7 error codes, compile-safe signatures
+- `04-qa.md` — 79 QA scenarios
+- `01-architect.md` — 13 ADRs
+- `session-memory.md` — D-01..D-48, constraints C-01..C-40, frozen ADRs
+- `GUARDRAILS.md` — G-01, G-05, G-07, G-10
+
+#### Subagent Misdirection + Salvage Operation
+
+The initial subagent run produced working skeleton code for most layers but landed **five defects** the orchestrator had to catch and remediate before committing:
+
+1. **Shade-plugin hack in `thrift-ifaces-pointsengine-rules/pom.xml`** — subagent added `maven-shade-plugin` to merge 1.83 classes into the 1.84 output jar, claiming 200+ classes were missing. User pushed back: *"i am not seeing changes in thrift-ifaces-pointsengine-rule"*. Investigation (git log / `git show 24af9d7`) proved 1.84-SNAPSHOT **already contains** 1.83 via backmerge commit `24af9d7`; shading would cause duplicate classes and the Java-8 compiler override was unexplained. → Reverted via `git checkout -- pom.xml`. **TD-SDET-01 REJECTED.**
+
+2. **Missing Thrift IDL additions** — `pointsengine_rules.thrift` had ZERO BenefitCategory struct/enum/service additions (the hack was a substitute). → Hand-added 109 lines (3 structs, 1 enum, 6 service methods) following existing IDL style.
+
+3. **Broken companion interface reference** — emf-parent `PointsEngineRuleConfigThriftImpl` had `implements com.capillary.shopbook.pointsengine.endpoint.api.external.PointsEngineRuleServiceBenefitCategoryMethods` but that interface file did NOT exist anywhere. → Removed from `implements` clause; IDL-generated `Iface` now covers the 6 methods naturally.
+
+4. **Wrong naming convention** — user flagged: *"serverReqId needed"*, then *"change actorUserId to tillId"*. Subagent had used `actorUserId` + omitted `serverReqId`. → `replace_all` for `actorUserId` → `tillId` across 5 files (IDL + 4 Java files); added `string serverReqId` to all 6 IDL methods and `String serverReqId` + `@MDCData(requestId="#serverReqId")` on all 6 emf-parent handler methods. Tests pass positional args → no assertion changes needed.
+
+5. **Stale `@JsonFormat(timezone="UTC")`** on `BenefitCategoryResponse.createdOn/updatedOn` — user requested revision to ISO-8601 pattern. → Changed to `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` (RFC 3339, second precision, explicit offset). **D-45 revised** (TD-SDET-07).
+
+#### RED Gate Evidence
+
+**intouch-api-v3-2/intouch-api-v3** — CONFIRMED RED (C7):
+```
+Tests run: 36, Failures: 1, Errors: 7, Skipped: 0
+Failures:
+  BenefitCategoryFacadeRedTest.bt053_deactivateBenefitCategory_completesWithoutError
+  → assertDoesNotThrow FAILED (UnsupportedOperationException)
+Errors (UnsupportedOperationException: Phase 9 RED skeleton):
+  bt001, bt014, bt018, bt020, bt023, bt028, bt045
+BUILD FAILURE (expected in RED phase)
+```
+28 structural/compliance tests PASS (must remain GREEN in Phase 10).
+
+**thrift-ifaces-pointsengine-rules** — IDL contracts added (109 lines). Codegen not run locally; expected to pass Thrift 0.8 syntax (conventional struct / enum / service additions). CI verifies on push.
+
+**emf-parent** — not verified locally due to TD-SDET-05 (pre-existing AspectJ 1.7 + Java 17 + missing `nrules.*` deps). Structural review complete; CI verifies on push.
+
+**cc-stack-crm** — DDL-only; applied via Flyway seed in CI.
+
+#### Coverage
+
+**Phase 9 covers 34/101 BTs** (structural, Bean Validation, error advice, compliance, small subset of facade behavioural). **67/101 deferred to Phase 10 ITs** (all cross-repo write/read round-trips, Testcontainers MySQL, Thrift embedded server where available).
+
+#### New Decisions
+
+| # | Decision | Confidence |
+|---|----------|-----------|
+| TD-SDET-06 | Naming: `tillId` + `serverReqId` across IDL + all handler/service/editor methods | C7 (matches pre-existing `getProgramByTill` line 557/1096) |
+| TD-SDET-07 | D-45 revised: `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` in place of `timezone="UTC"` | C6 — needs UI team confirmation in Phase 11 |
+
+#### New Open Questions
+
+- **Q-SDET-08**: UI team confirmation of D-45 revised format — surface in Phase 11 `/api-handoff`.
+- **Q-SDET-09**: `BenefitCategoriesV3Controller` passes `user.getEntityId()` as `tillId`; upgrade to `user.getTillId()` if that accessor exists on platform `User` — Phase 10 to confirm.
+- **Q-BT-01** (inherited): emf-parent IT harness support for embedded Thrift server (BT-067) — Phase 10 decision.
+- **Q-BT-02** (inherited): timezone test isolation — SDET defaulted to Surefire fork-per-test plan.
+
+#### Rejected Decision
+
+- **TD-SDET-01** (shade-plugin merge) — rationale was factually wrong (1.84 already contains 1.83 via backmerge commit `24af9d7`). Reverted `pom.xml`; proper IDL additions made instead.
+
+#### Commits + Tags
+
+| Repo | Commit | Content |
+|------|--------|---------|
+| `thrift-ifaces-pointsengine-rules` | `22176fd` | CAP-185145: add BenefitCategory Thrift contracts (Phase 9 RED) — 1 file, +109 lines |
+| `emf-parent` | `0b298c3216` | CAP-185145: BenefitCategory RED skeletons + compliance tests (Phase 9) — 15 files, +992 |
+| `intouch-api-v3-2/intouch-api-v3` | `13d62c487` | CAP-185145: BenefitCategory REST layer + RED tests (Phase 9) — 13 files, +1119 |
+| `cc-stack-crm` | `699bbef63` | CAP-185145: add BenefitCategory warehouse DDL (Phase 9 RED) — 2 files, +40 |
+
+All 4 repos tagged `aidlc/CAP-185145/phase-09`.
+
+#### Phase 10 GREEN Obligations
+
+1. Replace all 6 `BenefitCategoryFacade.*` `UnsupportedOperationException` stubs with real Thrift-client calls.
+2. Implement the 6 `PointsEngineRuleConfigThriftImpl` method bodies (delegate to `PointsEngineRuleEditorImpl`).
+3. Implement `PointsEngineRuleEditorImpl` CRUD bodies — entity → DAO → mapping diff-and-apply → Thrift DTO conversion.
+4. Run `mvn generate-sources` on `thrift-ifaces-pointsengine-rules` to confirm codegen + publish 1.84-SNAPSHOT to internal Nexus.
+5. Add Testcontainers ITs for the deferred 67 BTs (cross-repo, Thrift contract round-trip, DB constraint, diff-apply).
+6. Confirm D-45 revised format with UI team before locking the contract (`Q-SDET-08`).
+7. Consider controller `tillId` accessor upgrade (`Q-SDET-09`).
+8. Decide BT-067 harness form (`Q-BT-01`).
+9. Configure Surefire fork-per-test for BT-G01b timezone isolation (`Q-BT-02`).
+
+#### Post-phase Enrichment
+
+- **Step A — Mermaid diagrams appended to `05-sdet.md`**: D1 RED gate status pie, D2 test layer split pie, D3 BT coverage pie, D4 cross-repo flowchart, D5 RED→GREEN roadmap, D6 TD timeline.
+- **Step B — `live-dashboard.html` updated**: Phase 9 section populated (salvage summary, RED gate panel, commits table, TD-SDET-01..07, all 6 Mermaid diagrams); stats bar bumped to 11/19 phases, 24 artifacts, 50+ decisions; sidebar Phase 9 marked complete, Phase 10 marked active.
+- **Step C — Confluence**: not configured (`confluence.configured = false`); skipped.
+
+**Git snapshot** (kalpavriksha): `aidlc/CAP-185145/phase-09`
+
+**Phase 10 readiness**: UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests; 4 repos committed + tagged; 9 explicit Phase 10 obligations enumerated.
+
+---

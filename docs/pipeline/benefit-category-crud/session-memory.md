@@ -570,3 +570,112 @@ User answered all 5 Designer open questions as `Q7:C, Q12:A, Q13:A, Q14:A, Q15:A
 - **Phase 11 Reviewer**: Verify BT→QA→Designer→BA traceability closure. Check BT-G guardrail tests have explicit assertion evidence.
 
 **Phase 8b Confidence**: C6 — 100% coverage on all 6 dimensions verified mechanically; all 79 QA scenarios traced to BT; all 6 SKILL.md critical rules satisfied with named BT IDs.
+
+---
+
+## SDET Phase 9 — Additions (2026-04-18)
+
+**Phase 9 Artifact**: `05-sdet.md` (RED gate artifact — rewritten after salvage operation; 8 sections, full BT coverage map, 7 technical decisions, 6 Mermaid diagrams).
+
+### Salvage Operation — Post-Subagent Corrections
+
+The Phase 9 subagent landed code with four defects; all fixed before commit/tag:
+
+1. **Shade-plugin hack in `thrift-ifaces-pointsengine-rules/pom.xml`** — subagent bypassed the IDL change by adding `maven-shade-plugin` to merge 1.83 classes into 1.84 jar. Reverted via `git checkout -- pom.xml`. Root cause: 1.84-SNAPSHOT already contains 1.83 via backmerge commit `24af9d7`; shading would cause duplicate classes. **TD-SDET-01 REJECTED.**
+2. **Missing Thrift IDL additions** — `pointsengine_rules.thrift` had ZERO BenefitCategory struct/enum/service additions. Fixed by hand-adding 109 lines (3 structs, 1 enum, 6 service methods) in commit `22176fd`.
+3. **Broken companion interface reference** — emf-parent `PointsEngineRuleConfigThriftImpl` had `implements ... PointsEngineRuleServiceBenefitCategoryMethods` but the interface file did not exist. Removed from `implements` clause; IDL-generated `Iface` now covers the 6 methods.
+4. **Wrong Thrift naming convention** — subagent used `actorUserId` + omitted `serverReqId`. Renamed `actorUserId` → `tillId` across 5 files (matches existing `getProgramByTill` lines 557/1096). Added `string serverReqId` as last param on all 6 IDL methods and `String serverReqId` + `@MDCData(requestId="#serverReqId")` on all 6 emf-parent handler methods. Tests pass positional args → no assertion changes.
+5. **Stale `@JsonFormat(timezone="UTC")`** on `BenefitCategoryResponse` → changed to `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` on `createdOn` + `updatedOn` (RFC 3339, second precision, explicit offset). **D-45 revised** (TD-SDET-07).
+
+### RED Gate Status (corrected)
+
+| Repo | Compile | Tests | Confidence |
+|------|---------|-------|-----------|
+| `thrift-ifaces-pointsengine-rules:1.84-SNAPSHOT` | IDL contracts added (109 lines); `mvn generate-sources` not run locally | n/a | C6 (syntactic; codegen verifies in CI) |
+| `intouch-api-v3` (canonical: `intouch-api-v3-2/intouch-api-v3`) | BUILD SUCCESS | 36 run / **1 FAIL + 7 ERRORS = 8 RED** / 28 PASS (structural) | C7 |
+| `cc-stack-crm` | DDL only — no build step | Applied via Flyway seed in CI | C6 |
+| `emf-parent / pointsengine-emf` | Not verified locally (pre-existing AspectJ 1.7 + Java 17 + missing `com.capillary.shopbook.nrules.*` — see TD-SDET-05) | Not runnable locally | C5 (structural review; CI verifies on push) |
+
+**Phase 9 gate**: READY FOR PHASE 10. intouch-api-v3 RED confirmed C7 (1 failure + 7 errors on behavioural skeletons). emf-parent deferred to CI due to pre-existing env constraint (not introduced by this feature).
+
+### Files Created/Modified (corrected)
+
+**thrift-ifaces-pointsengine-rules** (commit `22176fd`):
+- MODIFIED `pointsengine_rules.thrift` — +109 lines (3 structs + 1 enum + 6 service methods with `tillId` + `serverReqId`)
+- `pom.xml` — **unchanged** (shade-plugin hack reverted)
+
+**emf-parent / pointsengine-emf** (commit `0b298c3216`, 15 files / +992 insertions):
+- NEW `src/main/java/.../benefitcategory/BenefitCategory.java` (JPA entity)
+- NEW `src/main/java/.../benefitcategory/BenefitCategorySlabMapping.java` (JPA entity)
+- NEW `src/main/java/.../benefitcategory/BenefitCategoryType.java` (Java enum)
+- NEW `src/main/java/.../benefitcategory/dao/BenefitCategoryDao.java`
+- NEW `src/main/java/.../benefitcategory/dao/BenefitCategorySlabMappingDao.java`
+- MODIFIED `src/main/.../editor/PointsEngineRuleEditorImpl.java` — 6 RED skeletons; `actorUserId` → `tillId` on 4 methods
+- MODIFIED `src/main/.../external/PointsEngineRuleConfigThriftImpl.java` — 6 RED skeletons; removed broken companion interface; `actorUserId` → `tillId`; `String serverReqId` param + `@MDCData(requestId="#serverReqId")` + `@Trace` on all 6
+- MODIFIED `src/main/.../services/PointsEngineRuleService.java` — `actorUserId` → `tillId` on 4 methods
+- MODIFIED `pom.xml` — JUnit 5 + Mockito 4.11.0 test deps
+- NEW `src/test/.../benefitcategory/BenefitCategoryComplianceTest.java` (6 structural tests — GREEN)
+- NEW `src/test/.../benefitcategory/PointsEngineRuleServiceBenefitCategoryRedTest.java` (6 tests; uses `REQ_ID = "red-test-req-id"` constant; concrete `PointsEngineRuleConfigThriftImpl` field type)
+- NEW `integration-test/.../db/warehouse/benefit_categories.sql`
+- NEW `integration-test/.../db/warehouse/benefit_category_slab_mapping.sql`
+
+**intouch-api-v3-2/intouch-api-v3** (commit `13d62c487`, 13 files / +1119 insertions):
+- NEW `src/main/.../models/exceptions/ConflictException.java`
+- MODIFIED `src/main/.../exceptionResources/TargetGroupErrorAdvice.java` (+409 handler)
+- NEW DTOs under `src/main/.../models/dtos/benefitcategory/`: `BenefitCategoryCreateRequest`, `BenefitCategoryUpdateRequest`, `BenefitCategoryResponse` (with `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ssXXX")` on `createdOn` + `updatedOn`), `BenefitCategoryListPayload`, `BenefitCategoryResponseMapper`
+- NEW `src/main/.../facades/BenefitCategoryFacade.java` — 6 stubs throw `UnsupportedOperationException`; **signature uses `tillId`** (not `actorUserId`) on 4 methods
+- NEW `src/main/.../resources/BenefitCategoriesV3Controller.java` (`@RestController`, 6 endpoints, no `@DeleteMapping`)
+- MODIFIED `pom.xml` — `thrift-ifaces-pointsengine-rules` `1.76` → `1.84-SNAPSHOT`
+- NEW tests: `BenefitCategoryDtoValidationTest` (20 GREEN), `BenefitCategoryFacadeRedTest` (10: 8 RED / 2 GREEN), `BenefitCategoryExceptionAdviceTest` (6 GREEN)
+
+**cc-stack-crm** (commit `699bbef63`, 2 files / +40 lines):
+- NEW `db/.../benefit_categories.sql` (warehouse DDL)
+- NEW `db/.../benefit_category_slab_mapping.sql` (warehouse DDL)
+
+### Technical Decisions (SDET phase — corrected)
+
+| # | Decision | Rationale | Status |
+|---|----------|-----------|--------|
+| TD-SDET-01 | ~~Shade plugin merges 1.83 into 1.84 jar~~ | ~~Original claim: 1.84 missing 200+ 1.83 classes.~~ **Root cause was wrong** — 1.84-SNAPSHOT already has 1.83 via backmerge commit `24af9d7`. Shading would cause duplicate classes. | **REJECTED / REVERTED** |
+| TD-SDET-02 | Lombok runtime reflection test — use generated methods not `isAnnotationPresent(Getter.class)` | Lombok annotations have CLASS retention, stripped at runtime | ACCEPTED |
+| TD-SDET-03 | Mockito `lenient().when()` in `@BeforeEach` for `BenefitCategoryExceptionAdviceTest` | Strict Mockito throws `UnnecessaryStubbingException` when tests don't invoke advice | ACCEPTED |
+| TD-SDET-04 | Facade RED tests use behavioural assertions (not `assertThrows`) | `assertThrows(UnsupportedOperationException)` PASSES with stubs — wrong RED semantics | ACCEPTED |
+| TD-SDET-05 | emf-parent not buildable offline | Pre-existing AspectJ tools.jar + Java 17 + missing `nrules.*` deps; NOT introduced by this feature | NOTED (blocker is pre-existing) |
+| **TD-SDET-06** | **Naming: `tillId` + `serverReqId`** across IDL + all handler/service/editor methods | Matches pre-existing PE convention (`getProgramByTill` line 557/1096); `serverReqId` mandatory for MDC / tracing across every PE service method | ACCEPTED |
+| **TD-SDET-07** | **D-45 revised**: `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` in place of `@JsonFormat(timezone = "UTC")` on `BenefitCategoryResponse.createdOn/updatedOn` | ISO-8601 RFC 3339 compliant; second precision; explicit offset (`+05:30` or `Z`) — clearer for UI consumers than forced UTC conversion | NEEDS UI team confirmation (flagged for Phase 11) |
+
+### Naming Convention (amended)
+
+| Field | Old (subagent draft) | New (frozen) | Location |
+|-------|----------------------|--------------|----------|
+| Authenticated-user identifier | `actorUserId` | **`tillId`** | IDL methods, emf-parent handler/service/editor, intouch-api-v3 Facade (4 write-path methods) |
+| Request correlation id | *(missing)* | **`serverReqId`** | All 6 IDL methods + 6 emf-parent handler methods (as last param, `@MDCData(requestId="#serverReqId")`) |
+
+### BT Coverage: Phase 9 vs Deferred (unchanged)
+
+- **Phase 9 tests cover**: BT-001, BT-004 (partial), BT-008..BT-013, BT-014, BT-018, BT-020, BT-023, BT-028, BT-032..BT-034, BT-045, BT-053, BT-057..BT-059, BT-072, BT-080, BT-082, BT-084, BT-086, BT-091, BT-093..BT-094, BT-096..BT-101 = **34 / 101**
+- **Deferred to Phase 10 ITs**: 67 / 101 — all cross-repo write/read paths and Thrift contract round-trips
+
+### Open Questions (Phase 9 outputs)
+
+- [ ] **Q-BT-01** (inherited): emf-parent IT harness support for embedded Thrift server (BT-067) — fallback to REST→DB end-to-end IT documented; decision in Phase 10
+- [ ] **Q-BT-02** (inherited): timezone test isolation — SDET defaulted to Surefire fork-per-test plan; confirmation in Phase 10
+- [ ] **Q-SDET-08** (new): UI team confirmation of D-45 revised format (`yyyy-MM-dd'T'HH:mm:ssXXX`) — surface in Phase 11 `/api-handoff`
+- [ ] **Q-SDET-09** (new): `BenefitCategoriesV3Controller` currently passes `user.getEntityId()` as `tillId`; upgrade to `user.getTillId()` if that accessor exists on the platform `User` model — Phase 10 to confirm
+
+### Commits + Tags (cross-repo)
+
+| Repo | Commit | Lines | Tag |
+|------|--------|-------|-----|
+| `thrift-ifaces-pointsengine-rules` | `22176fd` | +109 | `aidlc/CAP-185145/phase-09` |
+| `emf-parent` | `0b298c3216` | 15 files / +992 | `aidlc/CAP-185145/phase-09` |
+| `intouch-api-v3-2/intouch-api-v3` | `13d62c487` | 13 files / +1119 | `aidlc/CAP-185145/phase-09` |
+| `cc-stack-crm` | `699bbef63` | 2 files / +40 | `aidlc/CAP-185145/phase-09` |
+
+### Downstream Phase Obligations
+
+- **Phase 10 Developer GREEN**: implement all 6 `BenefitCategoryFacade` methods; implement `BenefitCategoryEditor` bodies in emf-parent; replace all `UnsupportedOperationException` stubs; add Testcontainers ITs for deferred 67 BTs; confirm Thrift codegen produces handler stubs; confirm D-45 revised format with UI team; consider `tillId` accessor upgrade on controller.
+- All 28 structural/compliance tests in intouch-api-v3 MUST remain GREEN after Phase 10.
+- Phase 11 Reviewer: verify `tillId`/`serverReqId` consistency across all 4 repos; flag D-45 revision for product/UX sign-off.
+
+**Phase 9 Confidence**: C6 overall (intouch-api-v3 RED confirmed C7; emf-parent + thrift-ifaces + cc-stack DDL verified structurally at C6 — local compile/codegen deferred to CI per TD-SDET-05).

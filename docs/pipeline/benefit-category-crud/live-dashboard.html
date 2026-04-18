@@ -150,8 +150,8 @@
         <a class="nav-link complete" href="#phase-7"><span>7. Designer (LLD)</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-8"><span>8. QA</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-8b"><span>8b. Business Tests</span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
+        <a class="nav-link active" href="#phase-10"><span>10. Developer (GREEN)</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10b"><span>10b. Backend Readiness</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
@@ -186,20 +186,21 @@
           <div class="segment complete"></div>
           <div class="segment complete"></div>
           <div class="segment complete"></div>
+          <div class="segment complete"></div>
           <div class="segment active"></div>
-          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
+          <div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div><div class="segment"></div>
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">10</span> / 19 phases complete (1 skipped) + Gate resolved + LLD frozen + QA Qs resolved + Business Tests</span>
-          <span><span class="stat-value">23</span> artifacts generated</span>
-          <span><span class="stat-value">51</span> decisions made &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy (test-01..03)</span>
-          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD; ADR-009 pending Phase 11)</span>
-          <span><span class="stat-value">107</span> Business Tests (28 UT · 73 IT · 6 BT-G) · 100% coverage · all dims closed</span>
-          <span><span class="stat-value">79</span> QA scenarios → 107 BTs (52 P0 · 33 P1 · 22 P2)</span>
-          <span><span class="stat-value">0</span> code files written (Phase 9 SDET RED next)</span>
+          <span><span class="stat-value">11</span> / 19 phases complete (1 skipped) + SDET RED done + cross-repo committed</span>
+          <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
+          <span><span class="stat-value">53</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED)</span>
+          <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
+          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 67 deferred to Phase 10 ITs</span>
+          <span><span class="stat-value">4</span> cross-repo commits tagged <code>aidlc/CAP-185145/phase-09</code></span>
+          <span><span class="stat-value">36</span> tests in intouch-api-v3 · <span class="stat-value">8</span> RED (1 fail + 7 error) · 28 structural GREEN</span>
         </div>
       </header>
 
@@ -1668,10 +1669,165 @@ flowchart LR
         <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-08b</code></p>
       </section>
       <section class="phase-section" id="phase-9">
-        <h2>Phase 9: SDET — RED <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 9: SDET — RED <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18 · Skills: <span class="skill-tag">/sdet</span> <span class="skill-tag">salvage (orchestrator)</span></p>
+        <p>SDET subagent (sonnet) produced skeleton code + RED tests across 4 repos. Five subagent defects were caught and fixed in a salvage operation (orchestrator, opus) before commit: (1) pom.xml shade-plugin hack reverted, (2) 109 lines of Thrift IDL hand-added, (3) broken companion-interface reference removed, (4) <code>actorUserId</code> renamed to <code>tillId</code> + <code>serverReqId</code> added on all 6 Thrift methods, (5) <code>@JsonFormat(timezone="UTC")</code> changed to ISO-8601 pattern (D-45 revised).</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">34</div><div class="label">BTs covered (of 101)</div></div>
+          <div class="key-number"><div class="value">67</div><div class="label">BTs deferred to Phase 10</div></div>
+          <div class="key-number"><div class="value">8</div><div class="label">RED (intouch-api-v3)</div></div>
+          <div class="key-number"><div class="value">28</div><div class="label">structural GREEN</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">cross-repo commits</div></div>
+          <div class="key-number"><div class="value">7</div><div class="label">TD-SDET (1 REJECTED)</div></div>
+        </div>
+
+        <h3 style="color: var(--accent);">RED Gate Evidence — intouch-api-v3-2/intouch-api-v3 (C7)</h3>
+        <pre style="background:#0f0f1e;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;"><code>Tests run: 36, Failures: 1, Errors: 7, Skipped: 0
+
+Failures:
+  BenefitCategoryFacadeRedTest.bt053_deactivateBenefitCategory_completesWithoutError
+  → assertDoesNotThrow FAILED (UnsupportedOperationException)
+
+Errors (UnsupportedOperationException: Phase 9 RED skeleton):
+  bt001 createBenefitCategory_returnsPopulatedResponse
+  bt014 getBenefitCategory_returnsActiveCategory
+  bt018 getBenefitCategory_includeInactive_returnsCategory
+  bt020 listBenefitCategories_returnsPaginatedPayload
+  bt023 listBenefitCategories_all_returnsAll
+  bt028 updateBenefitCategory_returnsUpdatedResponse
+  bt045 activateBenefitCategory_returnsActivatedCategory
+
+BUILD FAILURE (expected in RED phase)
+</code></pre>
+
+        <h3 style="color: var(--accent);">Cross-Repo Commits + Tags</h3>
+        <table class="data-table">
+          <thead><tr><th>Repo</th><th>Commit</th><th>Content</th><th>Tag</th></tr></thead>
+          <tbody>
+            <tr><td><code>thrift-ifaces-pointsengine-rules</code></td><td><code>22176fd</code></td><td>IDL: 3 structs + 1 enum + 6 service methods (+109 lines; <code>tillId</code> + <code>serverReqId</code>)</td><td><code>aidlc/CAP-185145/phase-09</code></td></tr>
+            <tr><td><code>emf-parent</code></td><td><code>0b298c3216</code></td><td>15 files / +992 lines — entities, DAOs, handler/service/editor skeletons (6 RED methods × 3 layers), compliance tests</td><td><code>aidlc/CAP-185145/phase-09</code></td></tr>
+            <tr><td><code>intouch-api-v3-2/intouch-api-v3</code></td><td><code>13d62c487</code></td><td>13 files / +1119 lines — 5 DTOs, mapper, ConflictException, 409 error-advice, controller + facade skeletons, 36 RED tests</td><td><code>aidlc/CAP-185145/phase-09</code></td></tr>
+            <tr><td><code>cc-stack-crm</code></td><td><code>699bbef63</code></td><td>2 files / +40 lines — warehouse DDL for <code>benefit_categories</code> + <code>benefit_category_slab_mapping</code></td><td><code>aidlc/CAP-185145/phase-09</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="color: var(--accent);">Technical Decisions (TD-SDET-01..07)</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Decision</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>TD-SDET-01</td><td>~~Shade plugin merges 1.83 into 1.84 jar~~ — root cause was wrong (1.84-SNAPSHOT already has 1.83 via backmerge commit <code>24af9d7</code>; shading would duplicate classes)</td><td style="color:#ff5555;font-weight:600;">REJECTED</td></tr>
+            <tr><td>TD-SDET-02</td><td>Lombok runtime reflection test uses generated methods (not <code>isAnnotationPresent(Getter.class)</code>) — CLASS retention strips annotations at runtime</td><td style="color:#44dd88;">ACCEPTED</td></tr>
+            <tr><td>TD-SDET-03</td><td><code>Mockito.lenient().when()</code> in <code>@BeforeEach</code> for <code>BenefitCategoryExceptionAdviceTest</code> — strict Mockito throws <code>UnnecessaryStubbingException</code></td><td style="color:#44dd88;">ACCEPTED</td></tr>
+            <tr><td>TD-SDET-04</td><td>Facade RED tests use behavioural assertions (not <code>assertThrows(UnsupportedOperationException)</code>) — latter would PASS on stubs, wrong RED semantics</td><td style="color:#44dd88;">ACCEPTED</td></tr>
+            <tr><td>TD-SDET-05</td><td>emf-parent not buildable offline — pre-existing AspectJ 1.7 + Java 17 + missing <code>nrules.*</code> deps; NOT introduced by this feature</td><td style="color:#f5a623;">NOTED (pre-existing)</td></tr>
+            <tr><td><strong>TD-SDET-06</strong></td><td><strong>Naming: <code>tillId</code> + <code>serverReqId</code></strong> across IDL + all Java handler/service/editor methods (matches pre-existing <code>getProgramByTill</code> line 557/1096)</td><td style="color:#44dd88;">ACCEPTED (C7)</td></tr>
+            <tr><td><strong>TD-SDET-07</strong></td><td><strong>D-45 revised</strong>: <code>@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")</code> in place of <code>timezone="UTC"</code> on <code>BenefitCategoryResponse.createdOn/updatedOn</code> — RFC 3339, explicit offset</td><td style="color:#f5a623;">ACCEPTED (needs UI team confirmation)</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="color: var(--accent);">New Open Questions</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Question</th><th>Blocks Phase 10?</th></tr></thead>
+          <tbody>
+            <tr><td>Q-SDET-08</td><td>UI team confirmation of D-45 revised ISO-8601 format (Q for <code>/api-handoff</code> in Phase 11)</td><td>No</td></tr>
+            <tr><td>Q-SDET-09</td><td>Upgrade controller <code>tillId</code> source from <code>user.getEntityId()</code> to <code>user.getTillId()</code> if accessor exists on platform <code>User</code></td><td>No</td></tr>
+            <tr><td>Q-BT-01</td><td>emf-parent IT harness support for embedded Thrift server (BT-067)</td><td>No — fallback documented</td></tr>
+            <tr><td>Q-BT-02</td><td>Timezone test isolation (Surefire fork-per-test default)</td><td>No</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="color: var(--accent);">D1 — RED Gate Status (by repo)</h3>
+        <div class="mermaid">
+pie showData
+  title RED Gate Outcome (4 repos)
+  "intouch-api-v3 RED confirmed C7" : 36
+  "thrift-ifaces IDL only (codegen deferred)" : 1
+  "cc-stack DDL only (Flyway in CI)" : 1
+  "emf-parent not built locally (TD-SDET-05)" : 1
+        </div>
+
+        <h3 style="color: var(--accent);">D2 — Test Layer Split (intouch-api-v3, 36 tests)</h3>
+        <div class="mermaid">
+pie showData
+  title intouch-api-v3 test suite
+  "GREEN structural (DTO validation 20)" : 20
+  "GREEN structural (error advice 6)" : 6
+  "GREEN facade structural 2" : 2
+  "RED behavioural facade (errors 7)" : 7
+  "RED deactivate assertDoesNotThrow 1" : 1
+        </div>
+
+        <h3 style="color: var(--accent);">D3 — BT Coverage Split</h3>
+        <div class="mermaid">
+pie showData
+  title Business Test Coverage (101 numbered BTs)
+  "Phase 9 covered (34)" : 34
+  "Phase 10 ITs deferred (67)" : 67
+        </div>
+
+        <h3 style="color: var(--accent);">D4 — Cross-Repo Commit Flow</h3>
+        <div class="mermaid">
+flowchart LR
+  A["thrift-ifaces<br/>22176fd<br/>+109 IDL lines"] --> B["emf-parent<br/>0b298c3216<br/>15 files · +992"]
+  A --> C["intouch-api-v3<br/>13d62c487<br/>13 files · +1119"]
+  D["cc-stack-crm<br/>699bbef63<br/>2 files · +40"]
+  B --> E["all tagged<br/>aidlc/CAP-185145/phase-09"]
+  C --> E
+  A --> E
+  D --> E
+  style A fill:#1a3d5c,stroke:#00d4ff
+  style B fill:#1a3d5c,stroke:#00d4ff
+  style C fill:#1a3d5c,stroke:#00d4ff
+  style D fill:#1a3d5c,stroke:#00d4ff
+  style E fill:#2d5016,stroke:#44dd88
+        </div>
+
+        <h3 style="color: var(--accent);">D5 — RED → GREEN Roadmap (Phase 10 obligations)</h3>
+        <div class="mermaid">
+flowchart TD
+  R["Phase 9 RED confirmed<br/>8 failing behavioural tests"] --> O1["1. Replace 6 Facade UoE stubs<br/>with Thrift-client calls"]
+  R --> O2["2. Implement 6 ThriftImpl bodies<br/>(delegate to Editor)"]
+  R --> O3["3. Implement Editor CRUD<br/>entity → DAO → diff-apply"]
+  R --> O4["4. mvn generate-sources on IDL<br/>publish 1.84-SNAPSHOT to Nexus"]
+  R --> O5["5. Add Testcontainers ITs<br/>for deferred 67 BTs"]
+  R --> O6["6. Confirm D-45 with UI team"]
+  R --> O7["7. tillId accessor upgrade?"]
+  R --> O8["8. BT-067 harness form"]
+  R --> O9["9. Surefire fork-per-test<br/>for BT-G01b TZ isolation"]
+  O1 & O2 & O3 & O4 & O5 --> G["Phase 10 GREEN gate<br/>mvn test PASS all 107 BTs"]
+  style R fill:#5c1a1a,stroke:#ff5555
+  style G fill:#1a5c2e,stroke:#44dd88
+        </div>
+
+        <h3 style="color: var(--accent);">D6 — Salvage Operation Timeline</h3>
+        <div class="mermaid">
+flowchart LR
+  S1["S1: pom.xml shade hack<br/>(revert)"] --> S2["S2: add 109 IDL lines"]
+  S2 --> S3["S3: remove companion-iface"]
+  S3 --> S4["S4: actorUserId → tillId<br/>+ serverReqId on 6 methods"]
+  S4 --> S5["S5: @JsonFormat<br/>UTC → ISO-8601 pattern"]
+  S5 --> C["commit + tag<br/>aidlc/CAP-185145/phase-09"]
+  style S1 fill:#5c1a1a,stroke:#ff5555
+  style S2 fill:#1a3d5c,stroke:#00d4ff
+  style S3 fill:#1a3d5c,stroke:#00d4ff
+  style S4 fill:#1a3d5c,stroke:#00d4ff
+  style S5 fill:#1a3d5c,stroke:#00d4ff
+  style C fill:#2d5016,stroke:#44dd88
+        </div>
+
+        <h3 style="color: var(--accent);">Artifacts</h3>
+        <ul class="artifact-list">
+          <li><code>05-sdet.md</code> (436 lines — rewritten post-salvage; 8 sections + 6 Mermaid diagrams)</li>
+          <li>Skeleton production + test Java files across emf-parent + intouch-api-v3 (see commits above)</li>
+          <li>IDL additions in <code>pointsengine_rules.thrift</code></li>
+          <li>Warehouse DDL in <code>cc-stack-crm</code></li>
+        </ul>
+
+        <p><strong>Phase 10 readiness:</strong> UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests. 4 cross-repo commits tagged. 9 explicit Phase 10 obligations enumerated.</p>
       </section>
       <section class="phase-section" id="phase-10">
-        <h2>Phase 10: Developer — GREEN <span class="phase-badge pending">Pending</span></h2>
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge active">Active</span></h2>
       </section>
       <section class="phase-section" id="phase-10b">
         <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>
