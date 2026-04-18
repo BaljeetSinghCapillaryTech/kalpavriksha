@@ -193,10 +193,11 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">6</span> / 19 phases complete (1 skipped)</span>
+          <span><span class="stat-value">6</span> / 19 phases complete (1 skipped) + Pre-HLD ADRs frozen</span>
           <span><span class="stat-value">19</span> artifacts generated</span>
-          <span><span class="stat-value">32</span> decisions made</span>
+          <span><span class="stat-value">36</span> decisions made</span>
           <span><span class="stat-value">47</span> findings surfaced (3 HIGH pre-resolved)</span>
+          <span><span class="stat-value">4</span> ADRs frozen pre-HLD (D-33..D-36)</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -932,8 +933,118 @@ sequenceDiagram
 
         <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-05-resolutions</code></p>
       </section>
+      <section class="phase-section" id="phase-5h">
+        <h2>Phase 5→6 Transition: Pre-HLD ADR Commits <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-18</p>
+        <span class="skill-tag">inline orchestrator (interactive Q&amp;A)</span>
+        <span class="skill-tag">opus</span>
+        <p><strong>Trigger</strong>: Rework cycle 2 (Phase 6 → Phase 5) surfaced that Phase 7 v1.1 had drifted on 4 contentious architectural choices without explicit user sign-off, causing Phase 8 QA to raise 2 BLOCKERS. User chose post-revert option [1] — <em>"Run Phase 6 with explicit ADR pre-commits"</em> — freezing the 4 choices upfront so <code>/architect</code> cannot re-drift.</p>
+
+        <div class="key-numbers">
+          <div class="key-number"><div class="value">4</div><div class="label">ADRs frozen</div></div>
+          <div class="key-number"><div class="value">4</div><div class="label">Q&amp;A rounds</div></div>
+          <div class="key-number"><div class="value">6</div><div class="label">REST endpoints frozen</div></div>
+          <div class="key-number"><div class="value">2</div><div class="label">Thrift methods +IDL</div></div>
+          <div class="key-number"><div class="value">1</div><div class="label">Accepted G-10 deviation</div></div>
+        </div>
+
+        <h3>The 4 Frozen ADRs</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>ADR</th><th>Decision</th><th>User Choice</th><th>Frozen Constraint</th><th>Confidence</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>ADR-001</strong><br/>(D-33)</td>
+              <td>Optimistic-lock stance</td>
+              <td><strong>C</strong> — no lock</td>
+              <td>No <code>@Version</code>; no <code>version</code> DTO field; last-write-wins; G-10 accepted deviation with revisit triggers (admin QPS &gt;10/sec OR multi-editor UI)</td>
+              <td>C6</td>
+            </tr>
+            <tr>
+              <td><strong>ADR-002</strong><br/>(D-34)</td>
+              <td>Reactivation path</td>
+              <td><strong>A</strong> — dedicated PATCH</td>
+              <td>US-6 IN SCOPE via <code>PATCH /v3/benefitCategories/{id}/activate</code>; D-27 reworded; cascade mappings do NOT auto-reactivate</td>
+              <td>C6</td>
+            </tr>
+            <tr>
+              <td><strong>ADR-003</strong><br/>(D-35)</td>
+              <td>REST surface granularity</td>
+              <td><strong>B</strong> — embed slabIds</td>
+              <td><code>slabIds: List&lt;Integer&gt;</code> in parent DTO; server-side diff-and-apply <code>syncSlabMappings</code>; 5 endpoints total; no separate mapping REST resource</td>
+              <td>C6</td>
+            </tr>
+            <tr>
+              <td><strong>ADR-004</strong><br/>(D-36)</td>
+              <td>Deactivation verb</td>
+              <td><strong>A</strong> — PATCH /deactivate</td>
+              <td><code>PATCH /v3/benefitCategories/{id}/deactivate</code>; DELETE rejected as semantically misleading for soft-delete; cascade soft-delete mappings in same txn</td>
+              <td>C6</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Frozen REST Surface (per D-35 + D-34 + D-36)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Source ADR</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>POST</code></td><td><code>/v3/benefitCategories</code></td><td>Create category with embedded slabIds</td><td>ADR-003</td></tr>
+            <tr><td><code>PUT</code></td><td><code>/v3/benefitCategories/{id}</code></td><td>Update category + diff-and-apply slabIds</td><td>ADR-003</td></tr>
+            <tr><td><code>GET</code></td><td><code>/v3/benefitCategories/{id}</code></td><td>Fetch single category with active slabIds</td><td>ADR-003</td></tr>
+            <tr><td><code>GET</code></td><td><code>/v3/benefitCategories</code></td><td>List categories (filter + pagination — /architect)</td><td>ADR-003</td></tr>
+            <tr><td><code>PATCH</code></td><td><code>/v3/benefitCategories/{id}/activate</code></td><td>Reactivate (US-6); mappings manual</td><td>ADR-002</td></tr>
+            <tr><td><code>PATCH</code></td><td><code>/v3/benefitCategories/{id}/deactivate</code></td><td>Deactivate + cascade soft-delete mappings</td><td>ADR-004</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Downstream Phase Obligations</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Phase</th><th>Obligation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Phase 6 <code>/architect</code></td><td>Incorporate D-33..D-36 verbatim as ADR-001..ADR-004 in <code>01-architect.md</code>; write supporting flow diagrams (diff-apply, cascade-deactivate, activate); MUST NOT re-debate frozen choices</td></tr>
+            <tr><td>Phase 7 <code>/designer</code></td><td>Entity WITHOUT <code>@Version</code>; <code>syncSlabMappings(categoryId, newIdSet)</code> facade pseudocode; bulk DAO methods (<code>findMissingIdsForProgram</code>, <code>softDeleteAllByCategoryId</code>); Thrift IDL +2 methods; REST controller 6 endpoints</td></tr>
+            <tr><td>Phase 8 <code>/qa</code></td><td>QA-34/QA-35 (stale-version, concurrent-update) OUT OF SCOPE per D-33; add reactivation scenarios (happy, already-active, name-taken 409, not-found 404); add deactivation cascade scenarios</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Mermaid — Frozen Decision Map</h3>
+        <div class="mermaid">
+flowchart LR
+  Q1[Q-33 Optimistic lock?] -->|C: no lock| D33[ADR-001 D-33<br/>G-10 deviation accepted]
+  Q2[Q-34 Reactivation?] -->|A: PATCH /activate| D34[ADR-002 D-34<br/>US-6 in scope]
+  Q3[Q-35 REST granularity?] -->|B: embed slabIds| D35[ADR-003 D-35<br/>5 endpoints, diff-and-apply]
+  Q4[Q-36 Deactivation verb?] -->|A: PATCH /deactivate| D36[ADR-004 D-36<br/>DELETE rejected]
+  D33 --> P6[Phase 6 /architect<br/>Frozen inputs]
+  D34 --> P6
+  D35 --> P6
+  D36 --> P6
+  P6 --> HLD[01-architect.md<br/>with ADR-001..004]
+  style D33 fill:#203040,color:#fff
+  style D34 fill:#203040,color:#fff
+  style D35 fill:#203040,color:#fff
+  style D36 fill:#203040,color:#fff
+  style P6 fill:#1a3a1a,color:#fff
+        </div>
+
+        <h3>Artifacts Produced</h3>
+        <ul class="artifact-list">
+          <li><code>session-memory.md</code> — D-33..D-36 appended; D-27 marked AMENDED</li>
+          <li><code>approach-log.md</code> — "Phase 5 → 6 Pre-HLD ADR Commits" subsection with full Q&amp;A records</li>
+          <li><code>process-log.md</code> — Phase 5→6 Pre-HLD ADR Commits entry</li>
+          <li><code>pipeline-state.json</code> — <code>5h</code> sub-phase block; rework_cycles updated; git_tags bumped</li>
+        </ul>
+
+        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-05-preHLD</code></p>
+      </section>
+
       <section class="phase-section" id="phase-6">
         <h2>Phase 6: Architecture (HLD) <span class="phase-badge active">In Progress</span></h2>
+        <p>Launching <code>/architect</code> with D-33..D-36 as <strong>frozen, non-debatable ADR inputs</strong>. HLD will be designed around the user's architectural choices rather than re-deriving them.</p>
       </section>
       <section class="phase-section" id="phase-6a">
         <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>

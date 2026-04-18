@@ -514,3 +514,49 @@ _(Populated if phases route back to earlier phases.)_
 These must be frozen as ADRs in `01-architect.md` BEFORE Phase 7 runs, so Designer cannot drift.
 
 ---
+
+### Phase 5 → 6 Pre-HLD ADR Commits — 2026-04-18
+
+**Trigger**: Rework cycle 2 completed; user chose option [1] from post-revert menu — "Run Phase 6 with explicit ADR pre-commits". Four contentious architectural choices that Phase 7 v1.1 had drifted on (without explicit user sign-off) are frozen as ADRs _before_ `/architect` runs, so the fresh HLD cannot re-drift.
+
+**Mode**: Main context, interactive Q&A (one question at a time; each with 3 options + recommendation; user answer recorded with verbatim letter choice).
+
+**Execution**: Four Q&A rounds completed sequentially:
+
+| Round | Topic | User Choice | Decision | Impact |
+|-------|-------|-------------|----------|--------|
+| 1 | Optimistic-lock stance | C (no lock) | D-33 | G-10 accepted deviation; no `@Version`; QA-34/QA-35 out of scope |
+| 2 | Reactivation path | A (PATCH /{id}/activate) | D-34 | US-6 in scope; D-27 reworded; +1 Thrift method |
+| 3 | REST surface granularity | B (embed slabIds + diff-and-apply) | D-35 | 5 endpoints; `syncSlabMappings` pattern; cross-repo fan-out reduced |
+| 4 | Deactivation verb | A (PATCH /{id}/deactivate) | D-36 | Symmetric with /activate; DELETE rejected; `deactivateBenefitCategory` IDL method |
+
+#### Artifacts touched
+
+- `session-memory.md` — 4 rows appended to Key Decisions table (D-33/D-34/D-35/D-36). D-27 noted as AMENDED by D-34.
+- `approach-log.md` — NEW subsection "Phase 5 → 6 Pre-HLD ADR Commits (2026-04-18)" with full Q&A records — question, options, recommendation, user answer, decision, downstream impact — for all 4 rounds.
+- `process-log.md` — this entry.
+- `pipeline-state.json` — NEW `5h` sub-phase block recording pre-HLD commits; git_tags list updated.
+- `live-dashboard.html` — stats bar bumped (decisions 32→36); Phase 5→6 Pre-HLD ADR Commits section added before Phase 6 section.
+
+**Git snapshot**: `aidlc/CAP-185145/phase-05-preHLD`
+
+#### Confidence summary
+
+| Decision | Confidence | Evidence level |
+|---------|-----------|----------------|
+| D-33 | C6 | User choice + D-26 scale (SMALL) + G-10 exception explicitly acknowledged in ADR |
+| D-34 | C6 | User choice + symmetric mirror of D-36 + PRD US-6 P1 restoration |
+| D-35 | C6 | User choice + Maya persona UX alignment + reduces test surface |
+| D-36 | C6 | User choice + symmetric with D-34 + REST semantic accuracy |
+
+#### Constraint on Phase 6 Architect
+
+D-33..D-36 are **non-debatable, frozen inputs** for `/architect`. The subagent MUST:
+1. Incorporate D-33..D-36 verbatim as ADR-001..ADR-004 in `01-architect.md`.
+2. Write supporting flow diagrams (diff-apply, cascade-deactivate, activate flow, etc.) _around_ these decisions.
+3. NOT re-debate or "improve" these choices. If `/architect` sees a conflict with another decision, it surfaces a blocker to the user — it does NOT silently deviate.
+4. Design the remainder of HLD (data model details, Thrift handler assignment, cascade-deactivate SQL, timestamp conventions, pagination, authorization, etc.) respecting the frozen 4 ADRs.
+
+Phase 6 (HLD — Architect) ready to launch with frozen inputs.
+
+---

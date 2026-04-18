@@ -417,9 +417,104 @@ After Phase 5 (Codebase Research + Cross-Repo Tracing) completed, three HIGH-sev
 
 All Phase-6-blocking items cleared. Proceeding to Phase 6 (HLD — Architect).
 
+### Phase 5 → 6 Pre-HLD ADR Commits (2026-04-18)
+
+> **Context**: Rework cycle 2 (Phase 6 → Phase 5) surfaced that Phase 8 QA found 2 BLOCKER-level design gaps that traced back to HLD choices `/architect` had made on its own without explicit user sign-off. User asked to **freeze the contentious architectural choices upfront as ADRs** before re-spawning `/architect`, so that the fresh HLD is designed _around_ the user's decisions rather than the reverse. Four questions asked, four ADRs recorded (D-33..D-36). `/architect` will be launched with these as **frozen, non-debatable inputs**.
+
+---
+
+**Q-33 — Optimistic-Lock Stance (Pre-HLD ADR #1, 2026-04-18)**
+
+- **Question**: Phase 8 QA flagged OQ-QA-04 — Request DTO has no `version: Long` field, so client cannot send the version back to server, so `@Version` (if added on entity) is useless. Should HLD mandate an optimistic-lock stance?
+- **Options presented**:
+  - (A) **Mandate `@Version`** — add `version BIGINT NOT NULL DEFAULT 0` column, `@Version Long version` on `BenefitCategory` entity, `version: Long` on Update request DTO, 409 on stale version. Pure per G-10.
+  - (B) **Add `@Version` + derive from GET** — entity has it, client fetches via GET-before-PUT, server validates. Less ceremony for client, still G-10 compliant.
+  - (C) **Skip optimistic lock entirely** — accept last-write-wins; document as accepted deviation from G-10. Safe at D-26 SMALL scale (low admin QPS).
+- **Recommendation**: **(C)** — rationale: at D-26 SMALL scale, admin QPS is low, multi-editor collision probability is negligible; optimistic-lock ceremony adds DDL + DTO field + client round-trip for a race window that won't materialize.
+- **User answer**: **C** — No optimistic locking, last-write-wins, accept G-10 deviation.
+- **Decision recorded**: **D-33** — no `@Version`, no `version` DTO field, G-10 documented as **accepted deviation** in ADR-001 with revisit-trigger.
+- **Downstream impact**:
+  - Phase 7 Designer MUST NOT add `@Version`
+  - Phase 8 QA scenarios QA-34/QA-35 (stale-version, concurrent-update) are formally OUT OF SCOPE — replaced by "last-write-wins accepted; no concurrency test required" note
+  - Phase 6 `/architect` writes ADR-001 with evidence and review-trigger (admin QPS >10/sec per tenant OR multi-editor Admin UI introduced)
+- **Confidence**: C6 — user decision with explicit guardrail deviation acknowledgment.
+
+---
+
+**Q-34 — Reactivation Path (Pre-HLD ADR #2, 2026-04-18)**
+
+- **Question**: Phase 8 QA flagged OQ-QA-01 — US-6 (P1) requires reactivating a deactivated category, but D-27 says "deactivation is terminal — any mutation on inactive = 409". These contradict. How should HLD resolve?
+- **Options presented**:
+  - (A) **Dedicated `PATCH /v3/benefitCategories/{id}/activate` endpoint** — US-6 IN SCOPE; mirrors deactivation verb; D-27 amended to "PUT/DELETE on inactive = 409, explicit reactivation via dedicated PATCH is the only allowed state-change".
+  - (B) **Descope US-6** — keep D-27 terminal; any reactivation requires new category creation; simpler data model; US-6 kicks to later epic.
+  - (C) **Use `PUT` with `isActive: true`** — reuses PUT endpoint; bends PUT semantics (usually for full-resource updates, not state flips).
+- **Recommendation**: **(A)** — rationale: US-6 is P1 per PRD; dedicated PATCH is clean REST semantic; symmetric with potential deactivate verb; avoids bending PUT.
+- **User answer**: **A** — Dedicated `PATCH /{id}/activate`.
+- **Decision recorded**: **D-34** — new endpoint; does NOT auto-reactivate cascaded slab-mappings (admin re-maps explicitly); 404 on non-existent; 409 on name-taken-by-another-active; idempotency (204 vs 409) deferred to `/architect`; Thrift IDL +1 method `activateBenefitCategory`.
+- **D-27 amendment**: REWORDED — "updates via PUT/DELETE on inactive category return 409; reactivation via dedicated PATCH /activate endpoint is the explicit and only allowed state-change on an inactive category"
+- **Downstream impact**:
+  - Phase 6 `/architect` writes ADR-002 with flow diagram + idempotency semantics
+  - Phase 7 Designer adds `activateBenefitCategory(orgId, categoryId, actorUserId)` facade + Thrift handler + REST controller
+  - Phase 8 QA adds scenarios: happy reactivation, idempotency, name-taken 409, non-existent 404
+- **Confidence**: C6 — user decision, clean semantic, restores US-6 to in-scope.
+
+---
+
+**Q-35 — REST Surface Granularity (Pre-HLD ADR #3, 2026-04-18)**
+
+- **Question**: Phase 7 v1.1 had drifted to split mapping management into a separate `/v3/benefitCategorySlabMappings` REST resource. Phase 8 QA found this inflated the test surface with no clear UX benefit. What should HLD choose for Create/Update?
+- **Options presented**:
+  - (A) **Separate mapping endpoints** — `POST /benefitCategorySlabMappings`, `DELETE /benefitCategorySlabMappings/{id}` ; clean DDD but more endpoints, more test surface, admin UI must orchestrate multiple calls.
+  - (B) **Embed `slabIds` in parent DTO; server diff-and-apply** — Create/Update request carries `slabIds: List<Integer>` (full desired state); server diffs against current active mappings, INSERT new, soft-delete removed. Single transaction, single endpoint call from client.
+  - (C) **Hybrid** — embed on Create only, separate endpoints for subsequent mapping edits.
+- **Recommendation**: **(B)** — rationale: matches Maya persona mental model from 00-ba.md ("I edit category, I pick slabs, I save"); single-endpoint UX; reduces test surface and cross-repo fan-out; aligns with D-33 no-optimistic-lock posture (simpler concurrency story).
+- **User answer**: **B** — Embed `slabIds`, server-side diff-and-apply.
+- **Decision recorded**: **D-35** — 5 endpoints on `/v3/benefitCategories`: POST (create), PUT (update), GET by id, GET list, PATCH /{id}/activate (PATCH /{id}/deactivate confirmed in D-36). Validation: Layer 1 `@NotNull @Size(min=1)` on Create, `@NotNull` only on Update (min=1 enforced at facade); Layer 2 silent dedup via `LinkedHashSet<>(slabIds)`; cross-check against `ProgramSlab` existence per org+program (non-existent or wrong-program → 409).
+- **Re-add semantics**: re-adding a previously-unmapped slabId INSERTs new mapping row (does NOT reactivate soft-deleted row); newest `is_active=true` row is authoritative.
+- **Cascade-deactivate**: on `PATCH /{id}/deactivate`, all active mappings soft-delete in same transaction (D-06 preserved). On `PATCH /{id}/activate`, mappings do NOT auto-reactivate (D-34 clause b).
+- **Downstream impact**:
+  - Phase 6 `/architect` writes ADR-003 with flow diagrams (create, update-diff-apply, cascade-deactivate)
+  - Phase 7 Designer produces `syncSlabMappings(categoryId, newIdSet)` facade pseudocode + bulk DAO methods (`findMissingIdsForProgram`, `softDeleteAllByCategoryId`)
+  - Phase 8 QA exercises dedup, cross-program rejection, re-add-as-insert, GET-returns-active-only
+- **Thrift IDL impact**: +0 mapping-specific methods; `createBenefitCategory` and `updateBenefitCategory` structs grow a `list<i32> slabIds` field.
+- **Confidence**: C6 — user decision, aligned with D-33 concurrency posture, reduces cross-repo fan-out.
+
+---
+
+**Q-36 — Deactivation Verb (Pre-HLD ADR #4, 2026-04-18)**
+
+- **Question**: Phase 7 v1.1 used `DELETE /{id}` for deactivation; Phase 8 QA noted this is semantically misleading for soft-delete (row survives). HLD must pick a verb.
+- **Options presented**:
+  - (A) **`PATCH /v3/benefitCategories/{id}/deactivate`** — symmetric mirror of D-34's `/activate`; explicit state-transition sub-path; PATCH correctly conveys "state change" not "erase".
+  - (B) **`DELETE /{id}` with soft-delete behaviour** — standard REST verb; conventional but semantically misleading (DELETE implies row removal); creates "why is the row still there?" class of future bugs.
+  - (C) **`PUT /{id}` with `isActive: false` in body** — reuses PUT; bends PUT semantics (PUT is for updates, not state flips); asymmetric with D-34 reactivation.
+- **Recommendation**: **(A)** — rationale: symmetric with D-34 `/activate`; accurately conveys soft-delete semantics; state-transition sub-paths form an obvious pair any API consumer can pattern-match; tiny "REST purity" cost easily defended in ADR.
+- **User answer**: **A** — `PATCH /{id}/deactivate`.
+- **Decision recorded**: **D-36** — PATCH endpoint; flips `isActive=true → false`; cascades to all active mappings (D-06 preserved — soft-delete in same transaction via bulk UPDATE); returns 204 on success; 404 on non-existent; idempotency on already-deactivated deferred to `/architect` (default: 204 no-op unless argued otherwise).
+- **D-27 alignment**: fully consistent — PUT on inactive still = 409; deactivation is own explicit verb; reactivation is own explicit verb (D-34).
+- **Thrift IDL impact**: `deactivateBenefitCategory(orgId, categoryId, actorUserId)` method — mirrors `activateBenefitCategory`.
+- **Downstream impact**:
+  - Phase 6 `/architect` writes ADR-004 with verb choice rationale + cascade-deactivate flow diagram
+  - Phase 7 Designer adds `deactivateBenefitCategory` facade with bulk cascade soft-delete SQL + Thrift handler stub + REST controller `@PatchMapping("/{id}/deactivate")`
+  - Phase 8 QA exercises happy deactivate, already-deactivated idempotency (per /architect's choice), cascade verification (mappings → inactive), 404 on non-existent
+- **Confidence**: C6 — user decision, clean REST semantic, symmetric with D-34.
+
+---
+
+**Pre-HLD ADR Commit Summary**
+
+| # | Question | User Choice | Decision | Confidence | Freezes for Phase 6 |
+|---|----------|-------------|----------|-----------|---------------------|
+| 1 | Optimistic-lock stance | C (no lock) | D-33 | C6 | No `@Version`; accept G-10 deviation |
+| 2 | Reactivation path | A (PATCH /{id}/activate) | D-34 | C6 | US-6 in scope; D-27 reworded |
+| 3 | REST surface granularity | B (embed slabIds, diff-and-apply) | D-35 | C6 | 5 endpoints; `syncSlabMappings` pattern |
+| 4 | Deactivation verb | A (PATCH /{id}/deactivate) | D-36 | C6 | Symmetric with /activate; DELETE rejected |
+
+**Constraint on `/architect`**: D-33..D-36 are **non-debatable inputs**. `/architect` incorporates them verbatim as ADR-001..ADR-004 in `01-architect.md`, writes supporting flow diagrams, and designs the remainder of HLD _around_ these fixed choices (not over them).
+
 ### Phase 6 (Architect) Decisions
 
-_Pending._
+_Pending — launching `/architect` next with D-33..D-36 as frozen inputs._
 
 ### Phase 11 (Reviewer Gap Routing) Decisions
 
