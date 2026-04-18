@@ -194,13 +194,13 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">11</span> / 19 phases complete (1 skipped) + SDET RED done + cross-repo committed</span>
+          <span><span class="stat-value">11.5</span> / 19 phases complete (1 skipped; Phase 10 M1+M2 landed, M3 pending)</span>
           <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
-          <span><span class="stat-value">53</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED)</span>
+          <span><span class="stat-value">62</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED) &middot; <strong>D-49..D-57 (Phase 10)</strong></span>
           <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
-          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 67 deferred to Phase 10 ITs</span>
-          <span><span class="stat-value">4</span> cross-repo commits tagged <code>aidlc/CAP-185145/phase-09</code></span>
-          <span><span class="stat-value">36</span> tests in intouch-api-v3 · <span class="stat-value">8</span> RED (1 fail + 7 error) · 28 structural GREEN</span>
+          <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 67 deferred to Phase 10 M3 ITs</span>
+          <span><span class="stat-value">6</span> cross-repo commits · <code>aidlc/CAP-185145/phase-09</code> tagged · M2 commits <code>3aec0c39c0</code> (emf-parent) + <code>0ae66f606</code> (intouch-api-v3)</span>
+          <span><span class="stat-value">36</span> tests in intouch-api-v3 · Phase 9 RED (1 fail + 7 error) · Phase 10 M2 Mockito GREEN reassert</span>
         </div>
       </header>
 
@@ -1827,7 +1827,65 @@ flowchart LR
         <p><strong>Phase 10 readiness:</strong> UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests. 4 cross-repo commits tagged. 9 explicit Phase 10 obligations enumerated.</p>
       </section>
       <section class="phase-section" id="phase-10">
-        <h2>Phase 10: Developer — GREEN <span class="phase-badge active">Active</span></h2>
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge active">Active (M1+M2 landed, M3 pending)</span></h2>
+        <p class="phase-time">M2 completed: 2026-04-18</p>
+        <span class="skill-tag">/developer</span>
+        <span class="skill-tag">executing-plans</span>
+        <span class="skill-tag">subagent-driven-development</span>
+
+        <p>Replaced every Phase 9 RED skeleton <code>UnsupportedOperationException("Phase 9 RED skeleton")</code> with production code across two repos. M1 (scaffolding) bumped <code>thrift-ifaces-pointsengine-rules</code> to <code>1.84-SNAPSHOT-dev</code> per <strong>D-53a</strong> (user-built Jenkins classifier). M2 (implementation) landed across both Java repos with full decorator fidelity (<code>@Trace</code>, <code>@MDCData</code>) preserved on Thrift handlers.</p>
+
+        <h3>M2 Commits</h3>
+        <table class="data-table">
+          <thead><tr><th>Repo</th><th>Commit</th><th>Files</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>emf-parent</code></td><td><code>3aec0c39c0</code></td><td>5</td><td>Service/Editor/ThriftImpl GREEN; +6 interface decls (D-54); 4 service helpers; RED UOE-shim test deleted</td></tr>
+            <tr><td><code>intouch-api-v3</code></td><td><code>0ae66f606</code></td><td>4</td><td>ThriftService delegations; Mapper (D-43/D-45); Facade (D-55 BenefitCategoryBusinessException); RED test → Mockito GREEN</td></tr>
+          </tbody>
+        </table>
+
+        <h3>M2 Key Decisions</h3>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Decision</th><th>Rationale</th></tr></thead>
+          <tbody>
+            <tr><td><strong>D-54</strong></td><td><code>PointsEngineRuleEditor</code> interface gets 6 method declarations (not just the impl)</td><td>ThriftImpl injects the interface reference; interface-only additions required for compile. Only one concrete impl exists.</td></tr>
+            <tr><td><strong>D-55</strong></td><td><code>BenefitCategoryBusinessException extends RuntimeException</code> wraps checked <code>PointsEngineRuleServiceException</code></td><td>Spring MVC cannot propagate checked exceptions; wrapper preserves <code>statusCode</code> + <code>errorMessage</code>; advice unwraps via <code>getCause()</code>.</td></tr>
+            <tr><td><strong>D-56</strong></td><td>Local full-module <code>mvn compile</code> not attempted</td><td>User directive: scope to BenefitCategory files only; CI (Jenkins) verifies full-module build. Pre-existing <code>PointsEngineThriftHelper.java:1140</code> defect out of scope.</td></tr>
+            <tr><td><strong>D-57</strong></td><td><code>BenefitCategoryFacadeRedTest</code> kept filename, rewritten as GREEN Mockito test</td><td>Avoids breaking test-harness wiring; Javadoc + bodies reflect GREEN semantics (orchestration + D-43 verification).</td></tr>
+          </tbody>
+        </table>
+
+        <h3>M3 Queued (67 deferred BTs in intouch-api-v3)</h3>
+        <ul class="artifact-list">
+          <li>Reusable <code>TimezoneRule</code> JUnit 5 extension (D-51)</li>
+          <li>Testcontainers MySQL IT including <strong>BT-067 end-to-end</strong> (D-50)</li>
+          <li>Tenant isolation tests (G-07)</li>
+          <li>Timezone matrix: UTC / PST / IST (G-01)</li>
+        </ul>
+
+        <p><strong>Phase 10 M2 Confidence</strong>: C6 overall (C7 pattern conformance + method-signature alignment; C6 semantic correctness — CI-gated).</p>
+
+        <div class="mermaid">
+flowchart LR
+    subgraph emf-parent["emf-parent · commit 3aec0c39c0"]
+      S[PointsEngineRuleService<br/>6 methods GREEN + 4 helpers]
+      EI[PointsEngineRuleEditor<br/>Interface +6 decls · D-54]
+      EII[PointsEngineRuleEditorImpl<br/>Pass-through delegation]
+      T[PointsEngineRuleConfigThriftImpl<br/>@Trace + @MDCData preserved]
+    end
+    subgraph intouch["intouch-api-v3 · commit 0ae66f606"]
+      TS[PointsEngineRulesThriftService<br/>CapRequestIdUtil.serverReqId]
+      M[BenefitCategoryResponseMapper<br/>D-43 + D-45]
+      F[BenefitCategoryFacade<br/>+ BenefitCategoryBusinessException · D-55]
+    end
+    F -->|REST DTO → Thrift DTO| TS
+    TS -.->|Thrift RPC| T
+    T --> EII
+    EII --> EI
+    EII --> S
+    style emf-parent fill:#1e3a52,stroke:#00d4ff
+    style intouch fill:#3a1e52,stroke:#00d4ff
+        </div>
       </section>
       <section class="phase-section" id="phase-10b">
         <h2>Phase 10b: Backend Readiness <span class="phase-badge pending">Pending</span></h2>

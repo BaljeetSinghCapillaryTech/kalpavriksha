@@ -1147,3 +1147,63 @@ All 4 repos tagged `aidlc/CAP-185145/phase-09`.
 **Phase 10 readiness**: UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests; 4 repos committed + tagged; 9 explicit Phase 10 obligations enumerated.
 
 ---
+
+### Phase 10 — Developer GREEN (M2 Landed)
+
+**Date**: 2026-04-18
+**Skill**: `/developer` + `executing-plans`, `subagent-driven-development`, `verification-before-completion` superpowers
+
+**Pre-implementation resolutions**: Phase 10 opened with checkpoint Q1..Q5 (user answered `C, C, A, A, 2`). Four deferred questions resolved via D-49..D-52 (see session-memory Phase 10 entry).
+
+**Execution shape** (per Q1:C hybrid):
+- M1 — scaffolding (pom bumps to `1.84-SNAPSHOT-dev`, per D-53a Jenkins-built classifier): committed.
+- M2 — GREEN implementation: committed across emf-parent + intouch-api-v3.
+- M3 — 67 deferred BTs as Testcontainers ITs: queued.
+
+#### M1 — Scaffolding
+
+User built `thrift-ifaces-pointsengine-rules:1.84-SNAPSHOT-dev` on Jenkins (classifier `-dev`) and instructed the orchestrator to pull it locally. Executed:
+
+```
+mvn dependency:get -Dartifact=com.capillary.commons:thrift-ifaces-pointsengine-rules:1.84-SNAPSHOT-dev
+```
+
+Artefact populated at `~/.m2/repository/com/capillary/commons/thrift-ifaces-pointsengine-rules/1.84-SNAPSHOT-dev/` (3.77 MB). `javap` on `PointsEngineRuleService$Iface` confirmed all 6 BenefitCategory methods carry trailing `String serverReqId` param; the jar does NOT contain a separate `PointsEngineRuleServiceBenefitCategoryMethods` interface (Iface-only — noted under D-53a).
+
+Pom bumps committed:
+- `emf-parent/pom.xml:192` — `1.84-SNAPSHOT` → `1.84-SNAPSHOT-dev`
+- `intouch-api-v3-2/intouch-api-v3/pom.xml:231` — `1.84-SNAPSHOT` → `1.84-SNAPSHOT-dev`
+
+#### M2 — GREEN Implementation
+
+**emf-parent** (commit `3aec0c39c0`):
+- `PointsEngineRuleService.java` — +2 DAO @Autowired fields; 6 skeleton methods replaced with production code (validation chain → `InfoLookupService.getProgramById` → uniqueness check → persistence → Thrift DTO). 4 helpers added: `validateSlabsBelongToProgram`, `toEntityType`, `toThriftType`, `toDto`. D-43 sentinel: `dto.setStateChanged(false)` when activate is a no-op. G-04.1 bulk slab fetch in list via `findActiveSlabIdsForCategories` → `Map<Integer, List<Integer>>`.
+- `PointsEngineRuleEditor.java` (interface) — 6 method declarations added so ThriftImpl can delegate via interface reference (D-54).
+- `PointsEngineRuleEditorImpl.java` — 6 skeleton impls → thin pass-through delegations.
+- `PointsEngineRuleConfigThriftImpl.java` — 6 handler stubs → Editor delegations; preserved `@Trace(dispatcher=true)` + `@MDCData(orgId, requestId)` decorators; structured CAP-185145 logging added.
+- `PointsEngineRuleServiceBenefitCategoryRedTest.java` — DELETED (7 UOE-shim tests obsolete after GREEN; subagent plan Q1:a resolution).
+
+**intouch-api-v3** (commit `0ae66f606`):
+- `PointsEngineRulesThriftService.java` — 6 BenefitCategory Thrift delegations. Uses `CapRequestIdUtil.getRequestId()` for serverReqId. Propagates `PointsEngineRuleServiceException` verbatim so `@RestControllerAdvice` maps statusCode → HTTP; wraps `TException` as `EMFThriftException` with structured CAP-185145 logging.
+- `BenefitCategoryResponseMapper.java` — 4 mappers: `toResponse` (Thrift `long` epoch → `java.util.Date`, isSet* guards, D-45 ISO-8601 via Jackson `@JsonFormat`), `toCreateDto` (sets isActive=true by default), `toUpdateDto` (partial-update: only non-null fields), `toListPayload` (pagination metadata preserved).
+- `BenefitCategoryFacade.java` — 6 skeleton methods → real orchestration: REST DTO → mapper → ThriftService → mapper → REST response. D-43 enforcement: facade zeroes `stateChanged` to null on non-activate paths (create/update/get). Inner `BenefitCategoryBusinessException extends RuntimeException` wraps checked `PointsEngineRuleServiceException` for Spring MVC propagation; `BenefitCategoryExceptionAdvice` unwraps via `getCause()` (D-55).
+- `BenefitCategoryFacadeRedTest.java` — RED UOE assertions rewritten as GREEN Mockito tests: `@ExtendWith(MockitoExtension.class)`, `@Mock` deps for `PointsEngineRulesThriftService` + `BenefitCategoryResponseMapper`, `@InjectMocks BenefitCategoryFacade`. Verifies orchestration + D-43 `stateChanged` clearing. BT-082 (ADR-003 slabIds field) and BT-096 (D-36 no DELETE mapping) structural checks retained.
+
+#### Compile Verification Scoping
+
+Per user directive ("we don't need this change, implement what we need to do"), local full-module `mvn compile` on emf-parent was NOT attempted (D-56). Pre-existing defects at `PointsEngineThriftHelper.java:1140` (conditional-expr nulltype) left untouched — CI (Jenkins) performs full-module compile verification per D-53a classifier.
+
+**Commits landed**:
+```
+emf-parent       3aec0c39c0  CAP-185145: Phase 10 M2 GREEN — Service/Editor/ThriftImpl
+intouch-api-v3   0ae66f606   CAP-185145: Phase 10 M2 GREEN — REST + Thrift wiring
+```
+
+**M3 queued** (67 deferred BTs in intouch-api-v3):
+- Reusable `TimezoneRule` JUnit 5 extension (D-51)
+- Testcontainers MySQL IT including BT-067 end-to-end (D-50)
+- Tenant isolation (G-07) + timezone matrix UTC/PST/IST (G-01)
+
+**Phase 10 M2 Confidence**: C6 overall (C7 for pattern conformance + method-signature alignment; C6 for semantic correctness — CI-gated).
+
+---

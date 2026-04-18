@@ -679,3 +679,128 @@ The Phase 9 subagent landed code with four defects; all fixed before commit/tag:
 - Phase 11 Reviewer: verify `tillId`/`serverReqId` consistency across all 4 repos; flag D-45 revision for product/UX sign-off.
 
 **Phase 9 Confidence**: C6 overall (intouch-api-v3 RED confirmed C7; emf-parent + thrift-ifaces + cc-stack DDL verified structurally at C6 — local compile/codegen deferred to CI per TD-SDET-05).
+
+---
+
+## Phase 10 — Pre-implementation Resolutions (2026-04-18)
+
+User answered checkpoint Q1..Q5 as `C, C, A, A, 2`. Investigations ran before code phase to resolve 4 Phase-9 deferred questions.
+
+### Key Decisions
+
+| # | Decision | Anchor | Confidence |
+|---|----------|--------|-----------|
+| D-49 | Controller `tillId` source: keep `(int) user.getEntityId()` — no `getTillId()` exists on platform auth-user model. Canonical pattern used by TargetGroupController, UnifiedPromotionController | resolves Q-SDET-09 | C7 |
+| D-50 | BT-067 implemented as **end-to-end IT in intouch-api-v3** (controller → facade → Thrift client → emf-parent → Testcontainers MySQL) — emf-parent has zero `TServer`/`TThreadPoolServer`; IT harness is Spring-based only | resolves Q-BT-01 | C7 |
+| D-51 | BT-G01b timezone isolation: in-test `@Before` capture + `@After` restore `TimeZone.getDefault()` (option b); codified as reusable `TimezoneRule` — NO pom fork-per-test (option a rejected as too broad) | resolves Q-BT-02 | C6 |
+| D-52 | Lock `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` in code; queue UI team sign-off for Phase 11 `/api-handoff`. If UI pushback at Phase 11 → annotation-only revert, no downstream impact | resolves Q-SDET-08 (code side) | C5 (pending UI confirmation) |
+
+### Phase 10 Execution Plan (per Q1..Q5 answers)
+
+- **Q1:C Execution shape** — hybrid; since Q2 skips local codegen, the "IDL codegen gate" collapses → two Java repos implemented in parallel via subagent-driven-development. IT expansion serial.
+- **Q2:C Codegen**: no local `mvn install` on thrift-ifaces. Implement Java against the IDL contract by hand (signatures already known from commit `22176fd`). CI verifies codegen on push.
+- **Q3:A Open questions**: all 4 resolved above (D-49..D-52).
+- **Q4:A IT scope**: all 67 deferred BTs implemented in Phase 10.
+- **Q5:2 Commits**: per-repo per-milestone (4-6 total commits expected).
+
+### Q-SDET-09 Revisit Trigger
+
+None foreseen. If the platform ever exposes `User.getTillId()`, upgrade in a follow-up — behaviour-preserving change.
+
+### Q-SDET-08 Revisit Trigger
+
+UI team Phase 11 review. If they push back on ISO-8601 pattern: revert to `@JsonFormat(shape = STRING, timezone = "UTC")` on `createdOn`/`updatedOn` only. DTO structure, Editor, DAO, DDL untouched.
+
+### D-53 — Phase 10 Codegen Strategy: Hybrid (Local Install, Local .m2 Only) — SUPERSEDED
+
+Local `mvn install -DskipTests` on thrift-ifaces-pointsengine-rules failed with `maven-parent:2.0.0` hardcoding `<source>1.6</source>/<target>1.6</target>` in the compiler-plugin config (JDK 17 removed target 1.6 support). Superseded by D-53a.
+
+### D-53a — Phase 10 Codegen: Jenkins-Built `1.84-SNAPSHOT-dev` (C7)
+
+User built thrift-ifaces-pointsengine-rules on Jenkins with classifier `-dev` and told orchestrator to pull that version. Executed:
+
+```
+cd emf-parent
+mvn dependency:get -Dartifact=com.capillary.commons:thrift-ifaces-pointsengine-rules:1.84-SNAPSHOT-dev
+```
+
+Result: `~/.m2/repository/com/capillary/commons/thrift-ifaces-pointsengine-rules/1.84-SNAPSHOT-dev/` populated at 2026-04-18 20:16. Jar size 3.77 MB.
+
+**Verification via `javap` on `PointsEngineRuleService$Iface`** (C7):
+All 6 BenefitCategory methods now carry the trailing `java.lang.String` param (serverReqId):
+- `createBenefitCategory(int, BenefitCategoryDto, int, String)` — 4 args
+- `updateBenefitCategory(int, int, BenefitCategoryDto, int, String)` — 5 args
+- `getBenefitCategory(int, int, boolean, String)` — 4 args
+- `listBenefitCategories(BenefitCategoryFilter, int, int, String)` — 4 args
+- `activateBenefitCategory(int, int, int, String)` — 4 args
+- `deactivateBenefitCategory(int, int, int, String)` — 4 args
+
+**Structural change vs pre-salvage Jar**: the Jenkins jar does NOT contain a separate `PointsEngineRuleServiceBenefitCategoryMethods` interface. The 6 methods live directly on `PointsEngineRuleService.Iface`. Consequence:
+- `PointsEngineRuleConfigThriftImpl implements PointsEngineRuleService.Iface` — already correct (line 113, pre-existing).
+- `BenefitCategoryComplianceTest.BT-084` (SDET-authored, emf-parent) references `PointsEngineRuleServiceBenefitCategoryMethods` — will fail compilation. Phase 10 emf-parent subagent must rewrite BT-084 to assert against `PointsEngineRuleService.Iface` and the 6 expected method signatures by reflection.
+
+**Pom updates** (committed in Phase 10 scaffolding):
+- `emf-parent/pom.xml:192` — `1.84-SNAPSHOT` → `1.84-SNAPSHOT-dev`
+- `intouch-api-v3-2/intouch-api-v3/pom.xml:231` — `1.84-SNAPSHOT` → `1.84-SNAPSHOT-dev`
+
+**Pre-existing SDET defects surfaced by compile-verify** (Phase 10 fix scope for emf-parent subagent):
+1. `PointsEngineRuleConfigThriftImpl.java:100` — bad star import `import com.fasterxml.jackson.*;` (package doesn't exist; line 98 already has specific Jackson import) — remove line 100.
+2. `PointsEngineThriftHelper.java:1140,114` — conditional expression with `<nulltype>` → `long`; appeared in SDET commit `0b298c3216` inside an `eventLogs.stream().map(...)` block — fix ternary to produce `Long` not `long`.
+3. `BenefitCategoryComplianceTest.java:4,92,93` — import + 2 assertions on non-existent `PointsEngineRuleServiceBenefitCategoryMethods` — rewrite per D-53a structural note.
+
+**Build Verify now unlocked locally**: `mvn compile` can run on both Java repos. intouch-api-v3 unit tests + Testcontainers ITs run locally. emf-parent residual blockers from TD-SDET-05 (AspectJ + nrules deps) separate concern, unchanged — those remain deferred to CI.
+
+---
+
+## Phase 10 M2 — GREEN Implementation Complete (2026-04-18)
+
+M1 scaffolding landed the `1.84-SNAPSHOT-dev` pom bumps. M2 replaced every Phase-9 RED skeleton (`throw new UnsupportedOperationException("Phase 9 RED skeleton")`) with production code across the 3-layer emf-parent backend and the REST/Thrift client stack in intouch-api-v3.
+
+### Files modified in M2
+
+**emf-parent** (committed `3aec0c39c0`):
+
+| File | Change |
+|------|--------|
+| `pointsengine-emf/.../points/services/PointsEngineRuleService.java` | +2 DAO @Autowired fields; 6 skeleton methods → production code; 4 helpers: `validateSlabsBelongToProgram`, `toEntityType`, `toThriftType`, `toDto` |
+| `pointsengine-emf/.../pointsengine/endpoint/api/editor/PointsEngineRuleEditor.java` | Added 6 method declarations so ThriftImpl can delegate via interface reference |
+| `pointsengine-emf/.../pointsengine/endpoint/impl/editor/PointsEngineRuleEditorImpl.java` | 6 skeleton impls → thin pass-through delegations to PointsEngineRuleService |
+| `pointsengine-emf/.../pointsengine/endpoint/impl/external/PointsEngineRuleConfigThriftImpl.java` | 6 ThriftImpl handler stubs → Editor delegations; preserved `@Trace(dispatcher=true)` + `@MDCData(orgId, requestId)`; structured CAP-185145 logging |
+| `pointsengine-emf/src/test/.../PointsEngineRuleServiceBenefitCategoryRedTest.java` | **DELETED** — 7 UOE-shim tests no longer useful once GREEN lands (resolved via subagent plan Q1:a) |
+
+**intouch-api-v3** (committed `0ae66f606`):
+
+| File | Change |
+|------|--------|
+| `.../services/thrift/PointsEngineRulesThriftService.java` | +6 BenefitCategory Thrift delegations using CapRequestIdUtil for serverReqId; `PointsEngineRuleServiceException` propagated verbatim (RestControllerAdvice reads statusCode); TException → EMFThriftException with structured logging |
+| `.../models/dtos/benefitcategory/BenefitCategoryResponseMapper.java` | 4 mappers implemented: `toResponse`, `toCreateDto`, `toUpdateDto`, `toListPayload`; Thrift `long` epoch → `java.util.Date` with isSet* guards; ISO-8601 serialisation via `@JsonFormat` on response DTO (D-45) |
+| `.../facades/BenefitCategoryFacade.java` | 6 skeleton methods → real orchestration; D-43 enforcement (zeroes `stateChanged` on non-activate paths); inner `BenefitCategoryBusinessException extends RuntimeException` wraps checked `PointsEngineRuleServiceException` for Spring MVC propagation |
+| `src/test/.../BenefitCategoryFacadeRedTest.java` | RED UOE assertions replaced with GREEN Mockito tests: `@ExtendWith(MockitoExtension.class)`, `@Mock` deps, `@InjectMocks` facade; verifies orchestration + D-43 `stateChanged` clearing; keeps BT-082/BT-096 structural checks |
+
+### Key Implementation Decisions (M2)
+
+| # | Decision | Rationale | Confidence |
+|---|----------|----------|-----------|
+| D-54 | `PointsEngineRuleEditor` interface gets 6 new method declarations, not just the impl class | ThriftImpl injects the interface (`PointsEngineRuleEditor m_pointsEngineRuleEditor`). Adding to impl only would not compile. Grepped: only one concrete impl exists (`PointsEngineRuleEditorImpl`); test files use `@Mock` so mock creation is unaffected. | C7 |
+| D-55 | `BenefitCategoryBusinessException` added as `static` inner class on `BenefitCategoryFacade` | `PointsEngineRuleServiceException` is a **checked** exception extending `java.lang.Exception`. Spring MVC cannot propagate checked exceptions from facades without method signatures declaring `throws`. Wrap in a RuntimeException that preserves `statusCode` + `errorMessage`; `BenefitCategoryExceptionAdvice` unwraps via `getCause()`. | C7 |
+| D-56 | Local full-module `mvn compile` not attempted | User directive: "we don't need this change, implement what we need to do" — scoped fixes to BenefitCategory files only; CI (Jenkins) performs full-module compile verification per D-53a. Pre-existing defects at `PointsEngineThriftHelper.java:1140` left untouched. | C7 (user-directed) |
+| D-57 | `BenefitCategoryFacadeRedTest` renamed semantically (kept filename) to GREEN test | Avoids breaking any test-harness wiring that references the filename; the Javadoc header and test bodies reflect GREEN-phase semantics (orchestration + D-43 verification). | C6 |
+
+### Commits landed
+
+```
+emf-parent       3aec0c39c0  CAP-185145: Phase 10 M2 GREEN — Service/Editor/ThriftImpl
+intouch-api-v3   0ae66f606   CAP-185145: Phase 10 M2 GREEN — REST + Thrift wiring
+```
+
+### Outstanding (deferred to M3)
+
+- **67 deferred BTs in intouch-api-v3**:
+  - Reusable `TimezoneRule` JUnit 5 extension (D-51)
+  - Testcontainers MySQL IT including BT-067 end-to-end (D-50)
+  - Tenant isolation tests (G-07)
+  - Timezone matrix: UTC / PST / IST (G-01)
+- **Phase 10b/10c/10d**: Backend readiness, Compliance gap analysis, Migration validation
+- **Phase 11**: Reviewer — with `/api-handoff` queued to get UI team sign-off on D-45 ISO-8601 `yyyy-MM-dd'T'HH:mm:ssXXX` pattern (D-52)
+
+**Phase 10 M2 Confidence**: C6 overall (C7 for pattern conformance and method-signature alignment; C6 for semantic correctness — local compile gated by legacy `PointsEngineThriftHelper.java:1140` defect out of scope per D-56, CI verifies full module build).
