@@ -939,9 +939,67 @@ The 11 emf-parent compliance tests are **structural assertions** (reflection-bas
 
 ### Open questions / TODOs from D-59
 
-- [ ] Commit emf-parent fixes (PointsEngineRuleService + PointsEngineRuleConfigThriftImpl + BenefitCategoryComplianceTest.BT-098 rewrite) with message referencing D-59.
-- [ ] Update pipeline-state.json: either revise Phase 10 `"status"` based on option chosen, OR add an M3a block mirroring M3's shape.
-- [ ] Update live-dashboard.html with the same correction + D-59 callout.
-- [ ] Append D-59 summary row to the Key Decisions section at top of session-memory.md (cross-reference this addendum).
-- [ ] Retire TD-SDET-05 from the technical-debt register (it was false); re-evaluate any downstream decisions that leaned on it.
+- [x] Commit emf-parent fixes — done 89f7043043 (M3a) 2026-04-19; tag `aidlc/CAP-185145/phase-10-m3a` applied.
+- [x] Update pipeline-state.json — M3a block committed + M4 milestone added (see below).
+- [x] Update live-dashboard.html — M3a + M4 subsections appended.
+- [x] D-59 referenced in session-memory (full decision record in the section above).
+- [x] Retire TD-SDET-05 — invalidated as of 2026-04-19; M4 built the Mockito corpus locally under Temurin 8 with no offline-build blocker. Removed from active technical-debt register.
+
+---
+
+## Phase 10 M4 — emf-parent Behavioural UTs + M2 D-60 Name-Uniqueness Tightening (2026-04-19)
+
+> **Trigger**: user decisions on M4 subagent findings — `1c` (combined commit), `2b` (accept 404 on PUT inactive), `3a` + new directive "we shouldn't create benefit category with name even though if that name exist with inactive state". Questions Q-M4-04 / Q-M4-05 both answered `a`.
+
+### D-27a — drift accepted (2b)
+
+| # | Decision | Rationale | Confidence |
+|---|----------|-----------|-----------|
+| D-27a | **PUT on inactive benefit category returns 404, not the 409 originally specified in D-27/D-34(e). Drift accepted, no code change.** | M2 code uses `findActiveById` as the initial guard which yields 404 when the row is inactive OR missing. Distinguishing "inactive → 409" vs "missing → 404" would require a two-step lookup with no observable user benefit — from the API surface an inactive category IS "not found" in its queryable scope. `bt032` asserts observed 404 with javadoc pointer to this drift. **Supersedes D-27's 409-on-PUT clause specifically**; other D-27 semantics (PATCH /activate as only state-change verb, cascade deactivate) unchanged. | C6 (user decision 2b + BT-032 GREEN) |
+
+### D-60 — Name uniqueness tightened across all states (3a + new directive)
+
+| # | Decision | Rationale | Confidence |
+|---|----------|-----------|-----------|
+| D-60 | **Name uniqueness within `(orgId, programId)` applies to ALL benefit category rows regardless of `is_active`. A name, once used, is reserved for the life of the row; because hard-delete doesn't exist, that means permanently.** | Three paths now check all states: (a) **CREATE** → `findByProgramAndName` (was `findActiveByProgramAndName`) — 409 if any row holds the name; (b) **UPDATE** rename (Q-M4-04=a symmetric) → `findByProgramAndNameExceptId` (was `findActiveByProgramAndNameExceptId`) — 409 if another row holds the new name; (c) **ACTIVATE** (Q-M4-05=a + resolves Defect B surfaced by M4) → new `findByProgramAndNameExceptId` guard before `activateIfInactive` flip — 409 if another row holds the same name. **Name reservation persists through deactivation** — reactivating restores the original name; it never conflicts with itself. D-47 case-sensitivity (byte-comparison) continues to apply. Two new DAO methods added: `findByProgramAndName(orgId, programId, name)` + `findByProgramAndNameExceptId(orgId, programId, name, excludeId)` — both tenant-filtered (G-07) and union over is_active. **Supersedes D-28 on name-uniqueness scope but preserves D-28's app-layer-enforcement posture** (no DB UNIQUE constraint added). | C6 (user decision + 3 new UTs bt007b/bt020b/bt046b GREEN + 5 existing UTs updated to reference new DAO methods) |
+
+### M4 deliverables — 30 UTs GREEN on Temurin-8
+
+| File | Tests | Coverage | Status |
+|------|-------|----------|--------|
+| `pointsengine-emf-ut/.../points/services/BenefitCategoryServiceTest.java` | 23 | Service layer: all 6 methods + slab diff-apply (D-35) + tenant isolation (G-07) + D-60 tightening (bt007b CREATE-vs-inactive, bt020b UPDATE-rename-vs-inactive, bt046b ACTIVATE-vs-active) | GREEN |
+| `pointsengine-emf-ut/.../pointsengine/endpoint/impl/editor/BenefitCategoryEditorTest.java` | 7 | Editor delegation to service + DTO mapping + exception propagation | GREEN |
+
+**All 15 service behaviours now covered**. Behaviour #5 "activate name-taken-by-active" became testable only after D-60 added the guard in `activateBenefitCategory`.
+
+### M2 production changes (landed in the same M4 commit — per 1c)
+
+`PointsEngineRuleService.java`:
+- L4506 — `createBenefitCategory`: swapped name lookup to all-states `findByProgramAndName` (D-60)
+- L4591 — `updateBenefitCategory`: swapped exceptId lookup to all-states `findByProgramAndNameExceptId` (D-60 + Q-M4-04=a)
+- L4767–4778 — `activateBenefitCategory`: **NEW** name-conflict guard using `findByProgramAndNameExceptId` before `activateIfInactive` (D-60c — fixes Defect B)
+
+`BenefitCategoryDao.java`:
+- L64 — **NEW** `findByProgramAndName(orgId, programId, name)` — all-states, tenant-filtered, JPQL
+- L73 — **NEW** `findByProgramAndNameExceptId(orgId, programId, name, excludeId)` — all-states exceptId, tenant-filtered, JPQL
+
+**Editor + Thrift handler**: audited — pure delegation, no name-lookup logic. No changes.
+
+### Build + test evidence (2026-04-19, Temurin-8 @ /Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home)
+
+```
+mvn -pl pointsengine-emf,pointsengine-emf-ut -am test -Dtest='BenefitCategory*' -DfailIfNoTests=false -Dmaven.javadoc.skip=true
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryComplianceTest (structural)
+[INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryServiceTest (behavioural)
+[INFO] Tests run:  7, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryEditorTest (behavioural)
+[INFO] Tests run: 30, Failures: 0, Errors: 0, Skipped: 0  ← pointsengine-emf-ut total
+[INFO] BUILD SUCCESS
+```
+
+**41 GREEN total** (11 compliance + 30 UTs). C6 on behavioural correctness (C7 once M5 Testcontainers ITs close the handler→DAO→MySQL loop).
+
+### Remaining open items after M4
+
+- **M5** — Testcontainers ITs for emf-parent (handler → DAO → MySQL round-trip + BT-067 cross-repo embedded-server). Scope: 10–15 ITs. Recommended before Phase 10b so Backend Readiness exercises behavioural coverage rather than only structural compliance.
+- **Pipeline-artifact lag**: `04b-business-tests.md` still references D-28 active-only scope for BT-007/BT-020. Add a Post-M4 note pointing at D-60 + bt007b/bt020b. LOW priority (lag of one step is acceptable for a living doc).
 

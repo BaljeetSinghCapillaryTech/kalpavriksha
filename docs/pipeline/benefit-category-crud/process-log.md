@@ -1387,3 +1387,70 @@ Neither M4 nor M5 blocks Phase 10b Backend Readiness or Phase 11 Reviewer — bo
 **Phase 10 M3a confidence**: **C7** on compile + 11 compliance tests GREEN (direct local verification). **C5** on behavioural correctness of M2 production code (no Mockito UTs or Testcontainers ITs on emf-parent side yet — the 11 compliance tests are reflection-based structural assertions).
 
 ---
+
+## Phase 10 — Developer GREEN (M4: emf-parent Behavioural UTs + D-60 Tightening) — 2026-04-19
+
+**Skill**: `/developer` (M4 sub-execution) + inline M4 subagent (general-purpose, sonnet) for Mockito UT generation + inline tightening subagent for D-60 production changes.
+
+**Trigger**: User chose Option B from M3a addendum (emf-parent UTs/ITs before Phase 10b). Three decisions landed: `1c` (combined commit M4 tests + M2 fixes), `2b` (accept 404 drift on PUT inactive — D-27a), `3a` + new directive "we shouldn't create benefit category with name even though if that name exist with inactive state" (Q-M4-04=a, Q-M4-05=a — D-60 tightening).
+
+### Executive summary
+
+- **30 Mockito UTs GREEN** on Temurin 8 covering all 15 service behaviours (14 before M4; behaviour #5 became testable after D-60 added the ACTIVATE name-uniqueness guard).
+- **D-60 landed**: name uniqueness now applies across active + inactive rows in CREATE, UPDATE, and ACTIVATE paths. 2 new DAO methods added. Supersedes D-28 name-scope clause.
+- **D-27a landed** as accepted drift: PUT on inactive returns 404 not 409 — no code change, BT-032 asserts observed behaviour.
+- **Defect B from M4 discovery** (`activateBenefitCategory` missing name-uniqueness check) fixed as part of D-60c.
+- **Editor + Thrift handler** audited: pure delegation, no name-lookup logic, no changes.
+
+### Code changes (uncommitted, awaiting user approval per Rule 3)
+
+| File | Change | Ref |
+|------|--------|-----|
+| `PointsEngineRuleService.java` L4506 | `findActiveByProgramAndName` → `findByProgramAndName` | D-60a (CREATE) |
+| `PointsEngineRuleService.java` L4591 | `findActiveByProgramAndNameExceptId` → `findByProgramAndNameExceptId` | D-60b (UPDATE rename, Q-M4-04=a) |
+| `PointsEngineRuleService.java` L4767-4778 | **NEW** name-conflict guard inserted before `activateIfInactive` | D-60c (ACTIVATE, Defect B fix) |
+| `BenefitCategoryDao.java` L64 | **NEW** `findByProgramAndName(orgId, programId, name)` — all-states | D-60 |
+| `BenefitCategoryDao.java` L73 | **NEW** `findByProgramAndNameExceptId(orgId, programId, name, excludeId)` — all-states exceptId | D-60 |
+| `BenefitCategoryServiceTest.java` (NEW) | 23 tests — 20 original behavioural + 3 new (bt007b, bt020b, bt046b for D-60) + 5 stub refs updated | M4 |
+| `BenefitCategoryEditorTest.java` (NEW) | 7 tests — Editor delegation + DTO mapping + exception propagation | M4 |
+
+### Build + test evidence
+
+```
+JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home \
+mvn -pl pointsengine-emf,pointsengine-emf-ut -am test \
+  -Dtest='BenefitCategory*' -DfailIfNoTests=false -Dmaven.javadoc.skip=true
+
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryComplianceTest (structural)
+[INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryServiceTest (behavioural)
+[INFO] Tests run:  7, Failures: 0, Errors: 0, Skipped: 0  ← BenefitCategoryEditorTest (behavioural)
+[INFO] Tests run: 30, Failures: 0, Errors: 0, Skipped: 0  ← pointsengine-emf-ut total
+[INFO] BUILD SUCCESS
+```
+
+**41 GREEN total** = 11 compliance + 30 behavioural UTs.
+
+### Pipeline artifact updates (this entry)
+
+- **session-memory.md** — M3a TODO checklist closed; M4 section appended with D-27a + D-60 rows + deliverables table + evidence.
+- **pipeline-state.json** — M3a commits field updated to `89f7043043` + tag recorded; M4 milestone block added with decisions D-27a/D-60, test file inventory, build verification; `decisions_recorded_overall` extended by `D-27a`, `D-60`; `debt` block severity dropped MEDIUM → LOW; verdict reworded.
+- **live-dashboard.html** — stats bar refreshed (decisions 64 → 66, tests 34+11 → 34+11+30, M4 callout); Phase 10 badge reworded; M4 subsection appended under Phase 10 with D-60 tightening table + coverage matrix + Mermaid flow of CREATE/UPDATE/ACTIVATE check paths.
+- **process-log.md** — this entry.
+
+### Step A/B/C
+
+- **Step A (Mermaid)**: 1 new flow in live-dashboard.html covering the 3 paths touched by D-60. No new fenced-block diagrams in .md files (tables carry the info).
+- **Step B (live-dashboard.html)**: updated inline.
+- **Step C (Confluence)**: not configured for this run — skipped.
+
+### M4 confidence
+
+**C6 behavioural** on the UT layer (Mockito mocks the DAO boundary; JPA/query-translation layer is not exercised). **C7 once M5 Testcontainers** closes the handler → DAO → real-MySQL round-trip, including BT-067 cross-repo end-to-end.
+
+### Next actions
+
+1. ✅ emf-parent combined commit landed — `afab3d37fb`, tagged `aidlc/CAP-185145/phase-10-m4` (2026-04-19).
+2. Spawn M5 Testcontainers IT subagent (~10–15 ITs, handler→DAO→MySQL, includes BT-067 embedded-server).
+3. After M5: Phase 10b Backend Readiness.
+
+---
