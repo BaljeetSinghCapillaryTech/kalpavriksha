@@ -512,9 +512,104 @@ All Phase-6-blocking items cleared. Proceeding to Phase 6 (HLD — Architect).
 
 **Constraint on `/architect`**: D-33..D-36 are **non-debatable inputs**. `/architect` incorporates them verbatim as ADR-001..ADR-004 in `01-architect.md`, writes supporting flow diagrams, and designs the remainder of HLD _around_ these fixed choices (not over them).
 
-### Phase 6 (Architect) Decisions
+### Phase 6 (Architect) Decisions — Gate Questions Resolved (2026-04-18)
 
-_Pending — launching `/architect` next with D-33..D-36 as frozen inputs._
+Architect produced `01-architect.md` (1012 lines, 13 ADRs — 4 frozen D-33..D-36 incorporated verbatim + 9 new). Architect flagged 4 user-sign-off questions that had to be answered before Phase 7 could proceed. User answered: **Q1:B, Q2:B, Q3:B, Q4:C**. Two of the four (Q2, Q3) OVERRIDE the Architect's default — ADR-006 and ADR-012 amended in-place.
+
+---
+
+**Q-37 — Authorization on benefit-category writes (Phase 6 gate Q1, 2026-04-18)**
+
+- **Question**: Admin-only gate via `@PreAuthorize('ADMIN_USER')` or any authenticated BasicAndKey caller?
+- **Options presented**:
+  - (A) `@PreAuthorize('ADMIN_USER')` — admin-only gate, stricter
+  - (B) Any authenticated BasicAndKey caller — pattern-matches legacy `/benefits`, `UnifiedPromotionController`, `TargetGroupController` (Architect recommendation)
+  - (C) Other (feature-flag + role check, etc.)
+- **Recommendation**: **(B)** — consistent with existing v3 conventions; admin-only layerable later as a separate epic.
+- **User answer**: **B** — confirms platform-default BasicAndKey.
+- **Decision recorded**: **D-37** — no admin-only gate in MVP. ADR-010 CONFIRMED unchanged; confidence upgraded C5 → C6.
+- **Downstream impact**:
+  - Phase 7 Designer: `BenefitCategoriesV3Controller` uses `@BasicAndKey` on writes, `@KeyOnly OR @BasicAndKey` on reads. No `@PreAuthorize`.
+  - Phase 8 QA: No role-based authz scenarios; orgId-scoping IT (cross-tenant) covers the multi-tenant path.
+- **Confidence**: C6 (user confirmed default).
+
+---
+
+**Q-38 — Uniqueness-race mitigation (Phase 6 gate Q2, 2026-04-18)**
+
+- **Question**: How should the `SELECT check_active_duplicate → INSERT new row` race for `(org_id, program_id, name)` be mitigated?
+- **Options presented**:
+  - (A) MySQL `GET_LOCK('bc:{orgId}:{programId}:{name}', 2)` advisory lock — 2s timeout → 409 `BC_NAME_LOCK_TIMEOUT`. (ADR-012 default, C4)
+  - (B) Accept the race at D-26 SMALL scale; monitor; revisit only if incidents occur
+  - (C) Partial unique index — requires Aurora MySQL ≥ 8.0.13 (conditional on Q4)
+- **Recommendation**: Architect ADR-012 default was **(A)** but **(B)** defensible if consistent with D-33 philosophy.
+- **User answer**: **B** — accept the race. OVERRIDES ADR-012 default.
+- **Decision recorded**: **D-38** — no advisory lock, no partial unique index, no `BC_NAME_LOCK_TIMEOUT` error code in MVP. App-layer check only. Revisit triggers: (a) admin QPS >5/sec sustained; (b) ≥1 real duplicate-name incident in production logs; (c) product requires strict uniqueness guarantee.
+- **Rationale** (user-aligned with D-33): D-26 admin-write QPS <1/s → collision probability vanishingly small; advisory-lock ceremony adds MySQL-level complexity and a new failure mode for a race unlikely to materialize; consistent with accepted-deviation philosophy of D-33.
+- **Downstream impact**:
+  - **ADR-012 AMENDED** — advisory lock mechanism stricken from HLD; replaced with app-layer check + accepted-deviation marker.
+  - **Create flow Mermaid (§5.1)** — `GET_LOCK`/`RELEASE_LOCK` steps removed; note added.
+  - **API table (§8)** — `BC_NAME_LOCK_TIMEOUT` stripped from POST error codes.
+  - **Risk Register** — R-03 severity lowered HIGH → MEDIUM with explicit accepted-deviation flag. Summary now: 2 CRITICAL / 2 HIGH / 5 MEDIUM / 3 LOW.
+  - **Guardrail Matrix** — G-10.5 changed from "mitigated via advisory lock" to "accepted deviation with revisit-triggers".
+  - Phase 7 Designer: `BenefitCategoryFacade.create()` = simple `findActiveByName → INSERT`; no `GET_LOCK`.
+  - Phase 8 QA: No advisory-lock timeout scenarios; explicit note "SELECT→INSERT race accepted per D-38; not asserted".
+- **Confidence**: C6 — internally consistent with D-33.
+
+---
+
+**Q-39 — `/activate` response body (Phase 6 gate Q3, 2026-04-18)**
+
+- **Question**: `PATCH /activate` happy response — 204 No Content (symmetric with `/deactivate`) or 200 + `BenefitCategoryResponse` DTO (client convenience)?
+- **Options presented**:
+  - (A) 204 No Content — symmetric with `/deactivate` (ADR-006 default)
+  - (B) 200 OK + DTO — saves client a GET round-trip; asymmetric
+- **Recommendation**: Architect ADR-006 default was **(A)** for symmetry.
+- **User answer**: **B** — 200 + DTO on activate. OVERRIDES ADR-006 default. Deliberate asymmetry.
+- **Decision recorded**: **D-39** — `/activate` happy = 200 + DTO; `/deactivate` happy = 204; both idempotency paths = 204.
+- **Rationale**: Activation typically precedes further admin edits — returning DTO avoids mandatory second GET. Deactivation is typically terminal — no meaningful post-state to show. Idempotency collapses to 204 on both (no state change).
+- **Downstream impact**:
+  - **ADR-006 AMENDED** — asymmetric happy path; idempotent paths unchanged.
+  - **API table (§8)** — Row 5 (`/activate`) response updated.
+  - **Thrift IDL** — `activateBenefitCategory` returns `BenefitCategory` struct (not `void`); `deactivateBenefitCategory` remains `void`.
+  - **Facade signature** — `activate()` returns `Optional<BenefitCategoryResponse>`; empty → 204, populated → 200+body.
+  - Phase 8 QA: Assert 200+DTO on happy activate; 204 on idempotent already-active; 204 on happy/idempotent deactivate.
+- **Confidence**: C6 — asymmetry trade-off explicitly acknowledged.
+
+---
+
+**Q-40 — Aurora MySQL version confirmation (Phase 6 gate Q4, 2026-04-18)**
+
+- **Question**: Production Aurora MySQL version — ≥ 8.0.13 or below? Needed for ADR-012 partial-unique-index fallback viability.
+- **Options presented**:
+  - (A) ≥ 8.0.13 — partial unique index is a usable future fallback
+  - (B) < 8.0.13 — only advisory lock or app-layer check available
+  - (C) Don't know — defer to Phase 12 Blueprint deployment runbook
+- **Recommendation**: Non-blocking for Phase 7 regardless; answer C acceptable.
+- **User answer**: **C** — deferred to Phase 12.
+- **Decision recorded**: **D-40** — Phase 12 deployment runbook confirms Aurora version. ADR-012 "Future Remediation" note kept; partial unique index option conditional on version check.
+- **Why non-blocking**: D-38 (accept the race) upstream removed advisory-lock vs partial-index decision from critical path. MVP doesn't use either mechanism.
+- **Downstream impact**:
+  - Phase 7: None.
+  - Phase 12: Blueprint runbook step — "confirm Aurora MySQL version ≥ 8.0.13 to preserve partial-unique-index remediation option".
+- **Confidence**: C6 — acceptable deferral.
+
+---
+
+**Phase 6 Gate Resolution Summary**
+
+| # | Question | User Choice | Decision | Deviation from Architect Default? | Confidence |
+|---|----------|-------------|----------|-----------------------------------|-----------|
+| Q1 | Authz admin-only vs BasicAndKey | B | D-37 | No — confirms default | C6 |
+| Q2 | Uniqueness-race mitigation | B | D-38 | **YES — overrides ADR-012 default (A)** | C6 |
+| Q3 | `/activate` response body | B | D-39 | **YES — overrides ADR-006 default (A)** | C6 |
+| Q4 | Aurora MySQL version | C | D-40 | No — acceptable deferral | C6 |
+
+**2 of 4 overrides**: D-38 and D-39 represent the user's independent judgment — D-38 extends D-33 philosophy (accept small-scale risk); D-39 trades symmetry for client UX. Both amendments are surgically applied in-place to `01-architect.md`.
+
+### Phase 7 (Designer) Decisions
+
+_Pending — launching `/designer` next with full HLD + amended ADRs + 4 new constraints as inputs._
 
 ### Phase 11 (Reviewer Gap Routing) Decisions
 

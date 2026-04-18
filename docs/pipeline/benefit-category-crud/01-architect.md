@@ -286,30 +286,38 @@ sequenceDiagram
 
 ---
 
-### ADR-006 — Idempotency response codes for `/activate` and `/deactivate`
+### ADR-006 — Response codes for `/activate` and `/deactivate` (AMENDED by D-39)
 
-**Context**. ADR-002 and ADR-004 leave idempotency response unpinned (204 vs 409) for "activate already-active" and "deactivate already-inactive". Two reasonable choices:
+> **STATUS: AMENDED post-HLD by user decision D-39 (Phase 6 gate Q3)**. Original proposal was symmetric 204 on both verbs; amendment introduces a deliberate asymmetry on the happy path.
 
-| Option | Already-active activate | Already-inactive deactivate |
-|--------|------------------------|------------------------------|
-| A | 204 No Content | 204 No Content |
-| B | 409 Conflict | 409 Conflict |
+**Context**. ADR-002 and ADR-004 leave both the happy-path response body and the idempotency response code unpinned. Two dimensions to decide:
+1. Happy activation body — 204 No Content vs 200 + DTO
+2. Idempotency responses on "already in target state"
 
-**Decision**. Option **A** — `204 No Content` for both idempotency cases.
+**Decision** (post-amendment).
 
-**Rationale**.
-- REST idempotency norm (G-06.1): retried PATCH on a state-transition endpoint that is already in the target state is a no-op, not an error.
-- Simplifies admin tooling and UI refresh flows (e.g., admin double-clicks activate → second response is still 204, no red toast).
-- Matches the "no harm done" semantic: the row is in the target state; the operation is satisfied.
+| Case | Verb | Response |
+|------|------|----------|
+| Happy activate (was inactive → is active) | `PATCH /{id}/activate` | **200 OK + `BenefitCategoryResponse` DTO** (D-39 — UX win, saves GET round-trip) |
+| Happy deactivate (was active → is inactive) | `PATCH /{id}/deactivate` | **204 No Content** (nothing useful to return — admin typically moves on) |
+| Idempotent already-active | `PATCH /{id}/activate` | **204 No Content** (no state change, no DTO to return) |
+| Idempotent already-inactive | `PATCH /{id}/deactivate` | **204 No Content** |
 
-**Rejected**. Option B would need a new error code class (`ALREADY_ACTIVE`, `ALREADY_INACTIVE`) and admin error-handling for a benign case.
+**Rationale for the asymmetry** (D-39).
+- Activation typically precedes further admin edits — returning the DTO avoids a mandatory second GET.
+- Deactivation is typically terminal within the admin session — no meaningful post-state to show.
+- Both idempotency paths collapse to 204 since there is no state change to convey.
+
+**Rejected**. (a) Fully symmetric 204 on both — original ADR-006 default; rejected by user in D-39 because client UX benefits from DTO on activate. (b) 409 on idempotency — would require new error codes (`ALREADY_ACTIVE`, `ALREADY_INACTIVE`) for a benign case; violates G-06.1 REST idempotency norm.
 
 **Consequences**.
-- *Positive*: simple, REST-idiomatic, robot-safe on retries.
-- *Negative*: caller cannot distinguish "I changed state" vs "it was already so" from the response code alone. If auditability matters, server logs (structured, per G-08.2) carry the distinction.
-- *Accepted*: logged residual.
+- *Positive*: client convenience on activate; REST-idiomatic on idempotency; robot-safe on retries.
+- *Negative*: asymmetry must be documented in API docs and client SDK; integration tests assert both shapes.
+- *Thrift IDL impact*: `activateBenefitCategory` returns `BenefitCategory` struct (same shape as `getBenefitCategory`) on state change, null/void on idempotent no-op — Designer encodes this via an optional return field. `deactivateBenefitCategory` remains `void`.
+- *Facade impact*: `BenefitCategoryFacade.activate()` returns `Optional<BenefitCategoryResponse>` — empty on idempotent no-op, populated on state change; controller maps empty → 204, populated → 200 + body.
+- *Accepted*: logged residual; server logs (structured, per G-08.2) capture "did state actually change" for audit.
 
-**Confidence**: C6 — reasoned decision; no user vote; reversible if user prefers B.
+**Confidence**: C6 — user decision (D-39); asymmetry trade-off explicitly acknowledged.
 
 ---
 
@@ -358,7 +366,7 @@ sequenceDiagram
 
 **No FK declarations at DB level**. Cross-table integrity is enforced at the app layer (cross-check `slab_id` against `program_slabs` in the facade). Platform convention (`benefits.sql`, `program_slabs.sql`, `points_categories.sql` from code-analysis-cc-stack-crm.md) uses logical FKs only — composite PKs (id, org_id) across tables make declared FOREIGN KEYs awkward. Matches platform pattern (G-12.2).
 
-**No DB-level UNIQUE constraint on `(org_id, program_id, name)`** — uniqueness enforced at application layer on active rows only (D-28/C-18'). A partial unique index on `(org_id, program_id, name) WHERE is_active=1` is called out in OQ-42's option (iv) for possible future use if the app-level check proves racy in production. Designer Phase 7 may still consider a MySQL advisory lock (`GET_LOCK`) — see Open Questions.
+**No DB-level UNIQUE constraint on `(org_id, program_id, name)`** — uniqueness enforced at application layer on active rows only (D-28/C-18'). **Post-D-38**: no advisory lock either; the SELECT→INSERT race is **accepted** at D-26 SMALL scale per the D-33 philosophy. See amended ADR-012 for revisit-triggers and future-remediation options (partial unique index requires Aurora ≥ 8.0.13 — deferred to Phase 12 per D-40).
 
 **Confidence**: C7 — derived from D-21, D-22, D-23 (as amended by D-30), D-28, D-33; cross-referenced against `program_slabs.sql`, `points_categories.sql`, `Benefits.java`.
 
@@ -426,19 +434,21 @@ sequenceDiagram
 
 ---
 
-### ADR-010 — Authorization model
+### ADR-010 — Authorization model (CONFIRMED by D-37)
 
-**Context**. OQ-34 / RF-4 open: writes on benefit categories — admin-only, or any authenticated caller? Existing intouch-api-v3 has KeyOnly (GET-only), BasicAndKey (writes), IntegrationsClient (OAuth) auth flows. Only `/v3/admin/authenticate` uses `@PreAuthorize("hasRole('ADMIN_USER')")`.
+> **STATUS: CONFIRMED by user decision D-37 (Phase 6 gate Q1)** — no admin-only gate in MVP; BasicAndKey is the write-auth pattern.
+
+**Context**. OQ-34 / RF-4: writes on benefit categories — admin-only, or any authenticated caller? Existing intouch-api-v3 has KeyOnly (GET-only), BasicAndKey (writes), IntegrationsClient (OAuth) auth flows. Only `/v3/admin/authenticate` uses `@PreAuthorize("hasRole('ADMIN_USER')")`.
 
 **Evidence** (C7): `code-analysis-intouch-api-v3.md` §5 auth flows.
 
-**Decision** (C5 — flagged as Q1 in user questions):
+**Decision** (confirmed C6 post-D-37):
 - GET endpoints (`GET by id`, `GET list`): accept `KeyOnly` OR `BasicAndKey` auth. Any authenticated client with a valid key/basic token in the caller's org can read — matches platform convention for read endpoints.
-- Write endpoints (`POST`, `PUT`, `PATCH /activate`, `PATCH /deactivate`): require `BasicAndKey` auth. **No `@PreAuthorize('ADMIN_USER')`** gate recommended for MVP — matches legacy `/benefits` and `UnifiedPromotionController` patterns. If product requires admin-only writes, the `@PreAuthorize` is a one-line addition per endpoint.
+- Write endpoints (`POST`, `PUT`, `PATCH /activate`, `PATCH /deactivate`): require `BasicAndKey` auth. **No `@PreAuthorize('ADMIN_USER')`** gate in MVP — matches legacy `/benefits`, `UnifiedPromotionController`, `TargetGroupController`. Admin-only enforcement is a deferred concern (separate epic); if ever needed, a one-line `@PreAuthorize` per endpoint suffices.
 - **Tenant isolation** (G-07.1 / G-07.2): `orgId` extracted from `IntouchUser.getOrgId()` in controller, passed as method arg to facade → Thrift client → `@MDCData(orgId = "#orgId")` on handler → `ShardContext.set(orgId)` ThreadLocal. All DAO queries take `orgId` as an explicit method parameter (platform convention — NO `@Filter`/`@Where`).
 - **Cross-tenant IT** (G-07.4): Phase 9 SDET MUST add an integration test that creates a category as org A and asserts a GET as org B returns `NOT_FOUND` (not 200 with the row). C-25 / OQ-34 satisfied.
 
-**Confidence**: C5 — follows platform convention; Q1 escalates to user because "admin-only" is a product decision.
+**Confidence**: C6 post-D-37 — user confirmed the platform-default; no admin-role gate in MVP.
 
 ---
 
@@ -460,18 +470,32 @@ sequenceDiagram
 
 ---
 
-### ADR-012 — Uniqueness-among-active enforcement: app-level + MySQL advisory lock
+### ADR-012 — Uniqueness-among-active enforcement: app-level check ONLY; race ACCEPTED at D-26 scale (AMENDED by D-38)
 
-**Context**. D-28 chose app-level uniqueness (no DB UNIQUE) → OQ-42 flagged the concurrent-POST race. At D-26 scale (<1 QPS writes) the race window is small, but G-10.5 formally requires a mitigation.
+> **STATUS: AMENDED post-HLD by user decision D-38 (Phase 6 gate Q2)**. Original proposal mandated a MySQL `GET_LOCK` advisory lock around the check-then-insert. User chose option B (accept the race at D-26 SMALL scale) for consistency with the D-33 philosophy. Advisory lock and `BC_NAME_LOCK_TIMEOUT` error code are STRICKEN from MVP.
 
-**Decision** (C5):
+**Context**. D-28 chose app-level uniqueness (no DB UNIQUE) → OQ-42 flagged the concurrent-POST race. At D-26 scale (<1 QPS writes), the race window is small; the decision is whether to mitigate or accept.
+
+**Decision** (post-amendment, C6):
 - **Primary enforcement**: Facade-side check — `SELECT 1 FROM benefit_categories WHERE org_id=? AND program_id=? AND name=? AND is_active=true` before INSERT / before UPDATE (exclude self for UPDATE). If non-empty → throw `ConflictException(BC_NAME_TAKEN_ACTIVE)`.
-- **Race mitigation**: MySQL advisory lock around the check-then-insert: `SELECT GET_LOCK(CONCAT('bc_uniq_', :orgId, '_', :programId, '_', MD5(:name)), 2)` held until txn end (released by `RELEASE_LOCK` or auto on disconnect). 2-second timeout — exceeding returns 409 `BC_NAME_LOCK_TIMEOUT` (rare; logged).
-- **Future fallback**: partial unique index `CREATE UNIQUE INDEX uniq_bc_active ON benefit_categories (org_id, program_id, name) WHERE is_active = 1` — **MySQL does not support partial indexes prior to 8.0.13**; if the Capillary MySQL version is older, this is not an option until upgrade. Designer Phase 7 confirms MySQL version.
+- **Race mitigation**: NONE in MVP. The `SELECT check → INSERT` race is **accepted** per D-38.
+  - Rationale: D-26 admin-write QPS <1/s → collision probability is vanishingly small; advisory-lock ceremony (`GET_LOCK` + 2s timeout + new error code `BC_NAME_LOCK_TIMEOUT`) adds MySQL-level complexity and a new failure mode for a race that is unlikely to materialize; consistent with D-33 philosophy (accept small-scale risk if ceremony > probable harm).
+- **Revisit triggers** (logged for monitoring): (a) admin write QPS exceeds 5/sec sustained; (b) ≥1 real duplicate-name incident reported in production logs; (c) product requirement change mandates strict uniqueness guarantee.
+- **Future remediation options** (NOT IMPLEMENTED in MVP — kept as ADR notes for Phase 12 runbook):
+  - **Option A**: `CREATE UNIQUE INDEX uniq_bc_active ON benefit_categories (org_id, program_id, name) WHERE is_active = 1` — partial unique index. Requires **Aurora MySQL ≥ 8.0.13** (D-40 — version confirmation deferred to Phase 12 deployment runbook).
+  - **Option B**: `GET_LOCK(CONCAT('bc_uniq_', :orgId, '_', :programId, '_', MD5(:name)), 2)` advisory lock — works on any MySQL version. Adds `BC_NAME_LOCK_TIMEOUT` error code.
+  - Deployment runbook (Phase 12) MUST document the version-check + decision gate.
 
-**Confidence**: C4 — advisory lock pattern is standard, but OQ-42 default recommendation was this same pattern; user may prefer to accept the race (option iii). Flagged as Q2 in user questions.
+**Rejected**. (a) Advisory lock in MVP — user chose B in D-38; ceremony > probable harm at D-26 scale. (b) Partial unique index in MVP — conditional on Aurora version; deferred (D-40).
 
-**Guardrail posture**: G-10.5 mitigated via advisory lock.
+**Consequences**.
+- *Positive*: zero MySQL-level ceremony; facade path is a simple check-then-INSERT; no new error code.
+- *Negative*: accepted deviation from G-10.5. If a real collision occurs in production, two rows with the same `(org_id, program_id, name, is_active=true)` can coexist until detected; admin-side remediation would be manual.
+- *Accepted*: deviation logged with revisit-triggers; R-03 (uniqueness race) risk-register severity lowered to MEDIUM with explicit accepted-flag (mirror of R-01 LWW treatment).
+
+**Confidence**: C6 post-D-38 — user decision; internally consistent with D-33.
+
+**Guardrail posture**: G-10.5 — **accepted deviation** (was "mitigated via advisory lock" in original ADR; amended to "accepted at D-26 scale" per D-38).
 
 ---
 
@@ -584,8 +608,8 @@ sequenceDiagram
     TS->>Hdl: RPC
     Hdl->>Ed: create(orgId, dto)
     Ed->>Svc: create(orgId, dto, actor)
-    Svc->>Svc: GET_LOCK('bc_uniq_{orgId}_{programId}_{md5(name)}', 2)
     Svc->>CatDao: findActiveByProgramAndName(orgId, programId, name)
+    Note right of Svc: No advisory lock (D-38<br/>race accepted at D-26 scale)
     CatDao-->>Svc: empty
     Svc->>Svc: dedup slabIds via LinkedHashSet
     Svc->>SlabDao: findExistingSlabIds(orgId, programId, slabIds)
@@ -593,7 +617,6 @@ sequenceDiagram
     Svc->>CatDao: INSERT benefit_categories (org_id, program_id, name, category_type='BENEFITS', is_active=1, created_on=UTC, created_by=actor)
     CatDao-->>Svc: newId=42
     Svc->>MapDao: INSERT benefit_category_slab_mapping for each slabId (org_id, benefit_category_id=42, slab_id, is_active=1, audit)
-    Svc->>Svc: RELEASE_LOCK (on txn commit)
     Svc-->>Ed: BenefitCategoryDto { id:42, ... }
     Ed-->>Hdl: dto
     Hdl-->>TS: dto
@@ -789,12 +812,12 @@ Base path: `/v3/benefitCategories`. All requests/responses wrapped in `ResponseW
 
 | # | Method | Path | Request Body | Success Response | Error Codes |
 |---|--------|------|--------------|------------------|-------------|
-| 1 | POST | `/v3/benefitCategories` | `{programId, name, slabIds:[int]}` | 201 Created + BenefitCategoryResponse | 400 (`BC_NAME_REQUIRED`, `BC_NAME_LENGTH`, `BC_SLAB_IDS_REQUIRED`), 409 (`BC_NAME_TAKEN_ACTIVE`, `BC_CROSS_PROGRAM_SLAB`, `BC_UNKNOWN_SLAB`, `BC_NAME_LOCK_TIMEOUT`), 500 |
+| 1 | POST | `/v3/benefitCategories` | `{programId, name, slabIds:[int]}` | 201 Created + BenefitCategoryResponse | 400 (`BC_NAME_REQUIRED`, `BC_NAME_LENGTH`, `BC_SLAB_IDS_REQUIRED`), 409 (`BC_NAME_TAKEN_ACTIVE`, `BC_CROSS_PROGRAM_SLAB`, `BC_UNKNOWN_SLAB`), 500 |
 | 2 | PUT | `/v3/benefitCategories/{id}` | `{name, slabIds:[int]}` | 200 OK + BenefitCategoryResponse | 400, 409 (`BC_NAME_TAKEN_ACTIVE`, `BC_CROSS_PROGRAM_SLAB`, `BC_UNKNOWN_SLAB`, `BC_INACTIVE_WRITE_FORBIDDEN`), 200+error (`BC_NOT_FOUND`), 500 |
 | 3 | GET | `/v3/benefitCategories/{id}` | — | 200 OK + BenefitCategoryResponse | 200+error (`BC_NOT_FOUND` platform quirk), 500 |
 | 4 | GET | `/v3/benefitCategories?programId=&isActive=&page=&size=` | — | 200 OK + `{data:[], page, size, total}` | 400 (`BC_PAGE_SIZE_EXCEEDED`), 500 |
-| 5 | PATCH | `/v3/benefitCategories/{id}/activate` | — | 204 No Content | 200+error (`BC_NOT_FOUND`), 409 (`BC_NAME_TAKEN_ON_REACTIVATE`), 500 |
-| 6 | PATCH | `/v3/benefitCategories/{id}/deactivate` | — | 204 No Content | 200+error (`BC_NOT_FOUND`), 500 |
+| 5 | PATCH | `/v3/benefitCategories/{id}/activate` | — | **200 OK + BenefitCategoryResponse** (D-39 — on state change) / **204 No Content** (on idempotent already-active) | 200+error (`BC_NOT_FOUND`), 409 (`BC_NAME_TAKEN_ON_REACTIVATE`), 500 |
+| 6 | PATCH | `/v3/benefitCategories/{id}/deactivate` | — | 204 No Content (on state change OR idempotent already-inactive — per ADR-006) | 200+error (`BC_NOT_FOUND`), 500 |
 
 **DTO: `BenefitCategoryResponse`** (JSON):
 ```json
@@ -930,7 +953,7 @@ void deactivateBenefitCategory(
 |---|------|----------|------------|------------|-------|-----------------|
 | R-01 | Last-write-wins silently loses an admin's edit (ADR-001 / G-10 accepted deviation) | M | L (at D-26 scale) | None — accepted. Audit columns record who last wrote. | Product / Tech Lead | admin QPS >10/sec per tenant; multi-editor Admin UI ships; any "concurrent-write-conflict" incident |
 | R-02 | Thrift IDL deployment out of order (`TApplicationException: unknown method`) | CRITICAL | L | ADR-013 strict sequence; release coordination in Phase 12 Blueprint | Release Eng | post each deploy |
-| R-03 | App-level name uniqueness check races (OQ-42 / ADR-012) | H (in principle) | L (at D-26 scale) | `GET_LOCK` advisory lock; Phase 9 concurrency test; fallback partial unique index if MySQL >= 8.0.13 | Designer / SDET | post-GA telemetry: any duplicate active row observed |
+| R-03 | App-level name uniqueness check races (OQ-42 / ADR-012) — **accepted deviation per D-38** | **M (was HIGH; lowered per D-38 accepted-deviation)** | L (at D-26 scale) | **None — accepted.** No advisory lock, no partial unique index. Rationale: D-26 scale makes collision improbable; consistent with D-33 philosophy. Future remediation (advisory lock OR partial unique index) documented in ADR-012 for post-GA revisit. | Product / Tech Lead | admin QPS >5/sec sustained; ≥1 duplicate-active-row incident observed in prod logs |
 | R-04 | JVM default TZ in production not UTC → `Date ↔ i64` drifts (OQ-38) | H | M | ADR-008 forces UTC in conversion; Phase 9 multi-TZ IT (UTC + IST + US/Eastern, G-11.7) | Designer / SDET / Ops | Phase 5 ops confirmation of prod TZ |
 | R-05 | Cross-tenant leak (G-07.1 by-convention enforcement) | CRITICAL | L (convention-enforced) | ADR-010 explicit `orgId` arg on every DAO method; Phase 9 cross-tenant IT (G-11.8) | Designer / SDET | Any bug tagged "cross-tenant data leak" |
 | R-06 | Cascade-deactivate transaction locks mapping rows during bulk UPDATE (ADR-004) | L | L (D-26: max 20 mappings per cat) | Single-shot bulk UPDATE completes in ms at this scale; `@Transactional(warehouse)` rollback on failure | Service layer | Scale exceeds D-26 envelope |
@@ -941,7 +964,7 @@ void deactivateBenefitCategory(
 | R-11 | Client-facing naming: `slabIds` exposed in API JSON while BRD says "tier" | L | H | Glossary entry in `/api-handoff` mapping "slab" = "tier" for Client comprehension (D-22) | API handoff | Product requests rename — would be a contract change |
 | R-12 | No cache on day 1 (OQ-30 deferred by D-26) | L | L (<10 QPS read) | Add caching only on post-GA telemetry evidence | Ops | Read QPS exceeds 10/sec per tenant |
 
-**Summary**: 2 CRITICAL, 3 HIGH, 4 MEDIUM, 3 LOW.
+**Summary** (post-D-38 amendment): 2 CRITICAL, **2 HIGH** (was 3 — R-03 lowered), **5 MEDIUM** (was 4), 3 LOW. 12 total risks. Two explicit accepted deviations with revisit-triggers: R-01 (LWW) and R-03 (uniqueness race).
 
 ---
 
@@ -977,7 +1000,7 @@ Non-negotiables Phase 7 MUST honour:
 9. **D-24 / ADR-008**: Three-boundary timestamp pattern. `Date`+`DATETIME` (EMF), `i64` millis (Thrift), ISO-8601 UTC (REST). Explicit UTC TimeZone in `Date ↔ i64` conversion.
 10. **D-26**: Scale envelope SMALL (≤50 cat/prog, ≤20 slab/cat, ≤1000 rows per cascade, <10 QPS read, <1 QPS write).
 11. **D-27** (as reworded by ADR-002): PUT on inactive = 409; reactivation via `/activate` ONLY.
-12. **D-28 / ADR-012**: App-level uniqueness among active rows + advisory lock mitigation. No DB UNIQUE.
+12. **D-28 / ADR-012 (amended by D-38)**: App-level uniqueness among active rows. NO advisory lock, NO DB UNIQUE, NO partial unique index in MVP. Race accepted at D-26 scale with revisit-triggers.
 13. **D-30**: `createdBy` / `updatedBy` = INT / `INT(11)` / `i32`.
 14. **D-31 / ADR-009**: `ConflictException → 409`; `PointsEngineRuleServiceException.statusCode` is the Thrift-side carrier.
 15. **G-07.1 / C-25**: Every DAO method takes `orgId` as an explicit parameter; `ShardContext.set(orgId)` in handler; cross-tenant IT required (Phase 9).
@@ -1000,7 +1023,7 @@ Non-negotiables Phase 7 MUST honour:
 | G-07 | CRITICAL | **mitigated-how** | G-07.1: platform uses convention (no `@Filter`) — mitigated by making `orgId` mandatory method arg on every DAO; cross-tenant IT required (G-07.4 / R-05 / Phase 9 SDET). G-07.2: `ShardContext.set(orgId)` via `@MDCData`. G-07.5: MDC includes `orgId` on every log line (via `@MDCData`). |
 | G-08 | HIGH | compliant | G-08.1 SLF4J parameterized logs; G-08.2 MDC-propagated `requestId` + `orgId` via `@MDCData`; G-08.4 ERROR only for surprise states (unexpected exceptions); DEBUG for diff-and-apply details; G-08.6 New Relic via `@Trace(dispatcher=true)`. |
 | G-09 | HIGH | compliant | All changes additive (G-09.1 ✓); G-09.5 Thrift structs add fields only, methods only — never remove/rename existing (IDL minor version bump 1.83 → 1.84). |
-| G-10 | HIGH | **accepted-deviation (ADR-001) for G-10 (concurrency / optimistic lock); compliant on G-10.5 (advisory lock for uniqueness race)** | R-01 documented; revisit-triggers explicit. G-10.5 honoured via ADR-012 `GET_LOCK`. |
+| G-10 | HIGH | **accepted-deviation (ADR-001) on G-10 (concurrency / optimistic lock); ALSO accepted-deviation (ADR-012 post-D-38) on G-10.5 (uniqueness race)** | R-01 documented; revisit-triggers explicit. G-10.5 — advisory lock rejected by user choice; race accepted at D-26 scale per D-38 with revisit-triggers logged (admin QPS >5/sec sustained OR ≥1 real duplicate incident). |
 | G-11 | HIGH | compliant (pushed to Phase 8 QA / Phase 9 SDET) | G-11.7 multi-TZ tests; G-11.8 cross-tenant test; G-11.4 idempotency tests on `/activate` + `/deactivate`; G-11.5 concurrent-POST uniqueness test (ADR-012). Testcontainers for IT (G-11.3) per emf-parent IT convention. |
 | G-12 | CRITICAL | compliant | G-12.1 all patterns cross-referenced to `code-analysis-*.md` evidence; G-12.2 follows platform `java.util.Date` + `OrgEntityIntegerPKBase` + `@ExposedCall` + `ResponseWrapper` patterns; G-12.3 method calls verified against code-analysis; G-12.4 simplest solution (no Strategy/Factory for 6 endpoints); G-12.5 zero refactor of surrounding code; G-12.6 no security controls disabled; G-12.10 reuses existing exception hierarchy (`InvalidInputException`, `NotFoundException`, new `ConflictException`). |
 
@@ -1010,3 +1033,53 @@ Non-negotiables Phase 7 MUST honour:
 
 Five endpoints, four Thrift methods, two DDL files, one new exception class, one config-only feature. Architecture follows the canonical Capillary 4-layer pattern with zero structural novelty. The four frozen ADRs define the shape; ADR-005..013 fill in the remaining decisions with evidence-backed confidence. Transaction boundary, cascade, diff-and-apply, and idempotency are all pinned. Remaining Phase-7 choices are stylistic/naming — not structural. Ready for Designer.
 
+
+---
+
+## 16. Post-HLD Amendments (user decisions on Phase 6 gate Qs)
+
+After the initial HLD was produced, 4 user-sign-off questions were posed (Q1..Q4 in the summary block). User answered **Q1:B, Q2:B, Q3:B, Q4:C** on 2026-04-18, producing decisions D-37..D-40. The affected ADRs have been amended in-place above; this section summarises the delta.
+
+### D-37 (Q1: Authorization) — CONFIRMED ADR-010 default
+- **User choice**: B (BasicAndKey; no admin-only gate in MVP)
+- **Impact on ADR-010**: No change to decision; confidence upgraded from C5 to C6 with user confirmation.
+- **Phase 7 impact**: `BenefitCategoriesV3Controller` uses `BasicAndKey` on writes, `KeyOnly OR BasicAndKey` on reads. No `@PreAuthorize` annotation.
+- **Phase 8 impact**: No role-based authz scenarios; orgId-scoping IT (cross-tenant) covers tenant enforcement.
+
+### D-38 (Q2: Uniqueness race mitigation) — OVERRIDES ADR-012 default
+- **User choice**: B (Accept the race at D-26 scale; no advisory lock)
+- **Impact on ADR-012**: STRICKEN — MySQL `GET_LOCK` advisory lock removed from MVP; `BC_NAME_LOCK_TIMEOUT` error code removed. Replaced with app-layer check only. Future remediation (advisory lock OR partial unique index subject to Aurora version D-40) documented as post-GA options, not implemented.
+- **Impact on Create flow Mermaid (§5.1)**: `GET_LOCK` and `RELEASE_LOCK` steps removed; annotated note added explaining D-38 acceptance.
+- **Impact on API table (§8)**: `BC_NAME_LOCK_TIMEOUT` stripped from POST error codes.
+- **Impact on Data Model (§7)**: Prose amended — "Designer may still consider advisory lock" clause removed.
+- **Impact on Risk Register**: R-03 severity lowered from HIGH to MEDIUM with explicit accepted-deviation flag (mirror of R-01 LWW treatment). Summary: 2 CRITICAL / 2 HIGH / 5 MEDIUM / 3 LOW.
+- **Impact on Guardrail Matrix**: G-10.5 changed from "mitigated via advisory lock" to "accepted deviation with revisit-triggers".
+- **Phase 7 impact**: `BenefitCategoryFacade.create()` does `dao.findActiveByNameAndOrgAndProgram()` → if exists, throw `ConflictException(BC_NAME_TAKEN_ACTIVE)`; else proceed to INSERT. No `GET_LOCK` call.
+- **Phase 8 impact**: No advisory-lock timeout scenarios; explicit note in test plan that the SELECT→INSERT race is accepted per D-38 and not asserted.
+- **Revisit-triggers**: (a) admin QPS >5/sec sustained; (b) ≥1 real duplicate-name incident in production logs; (c) product requires strict uniqueness guarantee.
+
+### D-39 (Q3: `/activate` response body) — OVERRIDES ADR-006 symmetric 204
+- **User choice**: B (200 OK + `BenefitCategoryResponse` DTO on happy activate)
+- **Impact on ADR-006**: AMENDED — asymmetric on happy path:
+  - Happy activate: **200 OK + DTO** (D-39 — UX win, saves GET round-trip)
+  - Happy deactivate: **204 No Content** (nothing useful to return)
+  - Idempotent already-active `/activate`: 204 (no state change, no DTO)
+  - Idempotent already-inactive `/deactivate`: 204
+- **Impact on API table (§8)**: Row 5 (`PATCH /activate`) response updated to "200 OK + BenefitCategoryResponse (on state change) / 204 No Content (on idempotent already-active)". Row 6 (`PATCH /deactivate`) unchanged (204 on both state change and idempotent).
+- **Thrift IDL impact**: `activateBenefitCategory` returns `BenefitCategory` struct (same shape as `getBenefitCategory`) on state change, optional/null on idempotent no-op. `deactivateBenefitCategory` remains `void`.
+- **Facade impact**: `BenefitCategoryFacade.activate()` returns `Optional<BenefitCategoryResponse>` — empty on idempotent no-op, populated on state change; controller maps empty → 204, populated → 200 + body.
+- **Phase 8 impact**: Assert 200 + DTO on happy activation; 204 on idempotent already-active; 204 on happy/idempotent deactivation.
+
+### D-40 (Q4: Aurora MySQL version) — DEFERRED to Phase 12
+- **User choice**: C (Don't know; defer confirmation to Phase 12 Blueprint deployment runbook)
+- **Impact on ADR-012**: Non-blocking because D-38 removed the advisory-lock vs partial-unique-index decision from the critical path. The ADR-012 "Future Remediation" note documents that the partial unique index option requires Aurora ≥ 8.0.13 — to be confirmed in Phase 12.
+- **Phase 7 impact**: None. MVP does not use either mechanism.
+- **Phase 12 obligation**: Deployment runbook includes a step "confirm Aurora MySQL version ≥ 8.0.13 to preserve the partial-unique-index remediation option; if < 8.0.13, only `GET_LOCK` is available as a post-GA fallback".
+
+### Constraint Updates (C-27..C-31 already captured in session-memory; new constraints from gate decisions below)
+
+- **C-32**: No advisory lock on benefit-category create/update in MVP (D-38).
+- **C-33**: Asymmetric response on activate (200+DTO) vs deactivate (204) — Phase 7 must encode this in Thrift IDL + Facade signature (D-39).
+- **C-34**: No `@PreAuthorize('ADMIN_USER')` in MVP on benefit-category endpoints (D-37).
+
+Phase 7 Designer inputs now fully frozen. Ready to spawn.

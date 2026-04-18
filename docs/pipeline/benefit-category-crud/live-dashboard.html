@@ -193,12 +193,12 @@
           <div class="segment"></div><div class="segment"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">7</span> / 19 phases complete (1 skipped)</span>
+          <span><span class="stat-value">7</span> / 19 phases complete (1 skipped) + Gate resolved</span>
           <span><span class="stat-value">20</span> artifacts generated</span>
-          <span><span class="stat-value">36</span> decisions made</span>
-          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 new in HLD)</span>
+          <span><span class="stat-value">40</span> decisions made</span>
+          <span><span class="stat-value">13</span> ADRs (4 frozen + 9 HLD — 2 amended post-HLD)</span>
           <span><span class="stat-value">59</span> findings surfaced</span>
-          <span><span class="stat-value">12</span> risks registered (2 CRITICAL, 3 HIGH)</span>
+          <span><span class="stat-value">12</span> risks registered (2 CRITICAL, 2 HIGH — R-03 accepted)</span>
           <span><span class="stat-value">0</span> code files written</span>
         </div>
       </header>
@@ -1116,18 +1116,55 @@ pie title 12 Risks by Severity
   "LOW" : 3
         </div>
 
-        <h3>User Questions (Phase 7 blocked until answered)</h3>
+        <h3>User Questions — RESOLVED (2026-04-18)</h3>
         <table class="data-table">
           <thead>
-            <tr><th>#</th><th>Question</th><th>Context</th><th>Confidence</th></tr>
+            <tr><th>#</th><th>Question</th><th>User Choice</th><th>Decision</th><th>ADR Impact</th></tr>
           </thead>
           <tbody>
-            <tr><td><strong>Q1</strong></td><td>Writes = admin-only (<code>@PreAuthorize('ADMIN_USER')</code>) or any authenticated BasicAndKey caller?</td><td>ADR-010 default = BasicAndKey (pattern-matches <code>UnifiedPromotionController</code>). Product/UX decision.</td><td>C5</td></tr>
-            <tr><td><strong>Q2</strong></td><td>MySQL <code>GET_LOCK</code> advisory-lock pattern (ADR-012) acceptable, or accept the race at D-26 SMALL scale with monitoring and revisit only if incidents occur?</td><td>Uniqueness-among-active race (D-28) — minor window; D-26 traffic is low so incidents improbable.</td><td>C4</td></tr>
-            <tr><td><strong>Q3</strong></td><td><code>PATCH /activate</code> response body — 204 No Content (ADR-006 default, symmetric) or 200 + <code>BenefitCategoryResponse</code> DTO?</td><td>Client convenience (DTO saves a GET round-trip) vs symmetry with <code>/deactivate</code>.</td><td>C5</td></tr>
-            <tr><td><strong>Q4</strong></td><td>Confirm production Aurora MySQL ≥ 8.0.13 so partial unique index on (org_id, program_id, name) WHERE is_active=1 is a future fallback to ADR-012's advisory lock?</td><td>Only matters if ADR-012 proves insufficient. Aurora version unknown from Phase 5.</td><td>C4</td></tr>
+            <tr><td><strong>Q1</strong></td><td>Writes = admin-only or any BasicAndKey?</td><td>✅ <strong>B</strong> (BasicAndKey)</td><td>D-37</td><td>ADR-010 CONFIRMED (no change; C5→C6)</td></tr>
+            <tr><td><strong>Q2</strong></td><td>MySQL <code>GET_LOCK</code> or accept race at D-26 scale?</td><td>⚠️ <strong>B</strong> (accept race — overrides ADR-012 default)</td><td>D-38</td><td><strong>ADR-012 AMENDED</strong> — advisory lock stricken; app-layer check only; R-03 HIGH→MEDIUM</td></tr>
+            <tr><td><strong>Q3</strong></td><td><code>PATCH /activate</code> response — 204 or 200+DTO?</td><td>⚠️ <strong>B</strong> (200+DTO — overrides ADR-006 default)</td><td>D-39</td><td><strong>ADR-006 AMENDED</strong> — asymmetric happy path; Thrift IDL changed</td></tr>
+            <tr><td><strong>Q4</strong></td><td>Confirm Aurora MySQL ≥ 8.0.13?</td><td>✅ <strong>C</strong> (defer to Phase 12)</td><td>D-40</td><td>ADR-012 "Future Remediation" note kept; Phase 12 runbook step</td></tr>
           </tbody>
         </table>
+
+        <h3>Post-HLD Amendments Applied (D-37..D-40)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Area</th><th>Change</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>ADR-006</strong></td><td><code>PATCH /activate</code> happy path → <strong>200 + BenefitCategoryResponse DTO</strong>; <code>PATCH /deactivate</code> stays 204; idempotent paths both 204.</td></tr>
+            <tr><td><strong>ADR-010</strong></td><td>Confidence upgraded C5→C6 on user confirmation; no change to decision.</td></tr>
+            <tr><td><strong>ADR-012</strong></td><td><strong>Advisory lock STRICKEN</strong> — no <code>GET_LOCK</code>, no <code>BC_NAME_LOCK_TIMEOUT</code>. App-layer check only. Future remediation options (partial unique index on Aurora ≥ 8.0.13 OR advisory lock) kept as post-GA notes.</td></tr>
+            <tr><td><strong>Create flow §5.1</strong></td><td>Mermaid updated — <code>GET_LOCK</code>/<code>RELEASE_LOCK</code> steps removed; note added explaining D-38 acceptance.</td></tr>
+            <tr><td><strong>API table §8</strong></td><td>Row 5 (<code>PATCH /activate</code>) response → "200 + DTO / 204"; <code>BC_NAME_LOCK_TIMEOUT</code> removed from POST errors.</td></tr>
+            <tr><td><strong>Risk Register §11</strong></td><td>R-03 severity HIGH → MEDIUM with accepted-deviation flag; summary now 2 CRITICAL / 2 HIGH / 5 MEDIUM / 3 LOW.</td></tr>
+            <tr><td><strong>Guardrail Matrix §14</strong></td><td>G-10 — dual accepted-deviation (G-10 optimistic lock via ADR-001 + G-10.5 uniqueness race via ADR-012/D-38). Both have explicit revisit-triggers.</td></tr>
+            <tr><td><strong>New §16</strong></td><td>Post-HLD Amendments section — full delta documentation + C-32/C-33/C-34 new constraints.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Mermaid — Gate Decision Override Pattern</h3>
+        <div class="mermaid">
+flowchart LR
+  Q1[Q1 Authz] -->|B: BasicAndKey| D37[D-37<br/>ADR-010 CONFIRMED]
+  Q2[Q2 Uniqueness race] -->|B: accept race| D38[D-38<br/>⚠️ ADR-012 AMENDED]
+  Q3[Q3 /activate response] -->|B: 200+DTO| D39[D-39<br/>⚠️ ADR-006 AMENDED]
+  Q4[Q4 Aurora version] -->|C: defer| D40[D-40<br/>Phase 12 runbook]
+  D37 --> P7[Phase 7 /designer<br/>unblocked]
+  D38 --> P7
+  D39 --> P7
+  D40 --> P7
+  D38 -.overrides Architect A.-> Note1[accept small-scale risk<br/>consistent with D-33]
+  D39 -.overrides Architect A.-> Note2[asymmetric UX<br/>DTO saves GET round-trip]
+  style D37 fill:#1a3a1a,color:#fff
+  style D38 fill:#3a2a1a,color:#fff
+  style D39 fill:#3a2a1a,color:#fff
+  style D40 fill:#1a3a1a,color:#fff
+  style P7 fill:#2a2a4a,color:#fff
+        </div>
 
         <h3>Cross-Repo Change Map</h3>
         <table class="data-table">
@@ -1149,7 +1186,7 @@ pie title 12 Risks by Severity
           <li><code>session-memory.md</code> — ADR table populated; Phase 6 additions section with Q7-01..Q7-10 Designer open questions + C-27..C-31 new constraints</li>
         </ul>
 
-        <p class="phase-time">🏷️ Git snapshot: <code>aidlc/CAP-185145/phase-06</code></p>
+        <p class="phase-time">🏷️ Git snapshots: <code>aidlc/CAP-185145/phase-06</code> (HLD) → <code>aidlc/CAP-185145/phase-06-gate</code> (gate resolved)</p>
       </section>
       <section class="phase-section" id="phase-6a">
         <h2>Phase 6a: Impact Analysis <span class="phase-badge pending">Pending</span></h2>

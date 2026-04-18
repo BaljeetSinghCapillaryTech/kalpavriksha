@@ -638,3 +638,52 @@ Q7-01 through Q7-10 — captured in session-memory.md Phase 6 additions section.
 Phase 7 Designer is BLOCKED until Q1..Q4 are answered. Each answer will be recorded as a new decision (D-37..D-40) and amend the relevant ADR.
 
 ---
+
+### Phase 6 Gate Resolution — D-37..D-40 — 2026-04-18
+
+**Trigger**: Phase 6 Architect surfaced 4 user-sign-off questions (Q1..Q4) blocking Phase 7. User provided answers via single-turn response: **Q1:B, Q2:B, Q3:B, Q4:C**.
+
+**Mode**: Main context, single-turn user response, 4 decisions recorded + 2 ADRs amended in-place.
+
+**Decisions recorded**:
+
+| # | Question | User Choice | Decision | ADR Impact |
+|---|----------|-------------|----------|-----------|
+| Q1 | Authz admin-only vs BasicAndKey | B (BasicAndKey) | D-37 | ADR-010 CONFIRMED (no change, C5→C6) |
+| Q2 | Uniqueness-race mitigation | B (accept race at D-26 scale) | D-38 | **ADR-012 AMENDED** — advisory lock stricken; app-layer check only; R-03 HIGH→MEDIUM |
+| Q3 | `/activate` response body | B (200 + DTO) | D-39 | **ADR-006 AMENDED** — asymmetric happy path (activate=200+DTO; deactivate=204) |
+| Q4 | Aurora MySQL version | C (defer to Phase 12) | D-40 | ADR-012 "Future Remediation" note unchanged |
+
+**Artifacts touched**:
+
+- `01-architect.md` — **amended in-place**:
+  - ADR-006 rewritten with asymmetric table + Thrift/Facade impact notes
+  - ADR-010 wording bumped to "CONFIRMED by D-37"
+  - ADR-012 fully amended — advisory lock stricken, future-remediation notes preserved, "accepted deviation" guardrail posture
+  - §5.1 Create flow Mermaid — `GET_LOCK`/`RELEASE_LOCK` removed
+  - §7 Data Model prose — "may still consider advisory lock" clause removed
+  - §8 API table — `BC_NAME_LOCK_TIMEOUT` stripped from POST errors; row 5 (`/activate`) response updated to "200 + DTO / 204"
+  - §11 Risk Register — R-03 severity HIGH→MEDIUM with accepted-deviation flag; summary 2C/2H/5M/3L
+  - §13 Constraints — D-28/ADR-012 description updated
+  - §14 Guardrail Matrix — G-10 entry updated with dual accepted-deviation note
+  - §16 NEW — Post-HLD Amendments section documenting D-37..D-40 delta + C-32/C-33/C-34 new constraints
+- `session-memory.md` — D-37..D-40 appended to Key Decisions table.
+- `approach-log.md` — full Q&A records (question, options, recommendation, user answer, decision, downstream impact) for all 4 gate questions.
+- `process-log.md` — this entry.
+- `pipeline-state.json` — `6`.user_questions_pending cleared; `6g` sub-phase block recording gate resolutions; Phase 7 unblocked.
+- `live-dashboard.html` — stats bumped (decisions 36→40); Phase 6 section user-Qs table marked RESOLVED; post-HLD amendments section added.
+
+**Git snapshot**: `aidlc/CAP-185145/phase-06-gate`
+
+**Confidence summary**: all 4 decisions at C6 — user-decided; internally consistent; amendments surgically applied.
+
+**New constraints for Phase 7**:
+- C-32: No advisory lock on benefit-category create/update in MVP (D-38).
+- C-33: Asymmetric response on activate (200+DTO) vs deactivate (204) — Phase 7 must encode this in Thrift IDL + Facade signature (D-39).
+- C-34: No `@PreAuthorize('ADMIN_USER')` in MVP on benefit-category endpoints (D-37).
+
+#### Phase 7 readiness
+
+All Phase 7 blockers cleared. HLD + 4 frozen ADRs + 4 gate-decisions + 3 new constraints form the complete Designer input set. Proceeding to Phase 7 (LLD — Designer).
+
+---
