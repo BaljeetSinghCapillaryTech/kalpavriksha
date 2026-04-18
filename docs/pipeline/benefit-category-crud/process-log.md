@@ -464,3 +464,53 @@ _(Populated if phases route back to earlier phases.)_
 
 | Cycle | From Phase | To Phase | Reason | Severity | Resolved |
 |-------|-----------|----------|--------|----------|----------|
+| 1 | Phase 8 (QA) | Phase 6 (HLD) | 2 BLOCKERS from Phase 8 (OQ-QA-01 US-6 vs D-27, OQ-QA-04 missing `version` field) + Phase 7 decisions drifted from HLD. User requested `revert 6` to re-run Phase 7 aligned with HLD. | BLOCKER-escalation | superseded by cycle 2 |
+| 2 | Phase 6 (HLD) | Phase 5 (end of resolutions, `phase-05-resolutions`) | User requested `revert 5` immediately after cycle 1 — decided to redo the HLD itself rather than patch around HLD gaps (missing optimistic-lock stance, missing reactivation ADR, REST-surface granularity). | ARCHITECTURAL-rework | in-progress — fresh Phase 6 run pending |
+
+### Revert Details — Cycle 2 (2026-04-18)
+
+**Executed**: `git reset --hard aidlc/CAP-185145/phase-05-resolutions`
+
+**Discarded commits** (2 beyond cycle 1):
+- `ae19800` revert-audit commit from cycle 1
+- `0652d4f` Phase 6 — HLD Architect complete
+
+**Cumulative state since cycle 1**:
+- 7 commits total discarded across both cycles (Phases 6, 6a, 6b, 7, 7-amend, 8 + revert-audit)
+
+**Deleted artifacts** (cumulative across both cycles — 5):
+- `01-architect.md` (Phase 6 — HLD)
+- `02-analyst.md` (Phase 6a — wiped in cycle 1)
+- `01b-migrator.md` (Phase 6b — wiped in cycle 1)
+- `03-designer.md` (Phase 7 — wiped in cycle 1)
+- `04-qa.md` (Phase 8 — wiped in cycle 1)
+
+**Deleted git tags** (cumulative — 6):
+- Cycle 1: `phase-06a`, `phase-06b`, `phase-07`, `phase-07-amend`, `phase-08`
+- Cycle 2: `phase-06`
+
+**Wiped from session-memory.md (cycle 2 additional)**:
+- Decisions: D-33..D-38 (Phase 6 HLD).
+- ADRs: ADR-001..008 (all 8).
+- Risks: R-1..R-6 (Phase 6).
+- Open Questions: OQ-50..52 (Phase 6).
+
+**Preserved (end-of-Phase-5-resolutions state)**:
+- HEAD at `beebec1` (`aidlc/CAP-185145/phase-05-resolutions`)
+- **D-30** — createdBy/updatedBy type = `int`/`INT(11)`/`i32`
+- **D-31** — HTTP 409 via new `ConflictException` + `@ExceptionHandler`
+- **D-32** — cc-stack-crm submodule workflow (dev-only)
+- D-01..D-29 (BA, Critic, Gap Analysis, Grooming, Phase 5 Research)
+- Red-flag mitigations: RF-2/RF-3 resolved, RF-5 partial
+- All 4× `code-analysis-*.md` + `cross-repo-trace.md`
+- BRD, BA, PRD, Critic, Gap Analysis, blocker-decisions, grooming-questions
+
+**User's stated intent**: Redo Phase 6 (HLD) with upfront architectural decisions on:
+1. Optimistic-lock stance (should HLD mandate `@Version` on `BenefitCategory`?)
+2. Reactivation path (ADR for US-6 — dedicated endpoint vs descope?)
+3. REST surface granularity (separate `/benefitCategorySlabMappings` endpoints vs embed `slabIds` in parent DTO?)
+4. Deactivation HTTP verb (`PATCH /{id}/deactivate` per HLD vs `DELETE /{id}` per Phase 7 v1.1)
+
+These must be frozen as ADRs in `01-architect.md` BEFORE Phase 7 runs, so Designer cannot drift.
+
+---
