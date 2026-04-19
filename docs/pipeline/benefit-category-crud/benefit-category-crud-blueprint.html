@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blueprint — CAP-185145 Benefit Category CRUD</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg:       #1a1a2e;
+    --surface:  #16213e;
+    --surface2: #0f3460;
+    --accent:   #00d4ff;
+    --accent2:  #7b2d8b;
+    --text:     #e0e0e0;
+    --muted:    #a0a0b8;
+    --border:   #2a2a4a;
+    --green:    #00c78c;
+    --amber:    #f0a500;
+    --red:      #e05252;
+    --gray:     #555577;
+    --sidebar-w: 240px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; display: flex; }
+
+  /* Sidebar */
+  nav#sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 20px 0; z-index: 100;
+  }
+  nav#sidebar .nav-title {
+    color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 0 16px 12px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+  }
+  nav#sidebar a {
+    display: block; padding: 7px 16px; color: var(--muted); text-decoration: none;
+    font-size: 12px; transition: color .15s, background .15s; border-left: 3px solid transparent;
+  }
+  nav#sidebar a:hover, nav#sidebar a.active {
+    color: var(--accent); background: rgba(0,212,255,.07); border-left-color: var(--accent);
+  }
+
+  /* Main content */
+  main { margin-left: var(--sidebar-w); padding: 32px 48px; max-width: 1100px; width: 100%; }
+
+  /* Sections */
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  h1 { font-size: 28px; color: var(--accent); margin-bottom: 8px; }
+  h2 { font-size: 20px; color: var(--accent); margin-bottom: 16px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; color: var(--text); margin: 18px 0 8px; }
+  p  { margin-bottom: 10px; color: var(--muted); }
+
+  /* Hero */
+  .hero-meta { display: flex; gap: 24px; flex-wrap: wrap; margin: 20px 0; }
+  .hero-pill {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 16px; font-size: 12px; color: var(--muted);
+  }
+  .hero-pill span { color: var(--accent); font-weight: 700; display: block; font-size: 15px; }
+  .verdict-badge {
+    display: inline-block; padding: 6px 18px; border-radius: 20px; font-weight: 700;
+    font-size: 13px; letter-spacing: .5px; background: rgba(240,165,0,.18); color: var(--amber);
+    border: 1px solid var(--amber); margin-bottom: 16px;
+  }
+
+  /* Stats dashboard */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 14px; text-align: center;
+  }
+  .stat-card .num { font-size: 30px; font-weight: 700; color: var(--accent); }
+  .stat-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .8px; }
+
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  thead th { background: var(--surface2); color: var(--accent); text-align: left; padding: 9px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,.03); }
+  tbody tr:hover { background: rgba(0,212,255,.06); }
+  td, th { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px; }
+  .badge-blocker { background: rgba(224,82,82,.2); color: var(--red); border: 1px solid var(--red); }
+  .badge-warn    { background: rgba(240,165,0,.2); color: var(--amber); border: 1px solid var(--amber); }
+  .badge-accept  { background: rgba(0,199,140,.2); color: var(--green); border: 1px solid var(--green); }
+  .badge-pass    { background: rgba(0,199,140,.15); color: var(--green); }
+  .badge-skip    { background: rgba(85,85,119,.3); color: var(--gray); border: 1px solid var(--gray); }
+  .badge-note    { background: rgba(0,212,255,.1); color: var(--accent); border: 1px solid var(--accent); }
+
+  /* Phase timeline */
+  .phase-list { list-style: none; padding: 0; }
+  .phase-list li {
+    display: flex; align-items: center; gap: 12px; padding: 8px 0;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .phase-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot-complete { background: var(--green); }
+  .dot-skip     { background: var(--gray); }
+  .dot-pending  { background: var(--amber); border: 2px solid var(--amber); background: transparent; }
+
+  /* Mermaid containers */
+  .mermaid-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; margin: 16px 0; overflow-x: auto;
+  }
+  .mermaid { max-width: 100%; }
+  .diagram-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+  /* Code inline */
+  code { background: rgba(0,212,255,.1); color: var(--accent); padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'Courier New', monospace; }
+
+  /* Note box */
+  .note-box {
+    background: rgba(0,212,255,.06); border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px; color: var(--muted);
+  }
+  .warn-box {
+    background: rgba(240,165,0,.08); border-left: 3px solid var(--amber);
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px;
+  }
+
+  /* Git tag list */
+  .tag-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag-list li {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 12px; color: var(--muted); font-family: monospace;
+  }
+
+  /* Next steps */
+  .steps-list { list-style: none; padding: 0; }
+  .steps-list li {
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px;
+    background: var(--surface); font-size: 13px;
+  }
+  .steps-list li::before { content: "→ "; color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ======= SIDEBAR ======= -->
+<nav id="sidebar">
+  <div class="nav-title">CAP-185145 Blueprint</div>
+  <a href="#hero">Overview</a>
+  <a href="#pipeline-overview">Pipeline Overview</a>
+  <a href="#stats">Stats Dashboard</a>
+  <a href="#ba-summary">BA Summary</a>
+  <a href="#architecture">Architecture (HLD)</a>
+  <a href="#decisions">Key Decisions</a>
+  <a href="#deviations">Accepted Deviations</a>
+  <a href="#cross-repo">Cross-Repo Map</a>
+  <a href="#test-coverage">Test Coverage</a>
+  <a href="#reviewer">Reviewer Findings</a>
+  <a href="#manual-items">Manual Items</a>
+  <a href="#git-tags">Git Tags</a>
+  <a href="#next-steps">Next Steps</a>
+</nav>
+
+<!-- ======= MAIN ======= -->
+<main>
+
+<!-- ======================== 1. HERO ======================== -->
+<section id="hero">
+  <h1>Benefit Category CRUD</h1>
+  <div class="verdict-badge">APPROVED WITH WARNINGS</div>
+  <p style="color:var(--muted); font-size:15px; max-width:700px;">
+    Foundational metadata-grouping service for loyalty benefit configuration. Introduces two new MySQL tables, six Thrift methods, and six REST endpoints across four repositories. Phase 11 Reviewer verdict: feature complete with one blocker and five warnings requiring resolution before merge.
+  </p>
+  <div class="hero-meta">
+    <div class="hero-pill">Ticket<span>CAP-185145</span></div>
+    <div class="hero-pill">Started<span>2026-04-17</span></div>
+    <div class="hero-pill">Phase 11 Complete<span>2026-04-19</span></div>
+    <div class="hero-pill">Reviewer<span>APPROVED WITH WARNINGS</span></div>
+    <div class="hero-pill">Tests GREEN<span>76 (intouch-api-v3) + 41 (emf-parent)</span></div>
+    <div class="hero-pill">Decisions<span>D-01 .. D-63 (63 total)</span></div>
+    <div class="hero-pill">Repos Changed<span>4 of 5</span></div>
+    <div class="hero-pill">Pipeline Version<span>1.0</span></div>
+  </div>
+</section>
+
+<!-- ======================== 2. PIPELINE OVERVIEW ======================== -->
+<section id="pipeline-overview">
+  <h2>Pipeline Overview</h2>
+  <p>14 phases executed across 3 days. Phase 3 (UI Extraction) skipped by product decision. Phase 10 ran 6 milestones (M1–M6) due to emf-parent reality corrections.</p>
+
+  <div class="mermaid-wrap">
+    <div class="diagram-label">Pipeline Phase Flow</div>
+    <div class="mermaid">
+flowchart LR
+  P0["Phase 0\nSetup"]:::done --> P1["Phase 1\nBA + PRD"]:::done
+  P1 --> P2["Phase 2\nCritic + Gap"]:::done
+  P2 --> P3["Phase 3\nUI Extract"]:::skip
+  P3 --> P4["Phase 4\nGrooming"]:::done
+  P4 --> P5["Phase 5\nCross-Repo Trace"]:::done
+  P5 --> P5r["Phase 5r\nPre-HLD Resolutions"]:::done
+  P5r --> P5h["Phase 5h\nPre-HLD ADR Commits"]:::done
+  P5h --> P6["Phase 6\nArchitect (HLD)"]:::done
+  P6 --> P6g["Phase 6g\nGate Q&A"]:::done
+  P6g --> P7["Phase 7\nDesigner (LLD)"]:::done
+  P7 --> P7r["Phase 7r\nDesigner Qs Resolved"]:::done
+  P7r --> P8["Phase 8\nQA"]:::done
+  P8 --> P8r["Phase 8r\nQA Qs Resolved"]:::done
+  P8r --> P8b["Phase 8b\nBusiness Test Gen"]:::done
+  P8b --> P9["Phase 9\nSDET — RED"]:::done
+  P9 --> P10["Phase 10\nDeveloper — GREEN\n(M1–M6)"]:::done
+  P10 --> P10b["Phase 10b\nBackend Readiness"]:::done
+  P10b --> P10c["Phase 10c\nGap Analysis"]:::done
+  P10c --> P10d["Phase 10d\nMigration (cond.)"]:::skip
+  P10d --> P11["Phase 11\nReviewer"]:::done
+  P11 --> P12["Phase 12\nBlueprint"]:::inprogress
+  classDef done stroke:#00c78c,color:#00c78c,fill:#0a1a14
+  classDef skip stroke:#555577,color:#777799,fill:#12121e
+  classDef inprogress stroke:#f0a500,color:#f0a500,fill:#1a1200
+    </div>
+  </div>
+
+  <h3>Phase Status Summary</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Phase</th><th>Name</th><th>Status</th><th>Key Artifact</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>Setup</td><td><span class="badge badge-pass">COMPLETE</span></td><td>session-memory.md, pipeline-state.json</td></tr>
+      <tr><td>1</td><td>BA + PRD</td><td><span class="badge badge-pass">COMPLETE</span></td><td>00-ba.md, 00-prd.md</td></tr>
+      <tr><td>2</td><td>Critic + Gap Analysis</td><td><span class="badge badge-pass">COMPLETE</span></td><td>contradictions.md, gap-analysis-brd.md</td></tr>
+      <tr><td>3</td><td>UI Requirements Extraction</td><td><span class="badge badge-skip">SKIPPED</span></td><td>D-17 recorded (skip rationale)</td></tr>
+      <tr><td>4</td><td>Grooming + Blocker Resolution</td><td><span class="badge badge-pass">COMPLETE</span></td><td>blocker-decisions.md (12 blockers resolved)</td></tr>
+      <tr><td>5 / 5r / 5h</td><td>Cross-Repo Trace + Pre-HLD ADRs</td><td><span class="badge badge-pass">COMPLETE</span></td><td>cross-repo-trace.md; ADR-001..004 frozen</td></tr>
+      <tr><td>6 / 6g</td><td>Architect HLD + Gate Q&A</td><td><span class="badge badge-pass">COMPLETE</span></td><td>01-architect.md (1085 lines, 13 ADRs)</td></tr>
+      <tr><td>6a / 6b</td><td>Impact Analysis / Migration Planning</td><td><span class="badge badge-skip">PENDING / SKIPPED</span></td><td>Inline via 10c; no standalone migrator artifact</td></tr>
+      <tr><td>7 / 7r</td><td>Designer LLD + Question Resolutions</td><td><span class="badge badge-pass">COMPLETE</span></td><td>03-designer.md (1230 lines)</td></tr>
+      <tr><td>8 / 8r / 8b</td><td>QA + Resolutions + Business Tests</td><td><span class="badge badge-pass">COMPLETE</span></td><td>04-qa.md (79 scenarios), 04b-business-tests.md (107 BTs)</td></tr>
+      <tr><td>9</td><td>SDET — RED Phase</td><td><span class="badge badge-pass">COMPLETE (RED confirmed C7)</span></td><td>05-sdet.md; 4 cross-repo commits</td></tr>
+      <tr><td>10 (M1–M6)</td><td>Developer — GREEN Phase</td><td><span class="badge badge-warn">COMPLETE-WITH-DEBT</span></td><td>76 intouch tests GREEN; 41 emf tests GREEN; M5 runtime deferred</td></tr>
+      <tr><td>10b</td><td>Backend Readiness</td><td><span class="badge badge-warn">3 MANUAL FIXES PENDING</span></td><td>backend-readiness.md (38 checks: 29P/6W/3F)</td></tr>
+      <tr><td>10c</td><td>Gap Analysis — Arch vs Code</td><td><span class="badge badge-warn">MANUAL FIXES PENDING</span></td><td>06b-gap-analysis.md (42P/5AD/4W)</td></tr>
+      <tr><td>10d</td><td>Migration Validation</td><td><span class="badge badge-skip">SKIPPED (conditional)</span></td><td>DDL handled inline by cc-stack-crm</td></tr>
+      <tr><td>11</td><td>Reviewer</td><td><span class="badge badge-warn">APPROVED WITH WARNINGS</span></td><td>07-reviewer.md (1B + 5W)</td></tr>
+      <tr><td>12</td><td>Blueprint</td><td><span class="badge badge-note">IN PROGRESS</span></td><td>This document</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ======================== 3. STATS DASHBOARD ======================== -->
+<section id="stats">
+  <h2>Stats Dashboard</h2>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="num">21</div><div class="lbl">Phases Executed</div></div>
+    <div class="stat-card"><div class="num">63</div><div class="lbl">Decisions (D-01..D-63)</div></div>
+    <div class="stat-card"><div class="num">13</div><div class="lbl">ADRs (ADR-001..013)</div></div>
+    <div class="stat-card"><div class="num">107</div><div class="lbl">Business Tests (BTs)</div></div>
+    <div class="stat-card"><div class="num">76</div><div class="lbl">intouch GREEN Tests</div></div>
+    <div class="stat-card"><div class="num">41</div><div class="lbl">emf-parent GREEN Tests</div></div>
+    <div class="stat-card"><div class="num">4</div><div class="lbl">Repos Changed</div></div>
+    <div class="stat-card"><div class="num">2</div><div class="lbl">Rework Cycles</div></div>
+    <div class="stat-card"><div class="num">7</div><div class="lbl">Manual Items Pending</div></div>
+    <div class="stat-card"><div class="num">6</div><div class="lbl">REST Endpoints</div></div>
+    <div class="stat-card"><div class="num">6</div><div class="lbl">Thrift Methods</div></div>
+    <div class="stat-card"><div class="num">2</div><div class="lbl">New DB Tables</div></div>
+    <div class="stat-card"><div class="num">79</div><div class="lbl">QA Scenarios</div></div>
+    <div class="stat-card"><div class="num">5</div><div class="lbl">Accepted Deviations</div></div>
+    <div class="stat-card"><div class="num">17</div><div class="lbl">Artifacts Produced</div></div>
+    <div class="stat-card"><div class="num">25</div><div class="lbl">Git Tags</div></div>
+  </div>
+
+  <div class="note-box" style="margin-top:20px;">
+    Rework cycle 1: Phase 8 QA surfaced blocker vs D-27; Phase 7 decisions had drifted from HLD. Rework cycle 2: user chose to redo HLD entirely; froze 4 ADRs (D-33..D-36) before re-running /architect.
+  </div>
+</section>
+
+<!-- ======================== 4. BA SUMMARY ======================== -->
+<section id="ba-summary">
+  <h2>BA Summary</h2>
+  <p>Source BRD: <code>Tiers_Benefits_PRD_v3_Full.pdf</code> — Garuda Loyalty Platform Tiers &amp; Benefits v3. Scope was narrowed significantly via Phase 1 Q&amp;A and Phase 4 grooming.</p>
+
+  <h3>Epics and User Stories (In Scope)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Epic</th><th>Story ID</th><th>Summary</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>E1 — Category Mgmt</td><td>US-1</td><td>Create a Benefit Category (name, tierApplicability, active flag)</td><td>P0</td></tr>
+      <tr><td>E1</td><td>US-2</td><td>List all Benefit Categories (optional isActive filter)</td><td>P0</td></tr>
+      <tr><td>E1</td><td>US-3</td><td>View single Benefit Category detail</td><td>P0</td></tr>
+      <tr><td>E1</td><td>US-4</td><td>Update Category name or tier applicability</td><td>P0</td></tr>
+      <tr><td>E1</td><td>US-5</td><td>Deactivate Category — cascades to all slab mappings in one transaction</td><td>P0</td></tr>
+      <tr><td>E1</td><td>US-6</td><td>Reactivate Category via dedicated PATCH /activate; mappings stay deactivated</td><td>P1</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Key Scope Decisions</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Area</th><th>Decision</th><th>Ref</th></tr></thead>
+    <tbody>
+      <tr><td>Category types</td><td>Single MVP value <code>BENEFITS</code>; 9 BRD types deferred</td><td>D-06</td></tr>
+      <tr><td>Value payload</td><td>No points/voucher/amount on instances — pure (category, slab) association</td><td>D-09</td></tr>
+      <tr><td>Maker-checker</td><td>Descoped for MVP — all mutations are immediate</td><td>D-05</td></tr>
+      <tr><td>aiRa, Matrix View, Subscription picker</td><td>Explicitly out of scope</td><td>D-03</td></tr>
+      <tr><td>Legacy Benefits entity</td><td>Strict coexistence — zero schema changes, no FK coupling</td><td>C-14</td></tr>
+      <tr><td>Hard delete</td><td>Soft-delete only (<code>is_active=false</code>)</td><td>D-13</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Top 5 Open Questions Remaining</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Question</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td>OQ-38</td><td>JVM default timezone in production — UTC or IST?</td><td>R-05 risk: ISO-8601 offset in API responses</td></tr>
+      <tr><td>Q-SDET-08</td><td>UI team confirmation on <code>yyyy-MM-dd'T'HH:mm:ssXXX</code> date format</td><td>Date format contract for consumers; D-52 code-locked pending external sign-off</td></tr>
+      <tr><td>Q-BT-01</td><td>BT-067 emf-parent Thrift embedded-server end-to-end IT harness form</td><td>Not blocking merge; separate IT harness follow-up</td></tr>
+      <tr><td>OQ-4</td><td>AC-BC04/05/06 absent from BRD — intentional gap?</td><td>No engineering impact; product confirmation needed</td></tr>
+      <tr><td>D-40 / RF-5</td><td>Aurora MySQL version confirmation for partial unique index and DDL apply mechanism in production</td><td>Phase 12 runbook; deployment ops risk</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ======================== 5. ARCHITECTURE (HLD) ======================== -->
+<section id="architecture">
+  <h2>Architecture (HLD)</h2>
+  <p>The solution follows the established 4-layer Capillary pattern across four repositories. All decisions in ADR-001..004 are load-bearing frozen constraints inherited by every downstream phase.</p>
+
+  <h3>System Context — Write Flow (Create Benefit Category)</h3>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant Client as Client
+  participant INTV3 as intouch-api-v3<br/>BenefitCategoriesV3Controller
+  participant Facade as BenefitCategoryFacade
+  participant ThriftSvc as PointsEngineRulesThriftService
+  participant EMF as PointsEngineRuleConfigThriftImpl<br/>(emf-parent, port 9199)
+  participant Svc as PointsEngineRuleService<br/>@Transactional(warehouse)
+  participant DAO as BenefitCategoryDao
+  participant DB as MySQL warehouse<br/>benefit_categories
+
+  Client->>INTV3: POST /v3/benefitCategories {name, programId, slabIds}
+  INTV3->>INTV3: Bean Validation (@NotBlank, @NotNull, @Size)
+  INTV3->>Facade: create(orgId, request, httpRequest)
+  Facade->>ThriftSvc: createBenefitCategory(dto, serverReqId)
+  ThriftSvc->>EMF: RPCService.rpcClient(9199, 60s).createBenefitCategory(dto, serverReqId)
+  Note over EMF: ExposedCallAspect: ShardContext.set(orgId), MDC init
+  EMF->>Svc: createBenefitCategory(orgId, dto)
+  Svc->>DAO: findByProgramAndName(orgId, programId, name)
+  alt Duplicate (any state, per D-60)
+    DAO-->>Svc: row exists
+    Svc-->>Client: 409 Conflict BC_NAME_TAKEN_ACTIVE
+  else No duplicate
+    Svc->>DAO: saveAndFlush(entity)
+    Svc->>DAO: syncSlabMappings (diff-apply per D-35)
+    DB-->>Svc: auto-increment id
+    Svc-->>EMF: BenefitCategoryDto
+    EMF-->>Facade: BenefitCategoryDto (i64 timestamps)
+    Facade->>Facade: map to BenefitCategoryResponse (ISO-8601 @JsonFormat)
+    INTV3-->>Client: 201 Created + ResponseWrapper{data}
+  end
+    </div>
+  </div>
+
+  <h3>Deactivate with Cascade Flow (ADR-004)</h3>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant Admin
+  participant REST as intouch-api-v3
+  participant Svc as PointsEngineRuleService<br/>@Transactional(warehouse)
+  participant CatDao as BenefitCategoryDao
+  participant MapDao as BenefitCategorySlabMappingDao
+  participant DB as MySQL
+
+  Admin->>REST: PATCH /v3/benefitCategories/42/deactivate
+  REST->>Svc: deactivate(orgId=100, id=42, tillId=7)
+  Svc->>CatDao: findById(orgId, 42)
+  alt Not found
+    CatDao-->>Svc: empty
+    Svc-->>REST: PointsEngineRuleServiceException(404)
+    REST-->>Admin: 200 + error envelope (platform quirk OQ-45)
+  else Already inactive
+    CatDao-->>Svc: row {is_active=false}
+    Svc-->>REST: no-op
+    REST-->>Admin: 204 No Content (idempotent)
+  else Active — cascade deactivate
+    CatDao-->>Svc: row {is_active=true}
+    Svc->>CatDao: UPDATE SET is_active=false WHERE id=42 AND org_id=100
+    Note over Svc,DB: SAME @Transactional(warehouse) boundary
+    Svc->>MapDao: bulk UPDATE SET is_active=false WHERE category_id=42 AND org_id=100 AND is_active=true
+    DB-->>Svc: 1 cat + N mapping rows updated
+    Svc-->>REST: OK
+    REST-->>Admin: 204 No Content
+  end
+    </div>
+  </div>
+
+  <h3>REST Endpoint Contract</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Method</th><th>Path</th><th>Auth</th><th>Success</th><th>Error codes</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>POST</td><td><code>/v3/benefitCategories</code></td><td>BasicAndKey</td><td>201 + DTO</td><td>400 validation, 409 name-taken / slab conflict</td></tr>
+      <tr><td>2</td><td>PUT</td><td><code>/v3/benefitCategories/{id}</code></td><td>BasicAndKey</td><td>200 + DTO</td><td>400, 404, 409</td></tr>
+      <tr><td>3</td><td>GET</td><td><code>/v3/benefitCategories/{id}</code></td><td>KeyOnly / BasicAndKey</td><td>200 + DTO</td><td>404 (or 200+error platform quirk)</td></tr>
+      <tr><td>4</td><td>GET</td><td><code>/v3/benefitCategories?programId=&amp;page=&amp;size=&amp;isActive=</code></td><td>KeyOnly / BasicAndKey</td><td>200 + paginated list</td><td>400 size&gt;100</td></tr>
+      <tr><td>5</td><td>POST*</td><td><code>/v3/benefitCategories/{id}/activate</code></td><td>BasicAndKey</td><td>200 + DTO (state change) or 204 (no-op)</td><td>404, 409 name conflict on reactivation</td></tr>
+      <tr><td>6</td><td>POST*</td><td><code>/v3/benefitCategories/{id}/deactivate</code></td><td>BasicAndKey</td><td>204 No Content</td><td>404</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><em>* D-61 accepted deviation: @PostMapping used instead of @PatchMapping (see Accepted Deviations).</em></p>
+</section>
+
+<!-- ======================== 6. KEY DECISIONS ======================== -->
+<section id="decisions">
+  <h2>Key Decisions (D-01 .. D-63)</h2>
+  <p>63 decisions recorded across 13 phases. The 25 highest-impact decisions are shown below; the full set is in <code>session-memory.md</code> and <code>approach-log.md</code>.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Decision</th><th>Phase</th><th>Category</th></tr></thead>
+    <tbody>
+      <tr><td>D-03</td><td>aiRa, Matrix View, Subscription picker are explicitly out of scope</td><td>1</td><td>Scope</td></tr>
+      <tr><td>D-05</td><td>Maker-checker approval workflow descoped for MVP — all mutations are immediate</td><td>1</td><td>Scope</td></tr>
+      <tr><td>D-06</td><td>Single MVP <code>categoryType=BENEFITS</code>; 9 BRD types deferred</td><td>1</td><td>Scope</td></tr>
+      <tr><td>D-13</td><td>Soft-delete only (<code>is_active=false</code>); no hard-delete endpoint</td><td>1</td><td>Data Model</td></tr>
+      <tr><td>D-24</td><td>Three-boundary timestamp: java.util.Date (EMF), i64 millis (Thrift), ISO-8601 UTC (REST)</td><td>4</td><td>Architecture</td></tr>
+      <tr><td>D-26</td><td>SMALL scale envelope: &le;50 categories/program, &le;20 slabs/category, &lt;1 QPS writes</td><td>4</td><td>Scale</td></tr>
+      <tr><td>D-27</td><td>PUT on inactive category returns 409; only /activate can flip state back</td><td>4</td><td>Behaviour</td></tr>
+      <tr><td>D-27a</td><td>PUT on inactive 404 vs spec 409 accepted — no code change (M4 defect triage)</td><td>10</td><td>Accepted Deviation</td></tr>
+      <tr><td>D-33</td><td>No optimistic locking (@Version); last-write-wins on BenefitCategory (ADR-001)</td><td>5h</td><td>Architecture (frozen)</td></tr>
+      <tr><td>D-34</td><td>Reactivation via dedicated PATCH /{id}/activate; cascade mappings do NOT auto-reactivate (ADR-002)</td><td>5h</td><td>Architecture (frozen)</td></tr>
+      <tr><td>D-35</td><td>slabIds embedded in parent DTO; server-side diff-and-apply syncSlabMappings; no separate mapping REST resource (ADR-003)</td><td>5h</td><td>Architecture (frozen)</td></tr>
+      <tr><td>D-36</td><td>PATCH /{id}/deactivate (not DELETE); cascade soft-delete mappings in same transaction (ADR-004)</td><td>5h</td><td>Architecture (frozen)</td></tr>
+      <tr><td>D-37</td><td>BasicAndKey auth on writes; KeyOnly also acceptable on GETs; no @PreAuthorize ADMIN_USER gate</td><td>6g</td><td>Security</td></tr>
+      <tr><td>D-38</td><td>Accept uniqueness race at D-26 scale — no advisory lock; SELECT→INSERT only (ADR-012 amended)</td><td>6g</td><td>Concurrency</td></tr>
+      <tr><td>D-39</td><td>Asymmetric activate response: 200+DTO on state change, 204 on no-op; deactivate always 204 (ADR-006 amended)</td><td>6g</td><td>API Design</td></tr>
+      <tr><td>D-41</td><td>Reuse PeProgramSlabDao.findByProgram + in-memory Set ops for slab validation; no new DAO method</td><td>7r</td><td>Implementation</td></tr>
+      <tr><td>D-42</td><td>GET /{id} supports ?includeInactive=true audit path; default active-only (404 on soft-deleted)</td><td>7r</td><td>API Design</td></tr>
+      <tr><td>D-43</td><td>Activate no-op signalled via optional bool stateChanged on BenefitCategoryDto; false=no-op, true=state changed</td><td>7r</td><td>API Design</td></tr>
+      <tr><td>D-46</td><td>UpdateRequest.slabIds carries @Size(min=1) — empty slabIds on PUT rejected with 400</td><td>8r</td><td>Validation</td></tr>
+      <tr><td>D-47</td><td>Name uniqueness is case-sensitive; enforced via utf8mb4_bin collation on name column</td><td>8r</td><td>Data Model</td></tr>
+      <tr><td>D-48</td><td>Invalid ?isActive=foo handled by platform VALIDATION_FAILED via controller @ExceptionHandler</td><td>8r</td><td>Error Handling</td></tr>
+      <tr><td>D-58</td><td>BT-067 implemented as intouch-api-v3 IT with @MockBean at Thrift boundary (not emf-parent embedded server)</td><td>10 M3</td><td>Testing</td></tr>
+      <tr><td>D-60</td><td>Name reservation across ALL states (active + inactive); findByProgramAndName checks entire namespace</td><td>10 M4</td><td>Data Integrity</td></tr>
+      <tr><td>D-61</td><td>F-01 accepted deviation — activate/deactivate use @PostMapping not @PatchMapping</td><td>10c</td><td>Accepted Deviation</td></tr>
+      <tr><td>D-63</td><td>R-03 accepted deviation — slab validation throws HTTP 400 (not 409 as per ADR-009)</td><td>11</td><td>Accepted Deviation</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note-box">The full table (D-01..D-63) is in <code>session-memory.md</code> and <code>approach-log.md</code>. 38 additional lower-impact decisions (D-01..D-32, D-44, D-45, D-49..D-57, D-59, D-62) cover entity boilerplate, mapper placement, Lombok split, SLF4J compatibility, Spring Data 1.x API, and emf-parent Java 8 build.</div>
+</section>
+
+<!-- ======================== 7. ACCEPTED DEVIATIONS ======================== -->
+<section id="deviations">
+  <h2>Accepted Deviations</h2>
+  <p>Four deviations were formally accepted with documented rationale. Each is tracked in session-memory and must be reviewed at the trigger conditions listed.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Decision</th><th>Deviation</th><th>Rationale</th><th>Revisit Triggers</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>D-24 / ADR-008</strong></td>
+        <td>G-01.3 prohibits <code>java.util.Date</code> in DTOs; this feature uses it to match platform convention (Benefits.java P-01 exemplar)</td>
+        <td>G-12.2 compliance (match existing pattern) takes priority at this layer; ISO-8601 UTC contract is correctly enforced at the REST boundary via @JsonFormat</td>
+        <td>Migration of entity to MongoDB or adoption of java.time across emf-parent</td>
+      </tr>
+      <tr>
+        <td><strong>D-61 / F-01</strong></td>
+        <td>ADR-002/ADR-004 specify <code>@PatchMapping</code> for /activate and /deactivate; implementation uses <code>@PostMapping</code></td>
+        <td>Platform intouch-api-v3 convention for state-change operations uses POST; changing would break Spring MVC routing contract in production; semantic difference has no runtime impact</td>
+        <td>Platform-wide migration to PATCH for state-change verbs</td>
+      </tr>
+      <tr>
+        <td><strong>D-62 / F-03</strong></td>
+        <td>ADR-011 specifies max 100 on list size with controller @Max(100) gate; controller gate was NOT applied — service-layer BC_PAGE_SIZE_EXCEEDED throw only</td>
+        <td>User directive: controller-level @Max annotation generates additional @Valid chain complexity; service throw at size&gt;100 gives equivalent behaviour; @Max import already removed from CreateRequest (R-02)</td>
+        <td>Client-visible 400 response shape changes; API spec published to consumers</td>
+      </tr>
+      <tr>
+        <td><strong>D-63 / R-03</strong></td>
+        <td>ADR-009 + Designer §E specify HTTP 409 for BC_UNKNOWN_SLAB / BC_CROSS_PROGRAM_SLAB; implementation throws 400 for slab-not-in-program validation</td>
+        <td>400 is semantically correct for "bad request payload" when slabId is unknown; 409 is reserved for state conflicts; team accepted 400 as more accurate; ADR-009 error taxonomy updated in session-memory</td>
+        <td>API consumers report unexpected 400 on cross-program slab errors; error taxonomy formal review</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ======================== 8. CROSS-REPO CHANGE MAP ======================== -->
+<section id="cross-repo">
+  <h2>Cross-Repo Change Map</h2>
+  <p>Changes span 4 of 5 repos. The <code>kalpavriksha</code> repo contains pipeline documentation only — no production code changes.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Repo</th><th>Branch</th><th>New Files</th><th>Modified Files</th><th>Key Changes</th><th>Phase 9 Commit</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>thrift-ifaces-pointsengine-rules</strong></td>
+        <td><code>aidlc/CAP-185145</code></td>
+        <td>0</td>
+        <td>2 (IDL + pom)</td>
+        <td>+109 lines: 4 new structs (BenefitCategoryDto, BenefitCategoryFilter, BenefitCategoryListResponse, BenefitCategoryType enum), 6 new methods on PointsEngineRuleService; pom 1.83→1.84-SNAPSHOT-dev</td>
+        <td><code>22176fd</code></td>
+      </tr>
+      <tr>
+        <td><strong>emf-parent</strong></td>
+        <td><code>aidlc/CAP-185145</code></td>
+        <td>~12 (entities, DAOs, test files, DDL)</td>
+        <td>5 (ThriftImpl, Editor, Service, pom, .gitmodules)</td>
+        <td>BenefitCategory entity + PK, BenefitCategorySlabMapping entity + PK, BenefitCategoryDao, BenefitCategorySlabMappingDao, BenefitCategoryType enum; 6 handler methods on PointsEngineRuleConfigThriftImpl; 6 service methods (Java 8 Temurin — SLF4J 1.6.4 + Spring Data 1.x compat fixes in M3a); BenefitCategoryComplianceTest (11 tests); BenefitCategoryServiceTest (23 tests); BenefitCategoryEditorTest (7 tests); BenefitCategoryIntegrationTest (10 ITs)</td>
+        <td><code>0b298c3216</code> (Phase 9), latest: <code>0fbed773d7</code> (M5)</td>
+      </tr>
+      <tr>
+        <td><strong>intouch-api-v3</strong></td>
+        <td><code>aidlc/CAP-185145</code></td>
+        <td>~16 (controller, facade, mapper, DTOs, IT files)</td>
+        <td>2 (TargetGroupErrorAdvice, pom)</td>
+        <td>BenefitCategoriesV3Controller, BenefitCategoryFacade, BenefitCategoryResponseMapper, ConflictException, BenefitCategoryCreateRequest, BenefitCategoryUpdateRequest, BenefitCategoryResponse, BenefitCategoryListPayload; 7 IT files (Create/Get/List/Update/Activate/Deactivate/Guardrail) + BenefitCategoryITBase + TimezoneRule; 36 UTs GREEN + 40 ITs GREEN = 76 total</td>
+        <td><code>13d62c487</code> (Phase 9), latest: <code>7bdc46a34</code> (M3)</td>
+      </tr>
+      <tr>
+        <td><strong>cc-stack-crm</strong></td>
+        <td><code>aidlc/CAP-185145</code></td>
+        <td>2 (DDL files)</td>
+        <td>1 (benefit_categories.sql — utf8mb4_bin collation M5)</td>
+        <td>benefit_categories.sql + benefit_category_slab_mapping.sql; D-47 case-sensitive collation applied (utf8mb4_bin on name column); <strong>B1 missing idx_bc_org_program_name still pending</strong>; <strong>B2 CREATE TABLE needs IF NOT EXISTS still pending</strong></td>
+        <td><code>699bbef63</code> (Phase 9), M5: <code>f72fb689d</code></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="warn-box">
+    <strong>Deployment sequence (ADR-013):</strong> cc-stack-crm (DDL) &rarr; thrift-ifaces (IDL 1.84) &rarr; emf-parent &rarr; intouch-api-v3. Wrong order causes TApplicationException: unknown method (RF-1 CRITICAL).
+  </div>
+</section>
+
+<!-- ======================== 9. TEST COVERAGE ======================== -->
+<section id="test-coverage">
+  <h2>Test Coverage</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Layer</th><th>Count</th><th>Type</th><th>Status</th><th>Location</th></tr></thead>
+    <tbody>
+      <tr><td>intouch-api-v3 Unit Tests</td><td>36</td><td>JUnit 4 + Mockito, no Spring context</td><td><span class="badge badge-pass">ALL GREEN (C7)</span></td><td>BenefitCategory*Test.java (7 files)</td></tr>
+      <tr><td>intouch-api-v3 Integration Tests</td><td>40</td><td>Testcontainers MySQL, Spring MVC mock</td><td><span class="badge badge-pass">ALL GREEN (C7, 44.5s)</span></td><td>BenefitCategory*IT.java (7 files) + BenefitCategoryITBase + TimezoneRule</td></tr>
+      <tr><td>emf-parent Compliance Tests</td><td>11</td><td>JUnit 4 structural/reflection (Java 8 Temurin)</td><td><span class="badge badge-pass">ALL GREEN (C7)</span></td><td>BenefitCategoryComplianceTest.java</td></tr>
+      <tr><td>emf-parent Service UTs</td><td>23</td><td>JUnit 4 + Mockito (Java 8 Temurin)</td><td><span class="badge badge-pass">ALL GREEN (C6)</span></td><td>BenefitCategoryServiceTest.java</td></tr>
+      <tr><td>emf-parent Editor UTs</td><td>7</td><td>JUnit 4 + Mockito</td><td><span class="badge badge-pass">ALL GREEN (C6)</span></td><td>BenefitCategoryEditorTest.java</td></tr>
+      <tr><td>emf-parent Testcontainers ITs</td><td>10</td><td>Testcontainers MySQL (compile-verified; runtime deferred)</td><td><span class="badge badge-warn">COMPILE GREEN; RUNTIME DEFERRED</span></td><td>BenefitCategoryIntegrationTest.java (M5)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Business Test Coverage Matrix</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Operation</th><th>BT Range</th><th>Count</th><th>QA Scenarios Covered</th></tr></thead>
+    <tbody>
+      <tr><td>CREATE</td><td>BT-001..013</td><td>13</td><td>QA-001..013</td></tr>
+      <tr><td>GET by ID</td><td>BT-014..019</td><td>6</td><td>QA-014..019</td></tr>
+      <tr><td>LIST</td><td>BT-020..027 + 022b</td><td>9</td><td>QA-020..027</td></tr>
+      <tr><td>UPDATE</td><td>BT-028..041</td><td>14</td><td>QA-028..041</td></tr>
+      <tr><td>ACTIVATE</td><td>BT-042..050</td><td>9</td><td>QA-042..050</td></tr>
+      <tr><td>DEACTIVATE</td><td>BT-051..056</td><td>6</td><td>QA-051..056</td></tr>
+      <tr><td>EDGE CASES</td><td>BT-057..063</td><td>7</td><td>QA-057..065</td></tr>
+      <tr><td>INTEGRATION</td><td>BT-064..079</td><td>16</td><td>Cross-cutting</td></tr>
+      <tr><td>COMPLIANCE</td><td>BT-080..101</td><td>22</td><td>ADRs + constraints</td></tr>
+      <tr><td>GUARDRAIL</td><td>BT-G01a/b/G05/G07a/b/G10</td><td>6</td><td>QA-066..077</td></tr>
+      <tr><td><strong>TOTAL</strong></td><td></td><td><strong>107</strong></td><td><strong>79/79 (100%)</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note-box">
+    Coverage verification (from 04b-business-tests.md): 4/4 Acceptance Criteria, 11/11 error codes, 13/13 ADRs, 16/16 frozen decisions, 4/4 guardrails, 79/79 QA scenarios — all 100%.
+  </div>
+</section>
+
+<!-- ======================== 10. REVIEWER FINDINGS ======================== -->
+<section id="reviewer">
+  <h2>Reviewer Findings (Phase 11)</h2>
+  <p><strong>Verdict: APPROVED WITH WARNINGS</strong> — 1 blocker + 5 warnings + 4 notes. Feature is functionally complete and well-tested (76 tests GREEN). Critical guardrails G-03, G-07, and G-12 pass cleanly. R-01 must be resolved before merge.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Category</th><th>Finding</th><th>Routing</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>R-01</strong></td>
+        <td><span class="badge badge-blocker">BLOCKER</span></td>
+        <td>Code Quality</td>
+        <td>Dead DAO method <code>findActiveByProgramAndNameExceptId</code> contradicts D-60 semantics. Checks only ACTIVE rows; if called by a future developer, would introduce a regression against D-60's all-states uniqueness requirement.</td>
+        <td>Manual — add <code>@deprecated DO NOT USE — violates D-60</code> comment or remove</td>
+      </tr>
+      <tr>
+        <td><strong>R-02</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>Code Quality</td>
+        <td>Unused <code>import jakarta.validation.constraints.Max</code> in BenefitCategoryCreateRequest.java:7 — vestige of removed field constraint; triggers strict lint warnings.</td>
+        <td>Manual — one-line cleanup</td>
+      </tr>
+      <tr>
+        <td><strong>R-03</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>Requirements</td>
+        <td>Slab validation throws HTTP 400 but ADR-009 + Designer §E specified 409 for BC_UNKNOWN_SLAB / BC_CROSS_PROGRAM_SLAB. Accepted as D-63 deviation.</td>
+        <td>Accept — D-63 logged</td>
+      </tr>
+      <tr>
+        <td><strong>R-05</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>Security G-01</td>
+        <td>@JsonFormat on BenefitCategoryResponse lacks timezone="UTC" — risk if JVM default is not UTC (OQ-38 still open). D-45 revised intentionally omits timezone; Q-SDET-08 UI confirmation pending.</td>
+        <td>Manual — confirm OQ-38 JVM TZ in production; add timezone="UTC" if non-UTC</td>
+      </tr>
+      <tr>
+        <td><strong>R-06</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>Guardrails</td>
+        <td>java.util.Date in BenefitCategoryResponse DTO violates G-01.3 literal. Accepted deviation per D-24 (three-boundary pattern); ADR-008 should note DTO also carries Date for Jackson compatibility.</td>
+        <td>Accept — D-24 / ADR-008 documented</td>
+      </tr>
+      <tr>
+        <td><strong>W5 / F-02</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>API Design</td>
+        <td>@PostMapping vs @PatchMapping on activate/deactivate — confirmed as D-61 accepted deviation.</td>
+        <td>Accept — D-61 logged</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Guardrails Compliance (Reviewer Spot-Check)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Guardrail</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>G-01 Timezone (CRITICAL)</td><td><span class="badge badge-warn">WARN</span></td><td>D-24 three-boundary accepted; @JsonFormat timezone not specified (R-05); multi-TZ IT (btG01b UTC/IST/PST) present</td></tr>
+      <tr><td>G-03 Security (CRITICAL)</td><td><span class="badge badge-pass">PASS</span></td><td>Bean Validation on all @RequestBody DTOs; JPQL with named params only; no PII in logs</td></tr>
+      <tr><td>G-07 Multi-Tenancy (CRITICAL)</td><td><span class="badge badge-pass">PASS</span></td><td>Every DAO query has explicit orgId WHERE clause; btG07 tenant isolation IT asserts orgId propagation</td></tr>
+      <tr><td>G-12 AI-Specific (CRITICAL)</td><td><span class="badge badge-pass">PASS</span></td><td>All patterns verified against existing exemplars; no hallucinated APIs; javap verification of Thrift IDL done</td></tr>
+      <tr><td>G-05 Data Integrity</td><td><span class="badge badge-pass">PASS</span></td><td>Cascade deactivation in single @Transactional; no optimistic lock per ADR-001/D-33</td></tr>
+      <tr><td>G-10 Concurrency</td><td><span class="badge badge-accept">DEVIATION ACCEPTED</span></td><td>No @Version per D-33/ADR-001; race on name-create per D-38; BT-G10 tests LWW behaviour</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ======================== 11. OUTSTANDING MANUAL ITEMS ======================== -->
+<section id="manual-items">
+  <h2>Outstanding Manual Items</h2>
+  <p>7 items require manual developer action before this feature can be merged to main. B1/B2/B3 originated from Phase 10b Backend Readiness. F-02/F-04 from Phase 10c Gap Analysis. R-01/R-02 from Phase 11 Reviewer.</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Area</th><th>Finding</th><th>File / Location</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>B1</strong></td>
+        <td><span class="badge badge-blocker">HIGH</span></td>
+        <td>Query Performance</td>
+        <td>Production DDL missing <code>idx_bc_org_program_name (org_id, program_id, name)</code>. D-60 name-reservation lookup will full-scan the program partition on every CREATE and UPDATE.</td>
+        <td><code>cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql:16</code></td>
+        <td>Developer — add index to production DDL</td>
+      </tr>
+      <tr>
+        <td><strong>B2</strong></td>
+        <td><span class="badge badge-blocker">HIGH</span></td>
+        <td>Migration Safety</td>
+        <td>Both production DDL files use bare <code>CREATE TABLE</code> — re-deploy or rollback+forward will fail with "table already exists".</td>
+        <td><code>benefit_categories.sql:3</code> + <code>benefit_category_slab_mapping.sql:3</code></td>
+        <td>Developer — add <code>IF NOT EXISTS</code></td>
+      </tr>
+      <tr>
+        <td><strong>B3</strong></td>
+        <td><span class="badge badge-blocker">HIGH</span></td>
+        <td>JSON Serialization</td>
+        <td>BenefitCategoryResponse.active serializes as JSON key <code>"active"</code> (Lombok boolean getter naming); API spec uses <code>"isActive"</code>. UI receives null silently.</td>
+        <td><code>intouch-api-v3/.../BenefitCategoryResponse.java:27</code></td>
+        <td>Developer — add <code>@JsonProperty("isActive")</code></td>
+      </tr>
+      <tr>
+        <td><strong>F-02</strong></td>
+        <td><span class="badge badge-warn">MEDIUM</span></td>
+        <td>Package Structure</td>
+        <td>BenefitCategoryResponseMapper is in <code>models.dtos.benefitcategory</code> instead of the D-45/C-36 specified <code>facade.benefitCategory.mapper</code> subpackage.</td>
+        <td><code>intouch-api-v3/.../BenefitCategoryResponseMapper.java</code></td>
+        <td>Developer — move to correct package; update imports</td>
+      </tr>
+      <tr>
+        <td><strong>F-04</strong></td>
+        <td><span class="badge badge-warn">WARN</span></td>
+        <td>API Behaviour</td>
+        <td>Absent <code>?isActive</code> defaults to all-states (active+inactive) instead of active-only. D-42 drift: default should be active-only; all-states is opt-in via <code>?isActive=true/false</code>.</td>
+        <td><code>PointsEngineRuleService.java list path</code></td>
+        <td>Developer — default filter to active-only when ?isActive absent</td>
+      </tr>
+      <tr>
+        <td><strong>R-01</strong></td>
+        <td><span class="badge badge-blocker">BLOCKER</span></td>
+        <td>Code Quality</td>
+        <td>Dead DAO method <code>findActiveByProgramAndNameExceptId</code> contradicts D-60; if used by future developer, breaks all-states uniqueness requirement.</td>
+        <td><code>emf-parent/.../BenefitCategoryDao.java:51-55</code></td>
+        <td>Developer — add @deprecated javadoc or remove method</td>
+      </tr>
+      <tr>
+        <td><strong>R-02</strong></td>
+        <td><span class="badge badge-warn">WARNING</span></td>
+        <td>Code Quality</td>
+        <td>Unused <code>import jakarta.validation.constraints.Max</code> in BenefitCategoryCreateRequest — triggers lint warnings.</td>
+        <td><code>intouch-api-v3/.../BenefitCategoryCreateRequest.java:7</code></td>
+        <td>Developer — remove unused import</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="warn-box">
+    <strong>Merge gate:</strong> R-01 (dead DAO method) is classified BLOCKER by the Reviewer. B1, B2, B3 are HIGH findings from Backend Readiness. All 4 must be fixed before PR merge to main. F-02, F-04, R-02 can be addressed in a follow-up PR.
+  </div>
+</section>
+
+<!-- ======================== 12. GIT TAGS TIMELINE ======================== -->
+<section id="git-tags">
+  <h2>Git Tags Timeline</h2>
+  <p>25 tags created on branch <code>aidlc/CAP-185145</code> across all participating repos. Tags mark immutable phase snapshots for auditability and rollback.</p>
+
+  <ul class="tag-list">
+    <li>aidlc/CAP-185145/phase-00</li>
+    <li>aidlc/CAP-185145/phase-01</li>
+    <li>aidlc/CAP-185145/phase-02</li>
+    <li>aidlc/CAP-185145/phase-03-skipped</li>
+    <li>aidlc/CAP-185145/phase-04</li>
+    <li>aidlc/CAP-185145/phase-05</li>
+    <li>aidlc/CAP-185145/phase-05-resolutions</li>
+    <li>aidlc/CAP-185145/phase-05-preHLD</li>
+    <li>aidlc/CAP-185145/phase-06</li>
+    <li>aidlc/CAP-185145/phase-06-gate</li>
+    <li>aidlc/CAP-185145/phase-07</li>
+    <li>aidlc/CAP-185145/phase-07-resolved</li>
+    <li>aidlc/CAP-185145/phase-08</li>
+    <li>aidlc/CAP-185145/phase-08-resolved</li>
+    <li>aidlc/CAP-185145/phase-08b</li>
+    <li>aidlc/CAP-185145/phase-09</li>
+    <li>aidlc/CAP-185145/phase-10</li>
+    <li>aidlc/CAP-185145/phase-10-m3a</li>
+    <li>aidlc/CAP-185145/phase-10-m4</li>
+    <li>aidlc/CAP-185145/phase-10-m5</li>
+    <li>aidlc/CAP-185145/phase-10-m6</li>
+    <li>aidlc/CAP-185145/phase-10b</li>
+    <li>aidlc/CAP-185145/phase-10c</li>
+    <li>aidlc/CAP-185145/phase-11</li>
+    <li><em>aidlc/CAP-185145/phase-12 — to be created after this blueprint</em></li>
+  </ul>
+
+  <div class="note-box" style="margin-top:16px;">
+    Phase 10 has 6 sub-milestones (m3a through m6) reflecting the emf-parent build reality correction (Java 8 Temurin), D-60 name-uniqueness hardening, and Testcontainers IT authoring.
+  </div>
+</section>
+
+<!-- ======================== 13. NEXT STEPS ======================== -->
+<section id="next-steps">
+  <h2>Next Steps for Stakeholder</h2>
+
+  <h3>Before Merge</h3>
+  <ul class="steps-list">
+    <li><strong>B1 — Add missing index</strong>: Add <code>KEY idx_bc_org_program_name (org_id, program_id, name)</code> to <code>cc-stack-crm/schema/dbmaster/warehouse/benefit_categories.sql</code>. This is the hot path for every CREATE and UPDATE name-uniqueness check (D-60).</li>
+    <li><strong>B2 — IF NOT EXISTS</strong>: Change both DDL files from bare <code>CREATE TABLE</code> to <code>CREATE TABLE IF NOT EXISTS</code>. Required for safe re-deploy and rollback.</li>
+    <li><strong>B3 — JSON key fix</strong>: Add <code>@JsonProperty("isActive")</code> to the <code>active</code> field in <code>BenefitCategoryResponse.java</code>. Without this, all UI consumers receive <code>null</code> for the active status field.</li>
+    <li><strong>R-01 — Dead DAO method</strong>: Either add <code>@Deprecated // DO NOT USE — violates D-60; use findByProgramAndNameExceptId</code> javadoc to <code>BenefitCategoryDao.findActiveByProgramAndNameExceptId</code> or remove it entirely.</li>
+    <li><strong>Open PRs</strong>: All 4 repos have feature branches at <code>aidlc/CAP-185145</code>. Merge sequence: cc-stack-crm → thrift-ifaces → emf-parent → intouch-api-v3 (ADR-013).</li>
+  </ul>
+
+  <h3>Post-Merge (Follow-up)</h3>
+  <ul class="steps-list">
+    <li><strong>F-02 — Mapper package</strong>: Move <code>BenefitCategoryResponseMapper</code> from <code>models.dtos.benefitcategory</code> to <code>facade.benefitCategory.mapper</code> (D-45/C-36). Low risk; update imports.</li>
+    <li><strong>F-04 — List default filter</strong>: Fix absent-<code>?isActive</code> to default to active-only instead of all-states. Align with D-42 specification.</li>
+    <li><strong>R-02 — Unused import</strong>: Remove <code>import jakarta.validation.constraints.Max</code> from <code>BenefitCategoryCreateRequest.java</code>.</li>
+    <li><strong>OQ-38 + Q-SDET-08</strong>: Confirm production JVM default timezone (OQ-38) and obtain UI team sign-off on <code>yyyy-MM-dd'T'HH:mm:ssXXX</code> date format. If JVM is non-UTC, add <code>timezone="UTC"</code> to @JsonFormat on BenefitCategoryResponse.</li>
+    <li><strong>M5 Runtime Verification</strong>: Run emf-parent Testcontainers ITs locally (<code>BenefitCategoryIntegrationTest</code>) to confirm the 10 ITs are GREEN. Committed but runtime-deferred per user directive.</li>
+    <li><strong>D-40 Aurora Version</strong>: Confirm Aurora MySQL version for production deployment. If &ge; 8.0.13, consider partial unique index on (org_id, program_id, name) WHERE is_active=1 for stronger uniqueness guarantee (revisit ADR-012).</li>
+    <li><strong>BT-067 emf-parent Thrift IT</strong>: Implement the cross-repo end-to-end IT harness (Q-BT-01) as a separate task after Phase 12. Tracks the Thrift handler &rarr; DAO &rarr; real-MySQL round-trip.</li>
+  </ul>
+
+  <h3>Deployment Order (ADR-013)</h3>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart LR
+  A["1. cc-stack-crm\nApply DDL\n(benefit_categories +\nslab_mapping tables)"]:::step
+  --> B["2. thrift-ifaces\nPublish 1.84 to Nexus\n(6 new Thrift methods)"]:::step
+  --> C["3. emf-parent\nDeploy to prod\n(ThriftImpl + Service + DAOs)"]:::step
+  --> D["4. intouch-api-v3\nDeploy to prod\n(Controller + Facade + Mapper)"]:::step
+  classDef step fill:#0f3460,stroke:#00d4ff,color:#e0e0e0
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+
+// Sidebar active-link highlighting
+const sections = document.querySelectorAll('section[id]');
+const navLinks  = document.querySelectorAll('nav#sidebar a');
+const observer  = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const link = document.querySelector('nav#sidebar a[href="#' + e.target.id + '"]');
+      if (link) link.classList.add('active');
+    }
+  });
+}, { rootMargin: '-30% 0px -60% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
