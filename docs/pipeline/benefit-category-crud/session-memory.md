@@ -1051,3 +1051,36 @@ Compile-verified by subagent. **Runtime `mvn -pl integration-test verify -Dit.te
 
 **C6** on code + compile + DDL correctness. Promotes to **C7** once user runs `mvn verify` locally and all 10 ITs pass.
 
+
+---
+
+## Phase 10c — Compliance routing (2026-04-19)
+
+Gap Analysis surfaced 4 new findings. User routed per-finding; two new decisions recorded.
+
+### D-61 — `/activate` + `/deactivate` stay on `@PostMapping` (F-01 accepted deviation)
+
+ADR-002 and ADR-004 specify `PATCH` verbs. Actual controller uses `@PostMapping`. REST clients calling PATCH will receive HTTP 405. User accepted the deviation because the Thrift path is the production consumer and the REST surface is aiRa-only — the 405 would only hit a future external PATCH client. Revisit trigger: any REST client beyond aiRa requires PATCH semantics. **Confidence C6.**
+
+### D-62 — Pagination `size` max enforced at service layer only (F-03 partial fix)
+
+ADR-011 intent: reject `size > 100` with `BC_PAGE_SIZE_EXCEEDED` at HTTP 400.
+
+- **Landed**: `PointsEngineRuleService.java` (emf-parent M6 `5caa9a9362`) now throws `PointsEngineRuleServiceException("BC_PAGE_SIZE_EXCEEDED")` with status 400 when `size > 100`, replacing the prior silent 200-clamp.
+- **Not landed** (per user directive "we don't need to make change on listBenefitCategories"): controller `@Max(100)` on the `size` `@RequestParam`. REST path unchanged; normal callers use `defaultValue="20"` and are unaffected.
+- **Impact**: REST-layer validation gap remains; direct Thrift callers are now correctly bounded. Revisit trigger: REST UI explicitly requires a 400 response (not 500 via unwrapped exception propagation).
+
+**Confidence C5** on the REST API contract; **C6** on the Thrift boundary.
+
+### Outstanding manual / accepted items after Phase 10c
+
+| # | Item | Source | Status |
+|---|------|--------|--------|
+| B1 | DDL missing `idx_bc_org_program_name` on prod | Phase 10b | manual pending |
+| B2 | Bare `CREATE TABLE` on prod DDL | Phase 10b | manual pending |
+| B3 | `BenefitCategoryResponse.active` JSON field name drift | Phase 10b | manual pending |
+| F-02 | Mapper in wrong package (C-36) | Phase 10c | manual pending |
+| F-04 | `?isActive` absent defaults to all-states | Phase 10c | manual pending |
+| F-01 | `/activate`+`/deactivate` on POST not PATCH | Phase 10c | **accepted deviation (D-61)** |
+
+Five items for Phase 11 Reviewer to verify on the user's completed manual fixes; one is logged as an accepted deviation.

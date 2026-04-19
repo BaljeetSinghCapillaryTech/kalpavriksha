@@ -963,3 +963,29 @@ Audit verdict: **NOT READY** — 3 HIGH blockers surfaced; 29 PASS · 6 WARN · 
 | B3 | HIGH | `BenefitCategoryResponse.active` serializes as JSON `"active"`; API contract + Thrift DTO use `"isActive"`. UI consumers silently receive null | `intouch-api-v3 .../BenefitCategoryResponse.java:27` | **[M] Manual** | pending user fix |
 
 **Rationale for Manual over Re-run**: user chose to fix all three outside the pipeline rather than spawn another Developer round. All three are 1-line changes with clear evidence; no design ambiguity. Tracked as outstanding items for Phase 11 Reviewer verification.
+
+---
+
+## Phase 10c — Compliance Findings (2026-04-19)
+
+Audit found **0 FAIL · 1 HIGH · 2 MEDIUM · 1 WARN** (+42 PASS, 5 accepted-deviations). User routed per-finding:
+
+| ID | Severity | Finding | Routing | Status |
+|---|---|---|---|---|
+| F-01 | HIGH | `/activate` + `/deactivate` use `@PostMapping` not `@PatchMapping` (ADR-002 / ADR-004 specify PATCH; PATCH callers will 405) | **[A] Accept** | **D-61 — accepted deviation** |
+| F-02 | MEDIUM | `BenefitCategoryResponseMapper` in `models.dtos.benefitcategory` not mandated `facade.benefitCategory.mapper` (D-45 / C-36) | **[M] Manual** | pending user fix |
+| F-03 | MEDIUM | Silent 200-clamp instead of `BC_PAGE_SIZE_EXCEEDED` throw at `size > 100` (ADR-011) | **[R] Re-run (partial)** | service-side throw landed (emf-parent M6 `5caa9a9362`); controller `@Max(100)` gate **not applied** per user directive "don't change listBenefitCategories" → service-layer throw only fires for direct Thrift callers with size > 100, REST path unchanged — **D-62** |
+| F-04 | WARN | Absent `?isActive` defaults to all-states instead of active-only (D-42 / D-48 intent drift) | **[M] Manual** | pending user fix |
+
+### New decisions
+
+- **D-61 (accepted deviation — F-01)**: `/activate` + `/deactivate` stay on `@PostMapping`. REST clients calling PATCH will receive HTTP 405. Accepted on user directive; Thrift path is the production consumer, REST is aiRa-only. Revisit trigger: any REST client requires PATCH semantics. Confidence C6.
+- **D-62 (partial fix — F-03)**: emf-parent service layer throws `BC_PAGE_SIZE_EXCEEDED` (HTTP 400) when `size > 100`; controller has no `@Max(100)` gate per user directive. REST callers unaffected in normal operation (default `size=20`); direct Thrift callers are now bounded. Confidence C5 on API contract, C6 on Thrift boundary.
+
+### Outstanding for Phase 11 Reviewer
+
+- F-02 mapper package (manual)
+- F-04 isActive default drift (manual)
+- (inherited) Phase 10b B1 / B2 / B3 (manual)
+
+Five items total queued for Reviewer verification.

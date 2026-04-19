@@ -1545,3 +1545,42 @@ Three findings logged in `approach-log.md` — Phase 11 should verify resolution
 2. Phase 10c — Gap Analysis (Architecture vs Code).
 
 ---
+
+## Phase 10c — Gap Analysis (Architecture vs Code)
+
+**Completed:** 2026-04-19
+**Skill:** `/analyst --compliance`
+**Mode:** Subagent (general-purpose, sonnet)
+**Artifact:** `06b-gap-analysis.md`
+
+### Verdict
+
+NOT READY → resolved via user routing. **42 PASS · 5 accepted-deviations · 4 new findings** (1 HIGH, 2 MEDIUM, 1 WARN, 0 FAIL).
+
+### Per-finding routing
+
+- **F-01** (HIGH — `/activate`+`/deactivate` on POST not PATCH) → **[A] Accept** as **D-61** (Thrift path is production consumer; REST is aiRa-only).
+- **F-02** (MEDIUM — mapper package location) → **[M] Manual**.
+- **F-03** (MEDIUM — silent 200-clamp instead of `BC_PAGE_SIZE_EXCEEDED`) → **[R] Re-run (partial)** — service layer throw landed as **M6** (emf-parent `5caa9a9362`, tagged `aidlc/CAP-185145/phase-10-m6`); controller `@Max(100)` gate **not applied** per user directive "we don't need to make change on listBenefitCategories". Recorded as **D-62**.
+- **F-04** (WARN — isActive default drift) → **[M] Manual**.
+
+### Rework cycle 3
+
+Phase 10 → Phase 10c → Phase 10 (M6 fix round on emf-parent only). One round; circuit breaker not triggered.
+
+### M6 mis-route + recovery
+
+Initial M6 subagent committed intouch-api-v3 changes to `/Users/anujgupta/IdeaProjects/intouch-api-v3` on branch `prod-jsvt` — wrong repo + wrong branch. Canonical path is `/Users/anujgupta/IdeaProjects/intouch-api-v3-2/intouch-api-v3` on `aidlc/CAP-185145`. Recovery: `git reset --hard HEAD~1` on the wrong repo (commit `af69c1a28` discarded). emf-parent M6 commit `5caa9a9362` was on the correct repo and branch — kept.
+
+### Step A/B/C
+
+- **Step A (Mermaid)**: N/A — audit report uses tables.
+- **Step B (live-dashboard.html)**: 10c section added; F-01..F-04 routing table; D-61/D-62 noted in stats.
+- **Step C (Confluence)**: skipped — not configured.
+
+### Next actions
+
+1. Phase 10d (Migration Validation — conditional) **skipped** — no `01b-migrator.md` produced in Phase 6b.
+2. Phase 11 Reviewer — will verify 5 outstanding manual items (B1/B2/B3 from 10b + F-02/F-04 from 10c) on user's completed fixes.
+
+---
