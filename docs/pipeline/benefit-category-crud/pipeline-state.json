@@ -1623,8 +1623,19 @@
     }
   ],
   "confluence": {
-    "configured": false,
-    "note": "Not yet configured for this run \u2014 will publish when /confluence-publisher is invoked."
+    "cloud_id": "69031ea7-8347-4ec3-a63d-9c7289f8dc4f",
+    "space_id": "1264386327",
+    "parent_folder_id": "5434343427",
+    "run_page_id": "5480448102",
+    "run_folder_title": "Benefit Category CRUD",
+    "artifact_pages": {
+      "HLD.md": "5480710242",
+      "LLD.md": "5480710261",
+      "api-handoff.md": "5481299978",
+      "05-sdet.md": "5480644686",
+      "04b-business-tests.md": "5481299998"
+    },
+    "published_at": "2026-04-19"
   },
   "decisions_recorded_overall": [
     "D-63"
