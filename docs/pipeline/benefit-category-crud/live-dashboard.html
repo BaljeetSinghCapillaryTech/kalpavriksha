@@ -2333,10 +2333,30 @@ flowchart LR
 
       <!-- Quick link destinations (filled as phases complete) -->
       <section class="phase-section" id="qa">
-        <h2>BA Q&amp;A <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>BA Q&amp;A <span class="phase-badge complete">Populated</span></h2>
+        <p>Full Q&amp;A transcript is in <a href="approach-log.md" style="color:var(--accent);">approach-log.md</a> (every question asked + user answer + reasoning). Phase 1 BA Deep-Dive drove the decision log from Q1 through the scope-freeze; Phase 4 Blocker Resolution resolved BL-01..BL-09 before HLD. Key questions surfaced:</p>
+        <table class="data-table">
+          <tr><th>Q</th><th>Phase</th><th>Topic</th><th>Resolution</th></tr>
+          <tr><td>Q1</td><td>BA</td><td>Scope — Category CRUD only vs full matrix</td><td>Category CRUD only (freeze)</td></tr>
+          <tr><td>BL-03</td><td>Blockers</td><td>Name uniqueness — global or per-program</td><td>Per-program (D-28)</td></tr>
+          <tr><td>BL-05</td><td>Blockers</td><td>Case sensitivity on name</td><td>Case-sensitive (D-47, utf8mb4_bin)</td></tr>
+          <tr><td>BL-07</td><td>Blockers</td><td>Activate/Deactivate cascade behaviour</td><td>Cascade to slab mappings (ADR-004)</td></tr>
+          <tr><td>D-60</td><td>M4</td><td>Uniqueness scope — active only or all states</td><td>ALL states (tightened)</td></tr>
+          <tr><td>Q-M5-02</td><td>M5</td><td>MySQL default CI collation vs D-47 intent</td><td>Amended DDL with utf8mb4_bin</td></tr>
+        </table>
+        <p><strong>63 decisions</strong> recorded (D-01..D-63). See <a href="session-memory.md" style="color:var(--accent);">session-memory.md</a> for full decision log.</p>
       </section>
       <section class="phase-section" id="architecture">
-        <h2>Architecture <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>Architecture <span class="phase-badge complete">Populated</span></h2>
+        <p>Full HLD is in <a href="01-architect.md" style="color:var(--accent);">01-architect.md</a> with 13 ADRs. Architecture summary:</p>
+        <ul>
+          <li><strong>Layer stack</strong>: REST (intouch-api-v3-2) → Facade → Thrift → EMF Service (emf-parent) → DAO → MySQL (benefit_categories table in cc-stack-crm schema)</li>
+          <li><strong>Base path</strong>: <code>/v3/benefitCategories</code> · 6 endpoints · Bearer auth with orgId+entityId extracted server-side</li>
+          <li><strong>Data store</strong>: MySQL <code>benefit_categories</code> + <code>benefit_category_slab_mapping</code> (many-to-many to slabs) · collation <code>utf8mb4_bin</code> on name (D-47)</li>
+          <li><strong>Key patterns</strong>: Soft-delete via <code>is_active</code> · per-program name uniqueness (D-28) · cascade deactivate to slab mappings (ADR-004) · idempotent activate/deactivate returning 204 on no-op (D-39)</li>
+          <li><strong>Cross-repo dependencies</strong>: Thrift IDL (thrift-ifaces-pointsengine-rules) → emf-parent service → intouch-api-v3-2 facade. Deploy order locked by ADR-013.</li>
+        </ul>
+        <p>See <a href="#hld-diagrams" style="color:var(--accent);">HLD Diagrams</a> below for flowcharts.</p>
       </section>
       <section class="phase-section" id="api-contracts">
         <h2 id="api-contracts">API Contracts <span class="phase-badge complete">Populated</span></h2>
@@ -2352,20 +2372,103 @@ flowchart LR
         </table>
       </section>
       <section class="phase-section" id="hld-diagrams">
-        <h2>HLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>HLD Diagrams <span class="phase-badge complete">Populated</span></h2>
+        <p>Primary HLD diagrams (sourced from <code>01-architect.md</code> and <code>cross-repo-trace.md</code>):</p>
+        <h3>System Context (layer boundaries)</h3>
+        <div class="mermaid">
+flowchart LR
+  UI["UI Client"] -->|"HTTPS Bearer"| IAP["intouch-api-v3-2<br/>BenefitCategoriesV3Controller"]
+  IAP --> FAC["BenefitCategoryFacade"]
+  FAC -->|"Thrift"| EMF["emf-parent<br/>PointsEngineRuleService"]
+  EMF --> SVC["BenefitCategoryService"]
+  SVC --> DAO["BenefitCategoryDao"]
+  DAO --> DB[("MySQL<br/>benefit_categories<br/>benefit_category_slab_mapping")]
+        </div>
+        <h3>Create Flow (POST /v3/benefitCategories)</h3>
+        <div class="mermaid">
+sequenceDiagram
+  participant UI as UI
+  participant C as Controller
+  participant F as Facade
+  participant T as Thrift
+  participant S as Service
+  participant D as DAO
+  UI->>C: POST body + token
+  C->>F: createBenefitCategory(orgId, req, entityId)
+  F->>T: Thrift call
+  T->>S: service.create()
+  S->>S: validate name uniqueness (D-28, D-60)
+  S->>S: validate slabs belong to program
+  S->>D: insert
+  D-->>S: id
+  S-->>T: BenefitCategoryResponse
+  T-->>F: response
+  F-->>C: response
+  C-->>UI: 201 Created
+        </div>
+        <h3>Deactivate Cascade (ADR-004)</h3>
+        <div class="mermaid">
+flowchart TD
+  A["POST /{id}/deactivate"] --> B{"Category exists?"}
+  B -->|No| E1["404 BC_NOT_FOUND"]
+  B -->|Yes| C{"Already inactive?"}
+  C -->|Yes| E2["204 No Content (D-39 no-op)"]
+  C -->|No| D["Set is_active=false"]
+  D --> E["Cascade: deactivate slab mappings"]
+  E --> F["204 No Content"]
+        </div>
+        <p>See <a href="benefit-category-crud-blueprint.html" style="color:var(--accent);">blueprint</a> for the deployment-order diagram (ADR-013).</p>
       </section>
       <section class="phase-section" id="lld-diagrams">
         <h2>LLD Diagrams <span class="phase-badge complete">Populated by Phase 7</span></h2>
         <p>The full LLD with compile-safe signatures is in <code>03-designer.md</code> §F (630+ lines of Java signatures). Quick-reference diagrams are embedded in the Phase 7 section above: <a href="#phase-7">Designer Decision Flow</a> (constraint→pattern→output) and <a href="#phase-7">Create Flow Cross-Boundary Sequence</a> (end-to-end trace for 1 of 6 operations). See <code>03-designer.md</code> §B for all 6 operation sequence diagrams.</p>
       </section>
       <section class="phase-section" id="cross-repo">
-        <h2>Cross-Repo Map <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>Cross-Repo Map <span class="phase-badge complete">Populated</span></h2>
+        <p>4 repos touched on branch <code>aidlc/CAP-185145</code>. Full trace in <a href="cross-repo-trace.md" style="color:var(--accent);">cross-repo-trace.md</a>.</p>
+        <table class="data-table">
+          <tr><th>Repo</th><th>Branch</th><th>Role</th><th>Key commits</th></tr>
+          <tr><td><code>thrift-ifaces-pointsengine-rules</code></td><td>aidlc/CAP-185145</td><td>Thrift IDL — 6 new methods + 4 DTOs on PointsEngineRuleService</td><td>1.84-SNAPSHOT-dev</td></tr>
+          <tr><td><code>emf-parent</code></td><td>aidlc/CAP-185145</td><td>Service + DAO implementation, ITs</td><td>3aec0c39c0 (M2), 89f7043043 (M3a), afab3d37fb (M4), 0fbed773d7 (M5), 5caa9a9362 (M6)</td></tr>
+          <tr><td><code>intouch-api-v3-2</code></td><td>aidlc/CAP-185145</td><td>REST layer — Controller + Facade + DTOs + 40 Testcontainers ITs</td><td>13d62c487 (RED), 0ae66f606 (M2), 7bdc46a34 (M3)</td></tr>
+          <tr><td><code>cc-stack-crm</code></td><td>master (direct)</td><td>Flyway schema DDL</td><td>699bbef63 (DDL), f72fb689d (M5 utf8mb4_bin)</td></tr>
+        </table>
+        <p><strong>Deployment order (ADR-013)</strong>: thrift IDL → emf-parent → intouch-api-v3-2 → UI.</p>
       </section>
       <section class="phase-section" id="implementation">
-        <h2>Implementation <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>Implementation <span class="phase-badge complete">Populated</span></h2>
+        <p>Phase 10 GREEN across 6 milestones (M1..M6). See <a href="#phase-10">Phase 10 section</a> above for per-milestone detail.</p>
+        <table class="data-table">
+          <tr><th>Metric</th><th>Value</th></tr>
+          <tr><td>Tests authored</td><td>127 (unit + integration)</td></tr>
+          <tr><td>Tests GREEN (verified)</td><td>117 (36 service UTs + 40 Testcontainers ITs + 41 controller/DTO UTs)</td></tr>
+          <tr><td>IT runtime verification</td><td>Deferred to CI per user directive (M5 code committed)</td></tr>
+          <tr><td>Repos with code changes</td><td>4 (thrift IDL + emf-parent + intouch-api-v3-2 + cc-stack-crm)</td></tr>
+          <tr><td>Milestones</td><td>M1 thrift · M2 REST+Thrift wiring · M3 Testcontainers ITs + 400 handler · M3a Java 8 fixes + BT-098 · M4 Mockito UTs + D-60 · M5 ITs + D-47 utf8mb4_bin · M6 F-03 service throw</td></tr>
+          <tr><td>Rework cycles used</td><td>1 (M6 recovery — subagent mis-routed commit to wrong worktree, reverted)</td></tr>
+          <tr><td>Git tags</td><td>phase-09 → phase-10-m1 → m2 → m3 → m3a → m4 → m5 → m6 → phase-10b → phase-10c → phase-11 → phase-12 → <strong>complete</strong></td></tr>
+        </table>
       </section>
       <section class="phase-section" id="review">
-        <h2>Review Findings <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2>Review Findings <span class="phase-badge complete">Populated</span></h2>
+        <p>Combined findings from Phase 10b (Backend Readiness), Phase 10c (Compliance), and Phase 11 (Reviewer). Full detail in <a href="07-reviewer.md" style="color:var(--accent);">07-reviewer.md</a>, <a href="06b-gap-analysis.md" style="color:var(--accent);">06b-gap-analysis.md</a>, <a href="backend-readiness.md" style="color:var(--accent);">backend-readiness.md</a>.</p>
+        <p><strong>Final verdict: APPROVED WITH WARNINGS</strong> · 0/3 rework cycles at Phase 11</p>
+        <table class="data-table">
+          <tr><th>ID</th><th>Phase</th><th>Severity</th><th>Description</th><th>Routing</th></tr>
+          <tr><td>B1</td><td>10b</td><td>BLOCKER</td><td>Missing idx_bc_org_program_name</td><td>Manual</td></tr>
+          <tr><td>B2</td><td>10b</td><td>BLOCKER</td><td>Bare CREATE TABLE instead of Flyway migration</td><td>Manual</td></tr>
+          <tr><td>B3</td><td>10b</td><td>BLOCKER</td><td>Missing @JsonProperty("isActive") on response DTO</td><td>Manual</td></tr>
+          <tr><td>F-01</td><td>10c</td><td>HIGH</td><td>POST vs PATCH on activate/deactivate</td><td>Accept (D-61)</td></tr>
+          <tr><td>F-02</td><td>10c</td><td>MEDIUM</td><td>Verb semantics documentation</td><td>Manual</td></tr>
+          <tr><td>F-03</td><td>10c</td><td>MEDIUM</td><td>Page size cap not enforced</td><td>Partial fix (M6) + D-62</td></tr>
+          <tr><td>F-04</td><td>10c</td><td>WARN</td><td>isActive default=true inconsistency</td><td>Manual</td></tr>
+          <tr><td>R-01</td><td>11</td><td>BLOCKER</td><td>Dead DAO method findActiveByProgramAndNameExceptId</td><td>Manual</td></tr>
+          <tr><td>R-02</td><td>11</td><td>WARNING</td><td>Unused jakarta.validation.constraints.Max import</td><td>Manual</td></tr>
+          <tr><td>R-03</td><td>11</td><td>WARNING</td><td>validateSlabsBelongToProgram returns 400 (ADR-009 said 409)</td><td>Accept (D-63)</td></tr>
+          <tr><td>R-05</td><td>11</td><td>WARNING</td><td>@JsonFormat missing timezone=UTC (OQ-38)</td><td>Accept</td></tr>
+          <tr><td>R-06</td><td>11</td><td>WARNING</td><td>java.util.Date in DTO (D-24 accepts)</td><td>Accept</td></tr>
+        </table>
+        <p><strong>Summary</strong>: 7 Manual items (user-owned) · 5 accepted deviations (D-24, D-61, D-62, D-63, OQ-38 linked)</p>
       </section>
     </main>
   </div>
