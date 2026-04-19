@@ -153,17 +153,17 @@
         <a class="nav-link complete" href="#phase-9"><span>9. SDET (RED)</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-10" title="Complete: intouch-api-v3 GREEN (76/76); emf-parent GREEN (11 compliance + 30 Mockito UTs = 41); M5 Testcontainers IT suite committed (runtime verify deferred to user)"><span>10. Developer (GREEN)<sup style="color:#00d4ff;margin-left:0.3em;">M3a+M4+M5</sup></span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#phase-10b" title="Complete — 29 PASS · 6 WARN · 3 HIGH blockers routed as Manual"><span>10b. Backend Readiness <sup style="color:#f56c6c;margin-left:0.3em;">3 M</sup></span><span class="status-dot"></span></a>
-        <a class="nav-link active" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-10d"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-11"><span>11. Reviewer</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#phase-12"><span>12. Blueprint</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10c"><span>10c. Compliance</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-10d" title="Skipped"><span>10d. Migration Validation</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-11" title="APPROVED WITH WARNINGS"><span>11. Reviewer</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#phase-12" title="Pipeline complete — tagged aidlc/CAP-185145/complete"><span>12. Blueprint</span><span class="status-dot"></span></a>
       </div>
 
       <div class="nav-section">
         <div class="nav-title">Quick Links</div>
         <a class="nav-link complete" href="#qa"><span>BA Q&amp;A</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#architecture"><span>Architecture</span><span class="status-dot"></span></a>
-        <a class="nav-link" href="#api-contracts"><span>API Contracts</span><span class="status-dot"></span></a>
+        <a class="nav-link complete" href="#api-contracts"><span>API Contracts</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#hld-diagrams"><span>HLD Diagrams</span><span class="status-dot"></span></a>
         <a class="nav-link" href="#lld-diagrams"><span>LLD Diagrams</span><span class="status-dot"></span></a>
         <a class="nav-link complete" href="#cross-repo"><span>Cross-Repo Map</span><span class="status-dot"></span></a>
@@ -187,20 +187,21 @@
           <div class="segment complete"></div>
           <div class="segment complete"></div>
           <div class="segment complete"></div>
-          <div class="segment complete" title="Phase 10 — M1+M2+M3 landed"></div>
-          <div class="segment active" title="Phase 10b — Backend Readiness"></div><div class="segment"></div>
-          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
-          <div class="segment"></div><div class="segment"></div><div class="segment"></div>
-          <div class="segment"></div><div class="segment"></div>
+          <div class="segment complete" title="Phase 10 — M1+M2+M3+M3a+M4+M5+M6 complete"></div>
+          <div class="segment complete" title="Phase 10b — Backend Readiness"></div>
+          <div class="segment complete" title="Phase 10c — Compliance"></div>
+          <div class="segment complete" title="Phase 10d — Skipped"></div>
+          <div class="segment complete" title="Phase 11 — Reviewer"></div>
+          <div class="segment complete" title="Phase 12 — Blueprint"></div>
         </div>
         <div class="progress-stats">
-          <span><span class="stat-value">13</span> / 19 phases (1 skipped; Phase 10 M1+M2+M3+M3a+M4+M5 landed — 76 GREEN intouch-api-v3 + 11 compliance + 30 Mockito UTs + 10 Testcontainers ITs emf-parent = <strong>127 tests authored, 117 GREEN locally; 10 M5 ITs runtime-verify deferred</strong>)</span>
-          <span><span class="stat-value">24</span> artifacts generated (incl. <code>05-sdet.md</code>)</span>
-          <span><span class="stat-value">66</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED + <strong>TD-SDET-05 RETIRED post-M4</strong>) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; D-58 (M3 Thrift IT boundary) &middot; D-59 (M3a Java 8 classpath) &middot; <strong>D-27a (M4 drift accepted — 404 on PUT inactive) &middot; D-60 (M4 name uniqueness tightened across active+inactive)</strong></span>
+          <span><span class="stat-value">14</span> / 14 phases complete (1 skipped — 10d; Phase 10 M1+M2+M3+M3a+M4+M5+M6 all landed — 76 GREEN intouch-api-v3 + 11 compliance + 30 Mockito UTs + 10 Testcontainers ITs emf-parent = <strong>127 tests authored, 117 GREEN locally; 10 M5 ITs runtime-verify deferred</strong>)</span>
+          <span><span class="stat-value">25</span> artifacts generated (incl. <code>05-sdet.md</code>, <code>06b-gap-analysis.md</code>, <code>07-reviewer.md</code>, <code>benefit-category-crud-blueprint.html</code>)</span>
+          <span><span class="stat-value">69</span> decisions &middot; 17 patterns P-01..P-17 &middot; 3 test-strategy &middot; 7 TD-SDET (1 REJECTED + <strong>TD-SDET-05 RETIRED post-M4</strong>) &middot; D-49..D-57 (Phase 10 M1+M2) &middot; D-58 (M3 Thrift IT boundary) &middot; D-59 (M3a Java 8 classpath) &middot; <strong>D-27a (M4 drift accepted) &middot; D-60 (M4 name uniqueness all-states) &middot; D-61 (F-01 POST accept) &middot; D-62 (F-03 service throw only) &middot; D-63 (slab 400 not 409)</strong></span>
           <span><span class="stat-value">13</span> ADRs (D-45 revised via TD-SDET-07)</span>
           <span><span class="stat-value">107</span> Business Tests · 34 covered Phase 9 · 40 ITs M3 intouch-api-v3 (100% behaviour-dim) · 11 compliance M3a emf-parent · <strong>30 Mockito UTs M4 emf-parent (15/15 service behaviours — D-60 enabled behaviour #5)</strong></span>
-          <span><span class="stat-value">9</span> cross-repo commits &middot; M3a <code>89f7043043</code> &middot; M4 <code>afab3d37fb</code> &middot; <strong style="color:#4ec9b0">M5 emf-parent <code>0fbed773d7</code> tagged <code>phase-10-m5</code> + cc-stack-crm <code>f72fb689d</code> (D-47 utf8mb4_bin)</strong></span>
-          <span><span class="stat-value">117</span> tests GREEN total · intouch-api-v3: 36 UT + 40 IT · emf-parent: 11 compliance + 23 service + 7 editor · wall-clock IT 44.5s</span>
+          <span><span class="stat-value">10</span> cross-repo commits &middot; M3a <code>89f7043043</code> &middot; M4 <code>afab3d37fb</code> &middot; M5 emf-parent <code>0fbed773d7</code> + cc-stack-crm <code>f72fb689d</code> &middot; <strong style="color:#4ec9b0">M6 <code>5caa9a9362</code> tagged <code>phase-10-m6</code> · Pipeline tagged <code>aidlc/CAP-185145/complete</code></strong></span>
+          <span><span class="stat-value">117</span> tests GREEN total · intouch-api-v3: 36 UT + 40 IT · emf-parent: 11 compliance + 23 service + 7 editor · wall-clock IT 44.5s · <strong>7 outstanding manual items before merge</strong></span>
         </div>
       </header>
 
@@ -1827,7 +1828,7 @@ flowchart LR
         <p><strong>Phase 10 readiness:</strong> UNBLOCKED. RED gate confirmed on intouch-api-v3 with 8 failing behavioural tests. 4 cross-repo commits tagged. 9 explicit Phase 10 obligations enumerated.</p>
       </section>
       <section class="phase-section" id="phase-10">
-        <h2>Phase 10: Developer — GREEN <span class="phase-badge complete">Complete-with-Debt (M1 + M2 + M3 + M3a)</span></h2>
+        <h2>Phase 10: Developer — GREEN <span class="phase-badge complete">Complete (M1+M2+M3+M3a+M4+M5+M6)</span></h2>
         <p class="phase-time">M3 completed: 2026-04-18</p>
         <span class="skill-tag">/developer</span>
         <span class="skill-tag">executing-plans</span>
@@ -2217,6 +2218,15 @@ flowchart LR
 
         <p><strong>Next</strong>: Phase 10b Backend Readiness.</p>
 
+        <h3 style="margin-top:30px;">M4: emf-parent Mockito UTs + D-60 Tightening</h3>
+        <p><span class="skill-tag">sonnet</span> Committed as <code>afab3d37fb</code>. Added 20 Mockito UTs for BenefitCategoryService. Tightened D-60 name-uniqueness to enforce across ALL states (active + inactive).</p>
+
+        <h3 style="margin-top:20px;">M5: Testcontainers IT Suite + D-47 Collation</h3>
+        <p><span class="skill-tag">sonnet</span> Committed as <code>0fbed773d7</code>, tagged <code>aidlc/CAP-185145/phase-10-m5</code>. Added 10 Testcontainers ITs (~575 lines). Resolved Q-M5-02 by amending DDL with <code>utf8mb4_bin</code> collation (case-sensitive per D-47) in both <code>cc-stack-crm</code> (<code>f72fb689d</code>) and emf-parent IT harness. Flipped documenting-only CI test to assert case-sensitive distinct-casing behaviour.</p>
+
+        <h3 style="margin-top:20px;">M6: F-03 Service-Layer Throw (no controller gate per D-62)</h3>
+        <p><span class="skill-tag">sonnet</span> Committed as <code>5caa9a9362</code>, tagged <code>aidlc/CAP-185145/phase-10-m6</code>. Replaced silent <code>size&gt;200</code> clamp with <code>BC_PAGE_SIZE_EXCEEDED 400</code> throw in PointsEngineRuleService. Controller LIST endpoint intentionally unchanged (D-62). Added 2 UTs; all 25 service UTs GREEN in 7.5s. Recovery: a subagent originally mis-routed an intouch-api-v3 commit to wrong worktree/branch — that commit was reverted.</p>
+
       </section>
       <section class="phase-section" id="phase-10b">
         <h2>Phase 10b: Backend Readiness <span class="phase-badge complete">Complete — Manual Fixes Pending</span></h2>
@@ -2264,16 +2274,61 @@ flowchart LR
         <p><strong>Confidence</strong>: <strong>C6</strong> on audit evidence (every FAIL has a file:line anchor).</p>
       </section>
       <section class="phase-section" id="phase-10c">
-        <h2>Phase 10c: Compliance (Architecture vs Code) <span class="phase-badge pending">Pending</span></h2>
+        <h2 id="phase-10c">Phase 10c: Compliance (Architecture vs Code) <span class="phase-badge complete">Complete — Manual Fixes Pending</span></h2>
+        <p class="phase-time">Completed: 2026-04-19</p>
+        <span class="skill-tag">/analyst --compliance</span> <span class="skill-tag">opus</span>
+        <p>Audit of architecture (<code>01-architect.md</code>) vs built code. 42 PASS · 5 accepted deviations · 4 findings.</p>
+        <table class="data-table">
+          <tr><th>Finding</th><th>Severity</th><th>Description</th><th>Routing</th></tr>
+          <tr><td>F-01</td><td>HIGH</td><td>POST vs PATCH on /activate + /deactivate</td><td>Accept (D-61)</td></tr>
+          <tr><td>F-02</td><td>MEDIUM</td><td>Verb semantics documentation</td><td>Manual</td></tr>
+          <tr><td>F-03</td><td>MEDIUM</td><td>Page size cap not enforced</td><td>Partial fix in M6 + D-62</td></tr>
+          <tr><td>F-04</td><td>WARN</td><td>isActive default=true inconsistency across layers</td><td>Manual</td></tr>
+        </table>
+        <p><strong>New decisions</strong>: D-61 (F-01 accept), D-62 (F-03 partial — service throw only).</p>
+        <ul class="artifact-list"><li>06b-gap-analysis.md</li></ul>
       </section>
       <section class="phase-section" id="phase-10d">
-        <h2>Phase 10d: Migration Validation <span class="phase-badge pending">Pending (conditional)</span></h2>
+        <h2 id="phase-10d">Phase 10d: Migration Validation <span class="phase-badge" style="background: var(--muted); color: #0a0a0a;">Skipped</span></h2>
+        <p>Skipped — no <code>01b-migrator.md</code> was produced (Phase 6b also skipped, no schema migration scope beyond the single <code>benefit_categories.sql</code> handled in Phase 9 RED).</p>
       </section>
       <section class="phase-section" id="phase-11">
-        <h2>Phase 11: Reviewer <span class="phase-badge pending">Pending</span></h2>
+        <h2 id="phase-11">Phase 11: Reviewer <span class="phase-badge complete">Complete — APPROVED WITH WARNINGS</span></h2>
+        <p class="phase-time">Completed: 2026-04-19</p>
+        <span class="skill-tag">/reviewer</span> <span class="skill-tag">sonnet</span>
+        <p>Independent review: requirements + session-memory alignment + security (GUARDRAILS) + code quality + docs. Mode C scope — 5 known Manual items from 10b/10c explicitly excluded.</p>
+        <p><strong>Verdict</strong>: APPROVED WITH WARNINGS. 1 blocker · 5 warnings · 4 notes. <strong>0/3 rework cycles used.</strong></p>
+        <table class="data-table">
+          <tr><th>ID</th><th>Severity</th><th>Category</th><th>Routing</th></tr>
+          <tr><td>R-01</td><td>BLOCKER</td><td>Code Quality (dead DAO method)</td><td>Manual</td></tr>
+          <tr><td>R-02</td><td>WARNING</td><td>Unused Max import</td><td>Manual</td></tr>
+          <tr><td>R-03</td><td>WARNING</td><td>400 vs 409 slab validation</td><td>Accept (D-63)</td></tr>
+          <tr><td>R-05</td><td>WARNING</td><td>@JsonFormat timezone (OQ-38)</td><td>Accept</td></tr>
+          <tr><td>R-06</td><td>WARNING</td><td>java.util.Date in DTO (D-24)</td><td>Accept</td></tr>
+        </table>
+        <p><strong>New decision</strong>: D-63 (slab ownership mismatch returns 400 not 409).</p>
+        <ul class="artifact-list"><li>07-reviewer.md</li></ul>
       </section>
       <section class="phase-section" id="phase-12">
-        <h2>Phase 12: Blueprint <span class="phase-badge pending">Pending</span></h2>
+        <h2 id="phase-12">Phase 12: Documentation &amp; Blueprint <span class="phase-badge complete">Complete</span></h2>
+        <p class="phase-time">Completed: 2026-04-19</p>
+        <span class="skill-tag">inline</span> <span class="skill-tag">sonnet</span>
+        <p>Generated <code>benefit-category-crud-blueprint.html</code> (~50KB, 831 lines, 4 Mermaid diagrams: pipeline flow, write flow, deactivate cascade, deployment order).</p>
+        <p><strong>🎉 Pipeline complete</strong> — tagged <code>aidlc/CAP-185145/complete</code>.</p>
+        <ul class="artifact-list"><li>benefit-category-crud-blueprint.html</li></ul>
+
+        <h2 id="outstanding" style="margin-top:40px;">Outstanding Manual Items (7)</h2>
+        <p>User-owned items to complete before merge:</p>
+        <table class="data-table">
+          <tr><th>ID</th><th>From Phase</th><th>Description</th></tr>
+          <tr><td>B1</td><td>10b</td><td>Add idx_bc_org_program_name index</td></tr>
+          <tr><td>B2</td><td>10b</td><td>Convert bare CREATE TABLE → Flyway migration</td></tr>
+          <tr><td>B3</td><td>10b</td><td>Add @JsonProperty("isActive") to response DTO</td></tr>
+          <tr><td>F-02</td><td>10c</td><td>Document POST-verb semantics in ADR</td></tr>
+          <tr><td>F-04</td><td>10c</td><td>Reconcile isActive default=true across layers</td></tr>
+          <tr><td>R-01</td><td>11</td><td>Remove dead findActiveByProgramAndNameExceptId DAO method</td></tr>
+          <tr><td>R-02</td><td>11</td><td>Remove unused jakarta.validation.constraints.Max import</td></tr>
+        </table>
       </section>
 
       <!-- Quick link destinations (filled as phases complete) -->
@@ -2284,7 +2339,17 @@ flowchart LR
         <h2>Architecture <span class="phase-badge pending">Not yet populated</span></h2>
       </section>
       <section class="phase-section" id="api-contracts">
-        <h2>API Contracts <span class="phase-badge pending">Not yet populated</span></h2>
+        <h2 id="api-contracts">API Contracts <span class="phase-badge complete">Populated</span></h2>
+        <p>6 endpoints under <code>/v3/benefitCategories</code>. See <a href="api-handoff.md" style="color:var(--accent);">api-handoff.md</a> for full contract doc.</p>
+        <table class="data-table">
+          <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Success</th></tr>
+          <tr><td>POST</td><td>/v3/benefitCategories</td><td>Create</td><td>201</td></tr>
+          <tr><td>PUT</td><td>/v3/benefitCategories/{id}</td><td>Update</td><td>200</td></tr>
+          <tr><td>GET</td><td>/v3/benefitCategories/{id}</td><td>Get single (?includeInactive)</td><td>200</td></tr>
+          <tr><td>GET</td><td>/v3/benefitCategories</td><td>List (paged, size ≤100)</td><td>200</td></tr>
+          <tr><td>POST</td><td>/v3/benefitCategories/{id}/activate</td><td>Activate</td><td>200 / 204 (D-39)</td></tr>
+          <tr><td>POST</td><td>/v3/benefitCategories/{id}/deactivate</td><td>Deactivate</td><td>204</td></tr>
+        </table>
       </section>
       <section class="phase-section" id="hld-diagrams">
         <h2>HLD Diagrams <span class="phase-badge pending">Not yet populated</span></h2>
