@@ -1584,3 +1584,24 @@ Initial M6 subagent committed intouch-api-v3 changes to `/Users/anujgupta/IdeaPr
 2. Phase 11 Reviewer — will verify 5 outstanding manual items (B1/B2/B3 from 10b + F-02/F-04 from 10c) on user's completed fixes.
 
 ---
+
+---
+
+### Phase 11: Reviewer
+- **Time**: 2026-04-19
+- **Skill**: /reviewer (sonnet subagent) + verification-before-completion + requesting-code-review
+- **Scope exclusions (user-directed, mode C)**: B1, B2, B3, F-02, F-04 explicitly scoped out (already routed to Manual in prior phases)
+- **Verdict**: APPROVED WITH WARNINGS — 1 blocker · 5 warnings · 4 notes
+- **Requirements traceability**: 10/10 in-scope ACs mapped to code+tests (C7)
+- **Session memory alignment**: 11/11 decisions spot-checked, no drift
+- **GUARDRAILS**: G-03/G-07/G-12 PASS (critical); G-01 WARN (OQ-38 open); G-06 WARN (R-03 400/409)
+- **Findings**:
+  - R-01 BLOCKER — dead DAO method `findActiveByProgramAndNameExceptId` (D-60 risk if called)
+  - R-02 WARNING — unused import `jakarta.validation.constraints.Max` (F-03 revert leftover)
+  - R-03 WARNING — 400 vs 409 on slab validation (ADR-009 semantics)
+  - R-05 WARNING — `@JsonFormat` timezone (OQ-38)
+  - R-06 WARNING — `java.util.Date` in DTO (D-24 accepts)
+- **Routing** (user, 2026-04-19): R-01:M, R-02:M, R-03:A (→ D-63), R-05:A, R-06:A
+- **Rework cycles**: 0/3 — no route-back to Developer
+- **Artifact**: 07-reviewer.md (279 lines)
+- **Git**: will tag `aidlc/CAP-185145/phase-11` after commit

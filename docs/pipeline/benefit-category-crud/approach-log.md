@@ -989,3 +989,30 @@ Audit found **0 FAIL · 1 HIGH · 2 MEDIUM · 1 WARN** (+42 PASS, 5 accepted-dev
 - (inherited) Phase 10b B1 / B2 / B3 (manual)
 
 Five items total queued for Reviewer verification.
+
+---
+
+## Phase 11 (Reviewer) Routing
+
+**Verdict**: APPROVED WITH WARNINGS — 1 blocker · 5 warnings · 4 notes
+
+**Routing decisions (user, 2026-04-19)**:
+
+| Finding | Severity | Category | Routing | Reasoning |
+|---------|----------|----------|---------|-----------|
+| R-01 | BLOCKER | Code Quality | **[M] Manual** | User will remove/deprecate dead `findActiveByProgramAndNameExceptId` DAO method outside pipeline. Not called anywhere at present — risk is latent, not active. |
+| R-02 | WARNING | Code Quality | **[M] Manual** | Trivial unused-import cleanup (`jakarta.validation.constraints.Max` in `BenefitCategoryCreateRequest.java:7`) — left over from reverted F-03 controller gate. User handles. |
+| R-03 | WARNING | Requirements | **[A] Accept** → **D-63** | `validateSlabsBelongToProgram` returns 400 not 409 (ADR-009). Accept the 400 semantics — slab ownership mismatch is a client-input error, 400 is defensible. ADR-009 to be re-noted in final blueprint. |
+| R-05 | WARNING | Security (G-01) | **[A] Accept** | Linked to OQ-38 (JVM timezone policy still open project-wide). Response DTO `@JsonFormat` without explicit `timezone="UTC"` accepted as a project-level question, not feature-specific. |
+| R-06 | WARNING | Documentation | **[A] Accept** | `java.util.Date` in response DTO already accepted per D-24. No change. Will re-note in ADR-008 via Phase 12 blueprint. |
+
+**New decisions recorded**:
+- **D-63**: `validateSlabsBelongToProgram` returns **HTTP 400** (not 409 as ADR-009 suggested). Slab ownership mismatch is a client-input validation error; 400 is semantically correct. ADR-009 will be annotated in the Phase 12 blueprint.
+
+**No Developer rework cycle triggered.** All items routed to Manual or Accept. Phase 11 closes.
+
+**Outstanding Manual items after Phase 11** (8 total, user-owned):
+- From Phase 10b: B1 (idx_bc_org_program_name), B2 (Flyway migration), B3 (@JsonProperty isActive)
+- From Phase 10c: F-02 (verb semantics doc), F-04 (isActive default reconciliation)
+- From Phase 11: R-01 (dead DAO method), R-02 (unused import)
+

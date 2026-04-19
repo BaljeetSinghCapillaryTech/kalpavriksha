@@ -1084,3 +1084,61 @@ ADR-011 intent: reject `size > 100` with `BC_PAGE_SIZE_EXCEEDED` at HTTP 400.
 | F-01 | `/activate`+`/deactivate` on POST not PATCH | Phase 10c | **accepted deviation (D-61)** |
 
 Five items for Phase 11 Reviewer to verify on the user's completed manual fixes; one is logged as an accepted deviation.
+
+---
+
+## Phase 11 Reviewer — Additions (2026-04-19)
+
+**Phase 11 Artifact**: `07-reviewer.md`
+
+**Verdict**: APPROVED WITH WARNINGS — 1 blocker · 5 warnings · 4 notes
+
+### Risks & Concerns
+
+- [risk] `findActiveByProgramAndNameExceptId` (dead DAO method — `BenefitCategoryDao.java:51-55`) contradicts D-60 semantics if called by a future developer; its existence is a maintenance hazard. _(Reviewer)_ — Status: open (R-01)
+- [risk] `validateSlabsBelongToProgram` throws `setStatusCode(400)` for slab-not-in-program but ADR-009 + Designer §E specified 409 for `BC_UNKNOWN_SLAB` / `BC_CROSS_PROGRAM_SLAB`. API consumers may misparse validation failures vs conflict errors. _(Reviewer)_ — Status: open (R-03)
+- [risk] `@JsonFormat` on `BenefitCategoryResponse.createdOn/updatedOn` lacks `timezone="UTC"` — if JVM default is non-UTC (OQ-38 still open), API responses will carry local-timezone offsets instead of UTC. _(Reviewer)_ — Status: open pending OQ-38 resolution + Q-SDET-08 UI confirmation
+
+### Open Questions
+
+- [ ] R-03 routing: should `validateSlabsBelongToProgram` throw `setStatusCode(409)` to match ADR-009, or is 400 intentional (new D-63 deviation)? _(Reviewer)_
+- [ ] OQ-38 remains open: confirm production JVM default timezone before deploy to assess R-05 risk. _(Reviewer)_
+- [ ] Q-SDET-08 remains open: UI team to confirm `yyyy-MM-dd'T'HH:mm:ssXXX` date format (D-52 code-side locked). _(Reviewer)_
+
+### Key Decisions
+
+- No decisions overturned. All D-01..D-62 honoured in code. R-01 and R-03 route to Developer for resolution before merge.
+
+### Rework Log
+
+- No build-fix cycles used. Build GREEN evidence from Phase 10 M3 (76 tests, ALL PASS — C7).
+
+---
+
+## Phase 11 (Reviewer) — Additions
+
+**Verdict**: APPROVED WITH WARNINGS. No rework triggered — all findings routed to Manual or Accept.
+
+**New decision**:
+- **D-63** — `validateSlabsBelongToProgram` returns **HTTP 400** not 409 (deviation from ADR-009 recommendation). Rationale: slab ownership mismatch is client-input validation error; 400 is semantically correct.
+
+**Outstanding manual items accumulated through Phase 11 (8 total)**:
+
+| ID | Source | Item | Owner |
+|----|--------|------|-------|
+| B1 | 10b | Add `idx_bc_org_program_name` index | User |
+| B2 | 10b | Convert bare `CREATE TABLE` → Flyway migration | User |
+| B3 | 10b | Add `@JsonProperty("isActive")` to response DTO | User |
+| F-02 | 10c | Document POST-verb semantics on activate/deactivate in ADR | User (update 01-architect.md) |
+| F-04 | 10c | Reconcile `isActive` default=true across DTO/service | User |
+| R-01 | 11 | Remove/deprecate dead `findActiveByProgramAndNameExceptId` DAO method | User |
+| R-02 | 11 | Remove unused `import jakarta.validation.constraints.Max` from `BenefitCategoryCreateRequest.java:7` | User |
+
+**Accepted deviations through Phase 11**:
+- D-24: `java.util.Date` in DTO (accepted pre-feature)
+- D-61: F-01 — POST (not PATCH) for activate/deactivate
+- D-62: F-03 — service-layer throw only; no controller `@Max(100)` gate
+- D-63: R-03 — 400 (not 409) for slab ownership mismatch
+- OQ-38: JVM timezone policy remains project-level open question (R-05 accepts risk at feature scope)
+
+**Phase 11 rework cycles used**: 0 / 3
