@@ -693,3 +693,32 @@ _(Added by Developer — Rework 4 GREEN phase)_
 
 ### Resolved (Rework 4)
 - [x] RW4-RISK-03: `submitForApproval()` still uses unqualified query — left as-is per QA-OQ-09. Risk is low (UX confusion only, no data corruption). Can be addressed in a follow-up if confirmed needed. _(resolved by Developer: not in scope for Rework 4)_
+
+## Platform Gap — PAUSE/ARCHIVE MySQL sync not working (2026-04-17)
+_(Discovered during live testing — needs product/platform team decision)_
+
+### Finding
+`publishIsActive()` calls `createOrUpdatePartnerProgram` with `isActive=false`. The Thrift call reaches emf-parent, the field is set on the entity (`isSetIsActive()=true`), the call returns 200 — but `is_active` in MySQL `partner_programs` remains `1`.
+
+**Root cause (emf-parent):** In `PointsEngineRuleService.saveSupplementaryPartnerProgramEntity()` (line ~1858), when updating an existing record, the code does:
+```java
+newPartnerProgram.setActive(oldPartnerProgram.isActive());
+```
+This unconditionally overwrites the caller's `isActive=false` with the old DB value (`true`). The `isActive` field set in `PointsEngineRuleConfigThriftImpl.getSupplementaryPartnerProgramEntity()` is lost during the save step.
+
+### Evidence
+Log shows `isActive:false` arrived at emf-parent and was processed (idempotency cached, audit logged, returned id 118) — yet MySQL `is_active=1` after the call.
+
+### Impact
+- PAUSE: MongoDB status = PAUSED ✅, MySQL `is_active` = 1 ❌ (should be 0)
+- ARCHIVE: MongoDB status = ARCHIVED ✅, MySQL `is_active` = 1 ❌ (should be 0)
+- RESUME: untested but likely same issue in reverse
+
+### What needs to happen (for product team)
+Either:
+1. **emf-parent fix**: `saveSupplementaryPartnerProgramEntity` should preserve the incoming `isActive` value when `isSetIsActive()=true` (i.e., only fall back to `oldPartnerProgram.isActive()` when the field was not set by the caller), OR
+2. **Separate Thrift method**: Add a dedicated `deactivatePartnerProgram(int partnerProgramId, int orgId, ...)` Thrift method that only toggles `is_active` without touching other fields.
+
+### Status
+- Open — to be raised with product/platform team
+- Our side (`intouch-api-v3`): `publishIsActive` correctly sends `isActive=false` via setter. No change needed on our side once emf-parent is fixed.
