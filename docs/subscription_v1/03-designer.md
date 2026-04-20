@@ -3902,3 +3902,120 @@ repository.findById(entity.getParentId()).ifPresent(oldActive -> {
 | R-29 | `SubscriptionController.java` | `getSubscription()`: add `@RequestParam(defaultValue="ACTIVE") String status` | Default-ACTIVE single GET — gap 2 |
 | R-30 | `SubscriptionController.java` | `listSubscriptions()`: replace `List<String> statuses` → `@RequestParam(defaultValue="ACTIVE") String status` | Single-status list with default — gap 2 |
 | R-31 | `SubscriptionApprovalHandler.java` | `postApprove()`: `ARCHIVED` → `SNAPSHOT` when setting old parent status | Preserve pre-edit version for audit — gap 3 |
+
+---
+
+## Rework 5 — Extended Fields Integration (ADR-19, 2026-04-20)
+
+> **Driven by**: ADR-19 (Extended Fields replaces Custom Fields — MongoDB-only, Typed List)
+> **Blast radius**: 2 files modified, 1 file added. No new repository, service, or controller methods.
+
+---
+
+### Pattern Decisions
+
+**Enum style** — Discovered from `SubscriptionType.java`, `PartnerProgramType.java`, `CycleType.java`:
+- Plain Java enum, no annotations, no fields, no constructor
+- Package: `com.capillary.intouchapiv3.unified.subscription.enums`
+- Naming: `SCREAMING_SNAKE_CASE` values
+
+**Inner class style** — Discovered from `SubscriptionProgram.java` inner classes (`Duration`, `Reminder`, `BenefitRef`, `TierConfig`):
+- Annotations: `@Data @Builder @NoArgsConstructor @AllArgsConstructor` (Lombok, already on classpath)
+- No base class
+- `@Builder.Default` on `List<>` fields with `new ArrayList<>()`
+- `@Valid` on nested-object fields that carry Bean Validation themselves
+- `@NotNull` / `@NotBlank` on required scalar fields
+
+**No new dependencies** — All Lombok, Jakarta Bean Validation, and Jackson annotations already present in `intouch-api-v3` module pom.xml. [C7 — verified from existing inner class compilation]
+
+---
+
+### New Type: `ExtendedFieldType` enum
+
+- **Package**: `com.capillary.intouchapiv3.unified.subscription.enums`
+- **File**: `ExtendedFieldType.java`
+- **Extends**: none
+- **Annotations**: none
+- **Discovered from**: `SubscriptionType.java`, `PartnerProgramType.java`
+- **Maven dependency**: already available (no dependency needed for a plain enum)
+
+```java
+package com.capillary.intouchapiv3.unified.subscription.enums;
+
+public enum ExtendedFieldType {
+    CUSTOMER_EXTENDED_FIELD,
+    TXN_EXTENDED_FIELD
+}
+```
+
+> **Note for Developer**: `CUSTOMER_EXTENDED_FIELD` maps to `CustomFieldMapping.Type.CUSTOMER_EXTENDED_FIELDS`; `TXN_EXTENDED_FIELD` maps to `CustomFieldMapping.Type.TXN_EXT_FIELDS` at evaluation time in emf-parent. No translation needed in intouch-api-v3. [EF-OQ-01 — deferred]
+
+---
+
+### Modified Type: `SubscriptionProgram.ExtendedField` (replaces `CustomFields` + `CustomFieldRef`)
+
+**Remove** from `SubscriptionProgram.java`:
+- `private CustomFields customFields;` (line 133)
+- Inner class `CustomFields` (lines 291–298)
+- Inner class `CustomFieldRef` (lines 301–304)
+
+**Add** to `SubscriptionProgram.java` — field (alongside `reminders`, following the same null-safe default pattern):
+
+```java
+// ADR-19: Extended Fields — MongoDB-only, replaces CustomFields. Per G-02: defaults to empty list, never null.
+@Builder.Default
+@Valid
+private List<ExtendedField> extendedFields = new ArrayList<>();
+```
+
+**Add** to `SubscriptionProgram.java` — inner class (in place of removed `CustomFields`/`CustomFieldRef` block):
+
+```java
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public static class ExtendedField {
+    @NotNull
+    private ExtendedFieldType type;
+    @NotBlank
+    private String key;
+    private String value;  // stored as string; type resolved at evaluation time (EF-OQ-01)
+}
+```
+
+- **Extends**: none
+- **Annotations**: `@Data @Builder @NoArgsConstructor @AllArgsConstructor` (Lombok)
+- **Package**: inner class of `SubscriptionProgram` — `com.capillary.intouchapiv3.unified.subscription`
+- **Discovered from**: `BenefitRef`, `Reminder`, `ProgramTier` inner class style in `SubscriptionProgram.java`
+- **Import needed**: `com.capillary.intouchapiv3.unified.subscription.enums.ExtendedFieldType`
+- **Maven dependency**: already in module pom.xml (Lombok, Jakarta Validation)
+
+> **G-02 compliance**: `extendedFields` defaults to `new ArrayList<>()`, never null. `ExtendedField.type` and `ExtendedField.key` are `@NotNull`/`@NotBlank`. `value` is nullable (a field may be configured without a static value — resolved at evaluation).
+> **G-07 compliance**: `extendedFields` is embedded in the tenant-scoped `subscription_programs` document — no extra `orgId` filter required.
+
+---
+
+### Modified File: `SubscriptionFacade.java` — 4 line changes
+
+Replace all 4 `customFields(...)` / `setCustomFields(...)` calls with the `extendedFields` equivalents. No logic change — pure field rename.
+
+| Change | Line | Old | New |
+|---|---|---|---|
+| R-32 | 85 | `.customFields(request.getCustomFields())` | `.extendedFields(request.getExtendedFields() != null ? request.getExtendedFields() : List.of())` |
+| R-33 | 271 | `existing.setCustomFields(request.getCustomFields());` | `if (request.getExtendedFields() != null) existing.setExtendedFields(request.getExtendedFields());` |
+| R-34 | 325 | `.customFields(active.getCustomFields())` | `.extendedFields(active.getExtendedFields() != null ? active.getExtendedFields() : List.of())` |
+| R-35 | 367 | `.customFields(source.getCustomFields())` | `.extendedFields(source.getExtendedFields() != null ? source.getExtendedFields() : List.of())` |
+
+> **R-33 note**: update mirrors the existing `reminders` null-guard pattern at line 270 — only overwrite when caller provides the field, preserving existing values on a partial PATCH-style update.
+
+---
+
+### Rework 5 Summary
+
+| Change # | File | What Changes | Why |
+|---|---|---|---|
+| R-32 | `SubscriptionFacade.java:85` | `.customFields(...)` → `.extendedFields(...)` with null guard | ADR-19 field rename — create path |
+| R-33 | `SubscriptionFacade.java:271` | `setCustomFields(...)` → null-guarded `setExtendedFields(...)` | ADR-19 field rename — update path |
+| R-34 | `SubscriptionFacade.java:325` | `.customFields(active.getCustomFields())` → `.extendedFields(...)` | ADR-19 field rename — edit-of-active fork |
+| R-35 | `SubscriptionFacade.java:367` | `.customFields(source.getCustomFields())` → `.extendedFields(...)` | ADR-19 field rename — duplicate path |
+| R-36 | `SubscriptionProgram.java` | Remove `CustomFields` inner class + `CustomFieldRef` inner class + `customFields` field | ADR-19: replaced by `ExtendedField` |
+| R-37 | `SubscriptionProgram.java` | Add `List<ExtendedField> extendedFields` field + `ExtendedField` inner class | ADR-19: new EF model |
+| R-38 | `enums/ExtendedFieldType.java` | New file — `CUSTOMER_EXTENDED_FIELD`, `TXN_EXTENDED_FIELD` | ADR-19: type discriminator |

@@ -1202,3 +1202,97 @@ Runs inside the SAGA, after Layer 2 passes. Validates references against live da
 | G-08 Observability | SAGA failure logging with orgId+subscriptionProgramId context. | Developer to add structured logs |
 | G-09 Backward Compat | `optional bool isActive` field addition to Thrift struct is backward-compatible. EmfMongoConfig change is additive. New SubscriptionRequest fields (programType, pointsExchangeRatio) are new API — no existing callers to break. | ADR-05 |
 | G-12 AI-Specific | Existing UnifiedPromotion patterns followed. No new dependencies introduced. `StatusChangeRequest` not reused (promotion-specific). | KD-22 satisfied |
+
+---
+
+## Extended Fields Integration — Architect Addendum (April 2026)
+
+> **Scope**: EPIC 3 US1 — replaces the earlier `CustomFields` design (OQ-20, closed in Designer Phase 7).
+> **Trigger**: New product decision — Extended Fields replace Custom Fields entirely in the Subscription CREATE/UPDATE flow.
+> **No dedicated EF CRUD APIs**: EF data is accepted/returned exclusively through the existing Subscription POST/PUT/GET endpoints.
+
+---
+
+### Current State (LSP-verified C7)
+
+| Finding | Evidence | Confidence |
+|---|---|---|
+| `customFields` field on `SubscriptionProgram` (line 133): holds inner class `CustomFields{meta, link, delink}` of `CustomFieldRef{extendedFieldId, name}` — reference metadata only, no actual values stored | `SubscriptionProgram.java:133, 291–304` | C7 |
+| `SubscriptionFacade.java` references `customFields` at exactly 4 lines: 85 (create), 271 (update), 325 (edit-of-active fork), 367 (duplicate) — all are pass-through, zero logic | LSP references + grep | C7 |
+| `SubscriptionPublishService` does NOT reference `customFields` — never passed to Thrift | grep across subscription package | C7 |
+| Zero subscription test files reference `customFields` | grep over `src/test/java` subscription path | C7 |
+| No `ExtendedFieldType` enum exists anywhere in intouch-api-v3 | `find + grep` — 0 results | C7 |
+| `CustomFieldMapping.Type` in emf-parent uses `TXN_EXT_FIELDS` and `CUSTOMER_EXTENDED_FIELDS` as canonical type names for evaluation | `CustomFieldMapping.java:14–16` | C7 |
+| `getRawValue()` uses `field.getMappedToValue()` as the lookup key against payload — key IS the extended field name | `CustomFieldMappingHelper.java:122–163` | C7 |
+
+---
+
+### Pattern Evaluation
+
+| Option | Structure | Fit | Tradeoffs | Decision |
+|---|---|---|---|---|
+| **A — Typed List** `List<ExtendedField>` where `ExtendedField = {type, key, value}` | Matches `CustomFieldMapping{type, mappedToValue, value}` in emf-parent | **HIGH** — mirrors evaluation engine model; extensible to 3rd type by enum addition only | Iteration-based lookup — acceptable at config-level cardinality | ✅ CHOSEN |
+| B — Two separate maps (`Map<String,String>` per type) | Flat map per type | MEDIUM | Adding a 3rd type requires a new field + MongoDB migration; duplicate-key semantics prevent multi-entry per key | Rejected |
+| C — Nested map (`Map<String, Map<String,String>>`) | Type-keyed nested map | LOW | Jackson `Map<Enum, Map<...>>` deserialization fragility; hard to validate with Bean Validation | Rejected |
+
+---
+
+### ADR-19 — Extended Fields replaces Custom Fields (MongoDB-only, Typed List)
+
+**Status**: Accepted — 2026-04-20
+
+**Context**:
+The earlier `CustomFields` design (OQ-20, Designer Phase 7) stored only reference metadata (`extendedFieldId`, `name`) and was never wired to actual values or passed to any downstream system. EPIC 3 US1 requires storing actual extended field key-value pairs on the subscription program for use by the evaluation engine at rule execution time.
+
+**Decision**:
+Replace `SubscriptionProgram.CustomFields` and `CustomFieldRef` with a new `ExtendedField` inner class structured as `{type: ExtendedFieldType, key: String, value: String}`, stored as `List<ExtendedField> extendedFields` on `SubscriptionProgram`. Introduce a new `ExtendedFieldType` enum with values `CUSTOMER_EXTENDED_FIELD` and `TXN_EXTENDED_FIELD`.
+
+**Data model (MongoDB embedded)**:
+```json
+{
+  "extendedFields": [
+    { "type": "CUSTOMER_EXTENDED_FIELD", "key": "price",       "value": "100"   },
+    { "type": "TXN_EXTENDED_FIELD",      "key": "order_value", "value": "500.0" },
+    { "type": "CUSTOMER_EXTENDED_FIELD", "key": "tier",        "value": "Gold"  }
+  ]
+}
+```
+
+**Consequences**:
+- Values stored as strings. Type identification at runtime in emf-parent via `CustomFieldMappingHelper.getRawValue()` (`TXN_EXT_FIELDS`, `CUSTOMER_EXTENDED_FIELDS` type routing). No type coercion in intouch-api-v3.
+- Keys are pre-populated by UI (no free-text user key entry). No key validation needed in this scope — deferred to evaluation phase.
+- A subscription may have zero or more `ExtendedField` entries. Multiple entries of the same type are supported.
+- Storage: embedded in `subscription_programs` MongoDB document. No separate collection, no MySQL write, no Thrift change. [Per user decision, 2026-04-20]
+- Type mapping for future evaluation: `CUSTOMER_EXTENDED_FIELD` → `CustomFieldMapping.Type.CUSTOMER_EXTENDED_FIELDS`; `TXN_EXTENDED_FIELD` → `CustomFieldMapping.Type.TXN_EXT_FIELDS`. Translation is the evaluation layer's concern.
+
+**Alternatives rejected**:
+- Separate `extended_field_values` MongoDB collection (HLD proposed): over-engineered for intouch-api-v3 scope; no cross-entity reuse needed for subscriptions.
+- MySQL `Extended_Field_Config` table validation: deferred to evaluation phase — keys are pre-populated by UI, no server-side catalog lookup needed now.
+- Retaining `CustomFields{meta/link/delink}` structure: the meta/link/delink lifecycle was never implemented and the concept is replaced entirely.
+
+**Per G-02 (Null Safety)**: `extendedFields` field defaults to `new ArrayList<>()`, never null.
+**Per G-07 (Multi-Tenancy)**: No new MongoDB query introduced; data is embedded in the existing tenant-scoped `subscription_programs` document.
+**Per G-09 (Backward Compat)**: Feature is in development — no production documents exist with `customFields`. Safe to rename field with no migration needed [C6].
+
+---
+
+### File-Level Impact (Complete — C7)
+
+| File | Change | Type |
+|---|---|---|
+| `SubscriptionProgram.java` | Remove `CustomFields` inner class (lines 291–298), `CustomFieldRef` inner class (301–304), `private CustomFields customFields` field (line 133). Add `private List<ExtendedField> extendedFields` (with `@Builder.Default`, `@Valid`). Add `ExtendedField` inner class. | Modify |
+| `enums/ExtendedFieldType.java` | New enum: `CUSTOMER_EXTENDED_FIELD`, `TXN_EXTENDED_FIELD` | New file |
+| `SubscriptionFacade.java` | Lines 85, 271, 325, 367: rename `.customFields(...)` → `.extendedFields(...)` | Modify (4 lines) |
+| `SubscriptionPublishService.java` | No change — `customFields` was never referenced here | None |
+| Test files | No subscription test files reference `customFields` — zero rework | None |
+
+**Total blast radius: 2 files modified, 1 file added.**
+
+---
+
+### Open Questions
+
+| # | Question | Priority |
+|---|---|---|
+| EF-OQ-01 | At evaluation time, what is the mapping strategy from `CUSTOMER_EXTENDED_FIELD`/`TXN_EXTENDED_FIELD` → `CustomFieldMapping.Type.CUSTOMER_EXTENDED_FIELDS`/`TXN_EXT_FIELDS`? Does the evaluation engine read from MongoDB directly or receive the EF list via a new Thrift field? | DEFERRED — evaluation phase out of scope |
+| EF-OQ-02 | Max cardinality of `extendedFields` list per subscription? No cap specified. Consider adding `@Size(max = N)` in Designer phase. | LOW |

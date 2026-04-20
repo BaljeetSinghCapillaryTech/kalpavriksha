@@ -284,3 +284,27 @@ Gap 2: All 6 state-transition methods (update, pause, resume, archive, handleApp
 Gap 3: postApprove() now sets old ACTIVE doc to SNAPSHOT (not ARCHIVED) on versioned
        approval — preserves pre-edit version as read-only audit trail.
 ```
+
+---
+
+## Rework 5 — Extended Fields Implementation (ADR-19, 2026-04-20)
+
+### Changes Made
+
+| # | File | Change |
+|---|---|---|
+| R-38 | `enums/ExtendedFieldType.java` | New enum: `CUSTOMER_EXTENDED_FIELD`, `TXN_EXTENDED_FIELD` |
+| R-36/37 | `SubscriptionProgram.java` | Removed `CustomFields` + `CustomFieldRef` inner classes and `customFields` field; added `ExtendedField` inner class + `List<ExtendedField> extendedFields` field |
+| R-32 | `SubscriptionFacade.java:85` | `.customFields(...)` → `.extendedFields(request.getExtendedFields() != null ? request.getExtendedFields() : List.of())` |
+| R-33 | `SubscriptionFacade.java:271` | `setCustomFields(...)` → `if (request.getExtendedFields() != null) existing.setExtendedFields(...)` |
+| R-34 | `SubscriptionFacade.java:325` | `.customFields(active.getCustomFields())` → `.extendedFields(active.getExtendedFields() != null ? ... : List.of())` |
+| R-35 | `SubscriptionFacade.java:367` | `.customFields(source.getCustomFields())` → `.extendedFields(source.getExtendedFields() != null ? ... : List.of())` |
+
+### GREEN Confirmation
+
+- Unit Tests: **PASS** — 111 tests, 0 failures, 0 errors
+- Integration Tests: N/A (no IT module touched)
+- Tests fixed by Developer: 0
+- Skeleton classes replaced: N/A (no new SDET RED phase for this rework)
+
+### No dependencies added. No new Maven artifacts required.
