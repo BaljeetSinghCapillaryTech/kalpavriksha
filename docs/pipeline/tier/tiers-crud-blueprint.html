@@ -79,16 +79,30 @@
   <div class="stat"><div class="num">141</div><div class="label">Business Test Cases</div></div>
 </div>
 <div class="stat-grid">
-  <div class="stat"><div class="num">28</div><div class="label">Unit Tests (GREEN)</div></div>
-  <div class="stat"><div class="num">37</div><div class="label">Skeleton Classes</div></div>
+  <div class="stat"><div class="num">198/198</div><div class="label">Tests GREEN (intouch-api-v3)</div></div>
+  <div class="stat"><div class="num">5</div><div class="label">Reworks (1,2,3,4,5 + Phase 2AB)</div></div>
+  <div class="stat"><div class="num">10</div><div class="label">API Endpoints</div></div>
   <div class="stat"><div class="num">4</div><div class="label">Production Classes</div></div>
-  <div class="stat"><div class="num">11</div><div class="label">API Endpoints</div></div>
 </div>
 <div class="stat-grid">
   <div class="stat"><div class="num">52</div><div class="label">Acceptance Criteria</div></div>
   <div class="stat"><div class="num">7</div><div class="label">ADRs</div></div>
   <div class="stat"><div class="num">0</div><div class="label">Blockers (final)</div></div>
   <div class="stat"><div class="num">39/52</div><div class="label">ACs PASS</div></div>
+</div>
+<div class="card" style="margin-top: 16px; border-left: 3px solid var(--success);">
+  <h3 style="color: var(--success); margin-top: 0;">Phase 2AB — Atomic Publish (2026-04-20)</h3>
+  <p style="font-size: 13px; color: #a0a0b0; margin-bottom: 8px;">
+    Split-brain window in <code>TierApprovalHandler.publish()</code> closed. The handler now does a
+    read-modify-write on SLAB_UPGRADE + SLAB_DOWNGRADE in memory and submits
+    <code>slabInfo + [upgradeCopy, downgradeCopy]</code> in a single
+    <code>createSlabAndUpdateStrategies</code> Thrift transaction.
+    <strong>All-or-nothing</strong> — engine commits slab row + both strategies + CSV auto-extension together.
+  </p>
+  <p style="font-size: 12px; color: var(--muted); margin: 0;">
+    Commits: <code>2a616290f</code> (Thrift wrapper) · <code>d5c226c6a</code> (transformer helpers) ·
+    <code>59b4ae423</code> (handler rewrite). See HLD §7.5 for the end-to-end sequence diagram + CREATE/UPDATE flowchart.
+  </p>
 </div>
 </section>
 
@@ -179,7 +193,7 @@ stateDiagram-v2
 </section>
 
 <section id="apis">
-<h2>API Surface (11 Endpoints)</h2>
+<h2>API Surface (10 Endpoints)</h2>
 <table>
   <tr><th>Method</th><th>Path</th><th>Purpose</th><th>Status</th></tr>
   <tr><td><code>GET</code></td><td>/v3/tiers</td><td>List tiers + KPI</td><td><span class="badge pass">Logic done</span></td></tr>
@@ -191,7 +205,6 @@ stateDiagram-v2
   <tr><td><code>POST</code></td><td>/v3/tiers/{tierId}/approve</td><td>Approve change</td><td><span class="badge pass">Logic done</span></td></tr>
   <tr><td><code>POST</code></td><td>/v3/tiers/{tierId}/reject</td><td>Reject change</td><td><span class="badge pass">Logic done</span></td></tr>
   <tr><td><code>GET</code></td><td>/v3/tiers/approvals</td><td>List pending approvals</td><td><span class="badge pass">Logic done</span></td></tr>
-  <tr><td><code>GET</code></td><td>/v3/tiers/{tierId}/approval</td><td>Approval detail</td><td><span class="badge pass">Logic done</span></td></tr>
 </table>
 <p style="color:var(--muted); font-size:12px;">Full API reference: <a href="api-handoff-docs.html" style="color:var(--accent);">api-handoff-docs.html</a></p>
 </section>
@@ -229,7 +242,7 @@ stateDiagram-v2
   <tr><td>ADR-04</td><td>Versioned Edits with parentId</td><td><span class="badge pass">COMPLIANT</span></td></tr>
   <tr><td>ADR-05</td><td>Existing Thrift (No IDL Change)</td><td><span class="badge partial">Wrappers pending</span></td></tr>
   <tr><td>ADR-06</td><td>New Programs Only</td><td><span class="badge pass">COMPLIANT</span></td></tr>
-  <tr><td>ADR-07</td><td>Atomic Thrift Call</td><td><span class="badge skip">Layer 3</span></td></tr>
+  <tr><td>ADR-07</td><td>Atomic Thrift Call (read-modify-write + single <code>createSlabAndUpdateStrategies</code>)</td><td><span class="badge pass">COMPLIANT (Phase 2AB)</span></td></tr>
 </table>
 </section>
 

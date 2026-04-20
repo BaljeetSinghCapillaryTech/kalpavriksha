@@ -278,7 +278,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
   "data": {
     "summary": {
       "totalTiers": 4,
-      "activeTiers": 3,
+      "liveTiers": 3,
       "pendingApprovalTiers": 1,
       "totalMembers": 2135,
       "lastMemberCountRefresh": "2026-04-16T12:00:00+05:30"
@@ -547,7 +547,7 @@ GET /v3/tiers?programId=99999
 ```json
 {
   "data": {
-    "summary": { "totalTiers": 0, "activeTiers": 0, "pendingApprovalTiers": 0, "totalMembers": 0, "lastMemberCountRefresh": null },
+    "summary": { "totalTiers": 0, "liveTiers": 0, "pendingApprovalTiers": 0, "totalMembers": 0, "lastMemberCountRefresh": null },
     "tiers": []
   },
   "errors": null,
