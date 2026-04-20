@@ -426,3 +426,21 @@ Options considered:
 
 **Implication.** `applySlabValidityDelta(currentJson, slabNumber, validityCfg, isAppend)` only writes `type`, `value`, `unit`, `startDate` into `slabs[n].periodConfig`. On UPDATE, every other key on an existing `periodConfig` survives. If `validityCfg == null`, the existing `periodConfig` is left entirely untouched (no-op). If `validityCfg.startDate == null`, no `startDate` key is written (engine can fall back to its own default).
 
+## Question V6 — `endDate` on the reverse path (resolved 2026-04-20)
+
+**Context.** Q-V2 said `endDate` is derived on read (engine has no such field). `extractValidityForSlab` needs to decide: compute it, or leave it null?
+
+**Options:**
+- (a) Transformer returns `endDate=null`. Downstream callers compute if needed.
+- (b) Transformer computes `endDate = startDate + periodValue months` using calendar math.
+
+**Decision: (a) — leave `endDate=null` in the reverse view.**
+
+**Rationale.**
+- Keeps the transformer a pure translator over JSON. No calendar math, no timezone choices, no leap-year / month-end edge cases.
+- Engine mechanically has no `endDate`, so the reverse "gives back what the engine has" is the most faithful interpretation.
+- Downstream consumers that need `endDate` (UI, API response layer) can compute it using a shared utility — consistent across callers, testable in isolation.
+- Reversible: the transformer can add computation later without breaking existing callers (they'd just start seeing populated values where they had null).
+
+**Scope note.** This means `extractValidityForSlab` populates only `periodType`, `periodValue`, and `startDate` (as ISO-8601 UTC String). `endDate` and `renewal` are always `null` in the returned DTO.
+
