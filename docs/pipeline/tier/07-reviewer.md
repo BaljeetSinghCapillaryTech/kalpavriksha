@@ -1,8 +1,13 @@
 # Reviewer -- Tiers CRUD + Generic Maker-Checker
 
 > Phase 11: Peer Review
-> Date: 2026-04-12
-> Build: PASS (28/28 UTs, 0 ITs)
+> Date: 2026-04-12 (updated 2026-04-20 — Rework #5 cascade)
+> Build: PASS (28/28 UTs, 0 ITs) — baseline
+>
+> **Rework #5 Status**: Cascaded. See Section 5 for updated build expectations, new scope
+> (34 additional BTs, 10 new production classes, Thrift IDL extension, 3 SQL + 4 Mongo migrations),
+> and pre-PR verification checklist. Rework #5 is a doc-only artifact cascade —
+> production code implementation is the Developer's (Phase 10) next task.
 
 ---
 
@@ -196,3 +201,103 @@ All PARTIAL items are tracked as known remaining work for Layer 3 (emf-parent) a
 **Recommendation: APPROVED for Layer 1-2 scope. Ready for commit/merge.**
 
 Layer 3-4 items (Thrift wiring, Flyway migration, MC config integration, controller wiring, member count cron) are tracked as known remaining work and should be implemented in a follow-up pipeline run or developer session.
+
+---
+
+## Section 5: Rework #5 Cascade Review
+
+> **Cycle**: 5 of 5
+> **Date**: 2026-04-20
+> **Sources**: SDET §7 (test plan), Backend Readiness §11 (W-04..W-11), Compliance §5 (F-09..F-15), Migrator 01b §3.1 (M-1..M-6), Cross-Repo Trace (updated), BTG §6 (34 new BTs)
+>
+> **Cascade Type**: Artifact-only (documentation cascade). Production code implementation is
+> the Developer's (Phase 10) next action. Reviewer role here is to verify artifact consistency
+> across all cascaded phases and provide a pre-PR gate for the artifact layer.
+
+### 5.1 Artifact Cascade Consistency Check
+
+| Artifact | Rework #5 Section | Commit | Consistency Gate |
+|---|---|---|---|
+| `00-ba.md` | US-Rew5-* ACs (AC1..8) | aa40b47 | ✅ 8 new ACs, all traced to QA scenarios |
+| `01-architect.md` | ADRs 06R, 08R..19R (12 new/reversed) | aa40b47 | ✅ Each ADR has matching Compliance row in 02-analyst-compliance.md §5.1 |
+| `03-designer.md` | Rework #5 contracts (TierDriftChecker, SqlTierReader, SqlTierConverter, TierEnvelopeBuilder, etc.) | 47dda02 | ✅ All 10 new interfaces have SDET skeleton entries (§7.3) and Developer findings (F-10..F-15) |
+| `04b-business-tests.md` | §6 (34 NEW BTs + triage) | 719fb63 | ✅ All 34 BTs mapped to test classes in SDET §7.2 |
+| `01b-migrator.md` | M-1..M-6 (3 SQL + 4 Mongo, incl. partial unique M-4) | 710564e | ✅ Backend-Readiness §11.3 and Compliance §5.1 reference correct migration IDs |
+| `cross-repo-trace.md` | 5 write paths, envelope read path, per-repo change inventory | ad10867 | ✅ Backend-Readiness §11.3 Thrift compatibility analysis aligns with cross-repo IDL extension |
+| `api-handoff.md` | v3.0 Migration Guide §5.1-5.9 (envelope, schema cleanup, approve/reject split, 6 error codes) | 1dc6957 | ✅ BTG §6.3 BT-142..175 match API contract; 6 error codes (CONFLICT_NAME, SINGLE_ACTIVE_DRAFT, APPROVAL_BLOCKED_*, MISSING_REJECT_COMMENT) appear in both |
+| `05-sdet.md` | §7 (ISTQB triage + 14 new test classes + 10 skeleton classes) | 4d2155f | ✅ Every BT-142..175 mapped to test class with UT/IT classification |
+| `backend-readiness.md` | §11 (W-04..W-11, Thrift compat) | b2e8680 | ✅ References envelope 2-query pattern (W-04), drift false-positive observability (W-09), Mongo data migration (W-11) |
+| `02-analyst-compliance.md` | §5 (ADR compliance + F-09..F-15) | ee4e55d | ✅ F-09..F-15 map 1:1 to ADR-09R..19R implementation gaps |
+
+**Verdict**: ✅ **ARTIFACT CASCADE CONSISTENT** — all 10 artifact files carry aligned Rework #5 delta sections with cross-references that resolve. No orphan BT IDs, no unreferenced ADRs, no migration ID drift.
+
+### 5.2 Requirements Coverage Audit — Post-Rework-5
+
+| Scope | Pre-Rework-5 | Rework #5 Additions | Post-Rework-5 Total |
+|---|---|---|---|
+| BA Acceptance Criteria | 52 (5 US + 6 NFR) | 8 (US1-AC-Rew5-*, US3-AC-Rew5-*, US6-AC-Rew5-*, US-Rew5-*) | 60 |
+| QA Test Scenarios | 89 | +16 (TS-ENV-01..09, TS-DRIFT-01..07, TS-AR-01..03, TS-DP-01, TS-NAME-L2/L3, TS-SAD-01/02, TS-CONV-01..04, TS-SCHEMA-01..03, TS-AUDIT-01, TS-PARENT-01, TS-PE-01) | 105 |
+| Designer Interface Methods | 18 | +4 (TierDriftChecker, SqlTierConverter, SqlTierReader, TierEnvelopeBuilder) | 22 |
+| Business Test Cases | 141 | +34 (BT-142..175); -15 OBSOLETE = +19 net | 160 active |
+| ADRs | 7 | +12 reversed/new (06R, 08R..19R) | 19 |
+| Flyway/Mongo Migrations | 0 | +6 (M-1..M-6) | 6 |
+| GUARDRAILS covered | 8 | G-12 (Thrift optional), G-13 (6 new error codes) — already covered but extended scope | 9 |
+
+### 5.3 Pre-PR Verification Checklist — Production Code (Developer Phase Next)
+
+Reviewer MUST confirm the following before approving a PR that closes Rework #5:
+
+**Production code delivery** (Developer Phase 10):
+- [ ] UnifiedTierConfig.java refactored: hoisted basicDetails, `meta` instead of `metadata`, `tierUniqueId` instead of `unifiedTierId`, `slabId` instead of `sqlSlabId`, fields `nudges`/`benefitIds`/`updatedViaNewUI`/`basicDetails.startDate`/`basicDetails.endDate` deleted
+- [ ] New classes exist in `src/main`: TierEnvelope, TierView, TierOrigin, TierEnvelopeBuilder, SqlTierReader, SqlTierConverter, TierDriftChecker, BasisSqlSnapshot, RejectRequest, TierMeta
+- [ ] TierFacade.listTiers returns envelope shape `{live, pendingDraft, hasPendingDraft}`
+- [ ] TierFacade.getTierEnvelope(tierId) added; routing by slabId (numeric) vs tierUniqueId (string)
+- [ ] TierFacade.updateTier captures basisSqlSnapshot when source is LIVE; sets parentId=slabId (Long)
+- [ ] TierFacade.approve and TierFacade.reject are separate methods; TierReviewController has separate endpoint handlers
+- [ ] TierApprovalHandler.preApprove has 3 gates: drift check → name L2 re-check → single-active-draft L2 re-check
+- [ ] TierApprovalHandler.postApprove writes PENDING → SNAPSHOT directly (no intermediate ACTIVE); writes meta.approvedBy/approvedAt + SQL audit columns via Thrift
+- [ ] TierValidationService.validateNameUniquenessUnified queries BOTH SQL (PeProgramSlabDao) and Mongo (TierRepository)
+- [ ] TierValidationService.enforceSingleActiveDraft implements app-layer check
+- [ ] Flyway migrations in emf-parent: V*__add_tier_audit_columns.sql (M-1), V*__add_unique_program_name.sql (M-2) — idempotent, with rollback scripts
+- [ ] Mongo indexes: envelope listing (M-3), partial unique M-4, tierUniqueId unique M-5, slabId non-unique M-6 — applied via startup index initializer
+- [ ] Thrift IDL extended with 3 optional SlabInfo fields (updatedBy, approvedBy, approvedAt) — emf-parent deploy first
+
+**Test delivery** (SDET + Developer Phase 9-10):
+- [ ] 14 new test files created per SDET §7.2
+- [ ] 60 total test methods (28 existing + 32 net new) — all PASS (GREEN) after Developer implementation
+- [ ] 19 UPDATE cases have in-place field rename changes only (no test logic changes)
+- [ ] 6 REGENERATE cases rewritten to new semantics
+- [ ] 15 OBSOLETE cases removed from test files
+- [ ] `mvn test -pl . -Dtest="com.capillary.intouchapiv3.tier.**.*Test" -am` → all pass
+- [ ] `mvn verify -pl . -am` → all UTs + ITs pass
+
+**Post-delivery backend-readiness re-run** (Phase 10b retro):
+- [ ] W-04..W-11 addressed or explicitly accepted with documented plan
+- [ ] W-08 (Thrift circuit breaker + timeout) must NOT be deferred — data consistency blocker if left open
+
+**Cross-repo consistency**:
+- [ ] Cross-repo-trace.md claims verified: PEB zero changes, legacy SlabFacade unchanged, Thrift backward-compatible (old client ↔ new server rolling deploy safe)
+
+**API handoff to UI team (Garuda)**:
+- [ ] api-handoff.md Migration Guide v3.0 reviewed with Garuda before BE deploy
+- [ ] 6 new error codes documented in Garuda's client error-handling catalog
+
+### 5.4 Blocker Classification — Rework #5
+
+**BLOCKERS (0 net new)**: None identified in artifact cascade. Production blockers will be assessed post-Developer phase.
+
+**Recommendation for Production Code Phase**: 5 HIGH findings (F-10..F-15 from Compliance §5.3) must be resolved before PR approval. These are architectural intent without implementation — they cannot be deferred as "Layer 3-4 items" because Rework #5 scope includes the full end-to-end implementation.
+
+### 5.5 Rework #5 Verdict
+
+**ARTIFACT CASCADE**: ✅ **APPROVED**
+All 10 artifact files carry consistent, cross-referenced Rework #5 delta sections. Forward cascade payloads match consumer expectations. BTG → SDET → Developer → Review chain is intact.
+
+**PRODUCTION CODE CASCADE**: ⏸️ **PENDING DEVELOPER PHASE 10**
+Next session should implement F-09..F-15 per the SDET §7.6 forward cascade payload and Compliance §5.3 PR verification checklist.
+
+**PR DECISION**: Hold PR creation until Developer phase completes. Target: create PR against `main` with all Rework #5 artifact + production code + Flyway migrations in one logical unit.
+
+---
+
+**Rework #5 Review Status**: COMPLETE (artifact layer). Production code review pending Phase 10 execution.
