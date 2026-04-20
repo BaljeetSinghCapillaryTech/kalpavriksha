@@ -353,7 +353,7 @@ All research closed. Plan locked. Awaiting user green-light to start Phase 2AB i
 
 ---
 
-## Question 5 — Scope of `extractEligibilityForSlab` (raised mid-coding, resolved 2026-04-20)
+## Question 6 — Scope of `extractEligibilityForSlab` (raised mid-coding, resolved 2026-04-20)
 
 **Q:** The reverse path for SLAB_UPGRADE needs an extractor. `TierEligibilityConfig` carries `kpiType`, `threshold`, `upgradeType`, `expressionRelation`, `conditions`. Only `threshold` is per-slab (CSV at `serialNumber - 2`); the rest are program-level in the engine (`current_value_type`, `expression_relation`, trackers). Which should the extractor populate?
 
@@ -370,7 +370,7 @@ Options considered:
 
 ---
 
-## Question 6 — Backend validation parity vs TIERS_VALIDATIONS.md (raised mid-coding, resolved 2026-04-20)
+## Question 7 — Backend validation parity vs TIERS_VALIDATIONS.md (raised mid-coding, resolved 2026-04-20)
 
 **Q:** `docs/pipeline/tier/TIERS_VALIDATIONS.md` catalogs 40+ UI-side validations across 6 flows (Primary Info, Upgrade, Secondary Upgrade, Downgrade, Renewal, Validity). Existing backend validators (`TierCreateRequestValidator`, `TierUpdateRequestValidator`, `TierValidationService`) cover ~8 of them. Should Phase 2AB absorb the full parity work?
 
