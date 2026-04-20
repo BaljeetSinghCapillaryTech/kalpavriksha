@@ -401,3 +401,28 @@ Options considered:
 
 **Residual:** a gap-report mapping every rule in TIERS_VALIDATIONS.md → existing backend enforcement (if any) → Phase 2C action (enforce / document as UI-only / punt) should be the first deliverable of Phase 2C.
 
+## Question V1–V5 — Validity mapping: intouch `TierValidityConfig` ↔ engine `slabs[n].periodConfig` (raised mid-coding, resolved 2026-04-20)
+
+**Context.** After the periodConfig-wipe bug fix (step 4.5), `applySlabValidityDelta` is the next forward-path helper. The mapping is asymmetric — five decisions were needed before any code.
+
+**Shape mismatch (evidence):**
+
+| Intouch `TierValidityConfig` | Engine `slabs[n].periodConfig` | Source |
+|---|---|---|
+| `periodType` String | `type` enum (FIXED / SLAB_UPGRADE / SLAB_UPGRADE_CYCLIC / FIXED_CUSTOMER_REGISTRATION) | `TierValidityConfig.java:17-23`, `TierDowngradePeriodConfig.java:20-22` |
+| `periodValue` Integer (months) | `value` int + `unit` enum NUM_MONTHS | same |
+| `startDate` ISO-8601 String | `startDate` Date (Gson → millis) | same |
+| `endDate` ISO-8601 String | — | no engine counterpart |
+| `renewal` TierRenewalConfig | — | no engine counterpart on periodConfig |
+| — | `computationWindowStartValue`, `computationWindowEndValue`, `minimumDuration` | engine-only |
+
+**Decisions:**
+
+- **Q-V1 — UPDATE preservation.** Chose (a): preserve engine-only fields (`computationWindowStartValue`, `computationWindowEndValue`, `minimumDuration`) on UPDATE. Same read-modify-write policy as `overlayDowngradeFields`. Intouch owns only `type`, `value`, `unit`, `startDate`; every other key on an existing `periodConfig` JsonObject is left untouched. Matches Decision R2.
+- **Q-V2 — `endDate`.** Chose (a): drop on write, recompute on read. `endDate = startDate + periodValue months` is derived; storing it would cause drift. Transformer ignores `cfg.endDate` on write and `extractValidityForSlab` reconstructs it on read from the engine's `startDate` + `value`.
+- **Q-V3 — Renewal.** Chose (d): defer to Phase 2C. `applySlabValidityDelta` ignores `cfg.renewal` entirely. Engine-side renewal plumbing is unconfirmed — safer to punt than to guess a field location.
+- **Q-V4 — `startDate` format on the engine JSON.** Chose (a): parse ISO-8601 string to `java.util.Date`, write as `{"startDate": <timestamp_millis>}` to match Gson's default Date serialization. This matches what the engine's Gson reader expects on deserialization.
+- **Q-V5 — `minimumDuration` default on APPEND.** Chose (a): omit from output JSON. Engine-side Gson will deserialize absence as 0 (primitive int default). No need for intouch to write a field it does not own.
+
+**Implication.** `applySlabValidityDelta(currentJson, slabNumber, validityCfg, isAppend)` only writes `type`, `value`, `unit`, `startDate` into `slabs[n].periodConfig`. On UPDATE, every other key on an existing `periodConfig` survives. If `validityCfg == null`, the existing `periodConfig` is left entirely untouched (no-op). If `validityCfg.startDate == null`, no `startDate` key is written (engine can fall back to its own default).
+
