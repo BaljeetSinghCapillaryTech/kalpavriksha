@@ -24,6 +24,12 @@
 > - New optional field `source` — `"UI"` or `"API"`, stored in MongoDB only (not forwarded to emf-parent), defaults to empty
 > - `updatedViaNewUI` (Thrift field 12) is now hardcoded `true` for all calls originating from intouch-api-v3 V3 — internal behaviour, not a request field
 >
+> **Rework 5 changes (2026-04-20)**:
+> - New optional field `extendedFields` (replaces `customFields`) — typed list: `[{ "type": "CUSTOMER_EXTENDED_FIELD"|"TXN_EXTENDED_FIELD", "key": "...", "value": "..." }]`. Stored in MongoDB only — not forwarded to emf-parent (ADR-19, KD-62).
+> - On PUT: `extendedFields=null` → existing list preserved (R-33, null-guard); non-null list → full overwrite.
+> - `editActiveSubscription` carries `extendedFields` from ACTIVE into new DRAFT fork (R-35).
+> - `duplicateSubscription` copies `extendedFields` from source subscription (R-35).
+>
 > **Rework 4 changes (2026-04-17)**:
 > - **`GET /v3/subscriptions/{id}`** — now requires `?status=` query param (default `ACTIVE`). During the edit window (ACTIVE + DRAFT fork coexist), you must specify which version to fetch. Without the param, `ACTIVE` is returned.
 > - **`GET /v3/subscriptions`** — `?statuses=` (multi-value, no default) replaced by `?status=` (single value, default `ACTIVE`). **Breaking change** for clients using multi-status queries.
@@ -148,23 +154,29 @@ Response wraps a Spring `Page<T>` inside `data`:
 | `name` | body | yes | Subscription name. Max 255 chars. Must be unique per org (across all partner programs). |
 | `description` | body | no | Max 1000 chars |
 | `subscriptionType` | body | yes | `TIER_BASED` or `NON_TIER` |
-| `duration` | body | yes | Duration object (see nested DTOs) |
+| `programType` | body | yes | `SUPPLEMENTARY` or `EXTERNAL` (ADR-14). **SUPPLEMENTARY is always NON_TIER** (tier-independent). **EXTERNAL can be TIER_BASED or NON_TIER**. Passing `SUPPLEMENTARY + TIER_BASED` returns 400. |
+| `pointsExchangeRatio` | body | yes | Points exchange ratio — must be positive (e.g. `1.0`). Wired to Thrift field 6 (ADR-12). |
+| `syncWithLoyaltyTierOnDowngrade` | body | yes | `true` or `false`. When `true`, `tierConfig.loyaltySyncTiers` must also be provided (ADR-13). |
+| `duration` | body | conditional | Required for `SUPPLEMENTARY`. Not required for `EXTERNAL`. |
 | `expiry` | body | no | Optional program-level expiry settings |
 | `settings` | body | no | Membership restriction settings |
 | `tierConfig` | body | conditional | Required when `subscriptionType = TIER_BASED` |
 | `reminders` | body | no | Up to 5 expiry reminders. Stored in MongoDB only — dispatched by PEB scheduler. |
-| `customFields` | body | no | Custom fields at META / LINK / DELINK levels |
+| `extendedFields` | body | no | Extended fields list. Each entry: `{ "type": "CUSTOMER_EXTENDED_FIELD"\|"TXN_EXTENDED_FIELD", "key": "...", "value": "..." }`. Stored in MongoDB only — not forwarded to emf-parent (ADR-19, KD-62). On PUT: null → existing list preserved (R-33); non-null list → full overwrite. |
 | `groupTag` | body | no | Free-text tag for grouped listing view |
 | `partnerProgramUniqueIdentifier` | body | no | Optional external unique identifier for the partner program. Forwarded to emf-parent (Thrift field 7) when present. |
 | `source` | body | no | Origination source — `"UI"` or `"API"`. Stored in MongoDB only (not forwarded to emf-parent). Defaults to empty if omitted. |
 
-**Request Body**:
+**Example 1 — SUPPLEMENTARY (NON_TIER, always tier-independent)**:
 ```json
 {
   "programId": 1,
   "name": "Gold Membership",
   "description": "Annual gold tier access with exclusive benefits",
-  "subscriptionType": "TIER_BASED",
+  "subscriptionType": "NON_TIER",
+  "programType": "SUPPLEMENTARY",
+  "pointsExchangeRatio": 1.0,
+  "syncWithLoyaltyTierOnDowngrade": false,
   "duration": {
     "cycleType": "MONTHS",
     "cycleValue": 12
@@ -177,37 +189,55 @@ Response wraps a Spring `Page<T>` inside `data`:
   "settings": {
     "restrictToOneActivePerMember": true
   },
-  "tierConfig": {
-    "linkedTierId": 101,
-    "tierDowngradeOnExit": true,
-    "downgradeTargetTierId": 100
-  },
   "reminders": [
     {
       "daysBeforeExpiry": 30,
       "channel": "EMAIL",
-      "communicationProperties": {
-        "templateId": "SUB_EXPIRY_30D"
-      }
-    },
-    {
-      "daysBeforeExpiry": 7,
-      "channel": "SMS",
-      "communicationProperties": {}
+      "communicationProperties": { "templateId": "SUB_EXPIRY_30D" }
     }
   ],
-  "customFields": {
-    "meta": [
-      { "extendedFieldId": 501, "name": "price" }
-    ],
-    "link": [],
-    "delink": []
-  },
+  "extendedFields": [
+    { "type": "CUSTOMER_EXTENDED_FIELD", "key": "tier_level", "value": "gold" },
+    { "type": "TXN_EXTENDED_FIELD", "key": "source_channel", "value": "mobile" }
+  ],
   "groupTag": "premium-tier",
   "partnerProgramUniqueIdentifier": "GOLD_2026_EXT",
   "source": "UI"
 }
 ```
+
+**Example 2 — EXTERNAL (TIER_BASED, with tier configuration)**:
+```json
+{
+  "programId": 1,
+  "name": "Platinum Tier Program",
+  "description": "External tier-based program with Silver and Gold tiers",
+  "subscriptionType": "TIER_BASED",
+  "programType": "EXTERNAL",
+  "pointsExchangeRatio": 2.0,
+  "syncWithLoyaltyTierOnDowngrade": true,
+  "tierConfig": {
+    "linkedTierId": 101,
+    "tierDowngradeOnExit": true,
+    "downgradeTargetTierId": 100,
+    "tiers": [
+      { "tierNumber": 1, "tierName": "Silver" },
+      { "tierNumber": 2, "tierName": "Gold" }
+    ],
+    "loyaltySyncTiers": {
+      "Silver": "Bronze",
+      "Gold": "Silver"
+    }
+  },
+  "extendedFields": [
+    { "type": "CUSTOMER_EXTENDED_FIELD", "key": "tier_level", "value": "gold" }
+  ],
+  "groupTag": "external-tier",
+  "source": "UI"
+}
+```
+
+> **Note**: `SUPPLEMENTARY + TIER_BASED` returns HTTP 400 — validation enforced at both CREATE and UPDATE (DRAFT). `EXTERNAL` programs do not require `duration`.
 
 **Response — Success** (HTTP 201):
 ```json
@@ -223,7 +253,10 @@ Response wraps a Spring `Page<T>` inside `data`:
     "partnerProgramId": null,
     "name": "Gold Membership",
     "description": "Annual gold tier access with exclusive benefits",
-    "subscriptionType": "TIER_BASED",
+    "subscriptionType": "NON_TIER",
+    "programType": "SUPPLEMENTARY",
+    "pointsExchangeRatio": 1.0,
+    "syncWithLoyaltyTierOnDowngrade": false,
     "duration": { "cycleType": "MONTHS", "cycleValue": 12 },
     "expiry": {
       "programExpiryDate": "2027-12-31T23:59:59Z",
@@ -240,7 +273,10 @@ Response wraps a Spring `Page<T>` inside `data`:
     "reminders": [
       { "daysBeforeExpiry": 30, "channel": "EMAIL", "communicationProperties": { "templateId": "SUB_EXPIRY_30D" } }
     ],
-    "customFields": { "meta": [{ "extendedFieldId": 501, "name": "price" }], "link": [], "delink": [] },
+    "extendedFields": [
+      { "type": "CUSTOMER_EXTENDED_FIELD", "key": "tier_level", "value": "gold" },
+      { "type": "TXN_EXTENDED_FIELD", "key": "source_channel", "value": "mobile" }
+    ],
     "groupTag": "premium-tier",
     "partnerProgramUniqueIdentifier": "GOLD_2026_EXT",
     "source": "UI",

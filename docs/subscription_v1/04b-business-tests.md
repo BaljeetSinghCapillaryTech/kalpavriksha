@@ -576,3 +576,30 @@ These tests existed before Rework 2. Their expected outputs are now wrong and MU
 ---
 
 *Rework total: 35 new test cases (BT-R-01 through BT-R-35) — 30 UT + 5 IT. Grand total: 137 test cases (102 original + 35 rework).*
+
+---
+
+## Rework 5 — Extended Fields (ADR-19, KD-62/63) (2026-04-20)
+
+> **Source**: Designer Rework 5 (R-32 through R-35), KD-62 through KD-65
+> Extended Fields replace `customFields`. Stored in MongoDB only — no Thrift pass-through.
+> `ExtendedFieldType`: `CUSTOMER_EXTENDED_FIELD`, `TXN_EXTENDED_FIELD`
+
+### Group EF — Extended Fields Unit Tests
+
+| ID | Test Name | Verifies | Input | Expected Output | ADR/KD | Designer Interface | Layer |
+|----|-----------|----------|-------|-----------------|--------|-------------------|-------|
+| BT-EF-01 | `shouldPersistExtendedFieldsOnCreate` | ADR-19, KD-62 — extendedFields stored on CREATE | `createSubscription(request{extendedFields=[CEF:tier_level=gold, TEF:source_channel=mobile]})` | Created doc has `extendedFields` size=2, first entry `type=CUSTOMER_EXTENDED_FIELD, key=tier_level` | ADR-19 | `SubscriptionFacade.createSubscription()` | UT |
+| BT-EF-02 | `shouldOverwriteExtendedFieldsOnUpdateWhenProvided` | R-33 — non-null list on PUT → full overwrite | DRAFT with `extendedFields=[old_key]`. PUT with `extendedFields=[new_key]` | Result has `extendedFields` size=1, key=`new_key`, type=`TXN_EXTENDED_FIELD` | R-33 | `SubscriptionFacade.updateSubscription()` | UT |
+| BT-EF-03 | `shouldPreserveExtendedFieldsWhenUpdateOmitsField` | R-33 null-guard — null on PUT → existing list preserved | DRAFT with `extendedFields=[keep_me]`. PUT with `extendedFields=null` | Result still has `extendedFields` size=1, key=`keep_me` (unchanged) | R-33 | `SubscriptionFacade.updateSubscription()` | UT |
+| BT-EF-04 | `shouldCarryExtendedFieldsIntoNewDraftFork` | R-35 — `editActiveSubscription` carries EF from ACTIVE into DRAFT | ACTIVE with `extendedFields=[fork_key]`. Call `editActiveSubscription()` | New DRAFT has `extendedFields` size=1, key=`fork_key` (copied from ACTIVE) | R-35 | `SubscriptionFacade.editActiveSubscription()` | UT |
+| BT-EF-05 | `shouldCopyExtendedFieldsOnDuplicate` | R-35 — `duplicateSubscription` copies EF from source | ACTIVE with `extendedFields=[source_key]`. Call `duplicateSubscription()` | Copy has `extendedFields` size=1, key=`source_key`. New `subscriptionProgramId`. `parentId=null`. | R-35 | `SubscriptionFacade.duplicateSubscription()` | UT |
+| BT-EF-06 | `shouldAcceptMultipleExtendedFieldsOfSameAndDifferentType` | ADR-19 — multiple EF entries (same type + different type) stored | CREATE with 3 fields: 2×`CUSTOMER_EXTENDED_FIELD` + 1×`TXN_EXTENDED_FIELD` | Created doc `extendedFields` size=3. 2 CEF entries, 1 TEF entry. | ADR-19 | `SubscriptionFacade.createSubscription()` | UT |
+
+### Rework 5 Test Class Mapping
+
+| Test Class | Covers BT IDs | Type | Repo |
+|-----------|--------------|------|------|
+| `SubscriptionExtendedFieldsTest` | BT-EF-01 through BT-EF-06 | UT | intouch-api-v3 |
+
+**New test cases: 6 UT. Running total: 137 + 6 = 143 test cases.**
