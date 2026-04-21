@@ -721,7 +721,7 @@ endpoint is the reviewer's raw queue.
   SAGA publish failure on APPROVE:  ACTIVE-attempt ──▶ PUBLISH_FAILED
 ```
 
-Evidence: `TierFacade.updateTier` L269–L281 (state switch), `TierFacade.deleteTier` L291–L308, `TierFacade.submitForApproval` L388–L399, `MakerCheckerService.approve` L64–L76, `TierApprovalHandler.postApprove` (parent → SNAPSHOT).
+Evidence: `TierFacade.updateTier` L270–L281 (state switch), `TierFacade.deleteTier` L292–L309 (conflict check L299–L302), `TierFacade.submitForApproval` L389–L400, `MakerCheckerService.approve` L58–L79 (catch block L64–L76), `TierApprovalHandler.postApprove` (parent → SNAPSHOT).
 
 Terminal statuses for UI purposes: `DELETED`, `SNAPSHOT`. `PUBLISH_FAILED` is
 recoverable via a future retry path — not addressed in v3.1.
