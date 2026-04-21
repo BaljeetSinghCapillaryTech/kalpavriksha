@@ -1403,6 +1403,23 @@ Once a tier is created with a `programId`, it cannot be changed. A tier belongs 
 
 No explicit rate limiting on tier endpoints. Standard platform-level rate limiting applies.
 
+### 10.18 `eligibility.expressionRelation` is a dormant reserved slot
+
+The `eligibility.expressionRelation` field on the request/response shape is **declared but never used** in the current backend. It is reserved for a future compound-condition feature that was deferred.
+
+| Aspect | Behaviour today | Evidence |
+|---|---|---|
+| On `POST` / `PUT` request body | Accepted, deserialised, then **silently dropped** — no validator checks it, no transformer reads it, no persistence layer uses it for logic. | Zero matches for `getExpressionRelation()` / `setExpressionRelation` / `.expressionRelation(` in the tier write path (`TierStrategyTransformer`, `TierCreateRequestValidator`, `TierUpdateRequestValidator`, `TierFacade`). |
+| On `GET` LIVE response (LEGACY_SQL_ONLY tiers) | Always `null` → **omitted** from wire via `@JsonInclude(NON_NULL)`. `TierStrategyTransformer.extractEligibilityForSlab` does not populate it — the engine has no per-tier source. | `TierEligibilityConfig.java` class Javadoc (L19–24); `TierStrategyTransformer.java` Javadoc on `extractEligibilityForSlab`. |
+| On `GET` DRAFT response (Mongo origin) | Echoes whatever the maker originally sent on `POST` / `PUT` — Mongo persists the DTO as-is. Carries no semantic meaning end-to-end. | Mongo `@Document` round-trip; no read-side consumer. |
+
+**UI guidance:**
+
+- **Don't render `eligibility.expressionRelation`** — treat it as absent. On LIVE tiers it will not be on the wire at all; on DRAFT tiers any stored value is stale / unprocessed.
+- **Don't send it** on create/update — it will be silently dropped. If the field appears in a form today, hide it until the backend advertises support.
+- **Contrast with `renewal.expressionRelation`** — that sister field is actively **rejected** on write by `TierRenewalValidation` (non-null → 400 with `"renewal.expressionRelation must be null — reserved for a future engine-side renewal rule (Rework #5 B1a)"`). The eligibility-side field has no such guard today; this asymmetry is tracked for a future hardening pass.
+- **Engine-internal `EngineConfig.expressionRelation`** is a completely separate field (type `List<List<Integer>>` — a condition-grouping matrix used inside the engine). Not on `TierView`; not UI-facing; not related to this slot.
+
 ---
 
 ## 11. Error Handling — Global Advice Reference
