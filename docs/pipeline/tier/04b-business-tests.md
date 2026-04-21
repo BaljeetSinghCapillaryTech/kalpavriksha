@@ -50,7 +50,8 @@
 | ADR Compliance (incl. ADR-06R..16R) | 6 | 10 | 16 | +4 |
 | Guardrail Compliance | 5 | 8 | 13 | +1 (G-13) |
 | Risk Mitigation (incl. R6-R12 Rework #5) | 6 | 7 | 13 | +4 |
-| **Total (post-Rework #5)** | **~116** | **~68** | **~184** | **+55 net** |
+| R5-R4 Renewal Contract (B1a) — normalizer + wiring + synthesis | 7 | 3 | 10 | +10 (new) |
+| **Total (post-Rework #5, post-R4 B1a)** | **~123** | **~71** | **~194** | **+65 net** |
 | **OBSOLETE in this rework** | | | **~12** | |
 
 ---
@@ -297,6 +298,27 @@
 | BT-139 | shouldDeduplicateViaIdempotencyKey | R6 (LOW) | Idempotency: retry safety | POST same Idempotency-Key twice | No duplicate tier; returns original | R6 scenario | IT |
 | BT-140 | shouldCarryTenantContextInCronJob | R7 (LOW) | Cron tenant context: orgId propagation | Member count cron job executes | Job processes per-org, carries orgId in execution context | R7 scenario | UT |
 | BT-141 | shouldEnforceOrBlockSelfApproval | R8 (LOW) | MC self-approval: same user submit+approve | requestedBy == reviewedBy | Product decision: either blocked (400) or allowed (documented as accepted risk) | R8 scenario | UT |
+
+### 4.4 R5-R4 Renewal Contract (B1a) ^(NEW — Rework #5 R4, 2026-04-21)^
+
+> Contract: `TierValidityConfig.renewal` is accept-only `criteriaType = "Same as eligibility"` on write; null/omitted renewal is auto-filled to the B1a default by `TierRenewalNormalizer` pre-save; the read path synthesizes the same default on every `extractValidityForSlab` call. Drift-checker whole-object equality on `TierValidityConfig` requires DRAFT (Mongo) and LIVE (SQL→engine→DTO) to surface identical renewal objects. See `03-designer.md` → `## R5-R4 Renewal Contract (B1a)`.
+>
+> Traces to: BA `US-2` optional-fields AC (renewalConfig), BA `US-3` editable-fields AC, Designer `## R5-R4 Renewal Contract`, `TierRenewalConfig.java` (B1a constant), `TierRenewalNormalizer.java`, `TierStrategyTransformer.extractValidityForSlab`.
+
+| ID | Test Name | Traces To | Verifies | Input | Expected Output | QA Scenario | Layer |
+|----|-----------|-----------|----------|-------|-----------------|-------------|-------|
+| BT-176 | fillsDefaultRenewalWhenValidityPresentAndRenewalNull | R5-R4 B1a normalizer | Normalizer fills B1a default when validity exists but renewal is null | `TierValidityConfig{periodType, periodValue, renewal=null}` | Same instance returned with `renewal = TierRenewalConfig{criteriaType="Same as eligibility", expressionRelation=null, conditions=null}` | TS-RNW-01 | TierRenewalNormalizer.normalize | UT |
+| BT-177 | returnsSameInstanceWhenValidityPresent | R5-R4 B1a normalizer | Normalizer returns the input instance (mutate-in-place — `@Data @Builder` without `toBuilder`) | Non-null validity | `result == input` (reference equality) | TS-RNW-02 | TierRenewalNormalizer.normalize | UT |
+| BT-178 | preservesOtherValidityFieldsWhenFillingRenewal | R5-R4 B1a normalizer | Normalizer mutates only `renewal`; every other field unchanged | Validity with periodType, periodValue, startDate, endDate all populated; renewal=null | All four original fields unchanged; renewal populated with B1a default | TS-RNW-03 | TierRenewalNormalizer.normalize | UT |
+| BT-179 | leavesExistingRenewalUntouched | R5-R4 B1a normalizer | Normalizer does NOT overwrite a non-null renewal (validator has already accepted it) | Validity with `renewal = TierRenewalConfig{criteriaType="Same as eligibility", ...already populated}` | Renewal object is the same instance, byte-for-byte unchanged | TS-RNW-04 | TierRenewalNormalizer.normalize | UT |
+| BT-180 | nullValidityIsNoOp | R5-R4 B1a normalizer | Normalizer is safe to call with a null validity (e.g. tier without a validity block) | `validity = null` | Returns null, no NPE | TS-RNW-05 | TierRenewalNormalizer.normalize | UT |
+| BT-181 | shouldNormalizeRenewalOnCreateTier | R5-R4 B1a wiring | `TierFacade.createTier` invokes normalizer before `tierRepository.save()` | POST /v3/tiers with body containing `validity` but no `validity.renewal` | Persisted DRAFT has `validity.renewal` = B1a default | TS-RNW-06 | TierFacade.createTier | IT |
+| BT-182 | shouldNormalizeRenewalOnVersionedDraftFromActive | R5-R4 B1a wiring | `TierFacade.createVersionedDraft` (edit-of-LIVE → new DRAFT) invokes normalizer before save | PUT /v3/tiers/{id} on LIVE tier, body validity without renewal | New versioned DRAFT has `validity.renewal` = B1a default | TS-RNW-07 | TierFacade.createVersionedDraft | IT |
+| BT-183 | shouldNormalizeRenewalOnUpdateInPlace | R5-R4 B1a wiring | `TierFacade.updateInPlace` (edit of existing DRAFT) invokes normalizer before save | PUT /v3/tiers/{id} on DRAFT, body validity without renewal | DRAFT's `validity.renewal` updated to B1a default in place | TS-RNW-08 | TierFacade.updateInPlace | IT |
+| BT-184 | extractingValiditySynthesizesB1aDefaultRenewal | R5-R4 B1a read synthesis | `TierStrategyTransformer.extractValidityForSlab` synthesizes the B1a default on every call (engine has no storage slot) | Engine JSON with `slabs[n].periodConfig` populated (no renewal field — engine schema doesn't have one) | Returned `TierValidityConfig.renewal` = B1a default (not null) | TS-RNW-09 | TierStrategyTransformer.extractValidityForSlab | UT |
+| BT-185 | extractingValidityRoundTripsThroughForwardPath | R5-R4 B1a symmetry | DRAFT (post-normalizer) and LIVE (post-synthesis) produce identical `TierValidityConfig` objects → drift-checker `Objects.equals` returns true | Write B1a default via `applySlabValidityDelta`, then read via `extractValidityForSlab`, then compare | Round-trip equality holds; drift-checker reports no diff | TS-RNW-10 | forward-path ↔ reverse-path round-trip | UT |
+
+**Coverage note:** BT-176..BT-180 establish normalizer correctness in isolation (pure utility — safe to test in isolation per Rule 2 exception for stateless functions). BT-181..BT-183 prove the wiring into all three TierFacade write paths. BT-184 proves the read-side synthesis contract. BT-185 is the symmetry guarantee that prevents phantom drift-checker false-positives — this is the test that would fire first if either side of the contract regresses.
 
 ---
 

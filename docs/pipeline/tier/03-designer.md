@@ -50,6 +50,7 @@ com.capillary.intouchapiv3/
       TierCondition.java                   -- type (String), value, trackerName
       TierValidityConfig.java              -- periodType (String), periodValue, startDate, endDate, renewal
       TierRenewalConfig.java               -- criteriaType (String), expressionRelation, conditions  (Rework #5: `schedule` DROPPED — see TierRenewalConfig javadoc)
+      TierRenewalNormalizer.java           -- (NEW, R5-R4 B1a) package-private static util; fills the B1a default on every TierFacade write path before save. See ## R5-R4 Renewal Contract section.
       TierDowngradeConfig.java             -- target (String), reevaluateOnReturn, dailyEnabled, conditions
       MemberStats.java                     -- cached member count
       EngineConfig.java                    -- hidden engine configs for round-trip
@@ -377,21 +378,83 @@ public class TierApprovalHandler implements ApprovableEntityHandler<UnifiedTierC
     }
 
     /**
-     * Sync tier from MongoDB to SQL via Thrift (SAGA phase 1).
+     * Sync tier from MongoDB to SQL via Thrift (SAGA phase 1 — ATOMIC).
      * Uses @Lockable to prevent concurrent syncs for same program.
      * Returns PublishResult with externalId = slabId for later postApprove() use.
-     * Rework #5: field name changed sqlSlabId → slabId; lives at root of UnifiedTierConfig.
+     *
+     * Phase 2AB (2026-04-20): Rewritten to single-atomic flow. Previously split into
+     * createOrUpdateSlab + separate strategy update (split-brain on second-call failure).
+     * Now: read-modify-write on strategies in memory, then submit slabInfo + both
+     * strategies in one createSlabAndUpdateStrategies Thrift call (single engine tx).
+     * See HLD §7.5 for the complete flow.
      */
     @Lockable(key = "'lock_tier_sync_' + #entity.orgId + '_' + #entity.programId", ttl = 300000, acquireTime = 5000)
     @Override
-    public PublishResult publish(UnifiedTierConfig entity) {
-        // 1. Build SlabInfo from entity's hoisted fields (name, color, serial, threshold, etc.)
-        // 2. Fetch current strategies, build SLAB_UPGRADE + SLAB_DOWNGRADE StrategyInfos
-        // 3. Call createOrUpdateSlab (Thrift) -> returns SlabInfo with id = slabId
-        // 4. Return PublishResult(externalId = slabId, auditCols: approvedBy, approvedAt, updatedBy)
-        //    Thrift server side persists the audit columns (Rework #5 — SQL audit cols added via Flyway).
-        // 5. For versioned edits: slabId carried from entity.slabId (already set at DRAFT creation).
+    public PublishResult publish(UnifiedTierConfig entity) throws Exception {
+        // 1. Build SlabInfo from entity's hoisted fields (name, color, serial, etc.)
+        SlabInfo slabInfo = buildSlabInfo(entity);
+        int programId = entity.getProgramId();
+        int orgIdInt  = entity.getOrgId().intValue();
+        int slabNumber = entity.getSerialNumber();
+
+        // 2. CREATE vs UPDATE discriminator — sets slabInfo.id when UPDATE.
+        boolean isCreate = resolveSlabIdAndDiscriminate(entity, slabInfo);
+
+        // 3. Fetch current program-level strategies (not cached — Q-R4).
+        List<StrategyInfo> currentStrategies =
+                thriftService.getAllConfiguredStrategies(programId, orgIdInt);
+
+        // 4. Find SLAB_UPGRADE + SLAB_DOWNGRADE. findStrategyByType throws
+        //    IllegalStateException if either is missing OR duplicated (Q-P2 — data corruption signal).
+        StrategyInfo upgrade = TierStrategyTransformer.findStrategyByType(
+                currentStrategies, EmbeddedStrategiesConstants.SLAB_UPGRADE_STRATEGY_TYPE);
+        StrategyInfo downgrade = TierStrategyTransformer.findStrategyByType(
+                currentStrategies, EmbeddedStrategiesConstants.SLAB_DOWNGRADE_STRATEGY_TYPE);
+        if (upgrade == null)   throw new IllegalStateException("SLAB_UPGRADE strategy not configured for program " + programId);
+        if (downgrade == null) throw new IllegalStateException("SLAB_DOWNGRADE strategy not configured for program " + programId);
+
+        // 5. Deep-copy before mutating — Thrift clients MAY cache (Q-P3, defensive).
+        StrategyInfo upgradeCopy   = upgrade.deepCopy();
+        StrategyInfo downgradeCopy = downgrade.deepCopy();
+
+        // 6. Apply SLAB_UPGRADE delta to the in-memory copy (CSV at threshold_values).
+        //    - Skip for slab 1 (Q-P5: CSV has N-1 entries for N slabs).
+        //    - CREATE of non-first slab REQUIRES eligibility.threshold (Q-P4b).
+        //    - UPDATE is null-safe: missing threshold = no change (Q-P4a).
+        applyUpgradeDelta(entity, upgradeCopy, slabNumber, isCreate);
+
+        // 7. Apply SLAB_DOWNGRADE delta (TierConfiguration JSON; keyed by slabNumber). Null-safe.
+        applyDowngradeDelta(entity, downgradeCopy, slabNumber, isCreate);
+
+        // 8. Submit slab + both strategies atomically — single engine transaction.
+        //    Engine order: update SLAB_UPGRADE → update SLAB_DOWNGRADE → insert/update program_slabs
+        //                  → updateStrategiesForNewSlab (auto-extends POINT_ALLOCATION/POINT_EXPIRY CSVs).
+        int userId = parseUserId(entity); // TODO Q-P7 — real user-id resolver
+        List<StrategyInfo> strategiesToSubmit = List.of(upgradeCopy, downgradeCopy);
+        SlabInfo result = thriftService.createSlabAndUpdateStrategies(
+                slabInfo, strategiesToSubmit, programId, orgIdInt,
+                userId, System.currentTimeMillis());
+
+        // 9. Return with slabId (result.id). postApprove stamps this onto the Mongo doc.
+        return PublishResult.builder()
+                .externalId(result.getId())
+                .source("program_slabs")
+                .idempotent(false)
+                .build();
     }
+
+    // -- Private helpers extracted in Phase 2AB --
+
+    /** Sets slabInfo.id if UPDATE (doc.slabId OR parent resolves). Returns isCreate flag. */
+    private boolean resolveSlabIdAndDiscriminate(UnifiedTierConfig entity, SlabInfo slabInfo) { /* ... */ }
+
+    /** Skips for slab 1. CREATE non-first requires eligibility.threshold. UPDATE null-safe. */
+    private void applyUpgradeDelta(UnifiedTierConfig entity, StrategyInfo upgradeCopy,
+                                   int slabNumber, boolean isCreate) { /* calls TierStrategyTransformer.applySlabUpgradeDeltaJson */ }
+
+    /** Null-safe downgrade mutation on TierConfiguration.slabs[] keyed by slabNumber. */
+    private void applyDowngradeDelta(UnifiedTierConfig entity, StrategyInfo downgradeCopy,
+                                     int slabNumber, boolean isCreate) { /* mutates downgradeCopy.propertyValues */ }
 
     @Override
     public void postApprove(UnifiedTierConfig entity, PublishResult publishResult) {
@@ -494,6 +557,46 @@ public class SqlTierConverter {
     public TierView toView(ProgramSlab slab, List<Strategy> strategies, TierOrigin origin);
 }
 ```
+
+### 2.7 TierStrategyTransformer — New public helpers (Phase 2AB)
+
+`TierStrategyTransformer` is a pure-function package that converts between `UnifiedTierConfig` fields and `StrategyInfo.propertyValues` JSON for SLAB_UPGRADE (CSV `threshold_values`) and SLAB_DOWNGRADE (TierConfiguration JSON). Phase 2AB (commit `d5c226c6a`) added two public helpers used by `TierApprovalHandler.publish()`:
+
+```java
+package com.capillary.intouchapiv3.tier.strategy;
+
+public class TierStrategyTransformer {
+
+    /**
+     * Apply a single slab's upgrade threshold delta to the full propertyValues JSON blob.
+     * Preserves non-owned program-level keys (current_value_type, expression_relation,
+     * reminders, communications) — read-modify-write, not wholesale replacement.
+     *
+     * @param propertyValuesJson current SLAB_UPGRADE strategy JSON (nullable / empty ok)
+     * @param slabIndex           CSV position = serialNumber - 2 (slab 1 has no inbound threshold)
+     * @param newThreshold        threshold value to insert / replace at that position
+     * @param isAppend            true = append (CREATE flow); false = replace in place (UPDATE flow)
+     * @return updated JSON string with threshold_values CSV mutated, other keys untouched
+     */
+    public static String applySlabUpgradeDeltaJson(String propertyValuesJson,
+                                                    int slabIndex, int newThreshold,
+                                                    boolean isAppend);
+
+    /**
+     * Locate the single StrategyInfo of a given type in a list.
+     *
+     * @param strategies current program-level strategies
+     * @param type        SLAB_UPGRADE_STRATEGY_TYPE (2) or SLAB_DOWNGRADE_STRATEGY_TYPE (5)
+     * @return the matching StrategyInfo, or null if not present
+     * @throws IllegalStateException if more than one strategy of the given type is found
+     *         (data corruption — program-level strategies are 1:1 per program; duplicates
+     *         must surface, not be silently collapsed).
+     */
+    public static StrategyInfo findStrategyByType(List<StrategyInfo> strategies, int type);
+}
+```
+
+Both helpers are pure functions (no I/O). They enable `TierApprovalHandler.publish()` to do the delta math in memory before the single atomic Thrift call. `findStrategyByType` is the public counterpart of the pre-existing private `findSingleStrategy` used by the reverse-path reader (`fromStrategies`) — same duplicate-throw contract, intentionally exported for the publish path.
 
 ---
 
@@ -736,11 +839,43 @@ private static final Map<TierStatus, Set<TierAction>> VALID_TRANSITIONS = Map.of
 
 ---
 
-## 6. Thrift Wrapper Methods (add to PointsEngineRulesThriftService)
+## 6. Thrift Wrapper Methods (PointsEngineRulesThriftService)
 
 ```java
 // Wrapper methods for TierApprovalHandler.publish() (SAGA phase 1):
 
+/**
+ * Phase 2AB — primary atomic path. Single engine transaction that commits
+ * the slab row + strategy updates + CSV auto-extension together.
+ * Replaces the previous two-step (createOrUpdateSlab + separate strategy update)
+ * that left a split-brain window on second-call failure.
+ *
+ * Signature reverse-ordered from earlier LLD draft to match actual emf-parent method:
+ *   (slabInfo, strategyInfos, programId, orgId, lastModifiedBy, lastModifiedOn)
+ *
+ * Translates engine-side errors:
+ *   - PointsEngineRuleServiceException → EMFThriftException (with engine error message)
+ *   - any other Exception              → EMFThriftException (wrapped)
+ */
+public SlabInfo createSlabAndUpdateStrategies(
+        SlabInfo slabInfo,
+        List<StrategyInfo> strategyInfos,
+        int programId, int orgId,
+        int lastModifiedBy, long lastModifiedOn) throws Exception {
+    String serverReqId = CapRequestIdUtil.getRequestId();
+    try {
+        return getClient().createSlabAndUpdateStrategies(
+                programId, orgId, slabInfo, strategyInfos,
+                lastModifiedBy, lastModifiedOn, serverReqId);
+    } catch (PointsEngineRuleServiceException e) {
+        throw new EMFThriftException("Business rule error in createSlabAndUpdateStrategies: "
+                + e.getErrorMessage());
+    } catch (Exception e) {
+        throw new EMFThriftException("Error in createSlabAndUpdateStrategies: " + e);
+    }
+}
+
+// Retained for legacy callers (SlabResource old-UI path) — NOT used by TierApprovalHandler after Phase 2AB.
 public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
         int lastModifiedBy, long lastModifiedOn) throws Exception {
     String serverReqId = CapRequestIdUtil.getRequestId();
@@ -748,15 +883,8 @@ public SlabInfo createOrUpdateSlab(SlabInfo slabInfo, int orgId,
             slabInfo, orgId, lastModifiedBy, lastModifiedOn, serverReqId);
 }
 
-// Optional (if strategy updates needed):
-public SlabInfo createSlabAndUpdateStrategies(int programId, int orgId,
-        SlabInfo slabInfo, List<StrategyInfo> strategyInfos,
-        int lastModifiedBy, long lastModifiedOn) throws Exception {
-    String serverReqId = CapRequestIdUtil.getRequestId();
-    return getClient().createSlabAndUpdateStrategies(
-            programId, orgId, slabInfo, strategyInfos,
-            lastModifiedBy, lastModifiedOn, serverReqId);
-}
+// Fresh fetch for publish path — NOT cached (Q-R4). Strategy state must be current at read-modify-write.
+public List<StrategyInfo> getAllConfiguredStrategies(int programId, int orgId) throws Exception { /* ... */ }
 
 public List<SlabInfo> getAllSlabs(int programId, int orgId) throws Exception {
     String serverReqId = CapRequestIdUtil.getRequestId();
@@ -1231,3 +1359,64 @@ These items are deliberately underspecified in LLD and must be settled during De
 - **Drift-detection granularity** — current spec says "full-tier, any diff blocks". Designer recommendation stands; Developer may refine if over-blocking causes friction (requires a new BTG + ADR if relaxed).
 - **`parentId` cycle prevention** — Rework #5 Q-6 locks parent-must-be-LIVE (DRAFTs can't be parents). Since LIVE tiers never parent each other (edits create a new DRAFT, not a new LIVE), cycles are structurally impossible under current invariants. If future epics allow LIVE→LIVE parentage, add cycle check.
 - **Mongo partial unique index for brand-new DRAFTs** — when `slabId` is null (brand-new tier pre-approval), the partial filter must use `slabId: { $exists: true }` to prevent null-collision. Exact script form finalised in `01b-migrator.md`.
+
+---
+
+## R5-R4 Renewal Contract (B1a)
+
+> **Status:** Implemented 2026-04-21 (intouch-api-v3 branch `raidlc/ai_tier_rework5`, commits `bc23b0db7` + `da23e43c4`).
+> **Supersedes:** Phase 2AB Decision Q-V3 ("defer renewal to Phase 2C") in `rework-5-phase-2-decisions.md`.
+
+### Contract
+
+`TierValidityConfig.renewal` is an **always-present, always-default** block on every envelope read, and an **accept-only-one-shape** block on every write.
+
+| Surface | Value |
+|---|---|
+| `renewal.criteriaType` | `"Same as eligibility"` — the only accepted value today. |
+| `renewal.expressionRelation` | `null` (reserved for B2/B3). |
+| `renewal.conditions` | `null` or empty (reserved for B2/B3). |
+
+**Write path — validator:** `TierCreateRequestValidator` rejects any request whose `validity.renewal.criteriaType` is set to anything other than `"Same as eligibility"`. Reject payload follows the same shape used for the kpiType/upgradeType whitelists (400 with English message, allowed values enumerated).
+
+**Write path — normalizer:** If the client omits `validity.renewal` (or sends `validity.renewal = null`), `TierRenewalNormalizer.normalize(validity)` is called by `TierFacade` immediately before `tierRepository.save()` on all three write paths:
+
+- `TierFacade.createTier`
+- `TierFacade.createVersionedDraft` (edit-of-LIVE → new DRAFT)
+- `TierFacade.updateInPlace` (edit of existing DRAFT / PENDING_APPROVAL)
+
+The normalizer mutates the same `TierValidityConfig` instance in place (Lombok `@Data @Builder` without `toBuilder = true` → setter-based mutation) and returns it. A null `validity` is a no-op.
+
+**Read path — synthesis:** `TierStrategyTransformer.extractValidityForSlab` synthesizes the B1a default on every extraction. The engine has no storage slot for an explicit renewal rule, so the reverse path cannot "read what the engine holds" — it must **mirror** what the write path persisted. The three lines that do this run immediately before the builder's `build()` call.
+
+### Why B1a and not B2/B3
+
+| Path | Posture | Why rejected today |
+|---|---|---|
+| B1a | Accept-only `"Same as eligibility"` | **Chosen.** Engine already enforces this shape implicitly — `UpgradeSlabActionImpl:815` (emf-parent) fires `RenewSlabInstruction` on every slab upgrade; `RenewConditionDto` is reconstructed audit-only from `slabConfig.getConditions()` + `periodConfig.getType()`. Locking the API to this shape is honest about what runs. |
+| B2 | Accept `Same as eligibility` + `Custom` (AND/OR); defer engine wiring | The Custom shape has no engine behaviour today. Accepting it would persist a rule nothing reads — the same failure mode that made us drop `schedule` in Rework #5. |
+| B3 | Full engine wiring now | Engine rework is out of scope for Tiers CRUD. Blocks the epic on emf-parent changes the Benefits/Change-Log squads haven't signed off on. |
+
+### Why the symmetric default matters — drift-checker proof
+
+`TierDriftChecker` compares the DRAFT's `basisSqlSnapshot.validity` against the current SQL→DTO view of `validity` using `Objects.equals(basis.getValidity(), current.getValidity())` (whole-object equality via Lombok `@Data`). Without the read-side synthesis:
+
+| Store | `validity.renewal` | Effect on drift check |
+|---|---|---|
+| Mongo DRAFT (after normalizer) | B1a default object | — |
+| SQL-sourced LIVE (without synthesis) | `null` | `equals(...) == false` → **false-positive drift** → every approval blocked by APPROVAL_BLOCKED_DRIFT |
+
+With the read-side synthesis, both surfaces produce identical `TierValidityConfig` objects, and the whole-object equality check correctly reports no diff when nothing material changed. This is the same fix pattern applied when the `schedule` field was dropped (commit `86e37e5ea`).
+
+### Why `applySlabValidityDelta` still ignores `cfg.renewal`
+
+The engine's `slabs[n].periodConfig` JSON has no `renewal` key and no schema for one. Writing the B1a block into `periodConfig` would either be silently stripped (best case) or corrupt the engine's deserializer (worst case). The write path therefore persists `renewal` to Mongo only; SQL/engine never see it. On read, the transformer synthesizes the default from nothing. This asymmetry is intentional and documented at the top of `TierRenewalNormalizer.java` and in the Q-V3 supersession note.
+
+### Future growth (B2 / B3)
+
+- **B2 (accept Custom, defer engine wiring):** relax the validator to accept `criteriaType = "Custom"` with `expressionRelation` + `conditions` populated. Normalizer and read-side synthesis stay as-is (they only fill when null). **No breaking change** — clients that continue to send only B1a keep working.
+- **B3 (full engine wiring):** extend `applySlabValidityDelta` to write renewal into a new engine field; drop the read-side synthesis in favour of extracting what the engine holds. Requires coordinated emf-parent change and a Phase 2C-style ADR.
+
+### Test coverage
+
+See `04b-business-tests.md` §4.4 (BT-176..BT-185) — 10 test cases: 5 normalizer unit tests, 3 facade wiring integration tests, 2 transformer synthesis tests (including round-trip equality).

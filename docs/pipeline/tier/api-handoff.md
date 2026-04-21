@@ -272,26 +272,30 @@ message listing allowed values (see §7.3).
   "periodType":  "<string>",
   "periodValue": <integer>,
   "startDate":   "2026-04-21T08:14:02Z" | null,
-  "endDate":     "2026-04-21T08:14:02Z" | null,
-  "renewal":     <TierRenewalConfig | null>
+  "endDate":     null,
+  "renewal":     <TierRenewalConfig>
 }
 ```
+
+**Field notes (Rework #5 R4 B1a — 2026-04-21):**
+- `renewal` is **never null on the wire.** If the client omits it on a write, the server fills the B1a default (`TierRenewalNormalizer`) before persistence. On read, `TierStrategyTransformer.extractValidityForSlab` synthesizes the same default, so the SQL-sourced LIVE view and the Mongo DRAFT view surface identical renewal objects. This is what keeps the drift-checker's whole-object `Objects.equals` on `TierValidityConfig` free of phantom false-positives.
+- `endDate` is always `null` on responses. Decision Q-V2 in `rework-5-phase-2-decisions.md`: `endDate = startDate + periodValue months` is derived, not stored. Downstream consumers (UI, API response layer) compute it if needed.
 
 ### 4.8 `TierRenewalConfig` (nested inside `TierValidityConfig.renewal`)
 
 ```json
 {
-  "criteriaType":       "Same as eligibility | Active subscription",
-  "expressionRelation": "AND | OR",
-  "conditions":         [ <TierCondition>, ... ]
+  "criteriaType":       "Same as eligibility",
+  "expressionRelation": null,
+  "conditions":         null
 }
 ```
 
-**Rework #5 — `schedule` has been dropped.** Previously a free-text display
-string; the engine strips the whole `renewal` block when writing the strategy
-JSON so the value never reached SQL, and nothing read it back. It is gone
-from v3.1 — do not send it, do not expect it on responses.
-Evidence: `TierRenewalConfig.java` class-level javadoc L9–L27.
+**Rework #5 R4 (B1a) — accept-only contract.** As of 2026-04-21, the server accepts **only** `criteriaType = "Same as eligibility"` on write. Any other value (including `"Active subscription"`, `"Custom"`, or any unrecognised string) is rejected with **400** and an English message listing allowed values. `expressionRelation` and `conditions` are reserved for future contracts (B2 and B3) and must be `null` / empty today. Clients that omit `renewal` entirely are accepted — the server fills the B1a default pre-save.
+
+**Why B1a and not something richer?** The engine has no storage slot for an explicit renewal rule. `UpgradeSlabActionImpl:815` (emf-parent) fires `RenewSlabInstruction` implicitly on every slab upgrade, and `RenewConditionDto` is reconstructed audit-only from `slabConfig.getConditions()` + `periodConfig.getType()`. Locking the API to the one shape the engine semantically supports keeps the contract honest today. Support for Custom renewal (B2) or full engine wiring (B3) is an additive change — B1a clients will not break.
+
+**Rework #5 — `schedule` has been dropped** (unrelated to B1a, carried forward). Previously a free-text display string; the engine strips the whole `renewal` block when writing the strategy JSON so the value never reached SQL, and nothing read it back. It is gone from v3.1 — do not send it, do not expect it on responses. Evidence: `TierRenewalConfig.java` class-level javadoc L9–L27.
 
 ### 4.9 `TierDowngradeConfig`
 

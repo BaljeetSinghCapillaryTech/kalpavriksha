@@ -413,7 +413,7 @@ Options considered:
 | `periodValue` Integer (months) | `value` int + `unit` enum NUM_MONTHS | same |
 | `startDate` ISO-8601 String | `startDate` Date (Gson → millis) | same |
 | `endDate` ISO-8601 String | — | no engine counterpart |
-| `renewal` TierRenewalConfig | — | no engine counterpart on periodConfig |
+| `renewal` TierRenewalConfig | — | no engine counterpart on periodConfig (R5-R4 B1a: synthesized on read) |
 | — | `computationWindowStartValue`, `computationWindowEndValue`, `minimumDuration` | engine-only |
 
 **Decisions:**
@@ -421,6 +421,7 @@ Options considered:
 - **Q-V1 — UPDATE preservation.** Chose (a): preserve engine-only fields (`computationWindowStartValue`, `computationWindowEndValue`, `minimumDuration`) on UPDATE. Same read-modify-write policy as `overlayDowngradeFields`. Intouch owns only `type`, `value`, `unit`, `startDate`; every other key on an existing `periodConfig` JsonObject is left untouched. Matches Decision R2.
 - **Q-V2 — `endDate`.** Chose (a): drop on write, recompute on read. `endDate = startDate + periodValue months` is derived; storing it would cause drift. Transformer ignores `cfg.endDate` on write and `extractValidityForSlab` reconstructs it on read from the engine's `startDate` + `value`.
 - **Q-V3 — Renewal.** Chose (d): defer to Phase 2C. `applySlabValidityDelta` ignores `cfg.renewal` entirely. Engine-side renewal plumbing is unconfirmed — safer to punt than to guess a field location.
+  - **SUPERSEDED 2026-04-21 by Rework #5 R4 (B1a).** Engine plumbing has now been confirmed **absent**: `UpgradeSlabActionImpl:815` (emf-parent) fires `RenewSlabInstruction` implicitly on slab upgrade, and `RenewConditionDto` is reconstructed audit-only from `slabConfig.getConditions()` + `periodConfig.getType()` — there is no engine storage slot for an explicit renewal rule. `applySlabValidityDelta` still ignores `cfg.renewal` on the write path (correct — engine JSON has nowhere to put it), but the MC-Mongo contract is now fixed: `TierRenewalNormalizer` fills the B1a default (`criteriaType = "Same as eligibility"`) pre-save on all three TierFacade write paths, and `TierStrategyTransformer.extractValidityForSlab` synthesizes the same default on the read path. DRAFT and LIVE envelopes surface identical renewal values; drift-checker whole-object equality produces no phantom diffs. See R5-R4-B1a entries in `session-memory.md` (Key Decisions) and the `## R5-R4 Renewal Contract (B1a)` section in `03-designer.md`.
 - **Q-V4 — `startDate` format on the engine JSON.** Chose (a): parse ISO-8601 string to `java.util.Date`, write as `{"startDate": <timestamp_millis>}` to match Gson's default Date serialization. This matches what the engine's Gson reader expects on deserialization.
 - **Q-V5 — `minimumDuration` default on APPEND.** Chose (a): omit from output JSON. Engine-side Gson will deserialize absence as 0 (primitive int default). No need for intouch to write a field it does not own.
 
@@ -442,5 +443,5 @@ Options considered:
 - Downstream consumers that need `endDate` (UI, API response layer) can compute it using a shared utility — consistent across callers, testable in isolation.
 - Reversible: the transformer can add computation later without breaking existing callers (they'd just start seeing populated values where they had null).
 
-**Scope note.** This means `extractValidityForSlab` populates only `periodType`, `periodValue`, and `startDate` (as ISO-8601 UTC String). `endDate` and `renewal` are always `null` in the returned DTO.
+**Scope note.** This means `extractValidityForSlab` populates only `periodType`, `periodValue`, and `startDate` (as ISO-8601 UTC String). `endDate` is always `null` in the returned DTO. `renewal` ~~is always `null`~~ **is now synthesized as the B1a default** (`criteriaType = "Same as eligibility"`, everything else null) — see R5-R4 supersession under Q-V3 above.
 

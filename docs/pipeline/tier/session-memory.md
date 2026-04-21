@@ -18,6 +18,7 @@
 - Eligibility criteria types: Current Points, Lifetime Points, Lifetime Purchases, Tracker Value. Same criteria type must apply to all tiers in a program. _(BA)_
 - Upgrade type: Issue Points Then Upgrade, Upgrade Then Issue Points, Issue-Upgrade-Then-Issue-Remaining. _(BA)_
 - Renewal condition types: Any (N-1), All, Custom (AND/OR with parentheses). _(BA)_
+- Renewal contract (Rework #5 R4 B1a): `TierValidityConfig.renewal` is always an explicit block on the envelope. Only `criteriaType = "Same as eligibility"` is accepted on write; every other value is rejected with 400. Null/missing renewal is auto-filled to the B1a default on the write path before persistence. The engine has no storage slot for an explicit renewal rule, so the read path synthesizes the same default. `expressionRelation` and `conditions` are null/empty today; space is reserved for the future B2 (accept Custom) / B3 (full engine wiring) contracts without a breaking change. _(R5-R4-B1a)_
 - Maker-Checker: Approval workflow. Uses Baljeet's generic `makechecker/` package (ApprovableEntity, ApprovableEntityHandler, MakerCheckerService<T>). Previously existed for UnifiedPromotion only. Tiers now integrate via TierApprovalHandler. _(BA)_
 
 ## Codebase Behaviour
@@ -148,6 +149,9 @@
 - 8 risks catalogued: R1 CSV off-by-one (HIGH), R2 downgrade race (MEDIUM, mitigated), R3 strategy ID collision (MEDIUM), R4 member count index (MEDIUM), R5 timezone (MEDIUM), R6 idempotency (LOW), R7 cron tenant (LOW), R8 MC self-approval (LOW, product decision) _(Analyst)_
 - Security: COMPLIANT with G-03. Auth via token, parameterized queries, no PII exposure. One product question: should MC prevent self-approval? _(Analyst)_
 - Performance: Tier listing <200ms. Member count cache needs INDEX on customer_enrollment(org_id, program_id, current_slab_id, is_active). Separate Flyway migration. _(Analyst)_
+- R5-R4 Renewal implementation = **B1a (accept-only `Same as eligibility`)**. Chosen over B2 (accept Custom with deferred engine wiring) and B3 (full engine wiring now). Rationale: the engine fires `RenewSlabInstruction` implicitly on slab upgrade (`UpgradeSlabActionImpl:815`, emf-parent); `RenewConditionDto` is audit-only (reconstructed from `slabConfig.getConditions()` + `periodConfig.getType()`); there is no engine field in which to persist an explicit renewal rule. Locking the API to the one shape the engine semantically supports keeps the contract honest today and preserves space for B2/B3 additively. Validator rejects all other `criteriaType` values with 400. _(R5-R4-B1a, 2026-04-21)_
+- R5-R4 Option X — SQL-asymmetry prevention: `TierRenewalNormalizer` fills the B1a default on all three TierFacade write paths (create, versioned draft from active, update-in-place) immediately before `tierRepository.save()`. `TierStrategyTransformer.extractValidityForSlab` synthesizes the same default on the read path. Result: DRAFT (from Mongo) and LIVE (from engine JSON) surface identical renewal values; `TierDriftChecker`'s whole-object `Objects.equals(basis.getValidity(), current.getValidity())` yields no phantom diffs. This mirrors the fix pattern used when the prior `schedule` field was dropped (commit 86e37e5ea). Write-side `applySlabValidityDelta` still ignores `cfg.renewal` — correct, because engine JSON has no storage slot. _(R5-R4-B1a, 2026-04-21)_
+- R5-R4 **supersedes** Phase 2AB Decision Q-V3 ("defer renewal to Phase 2C"). Renewal is no longer deferred — B1a is the shipping contract. `rework-5-phase-2-decisions.md` Q-V3 body and the Q-V6 Scope note are annotated in place with supersession pointers. _(R5-R4-B1a, 2026-04-21)_
 
 ## Risks & Concerns
 - jdtls LSP: installed (v1.57.0, Java 23), running via /tmp/emf-parent symlink. Patched find_daemon_for_cwd for symlink resolution. _(Phase 0)_ -- Status: mitigated
@@ -306,3 +310,52 @@ _Tracks re-run cycles to detect unresolved loops._
 **Deferred to Designer (noted in LLD when rework cascades)**:
 - Drift-detection granularity (full-tier vs changed-fields).
 - `parentId` cycle prevention algorithm.
+
+### Rework #5 Phase 2AB — Atomic publish (split-brain closure) (2026-04-20)
+**Trigger**: Code audit of `TierApprovalHandler.publish()` revealed the SAGA was executing two engine round-trips (`createOrUpdateSlab` → separate strategy update). Failure of the second call left `program_slabs` written while SLAB_UPGRADE CSV / SLAB_DOWNGRADE JSON were not — split-brain, no safe compensation.
+**Scope**: LLD (Designer) + HLD ADR-07 + transformer + handler. No BA / QA / BTG changes (behavioural contract unchanged). Forward cascade: Reviewer re-verify on next run.
+
+**Commits (intouch-api-v3, branch `raidlc/ai_tier`)**:
+- `2a616290f` — Step 12a: Thrift wrapper method `createSlabAndUpdateStrategies(slabInfo, List<StrategyInfo>, programId, orgId, userId, now)` added to `PointsEngineRulesThriftService` (lines 451–486). Translates `PointsEngineRuleServiceException` → `EMFThriftException` at the boundary.
+- `d5c226c6a` — Step 12b-i: Pure-function transformer helpers in `TierStrategyTransformer`:
+  - `applySlabUpgradeDeltaJson(propertyValuesJson, slabIndex, newThreshold, isAppend)` (lines 120–134): wraps CSV delta in a full JsonObject, preserving `current_value_type` / `expression_relation` / other program-level keys.
+  - `findStrategyByType(strategies, type)` (lines 812–828): public counterpart to private `findSingleStrategy`; throws `IllegalStateException` on duplicate or missing strategy (data-corruption signal).
+- `59b4ae423` — Step 12b-ii: `TierApprovalHandler.publish()` rewritten to atomic flow (lines 226–287) + extracted helpers `resolveSlabIdAndDiscriminate` (306–321), `applyUpgradeDelta` (332–362), `applyDowngradeDelta` (372–381).
+
+**Atomic publish flow** (replaces two-step):
+1. `buildSlabInfo(entity)`.
+2. `resolveSlabIdAndDiscriminate(entity, slabInfo)` → CREATE vs UPDATE (slabId set / parent resolves).
+3. `thriftService.getAllConfiguredStrategies(programId, orgId)` — fresh; **intentionally not cached** (Q-R4).
+4. `findStrategyByType(SLAB_UPGRADE)` + `findStrategyByType(SLAB_DOWNGRADE)`; throw if either missing or duplicated.
+5. `upgrade.deepCopy()` + `downgrade.deepCopy()` — defensive (Thrift clients may cache).
+6. `applyUpgradeDelta` — skip for slab 1; CREATE of non-first slab REQUIRES `eligibility.threshold` else `IllegalStateException`; UPDATE is null-safe.
+7. `applyDowngradeDelta` — null-safe mutate on `TierConfiguration.slabs[]` keyed by `slabNumber`.
+8. `thriftService.createSlabAndUpdateStrategies(slabInfo, [upgradeCopy, downgradeCopy], programId, orgId, userId, now)` — **single engine transaction**.
+
+**Locked design decisions (Q-P1…Q-P7)**: see HLD §7.5.4 for the table. Key points:
+- **Q-P2**: duplicate program-level strategies surface as `IllegalStateException` (not silently picked).
+- **Q-P3**: deep-copy `StrategyInfo` before mutating — Thrift client caches are allowed to exist.
+- **Q-P4b**: CREATE of non-first slab without `eligibility.threshold` is rejected (CSV semantics).
+- **Q-P5**: CSV N-1 semantics — slab 1 has no inbound threshold; upgrade delta is skipped.
+- **Q-P7**: `userId` for audit columns: parsed from `doc.meta.approvedBy` with fallback to `doc.updatedBy`; hard-coded `0` placeholder pending user-id resolver — tracked as TODO.
+
+**Invariants now held unconditionally** (previously could be violated on second-call failure):
+- `program_slabs` row present ⟺ SLAB_UPGRADE CSV entry at position `serialNumber - 2`.
+- `program_slabs` row present ⟺ SLAB_DOWNGRADE JSON entry for `slabNumber`.
+- Non-owned program-level keys (`current_value_type`, `expression_relation`, reminders, comms) preserved through read-modify-write.
+
+**Verification**:
+- intouch-api-v3: 198/198 tests GREEN under Java 17 (`17.0.17-amzn` via sdkman). Java 8 rejected by `--release`; Java 23 breaks Lombok; Java 17 verified clean.
+- emf-parent: no Phase 2AB code changes. Pre-existing aspectj-maven-plugin:1.7 / `com.sun:tools:jar` issue under Java 9+ is infra, not a regression; Java 8 build passes.
+- Thrift IDL `createSlabAndUpdateStrategies` already existed in Points Engine — no IDL change. ADR-05 (no Thrift IDL change) remains COMPLIANT.
+
+**Impact**:
+- **HLD**: ADR-07 rewritten from generic "atomic call" to "read-modify-write + single atomic Thrift" (with alternatives table and verified execution order). New §7.5 "Phase 2AB — Complete Atomic Publish Flow" — end-to-end sequence diagram, CREATE/UPDATE discriminator flowchart, invariants table, Q-P1…Q-P7 decision record.
+- **LLD**: `TierApprovalHandler.publish()` pseudocode expanded to match implementation (helpers `resolveSlabIdAndDiscriminate`, `applyUpgradeDelta`, `applyDowngradeDelta` + their contracts). Note added on deep-copy discipline and duplicate-strategy throw.
+- **Transformer (LLD)**: Two new public helpers documented — `applySlabUpgradeDeltaJson` and `findStrategyByType`.
+- **Blueprint**: ADR-07 flipped to COMPLIANT. Stats bar refreshed (198/198 tests GREEN, +3 Phase 2AB commits).
+
+**What stayed the same**: SAGA shape (preApprove / publish / postApprove), drift check, name re-check, SNAPSHOT audit-only semantics, dual write paths, envelope response, `getAllConfiguredStrategies` not cached.
+
+**Carryover TODO**:
+- **Q-P7 resolver**: `parseUserId(entity)` currently defaults to `0` when `approvedBy`/`updatedBy` cannot be parsed as int. Needs a real user-id resolver (string-user-id → numeric) before production. Tracked in handler comment.
