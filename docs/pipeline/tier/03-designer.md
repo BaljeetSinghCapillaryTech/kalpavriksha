@@ -1420,3 +1420,67 @@ The engine's `slabs[n].periodConfig` JSON has no `renewal` key and no schema for
 ### Test coverage
 
 See `04b-business-tests.md` §4.4 (BT-176..BT-185) — 10 test cases: 5 normalizer unit tests, 3 facade wiring integration tests, 2 transformer synthesis tests (including round-trip equality).
+
+---
+
+## R3 tierStartDate contract (SQL-sourced creation timestamp)
+
+`TierView.tierStartDate` exposes the tier's creation timestamp as a first-class field on the read path. The R3 design pins its source to exactly one column — `program_slabs.created_on` — with no fallback, no derivation, no client-side synthesis. This is deliberately narrower than the R5-R4 B1a contract (which synthesizes a default on read); R3 is a wire-value passthrough.
+
+### Contract
+
+| Layer | Type | Nullable | Source | Notes |
+|---|---|---|---|---|
+| emf-parent `ProgramSlab.createdOn` | `java.util.Date` | Non-null (JPA `@Column(nullable=false)`) | SQL `program_slabs.created_on` | C7 — verified via JPA annotation |
+| Thrift `SlabInfo.createdOn` (field 8, optional i64) | `long` (epoch millis) | Optional — use `isSetCreatedOn()` to distinguish unset from 0L | emf-parent server `getSlabThrift(ProgramSlab)` calls `setCreatedOn(createdOn.getTime())` | New optional field — legacy servers won't set it |
+| intouch-api-v3 `SqlTierRow.createdOn` | `java.util.Date` | Nullable | `TierStrategyTransformer.fromStrategies` converts `isSetCreatedOn() ? new Date(millis) : null` | Guards against legacy 0L-as-unset |
+| intouch-api-v3 `TierView.tierStartDate` | `java.util.Date` | Nullable | `SqlTierConverter.toView` copies `row.createdOn` directly | `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ssXXX")` — ISO-8601 with timezone offset (Rework #3 G-01 override); `@JsonInclude(NON_NULL)` on class omits null on wire |
+
+### Wire path
+
+```
+ProgramSlab.createdOn (Date, SQL)
+    ↓ PointsEngineRuleConfigThriftImpl.getSlabThrift(programSlab)
+        if (programSlab.getCreatedOn() != null)
+            slabInfo.setCreatedOn(programSlab.getCreatedOn().getTime())
+    ↓ Thrift wire (i64 epoch millis, optional)
+SlabInfo.createdOn (long)
+    ↓ TierStrategyTransformer.fromStrategies(slab, strategies)
+        slab.isSetCreatedOn() ? new Date(slab.getCreatedOn()) : null
+SqlTierRow.createdOn (Date)
+    ↓ SqlTierConverter.toView(row)
+        .tierStartDate(row.getCreatedOn())
+TierView.tierStartDate (Date, ISO-8601 on wire)
+```
+
+### Why `isSetCreatedOn()` not a value check
+
+Thrift-generated Java for `optional i64` uses a primitive `long` field backed by a separate "isset" bit. When a legacy server doesn't call `setCreatedOn(...)`, the field reads as `0L` — which is a legal epoch millis (1970-01-01T00:00:00Z). A value-based null check would silently downgrade every legacy response to show tiers as created in 1970. The transformer uses `isSetCreatedOn()` to distinguish "server sent no value" (→ null on the view) from "server sent epoch zero" (→ 1970-01-01 on the view, legitimate but astronomically unlikely in practice).
+
+### Why this pattern is the template for closing Q-R1
+
+The Q-R1 Thrift gap (updatedBy / updatedAt) is the same shape of problem R3 solved for createdOn. When the team is ready to retire Q-R1, the recipe is:
+1. Add `SlabInfo.updatedBy` (optional string) and `SlabInfo.updatedAt` (optional i64) to the IDL
+2. `getSlabThrift` fills them from `programSlab.getUpdatedBy()` / `programSlab.getUpdatedAt().getTime()`
+3. Transformer reads them with `isSetUpdatedBy()` / `isSetUpdatedAt()` guards
+4. `SqlTierRow.updatedBy` / `updatedAt` already exist — they stop being reader-filled and start being transformer-filled
+5. `ThriftSqlTierReader.buildRow` drops the "Q-R1 Thrift gap, intentionally null" comment
+
+No envelope / drift-checker / facade changes; purely additive on the wire.
+
+### Dependency version
+
+Thrift ifaces jar `thrift-ifaces-pointsengine-rules:1.84-SNAPSHOT-nightly1` carries the new `SlabInfo.createdOn` field. Version pinned in both:
+- `emf-parent/pom.xml:151` (parent `<dependencyManagement>`)
+- `intouch-api-v3/pom.xml:230`
+
+### Test coverage
+
+| Test | Layer | Assertion |
+|---|---|---|
+| `fromStrategiesCopiesSlabCreatedOnToRowCreatedOnWhenSet` (`TierStrategyTransformerTest`) | Transformer | Set on Thrift → epoch-exact on row |
+| `fromStrategiesLeavesRowCreatedOnNullWhenSlabCreatedOnUnset` | Transformer | Legacy server (no `setCreatedOn`) → null on row, not `new Date(0)` |
+| `shouldCopyCreatedOnToTierStartDate` (`SqlTierConverterTest`) | Converter | Row → view passthrough, same `Date` reference semantics |
+| `shouldLeaveTierStartDateNullWhenRowCreatedOnIsNull` | Converter | Null stays null — no synthesis |
+
+Pragmatic boundary on emf-parent side: `getSlabThrift` is a 2-line change inside a private method with no existing unit test harness for `getAllSlabs`. No dedicated UT was added — the wire-contract assertion lives on the consumer side via the transformer test. If emf-parent acquires a `getAllSlabs` UT in the future, add `assertThat(slabInfo.isSetCreatedOn()).isTrue()`.

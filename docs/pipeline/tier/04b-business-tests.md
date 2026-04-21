@@ -322,6 +322,27 @@
 
 ---
 
+### 4.X R3 — `tierStartDate` from SQL `program_slabs.created_on` (BT-186..BT-189)
+
+> **Scope**: Populate `TierView.tierStartDate` on the LIVE envelope side from SQL `program_slabs.created_on`. Wire path: emf-parent `ProgramSlab.createdOn` → Thrift `SlabInfo.createdOn` (new `optional i64` field, epoch millis) → intouch-api-v3 `SqlTierRow.createdOn` (`Date`) → `TierView.tierStartDate` (`Date`, `@JsonFormat yyyy-MM-dd'T'HH:mm:ssXXX`). No fallback, no derivation. Backward-compat: legacy emf-parent servers that predate the field leave it unset on the wire; consumers surface `null` at every layer.
+>
+> **Why `isSetCreatedOn()` and not a value check**: Thrift-generated Java returns `0L` for an unset `optional i64`, and `0L` is a legal epoch millis (1970-01-01). A value check would silently downgrade a missing wire field to a 1970 `Date` on the view. BT-187 is the regression fence for this.
+>
+> **Traces to**: BA `US1` `tierStartDate` AC (R3), Designer `## R3 tierStartDate contract (SQL-sourced creation timestamp)`, `SqlTierRow.createdOn`, `TierStrategyTransformer.fromStrategies`, `SqlTierConverter.toView`, `TierView.tierStartDate`.
+
+| ID | Test Name | Traces To | Verifies | Input | Expected Output | QA Scenario | Target | Layer |
+|----|-----------|-----------|----------|-------|-----------------|-------------|--------|-------|
+| BT-186 | fromStrategiesCopiesSlabCreatedOnToRowCreatedOnWhenSet | R3 wire-mapping | Transformer copies `SlabInfo.createdOn` (epoch millis) to `SqlTierRow.createdOn` (`Date`) byte-for-byte — no derivation, no timezone shift | `SlabInfo` with `setCreatedOn(1704067200000L)` (2024-01-01T00:00:00Z) + empty strategies | `row.getCreatedOn() != null`; `row.getCreatedOn().getTime() == 1704067200000L` | TS-R3-01 | TierStrategyTransformer.fromStrategies | UT |
+| BT-187 | fromStrategiesLeavesRowCreatedOnNullWhenSlabCreatedOnUnset | R3 legacy-server backward-compat | Transformer surfaces `null` — not `new Date(0L)` — when the Thrift field is unset (legacy emf-parent server pre-R3). Uses `isSetCreatedOn()` guard, **not** a value check. This is the regression fence against the "0L is a legal epoch millis" trap. | `SlabInfo` without `setCreatedOn` called | `row.getCreatedOn() == null` (asserted to NOT be `new Date(0L)`) | TS-R3-02 | TierStrategyTransformer.fromStrategies | UT |
+| BT-188 | shouldCopyCreatedOnToTierStartDate | R3 converter passthrough | `SqlTierConverter.toView` passes `row.createdOn` directly to `TierView.tierStartDate` with reference equality — pure function, no derivation | `SqlTierRow` with `createdOn = new Date(1704067200000L)` | `view.getTierStartDate() != null`; `view.getTierStartDate().equals(row.getCreatedOn())` | TS-R3-03 | SqlTierConverter.toView | UT |
+| BT-189 | shouldLeaveTierStartDateNullWhenRowCreatedOnIsNull | R3 converter null-propagation | Converter propagates `null` → `null` (no fallback, no derivation). Combined with `@JsonInclude.NON_NULL` on `TierView`, `tierStartDate` is omitted from the wire when the row is null. | `SqlTierRow` with `createdOn = null` | `view.getTierStartDate() == null` | TS-R3-04 | SqlTierConverter.toView | UT |
+
+**Coverage note:** BT-186 and BT-188 prove the happy-path wire mapping and converter passthrough. BT-187 is the critical regression fence for the `isSetCreatedOn()` contract — without it, a value check would silently produce `1970-01-01` on the wire for every legacy server's response, and the UI would display a wrong start date rather than nothing. BT-189 proves the contract holds end-to-end when the field is absent.
+
+**Pragmatic boundary (evidence-based — Rule 1):** No dedicated UT is added for the emf-parent `getSlabThrift` guard (`if (programSlab.getCreatedOn() != null) slabInfo.setCreatedOn(...)`). The method is a private helper inside a heavy Spring Thrift class with no existing `getAllSlabs` UT to extend; bootstrapping the mock stack for one `if`-block is high cost / low value. The wire-contract assertion lives on the consumer side (BT-186, BT-187) — which is the layer that a real drift would surface at. Documented in `03-designer.md` under "R3 tierStartDate contract" > "Pragmatic boundary".
+
+---
+
 ## Section 5: Coverage Gaps
 
 | # | Gap | Impact | Resolution |
@@ -708,6 +729,7 @@ Downstream phases must re-run in rework mode with the following scope:
 | US-Rew5-DualPath (Legacy UI bypasses MC) | TS-DP-01 | BT-161 |
 | US-Rew5-SqlConv (SqlTierConverter + SqlTierReader) | TS-CONV-01..04 | BT-166-169 |
 | US-Rew5-M1 (SQL audit columns + Flyway) | TS-AUDIT-01 | BT-173 |
+| US1-AC-R3 (tierStartDate on LIVE envelope sourced from SQL program_slabs.created_on; no fallback) | TS-R3-01..04 | BT-186-189 |
 
 ### 6.6 Verification-Before-Completion
 

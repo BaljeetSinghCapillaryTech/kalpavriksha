@@ -198,12 +198,50 @@ Both `live` and `pendingDraft` are `TierView` instances. Class-level
 | `description` | present | present | |
 | `color` | present | present | |
 | `serialNumber` | present | present | |
+| `tierStartDate` | present (when backend ≥ R3) | absent | See §4.3.1 below. LIVE-only; sourced **exclusively** from SQL `program_slabs.created_on`. |
 | `eligibility` | present | present | |
 | `validity` | present | present | |
 | `downgrade` | present | present | |
 | `meta` | present | present | `TierMeta` — audit. |
 
 Evidence: `TierView.java`.
+
+#### 4.3.1 `tierStartDate` — LIVE-only, SQL-sourced (R3)
+
+`tierStartDate` is populated **only on the `live` leg** and only from SQL
+`program_slabs.created_on`. Full wire path:
+
+```
+emf-parent ProgramSlab.createdOn (SQL column program_slabs.created_on)
+  └─► Thrift SlabInfo.createdOn (optional i64, epoch millis — R3 field)
+        └─► intouch-api-v3 SqlTierRow.createdOn (java.util.Date)
+              └─► TierView.tierStartDate (java.util.Date)
+```
+
+- **Type on the wire**: ISO-8601 with timezone offset — `yyyy-MM-dd'T'HH:mm:ssXXX`
+  (same `@JsonFormat` contract as the rest of the envelope; Rework #3 G-01 override).
+- **No fallback, no derivation**: R3 contract is strict. The value is the SQL
+  creation timestamp or nothing. The API layer does not substitute "now",
+  "parent tier's creation date", or any other derived value.
+- **Nullability**: `tierStartDate` can be `null` **only** if the backing
+  emf-parent server predates R3 (i.e. the Thrift `SlabInfo.createdOn` field is
+  unset on the wire). Because of class-level `@JsonInclude(NON_NULL)` on
+  `TierView`, a `null` here is **omitted from the JSON entirely** — UI must
+  treat "key absent" as "creation date unavailable" and must **not** substitute
+  a fallback. Showing `null` / `-` / "Not available" is acceptable; substituting
+  `new Date(0)` (1970-01-01) is explicitly wrong.
+- **Not on `pendingDraft`**: the pendingDraft leg is built from Mongo and has
+  no creation-timestamp semantics — a DRAFT has never been published to SQL,
+  so there is no `program_slabs.created_on` to source from. UI should not
+  look for `tierStartDate` on the pendingDraft leg; it will be absent.
+- **Backward compatibility (consumer side)**: this is a pure additive change.
+  Clients on older emf-parent builds continue to work — they simply won't see
+  the field on the wire until their emf-parent picks up R3.
+
+Evidence: `TierView.java` (`private Date tierStartDate` with `@JsonFormat`),
+`SqlTierConverter.toView` (passthrough), `TierStrategyTransformer.fromStrategies`
+(uses `slab.isSetCreatedOn()` to distinguish "unset" from "0L epoch" — BT-187
+is the regression fence for this).
 
 ### 4.4 `TierMeta` — audit block
 
