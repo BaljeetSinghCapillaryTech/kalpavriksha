@@ -82,7 +82,7 @@ client has no effect.
   (`@PostMapping(produces = "application/json")`, `TierController.java` L78).
 - Bodies that fail to parse as JSON return **HTTP 400** with body code
   `"COMMON.INVALID_INPUT"` — see `TargetGroupErrorAdvice.java`
-  `handleHttpMessageNotReadable` L169–L180.
+  `handleInvalidFormatException` L95–L101.
 
 ### 2.3 Idempotency-Key (accepted, not honoured)
 
@@ -122,6 +122,20 @@ Every 2xx and most 4xx responses wrap the payload in
 ## 4. Data model
 
 All types below live under `com.capillary.intouchapiv3.tier`.
+
+### 4.0 Timezone & date contract (READ FIRST)
+
+Every `Date` field on the wire is serialised with `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")`. The Jackson `XXX` pattern emits an **ISO-8601 offset** (e.g. `+09:30`, `+05:30`, `-08:00`) — **not** the literal `Z`. This is intentional: tenant-local offsets carry business meaning (a tier "created at 08:14:02" is meant in the tenant's timezone, not re-projected to UTC).
+
+**What the UI should expect on every timestamp in this document**:
+```
+"createdAt": "2026-04-21T08:14:02+09:30"
+```
+— i.e. a zero-padded hour offset. `Z` must NOT appear in any tier payload.
+
+**One known latent bug — §8.13**: `KpiSummary.lastMemberCountRefresh` has `@JsonFormat(..., timezone = "UTC")` hardcoded in `KpiSummary.java` L26, which would force a `Z` suffix on that single field. That timezone pin contradicts this contract and is scheduled to be removed. Until then, UI should defensively accept both `Z` and `+09:30` offsets on `lastMemberCountRefresh` — but reject `Z` everywhere else as a backend misconfiguration.
+
+Evidence: `TierMeta.java` L27, L32, L37, L42 (`@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")`, no `timezone` attribute — so Jackson uses the JVM's default zone at serialise time, then `XXX` renders the offset); `TierView.java` L61 (same); `KpiSummary.java` L26 (the outlier — latent bug).
 
 ### 4.1 `UnifiedTierConfig` (Mongo doc — create/update/approve responses)
 
@@ -248,19 +262,23 @@ is the regression fence for this).
 ```json
 {
   "createdBy": "<userId>",
-  "createdAt": "2026-04-21T08:14:02Z",
+  "createdAt": "2026-04-21T08:14:02+09:30",
   "updatedBy": "<userId>",
-  "updatedAt": "2026-04-21T08:14:02Z",
+  "updatedAt": "2026-04-21T08:14:02+09:30",
   "approvedBy": "<reviewer till name>" | null,
-  "approvedAt": "2026-04-21T08:14:02Z" | null,
+  "approvedAt": "2026-04-21T08:14:02+09:30" | null,
   "rejectedBy": "<reviewer till name>" | null,
-  "rejectedAt": "2026-04-21T08:14:02Z" | null,
+  "rejectedAt": "2026-04-21T08:14:02+09:30" | null,
   "rejectionComment": "<reviewer's comment>" | null,
   "basisSqlSnapshot": <SqlTierRow | null>
 }
 ```
 
-All dates use `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "UTC")`.
+All dates use `@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` with **no
+`timezone` attribute** — Jackson serialises using the JVM default zone and
+`XXX` emits the resulting ISO-8601 offset (e.g. `+09:30`). See §4.0 for the
+project-wide timezone contract. Evidence: `TierMeta.java` L27, L32, L37, L42.
+
 `basisSqlSnapshot` is **server-internal** — the frozen SQL row captured when a
 versioned-draft-of-ACTIVE was created, used for drift detection at approval
 time. UI can read it for debug but should not depend on its shape.
@@ -309,7 +327,7 @@ message listing allowed values (see §7.3).
 {
   "periodType":  "<string>",
   "periodValue": <integer>,
-  "startDate":   "2026-04-21T08:14:02Z" | null,
+  "startDate":   "2026-04-21T08:14:02+09:30" | null,
   "endDate":     null,
   "renewal":     <TierRenewalConfig>
 }
@@ -361,7 +379,7 @@ message listing allowed values (see §7.3).
 ```json
 {
   "memberCount":   <integer>,
-  "lastRefreshed": "2026-04-21T08:14:02Z"
+  "lastRefreshed": "2026-04-21T08:14:02+09:30"
 }
 ```
 
@@ -373,11 +391,16 @@ message listing allowed values (see §7.3).
   "liveTiers":              <integer>,  // renamed from activeTiers in Rework #5 (KpiSummary.java L17-L22)
   "pendingApprovalTiers":   <integer>,
   "totalMembers":           <integer | null>,  // null when any envelope is LEGACY_SQL_ONLY — see §8.3
-  "lastMemberCountRefresh": "2026-04-21T08:14:02Z"
+  "lastMemberCountRefresh": "2026-04-21T08:14:02Z"   // ⚠ emits Z, not +09:30 — see §8.13
 }
 ```
 
-Evidence: `KpiSummary.java`.
+Evidence: `KpiSummary.java` L17–L26.
+
+> **Timezone exception:** `lastMemberCountRefresh` is the **only** date field in
+> the tier API that emits a `Z` suffix. Every other date follows the `+09:30`
+> contract (§4.0). UI must defensively accept both `Z` and a numeric offset
+> when parsing this one field. See §8.13.
 
 ---
 
@@ -416,9 +439,9 @@ Evidence: `KpiSummary.java`.
 
 Behaviour: three sequential round-trips (1 SQL + 2 Mongo) assembled into
 envelopes. **Non-transactional** — a writer concurrently publishing a tier can
-produce stale reads. Race windows are documented in `TierFacade.java` L95–L122.
-UI should treat envelope ids as hints and be prepared for a subsequent
-edit/approve call to 404.
+produce stale reads. Race windows are documented in `TierFacade.listTiers`
+L131–L194 (status short-circuit at L132–L144). UI should treat envelope ids as
+hints and be prepared for a subsequent edit/approve call to 404.
 
 **Errors**
 
@@ -429,7 +452,7 @@ edit/approve call to 404.
 ### 5.2 `GET /v3/tiers/{tierId}` — detail
 
 `tierId` is the Mongo `objectId` (preferred), or `tierUniqueId`
-(`TierFacade.java` L327–L368).
+(`TierFacade.getTierDetail` L328–L369).
 
 **Success — 200 OK, `ResponseWrapper<TierEnvelope>`**
 
@@ -489,17 +512,17 @@ JSR-303 runs first. Additional validation runs inside the facade via
 
 The created document is always `status = DRAFT` with `version = 1`,
 `slabId = null`, `tierUniqueId = "ut-{programId}-{serial3d}"`, and
-`memberStats = { memberCount: 0 }` (`TierFacade.java` L226–L257).
+`memberStats = { memberCount: 0 }` (`TierFacade.java` L226–L258).
 
 **Errors**
 
 | Status | Source | Body code | When |
 |---|---|---|---|
-| `400` | `@Valid` (JSR-303) | Bean-validation messages aggregated by `handleMethodArgumentNotValid` (`TargetGroupErrorAdvice.java` L144–L167). Field path in `errors[0].message`. | Missing `programId`, `name`, malformed JSON body. |
-| `400` | `TierCreateRequestValidator` | `InvalidInputException → 400` (`TargetGroupErrorAdvice.java` L47–L72). | See §7.3 for exact messages. |
+| `400` | `@Valid` (JSR-303) | Bean-validation messages aggregated by `handleMethodArgumentNotValidException` (`TargetGroupErrorAdvice.java` L104–L141). Field path in `errors[0].message`. | Missing `programId`, `name`, malformed JSON body. |
+| `400` | `TierCreateRequestValidator` | `InvalidInputException → 400` (`TargetGroupErrorAdvice.java` L80–L85). | See §7.3 for exact messages. |
 | `409` | `TierValidationService.validateNameUniqueness` → `ConflictException` | local handler (`TierController.java` L144–L150) | Name already in use for the program (any status in `[DRAFT, ACTIVE, PENDING_APPROVAL]`). Message: `"Tier name '<name>' already exists in this program"`. |
 | `400` | `TierValidationService.assignNextSerialNumber` → `InvalidInputException` | global advice | Program already has 50 live tiers (cap). Message: `"Maximum tier limit (50) reached for this program"`. |
-| `500` | anything unmapped | global advice L306–L317 | Fall-through. Message `"Something went wrong, please try after sometime."` |
+| `500` | anything unmapped | global advice `genericExceptionHandler` L298–L307 | Fall-through. Message `"Something went wrong, please try after sometime."` |
 
 ### 5.4 `PUT /v3/tiers/{tierId}` — update
 
@@ -521,7 +544,7 @@ when present). The server merges the patch onto the existing doc.
 
 **Success — 200 OK, `ResponseWrapper<UnifiedTierConfig>`**
 
-Behaviour by **current** tier status (`TierFacade.updateTier` L259–L281):
+Behaviour by **current** tier status (`TierFacade.updateTier` L260–L282, state switch at L270–L281):
 
 | Current status | Effect |
 |---|---|
@@ -570,11 +593,11 @@ Served by `TierReviewController` — **no local exception handlers** (see §7.1)
 | Status | When | Notes |
 |---|---|---|
 | **`200`** | Tier not found. | **BUG** — global advice maps `NotFoundException → 200 OK` with an empty body and error in `errors[0]`. UI must check `errors` even on 200 for this endpoint. See §8.1. |
-| `409` | Tier is not in DRAFT status. Message `"Only DRAFT tiers can be submitted for approval. Tier is in <status> status."` (`TierFacade.java` L394–L396). | |
+| `409` | Tier is not in DRAFT status. Message `"Only DRAFT tiers can be submitted for approval. Tier is in <status> status."` (`TierFacade.java` L389–L400, guard check within). | |
 | `500` | Unexpected. | |
 
 The atomic `DRAFT → PENDING_APPROVAL` transition is guarded at the Mongo query
-level by `TierRepository.transitionDraftToPendingApproval` (L47–L54). Concurrent
+level by `TierRepository.transitionDraftToPendingApproval` (L52–L54). Concurrent
 submits lose cleanly — only one write succeeds.
 
 ### 5.7 `POST /v3/tiers/{tierId}/approve` — reviewer decision
@@ -588,7 +611,7 @@ Served by `TierReviewController`.
 ```
 
 `comment` is optional; `approvalStatus` is case-insensitive (facade uses
-`equalsIgnoreCase`, `TierFacade.java` L422–L430).
+`equalsIgnoreCase`, `TierFacade.java` L423–L431).
 
 **Success — 200 OK, `ResponseWrapper<UnifiedTierConfig>`**
 
@@ -605,9 +628,9 @@ On `REJECT`: status → DRAFT, stamp `rejectedBy` / `rejectedAt` /
 | Status | When | Body / notes |
 |---|---|---|
 | **`200`** | Tier not found. | Same NotFoundException quirk as §5.6. See §8.1. |
-| `409` | Tier not in PENDING_APPROVAL. | `"Only PENDING_APPROVAL tiers can be approved/rejected. Tier is in <status> status."` (`TierFacade.java` L418–L420). Handled by global advice `handleConflictException`. |
+| `409` | Tier not in PENDING_APPROVAL. | `"Only PENDING_APPROVAL tiers can be approved/rejected. Tier is in <status> status."` (`TierFacade.java` L418–L421). Handled by global advice `handleConflictException`. |
 | `409` | **APPROVAL_BLOCKED_DRIFT** — SQL LIVE row has drifted since the draft's basis snapshot. Structured diff response — see §5.7.1. | |
-| `500` | `approvalStatus` is neither `APPROVE` nor `REJECT` — raises `IllegalArgumentException` which falls through to global `handleThrowable` → 500 with the generic `"Something went wrong, please try after sometime."` message. **Validate on the client before sending.** | `TierFacade.java` L429 + `TargetGroupErrorAdvice.java` L306–L317. |
+| `500` | `approvalStatus` is neither `APPROVE` nor `REJECT` — raises `IllegalArgumentException` which falls through to global `genericExceptionHandler` → 500 with the generic `"Something went wrong, please try after sometime."` message. **Validate on the client before sending.** | `TierFacade.java` L430 + `TargetGroupErrorAdvice.java` L298–L307. |
 | `500` | SAGA publish failure (Thrift RPC error). Tier is transitioned to `PUBLISH_FAILED` and best-effort saved before the exception propagates. | `MakerCheckerService.approve` L64–L76. |
 
 #### 5.7.1 Drift error body (APPROVE only)
@@ -652,7 +675,7 @@ and render `data.diffs`, not parse the message.
 
 **Success — 200 OK, `ResponseWrapper<List<UnifiedTierConfig>>`** — all tiers
 with `status = PENDING_APPROVAL` for the org+program (`TierFacade.java`
-L436–L439). Returns `UnifiedTierConfig` documents (not envelopes) — this
+L437–L440). Returns `UnifiedTierConfig` documents (not envelopes) — this
 endpoint is the reviewer's raw queue.
 
 **Errors** — 400/401/403/500 via global advice.
@@ -722,20 +745,20 @@ Authoritative table, drawn from `TargetGroupErrorAdvice.java`:
 
 | Exception | HTTP status | Body `errors[0].code` | Notes |
 |---|---|---|---|
-| `NotFoundException` | **`200 OK`** | mapped via `CommonUtils.getErrorMessageCode` | L74–L77. **BUG** — see §8.1. |
-| `InvalidInputException` | `400` | mapped | L47–L72. Validators throw this. |
-| `ConflictException` | `409` | mapped | L79–L94. |
-| `HttpMessageNotReadableException` | `400` | `COMMON.INVALID_INPUT` | L169–L180. Bad JSON body. |
-| `MethodArgumentNotValidException` | `400` | per-field resolver codes | L144–L167. `@Valid` on DTO. |
+| `NotFoundException` | **`200 OK`** | mapped via `CommonUtils.getErrorMessageCode` | `handleNotFoundException` L74–L77. **BUG** — see §8.1. |
+| `InvalidInputException` | `400` | mapped | `handleInvalidInputException` L80–L85. Validators throw this. |
+| `ConflictException` | `409` | mapped | `handleConflictException` L88–L92. |
+| `HttpMessageNotReadableException` | `400` | `COMMON.INVALID_INPUT` | `handleInvalidFormatException` L95–L101. Bad JSON body. |
+| `MethodArgumentNotValidException` | `400` | per-field resolver codes | `handleMethodArgumentNotValidException` L104–L141. `@Valid` on DTO. |
 | `OperationFailedException` | `500` | mapped | |
 | `EMFThriftException` | `500` | mapped | Downstream Thrift failure. |
 | `ServiceException` | `400` | mapped | |
 | `ConstraintViolationException` | `400` | mapped | JSR-303 at service layer. |
-| `DataIntegrityViolationException` | `400` | `500` (note the mismatch: status=400, code=500) | Legacy quirk — keep if you see it. |
+| `DataIntegrityViolationException` / SQL constraint | status `400`, body code `500` | `500` (note the mismatch) | `handleSqlConstraintViolationException` L273–L281. Legacy quirk — keep if you see it. |
 | `AccessDeniedException` | `403` | mapped | |
 | `BadCredentialsException` | `401` | mapped | |
 | `TokenExpiredException` | `498` | mapped | |
-| `Throwable` (fall-through) | `500` | `"Something went wrong, please try after sometime."` | L306–L317. |
+| `Throwable` (fall-through) | `500` | `"Something went wrong, please try after sometime."` | `genericExceptionHandler` L298–L307. |
 
 ### 7.3 Validation messages from `TierCreateRequestValidator`
 
@@ -755,7 +778,7 @@ specific validator check.
 | `description` length > 500 | `"description must not exceed 500 characters"` |
 | `color` not `#RRGGBB` | `"color must be hex format #RRGGBB"` |
 | `kpiType` not in allowed set | `"kpiType must be one of: [CURRENT_POINTS, LIFETIME_POINTS, LIFETIME_PURCHASES, TRACKER_VALUE, PURCHASE, VISITS, POINTS, TRACKER]"` |
-| `threshold` ≤ 0 | `"threshold must be positive"` |
+| `threshold` < 0 | `"threshold must be positive"` *(note: zero is accepted; only negatives are rejected — evidence: `TierCreateRequestValidator.java` L80-L82)* |
 | `upgradeType` not in allowed set | `"upgradeType must be one of: [EAGER, DYNAMIC, LAZY, IMMEDIATE, SCHEDULED]"` |
 
 ### 7.4 Error body templates
@@ -842,17 +865,18 @@ detail-view a legacy SQL-only tier today, fetch it through the list endpoint.
 
 ### 8.6 Unknown `approvalStatus` is a 500, not a 400
 
-`TierFacade.handleApproval` L422–L430 accepts `"APPROVE"` / `"REJECT"`
-(case-insensitive). Any other value raises `IllegalArgumentException` —
-unmapped by the global advice, so it falls through to `handleThrowable`
-(L306–L317) and returns HTTP 500 with the generic server-error message.
-**Validate on the client before calling** — the server will not help you
-here.
+`TierFacade.handleApproval` L412–L432 accepts `"APPROVE"` / `"REJECT"`
+(case-insensitive; action switch at L423–L431). Any other value raises
+`IllegalArgumentException` at L430 — unmapped by the global advice, so it
+falls through to `TargetGroupErrorAdvice.genericExceptionHandler` (L298–L307)
+and returns HTTP 500 with the generic server-error message. **Validate on the
+client before calling** — the server will not help you here.
 
 ### 8.7 Concurrency / race windows on the list endpoint
 
-The three round-trips in `listTiers` are not transactional (`TierFacade.java`
-L95–L122 documents four observable races). Net effect for the UI:
+The three round-trips in `listTiers` are not transactional
+(`TierFacade.listTiers` L131–L194 — four observable races documented in the
+javadoc, short-circuit at L132–L144). Net effect for the UI:
 
 - A tier just published may be missing for one poll cycle.
 - A newly-created DRAFT always appears (good).
@@ -887,10 +911,46 @@ See §2.3. The server accepts the header and drops it. Rely on the client's
 own at-least-once retry behaviour plus the 409-on-duplicate-name check to
 prevent accidental duplicates.
 
-### 8.12 Validator codes 9001–9009 are dead
+### 8.12 Validator codes 9001–9010 are dead
 
-Declared in `TierCreateRequestValidator` but never reach the wire. `errors[0].code`
-will usually be `null` or a `MessageSource`-resolved number, never 9001–9009.
+Declared in `TierCreateRequestValidator` (L30–L38) as `public static final int`
+constants (`TIER_NAME_REQUIRED=9001`, `TIER_NAME_TOO_LONG=9002`,
+`TIER_PROGRAM_ID_REQUIRED=9003`, `TIER_INVALID_KPI_TYPE=9004`,
+`TIER_THRESHOLD_MUST_BE_POSITIVE=9005`, `TIER_INVALID_COLOR_CODE=9006`,
+`TIER_DESCRIPTION_TOO_LONG=9008`, `TIER_INVALID_UPGRADE_TYPE=9009`,
+`TIER_INVALID_RENEWAL_CRITERIA=9010` — 9007 is intentionally skipped) but
+**never reach the wire**. None of the `throw new InvalidInputException(...)`
+calls pass the numeric code — only the english message. `errors[0].code` will
+therefore be `null` or a `MessageSource`-resolved number from the global
+advice, never 9001–9010. Do not pattern-match on these numbers.
+
+### 8.13 `KpiSummary.lastMemberCountRefresh` emits `Z`, not `+09:30`
+
+The project's timezone contract (§4.0) is that every date field is serialised
+as tenant-local ISO-8601 with a numeric offset (`+09:30`), emitted by
+`@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")` with no `timezone`
+attribute. Every date field on `TierMeta`, `TierView`, and the create/update
+request DTOs follows this contract.
+
+**The one exception** is `KpiSummary.lastMemberCountRefresh` — see
+`KpiSummary.java` L26:
+
+```java
+@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "UTC")
+private Date lastMemberCountRefresh;
+```
+
+The hardcoded `timezone = "UTC"` forces Jackson to convert the `Date` to UTC
+before formatting, so `XXX` collapses the zero UTC offset to the `Z`
+shorthand. This field will therefore look like `"2026-04-21T08:14:02Z"`
+while every other date in the same response looks like
+`"2026-04-21T17:44:02+09:30"`. This is a latent bug scheduled for cleanup.
+
+**What the UI should do until then:** defensively accept BOTH `Z` and a
+numeric offset (`+09:30`, `+05:30`, …) when parsing
+`kpiSummary.lastMemberCountRefresh`. Parse other date fields as numeric-offset
+only. Do not use `Z`-tolerance as a signal to switch timezone handling for the
+rest of the envelope.
 
 ---
 
