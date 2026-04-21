@@ -49,7 +49,7 @@ com.capillary.intouchapiv3/
       TierEligibilityConfig.java           -- kpiType (String), threshold, upgradeType, conditions
       TierCondition.java                   -- type (String), value, trackerName
       TierValidityConfig.java              -- periodType (String), periodValue, startDate, endDate, renewal
-      TierRenewalConfig.java               -- criteriaType (String), expressionRelation, conditions, schedule
+      TierRenewalConfig.java               -- criteriaType (String), expressionRelation, conditions  (Rework #5: `schedule` DROPPED — see TierRenewalConfig javadoc)
       TierDowngradeConfig.java             -- target (String), reevaluateOnReturn, dailyEnabled, conditions
       MemberStats.java                     -- cached member count
       EngineConfig.java                    -- hidden engine configs for round-trip

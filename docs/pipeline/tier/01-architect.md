@@ -258,8 +258,7 @@ sequenceDiagram
     "renewal": {
       "criteriaType": "string (SAME_AS_ELIGIBILITY, CUSTOM, etc.)",
       "expressionRelation": "string | null (AND, OR)",
-      "conditions": "[same model as eligibility.conditions]",
-      "schedule": "string | null"
+      "conditions": "[same model as eligibility.conditions]"
     }
   },
 
@@ -272,6 +271,7 @@ sequenceDiagram
 
   "_comment_dropped_nudges": "Rework #5: `nudges` field DROPPED. Standalone Nudges entity (sibling) with its own endpoints is untouched.",
   "_comment_dropped_benefitIds": "Rework #5: `benefitIds` DROPPED. Tiers have no knowledge of benefits; Benefits epic owns the tier<->benefit link.",
+  "_comment_dropped_schedule": "Rework #5: `renewal.schedule` DROPPED. Display-only text — engine's TierStrategyTransformer strips the `renewal` block when writing strategy JSON, so SQL LIVE side cannot reconstruct it; including it produced spurious diffs on every BOTH envelope.",
 
   "memberStats": {
     "_comment": "Populated by member-count cache cron. Not part of MC snapshot.",

@@ -76,6 +76,7 @@ LIVE state is read from SQL — it always reflects what the runtime engine sees.
 | `metadata.updatedViaNewUI` | — | DROPPED (origin derived from envelope structure) |
 | `nudges` | — | DROPPED (deferred to a future epic) |
 | `benefitIds` | — | DROPPED (benefits are a separate epic E2) |
+| `validity.renewal.schedule` | — | DROPPED (display-only text; engine's `TierStrategyTransformer` strips the `renewal` block when writing strategy JSON, so the value never reaches SQL — making the LIVE side unable to reconstruct it and producing a spurious diff on every BOTH envelope) |
 
 **No more `basicDetails` wrapper.** Tier docs are now hoisted with all primary fields at root.
 
@@ -208,7 +209,6 @@ If UI needs to display origin explicitly, compute it client-side from envelope s
 | `downgradeConfig.downgradeTo.type` | `downgrade.target` | Flat string, not nested object |
 | `downgradeConfig.downgradeSchedule` (enum) | `downgrade.dailyEnabled` (boolean) | Simpler, matches engine |
 | `downgradeConfig.shouldDowngrade` | Removed | Use `downgrade` being non-null |
-| `downgradeConfig.expiryReminders` (free text) | `nudges.expiryWarning` (string) | Structured nudges object |
 
 **Default list behavior changed:** `GET /v3/tiers` without `status` filter now returns only live tiers (DRAFT, ACTIVE, PENDING_APPROVAL). DELETED and SNAPSHOT tiers are excluded by default. Pass `status=DELETED` explicitly to see them.
 
@@ -302,8 +302,6 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "eligibility": null,
         "validity": null,
         "downgrade": null,
-        "nudges": null,
-        "benefitIds": ["bf-001", "bf-007", "bf-012"],
         "memberStats": {
           "memberCount": 1245,
           "lastRefreshed": "2026-04-16T12:00:00+05:30"
@@ -353,8 +351,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             "conditions": [
               { "type": "PURCHASE", "value": "550", "trackerName": null },
               { "type": "VISITS", "value": "2", "trackerName": null }
-            ],
-            "schedule": "End of month when duration ends"
+            ]
           }
         },
         "downgrade": {
@@ -365,13 +362,6 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             { "type": "PURCHASE", "value": "550", "trackerName": null }
           ]
         },
-        "nudges": {
-          "upgradeNotification": "Upgrade congratulations email",
-          "renewalReminder": "Renewal reminder 30 days before expiry",
-          "expiryWarning": "Downgrade warning at 60 days before expiry",
-          "downgradeConfirmation": null
-        },
-        "benefitIds": ["bf-002", "bf-005", "bf-008", "bf-013"],
         "memberStats": {
           "memberCount": 667,
           "lastRefreshed": "2026-04-16T12:00:00+05:30"
@@ -421,8 +411,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             "conditions": [
               { "type": "PURCHASE", "value": "900", "trackerName": null },
               { "type": "VISITS", "value": "2", "trackerName": null }
-            ],
-            "schedule": "End of month when duration ends"
+            ]
           }
         },
         "downgrade": {
@@ -433,13 +422,6 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             { "type": "PURCHASE", "value": "900", "trackerName": null }
           ]
         },
-        "nudges": {
-          "upgradeNotification": "VIP welcome package notification",
-          "renewalReminder": "VIP renewal reminder with exclusive preview",
-          "expiryWarning": "Premium retention offer 90 days before expiry",
-          "downgradeConfirmation": null
-        },
-        "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
         "memberStats": {
           "memberCount": 234,
           "lastRefreshed": "2026-04-16T12:00:00+05:30"
@@ -487,8 +469,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             "expressionRelation": "AND",
             "conditions": [
               { "type": "PURCHASE", "value": "1500", "trackerName": null }
-            ],
-            "schedule": "End of month when duration ends"
+            ]
           }
         },
         "downgrade": {
@@ -499,13 +480,6 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
             { "type": "PURCHASE", "value": "2000", "trackerName": null }
           ]
         },
-        "nudges": {
-          "upgradeNotification": "Platinum welcome call from relationship manager",
-          "renewalReminder": "Platinum renewal exclusive offer 45 days before expiry",
-          "expiryWarning": "Platinum retention personal call 90 days before expiry",
-          "downgradeConfirmation": null
-        },
-        "benefitIds": [],
         "memberStats": {
           "memberCount": 0,
           "lastRefreshed": null
@@ -609,8 +583,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         "expressionRelation": "AND",
         "conditions": [
           { "type": "PURCHASE", "value": "900", "trackerName": null }
-        ],
-        "schedule": "End of month when duration ends"
+        ]
       }
     },
     "downgrade": {
@@ -621,13 +594,6 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
         { "type": "PURCHASE", "value": "900", "trackerName": null }
       ]
     },
-    "nudges": {
-      "upgradeNotification": "VIP welcome package notification",
-      "renewalReminder": "VIP renewal reminder with exclusive preview",
-      "expiryWarning": "Premium retention offer 90 days before expiry",
-      "downgradeConfirmation": null
-    },
-    "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
     "memberStats": {
       "memberCount": 234,
       "lastRefreshed": "2026-04-16T12:00:00+05:30"
@@ -749,8 +715,7 @@ Creates a new tier. Always saves as **DRAFT** (the maker-checker flow is now man
       "expressionRelation": "AND",
       "conditions": [
         { "type": "PURCHASE", "value": "1500" }
-      ],
-      "schedule": "End of month when duration ends"
+      ]
     }
   },
   "downgrade": {
@@ -760,13 +725,7 @@ Creates a new tier. Always saves as **DRAFT** (the maker-checker flow is now man
     "conditions": [
       { "type": "PURCHASE", "value": "2000" }
     ]
-  },
-  "nudges": {
-    "upgradeNotification": "Platinum welcome call from relationship manager",
-    "renewalReminder": "Platinum renewal exclusive offer 45 days before expiry",
-    "expiryWarning": "Platinum retention personal call 90 days before expiry"
-  },
-  "benefitIds": []
+  }
 }
 ```
 
@@ -800,8 +759,6 @@ Creates a new tier. Always saves as **DRAFT** (the maker-checker flow is now man
     "eligibility": { "...": "same as request" },
     "validity": { "...": "same as request" },
     "downgrade": { "...": "same as request" },
-    "nudges": { "...": "same as request" },
-    "benefitIds": [],
     "memberStats": { "memberCount": 0, "lastRefreshed": null },
     "metadata": {
       "createdBy": "user-admin-02",
@@ -904,8 +861,6 @@ Updates an existing tier. If the tier is ACTIVE, creates a new DRAFT version (th
     },
     "validity": { "...": "inherited from ACTIVE version" },
     "downgrade": { "...": "inherited from ACTIVE version" },
-    "nudges": { "...": "inherited from ACTIVE version" },
-    "benefitIds": ["bf-003", "bf-006", "bf-009", "bf-011", "bf-014"],
     "memberStats": { "memberCount": 234, "lastRefreshed": "2026-04-16T12:00:00+05:30" },
     "metadata": {
       "createdBy": "user-admin-02",
@@ -1020,8 +975,6 @@ Content-Type: application/json
     "eligibility": { "...": "tier configuration" },
     "validity": { "...": "tier configuration" },
     "downgrade": { "...": "tier configuration" },
-    "nudges": { "...": "tier configuration" },
-    "benefitIds": [],
     "memberStats": { "memberCount": 0, "lastRefreshed": null },
     "metadata": {
       "createdBy": "user-admin-02",
@@ -1111,8 +1064,6 @@ Content-Type: application/json
     "eligibility": { "...": "tier configuration" },
     "validity": { "...": "tier configuration" },
     "downgrade": { "...": "tier configuration" },
-    "nudges": { "...": "tier configuration" },
-    "benefitIds": [],
     "memberStats": { "memberCount": 0, "lastRefreshed": null },
     "metadata": {
       "createdBy": "user-admin-02",
@@ -1206,8 +1157,6 @@ Content-Type: application/json
     "eligibility": { "...": "tier configuration" },
     "validity": { "...": "tier configuration" },
     "downgrade": { "...": "tier configuration" },
-    "nudges": { "...": "tier configuration" },
-    "benefitIds": [],
     "memberStats": { "memberCount": 234, "lastRefreshed": "2026-04-16T12:00:00+05:30" },
     "metadata": {
       "createdBy": "user-admin-02",
@@ -1382,7 +1331,6 @@ Updates program-level tier configuration.
 | `criteriaType` | string | NO | `"Same as eligibility"`, `"Active subscription"` |
 | `expressionRelation` | string | NO | `AND`, `OR` |
 | `conditions` | array | NO | List of `TierCondition` |
-| `schedule` | string | NO | Display text for renewal schedule |
 
 ### Downgrade — `downgrade` object
 
@@ -1409,14 +1357,25 @@ Updates program-level tier configuration.
 | `value` | string | YES | Threshold value as string |
 | `trackerName` | string | Only if type=TRACKER | Tracker identifier |
 
-### Nudges — `nudges` object
+### TierView — fields on envelope `live` / `pendingDraft`
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `upgradeNotification` | string | NO | Message/template for upgrade notification |
-| `renewalReminder` | string | NO | Message/template for renewal reminder |
-| `expiryWarning` | string | NO | Message/template for expiry warning |
-| `downgradeConfirmation` | string | NO | Message/template for downgrade confirmation |
+A `TierView` is the flattened, UI-facing view of a single tier — either the LIVE (SQL) side or the DRAFT / PENDING_APPROVAL (Mongo) side of a `TierEnvelope`. See §5.1 for the envelope shape; this table is the field-by-field contract.
+
+| Field | Type | Present on | Source | Notes |
+|-------|------|-----------|--------|-------|
+| `slabId` | long | `live` only (always), `pendingDraft` (only if editing a LIVE — null on brand-new drafts) | SQL `program_slabs.id` | Identifies the runtime-engine row. Absent on envelopes for brand-new drafts with no LIVE counterpart. |
+| `tierUniqueId` | string | `pendingDraft` only | Mongo `tierUniqueId` (renamed from `unifiedTierId` in Rework #5) | Mongo-side stable id. UI uses this for PATCH/DELETE/approve/reject calls on the draft. |
+| `name`, `description`, `color`, `serialNumber` | core fields | both sides | Hoisted to root (Rework #5 — no more `basicDetails` wrapper) | The maker-editable core attributes. |
+| `eligibility` | `TierEligibilityConfig` | both sides | SQL strategy JSON (LIVE) / Mongo (DRAFT) | Same shape on both sides. |
+| `validity` | `TierValidityConfig` | both sides | SQL strategy JSON (LIVE) / Mongo (DRAFT) | Same shape on both sides. |
+| `downgrade` | `TierDowngradeConfig` | both sides | SQL strategy JSON (LIVE) / Mongo (DRAFT) | Same shape on both sides. |
+| `draftStatus` | enum | `pendingDraft` only | Mongo `status` | Only `DRAFT` or `PENDING_APPROVAL` ever surface — `SNAPSHOT` / `DELETED` / `ACTIVE` docs are filtered out by the envelope builder before reaching the wire. |
+| `rejectionComment` | string, nullable | `pendingDraft` only | Mongo (set by approver on reject) | Non-null if the draft had previously been rejected and the maker fixed + re-submitted. Null on first-time submissions. UI should display contextually — a non-null value with `draftStatus=PENDING_APPROVAL` means "previously rejected, fixed, re-submitted" (show as history, not "this draft is rejected"). |
+| `meta` | `TierMeta` | `pendingDraft` (always); `live` (legacy — populated only when envelope origin is `BOTH` or `MONGO_ONLY`) | Mongo audit fields | `createdBy`, `createdAt`, `updatedBy`, `updatedAt`, `approvedBy`, `approvedAt`, `basisSqlSnapshot` (for drift detection). |
+
+**`hasPendingDraft`** (on the envelope, not on the view) is a computed boolean, `true` iff `pendingDraft != null`. It is serialised as an explicit JSON field so the UI can null-check a primitive rather than the nested object. See `TierEnvelopeJsonSerializationTest` (intouch-api-v3) for the locked contract — `@JsonProperty("hasPendingDraft")` is required because Lombok's `@Data` does not generate a getter for methods named `hasXxx()`.
+
+**`@JsonInclude(NON_NULL)`** on `TierEnvelope` and `TierView`: null sides are **absent keys** on the wire, not `"key": null`. UI may key off key presence to decide visual state (e.g., "brand-new draft" → `"live"` key absent entirely).
 
 ### Tier Statuses (for UI badge rendering)
 
