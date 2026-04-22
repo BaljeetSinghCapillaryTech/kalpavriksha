@@ -28,6 +28,10 @@
 - [C7] Tests BT-EF-01 through BT-EF-06 for SubscriptionProgram.extendedFields already written in intouch-api-v3. _(BA)_
 - [C7] cc-stack-crm warehouse schema convention: CREATE TABLE files per table, `id` AUTO_INCREMENT PK, `org_id` for tenancy, `is_active` tinyint for soft-delete, `created_on` + `auto_update_time` for audit. Pattern from `custom_fields.sql`. _(BA)_
 - [C6] intouch-api-v3 subscription module already handles EF persistence in SubscriptionFacade (create, update, fork, duplicate). _(BA)_
+- [C7] Cross-repo trace complete: 4 repos mapped, 3 write paths + 2 read paths traced. Per-repo change inventory complete. _(Cross-Repo Tracer)_
+- [C7] emf-parent module: pointsengine-emf confirmed as correct module for new LoyaltyExtendedField entity + service + DAO. JPA pattern: @EmbeddedId composite PK (id, org_id), @DataSourceSpecification(WAREHOUSE), @Transactional("warehouse"). _(Cross-Repo Tracer)_
+- [C7] thrift-ifaces-emf: EMFService currently has 57 methods. New methods will be 58 (create), 59 (update), 60 (get list). _(Cross-Repo Tracer)_
+- [C7] cc-stack-crm: No existing loyalty_*.sql files. New file: schema/dbmaster/warehouse/loyalty_extended_fields.sql. _(Cross-Repo Tracer)_
 
 ---
 
@@ -94,6 +98,9 @@
 - [x] Deactivation impact on existing values → resolved: existing values unaffected; new events validate against active only (D-18) _(GQ-05)_
 - [x] ENUM allowed values storage → resolved: ENUM removed from scope entirely (D-22) _(OQ-06)_
 - [ ] Error code/message format for validation failures — to be defined in Designer phase. _(BA)_
+- [ ] @Field annotation strategy for SubscriptionProgram.ExtendedField key→id rename in existing MongoDB documents. _(Cross-Repo Tracer)_
+- [ ] ProgramConfigKey seed data approach: how/where is MAX_EF_COUNT_PER_PROGRAM key seeded? _(Cross-Repo Tracer)_
+- [ ] Schema convention: custom_fields.sql uses DATETIME for created_on; D-26 says TIMESTAMP. Confirm for loyalty_extended_fields. _(Cross-Repo Tracer)_
 
 ---
 
