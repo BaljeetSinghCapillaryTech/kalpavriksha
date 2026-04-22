@@ -1,0 +1,64 @@
+{
+  "feature": "Loyalty Extended Fields CRUD",
+  "ticket": "loyaltyExtendedFields",
+  "jira": "CAP-183124",
+  "artifacts_path": "docs/pipeline/loyalty-extended-fields/",
+  "started_at": "2026-04-22T00:00:00Z",
+  "inputs": {
+    "brd_path": "https://docs.google.com/document/d/1H8mJGB1Av-Ir1-MOUxh2L66SOVb7YJrLqmw2ClhzQ48/edit",
+    "brd_local": "docs/pipeline/loyalty-extended-fields/brd-raw.md",
+    "code_repos": [
+      "/Users/baljeetsingh/IdeaProjects/intouch-api-v3",
+      "/Users/baljeetsingh/IdeaProjects/emf-parent",
+      "/Users/baljeetsingh/IdeaProjects/cc-stack-crm",
+      "/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-emf"
+    ],
+    "ui_screenshots": [],
+    "prior_artifacts": {}
+  },
+  "git_branches": {
+    "/Users/baljeetsingh/IdeaProjects/kalpavriksha": {
+      "feature_branch": "aidlc/loyaltyExtendedFields",
+      "status": "pre-checked-out"
+    },
+    "/Users/baljeetsingh/IdeaProjects/intouch-api-v3": {
+      "feature_branch": "aidlc/loyaltyExtendedFields",
+      "status": "pre-checked-out"
+    },
+    "/Users/baljeetsingh/IdeaProjects/emf-parent": {
+      "feature_branch": "aidlc/loyaltyExtendedFields",
+      "status": "pre-checked-out"
+    },
+    "/Users/baljeetsingh/IdeaProjects/cc-stack-crm": {
+      "feature_branch": "aidlc/loyaltyExtendedFields",
+      "status": "pre-checked-out"
+    }
+  },
+  "lsp_enabled": true,
+  "lsp_repos": ["emf-parent", "intouch-api-v3"],
+  "dashboard_enabled": false,
+  "confluence": {},
+  "phases": {
+    "0": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["brd-raw.md", "pipeline-state.json", "session-memory.md", "process-log.md", "approach-log.md"]},
+    "1": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md"]},
+    "2": {"status": "pending"},
+    "3": {"status": "skipped", "reason": "No UI — purely backend feature"},
+    "4": {"status": "pending"},
+    "5": {"status": "pending"},
+    "6": {"status": "pending"},
+    "6a": {"status": "pending"},
+    "6b": {"status": "pending"},
+    "7": {"status": "pending"},
+    "8": {"status": "pending"},
+    "8b": {"status": "pending"},
+    "9": {"status": "pending"},
+    "10": {"status": "pending"},
+    "10b": {"status": "pending"},
+    "10c": {"status": "pending"},
+    "10d": {"status": "pending"},
+    "11": {"status": "pending"},
+    "12": {"status": "pending"}
+  },
+  "git_tags": [],
+  "rework_cycles": []
+}
