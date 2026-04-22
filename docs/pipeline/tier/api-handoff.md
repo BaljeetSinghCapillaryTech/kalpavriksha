@@ -358,6 +358,8 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 
 **Body — `TierCreateRequest`:**
 
+> **Write-narrow contract (Rework #6a — ADR-21R):** `downgrade` is **not accepted on write**. The field was removed from `TierCreateRequest` in Rework #6a (Q11 hard-flip). Downgrade configuration is engine-derived at APPROVE time and is only present on **read** responses (see §6.7, §10.19). Sending `downgrade` on POST is **rejected by Jackson strict-mode deserialization** as an unknown property (generic HTTP 400) — `downgrade` is **NOT** in `CLASS_A_CANONICAL_KEYS`, so the 9011 scanner does not target it. The 9011 Class A scanner targets the 8 program-level orchestration flags only (`isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`). If those flags appear nested inside a `downgrade` object they WILL trigger 9011 via the recursive scanner — but the bare `downgrade` key itself is Jackson-rejected.
+
 ```json
 {
   "programId": 977,
@@ -380,15 +382,11 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
       "expressionRelation": null,
       "conditions": null
     }
-  },
-  "downgrade": {
-    "target": "SINGLE",
-    "reevaluateOnReturn": false,
-    "dailyEnabled": false,
-    "conditions": []
   }
 }
 ```
+
+**Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated `@JsonIgnoreProperties(ignoreUnknown = false)` so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner.
 
 ### Request Field Validation
 
@@ -407,11 +405,9 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 | `validity.periodValue` | `Integer` | No | Positive. |
 | `validity.startDate` | ISO-8601 | No | Format `yyyy-MM-ddTHH:mm:ss+00:00` (see §10). |
 | `validity.endDate` | — | — | **Never stored. Derived from `startDate + periodValue` at read time if needed.** Do not send. |
-| `validity.renewal.criteriaType` | `String` | Yes (if `renewal` sent) | **Must be `"Same as eligibility"`.** Any other value → 400. If you omit `renewal` entirely, the server fills the default pre-save. |
-| `downgrade.target` | enum | No | `SINGLE`, `THRESHOLD`, or `LOWEST`. Matches engine `TierDowngradeTarget`. |
-| `downgrade.reevaluateOnReturn` | `boolean` | No | Default `false`. |
-| `downgrade.dailyEnabled` | `boolean` | No | Default `false`. |
-| `downgrade.conditions[].type` | enum | No | One of `PURCHASE`, `VISITS`, `POINTS`, `TRACKER`. See §6.8. |
+| `validity.renewal.criteriaType` | `String` | Yes (if `renewal` sent) | **Must be `"Same as eligibility"`.** Any other value → 400 with code **9017**. If you omit `renewal` entirely, the server fills the default pre-save. |
+| `downgrade` (bare key) | — | **Rejected on write** | Jackson strict-mode — `UnrecognizedPropertyException` → **HTTP 400** (generic, not 9011). `downgrade` is NOT in `CLASS_A_CANONICAL_KEYS`. See §10.19 write-narrow / read-wide asymmetry. |
+| `downgrade.*` (nested Class A keys) | — | **Rejected on write** | If the nested object carries any of the 8 Class A orchestration keys (`isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`), the recursive pre-binding scanner catches them first → code **9011**. |
 
 ### Response — Success (HTTP 201 Created)
 
@@ -505,7 +501,9 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
 | `409` | `409` | Name already in use for this program (across DRAFT / ACTIVE / PENDING_APPROVAL) | `"Tier name 'Gold' already exists in this program"` |
 | `500` | — | Unexpected fall-through | `"Something went wrong, please try after sometime."` |
 
-**Validator messages (exact strings from `TierCreateRequestValidator`):**
+**Validator messages (exact strings from `TierCreateRequestValidator` + `TierEnumValidation`):**
+
+Post-binding checks (validator sees deserialised DTO):
 
 | Check | Thrown message |
 |---|---|
@@ -520,10 +518,40 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
 | `upgradeType` not in allowed set | `"upgradeType must be one of: [EAGER, DYNAMIC, LAZY]"` |
 | `expressionRelation` not in allowed set | `"expressionRelation must be one of: [AND, OR]"` |
 | `periodType` not in allowed set | `"periodType must be one of: [FIXED, SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC, FIXED_CUSTOMER_REGISTRATION]"` |
-| `downgrade.target` not in allowed set | `"downgrade.target must be one of: [SINGLE, THRESHOLD, LOWEST]"` |
-| `conditions[].type` not in allowed set | `"eligibility.conditions[].type must be one of: [PURCHASE, VISITS, POINTS, TRACKER] (got: <value>)"` (identical message with `downgrade.conditions[]` prefix for the downgrade side) |
+| `conditions[].type` not in allowed set | `"eligibility.conditions[].type must be one of: [PURCHASE, VISITS, POINTS, TRACKER] (got: <value>)"` |
 
-**Evidence:** `TierController.java` L78–L89; `TierCreateRequest.java`; `TierCreateRequestValidator.java` (threshold-zero acceptance is in `validateThreshold`); enum validation lives in `TierEnumValidation.java` (single source shared with `TierUpdateRequestValidator`); `TierFacade.createTier` L226–L258; `TierValidationService.validateNameUniqueness` (409 path); `TierValidationService.assignNextSerialNumber` (50-tier cap).
+Rework #6a contract-hardening codes (9011–9018) — evidence: `TierEnumValidation.java` constants + `TierCreateRequestValidator.java:65–93`:
+
+| Code | Scope | Trigger | Stage |
+|:----:|-------|---------|-------|
+| **9011** | Class A program-level field | Any of `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled` present at any nesting level. **Note:** the bare `downgrade` key itself is **not** covered by 9011 — it is Jackson-rejected (generic 400). Nested Class A keys inside a `downgrade` object DO trigger 9011 via the recursive scan. | Pre-binding — recursive scan |
+| **9012** | Class B schedule field | Root-level `schedule`, `nudges`, or `notificationConfig` present | Pre-binding — root-level scan |
+| **9013** | `eligibilityCriteriaType` on write | Key `eligibilityCriteriaType` present at any nesting level | Pre-binding — recursive scan |
+| **9014** | `startDate` on SLAB_UPGRADE family | `periodType` ∈ {`SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`} AND `startDate` not null | Post-binding |
+| **9015** | String `"-1"` sentinel | Field `programId`, `periodValue`, or `threshold` carries text value `"-1"` at any nesting level | Pre-binding — recursive scan |
+| **9016** | Numeric `-1` sentinel | Field `programId`, `periodValue`, or `threshold` carries numeric value `-1` at any nesting level; fires BEFORE 9018 post-binding guard | Pre-binding — recursive scan |
+| **9017** | Renewal `criteriaType` drift | `renewal.criteriaType` non-null AND not exactly `"Same as eligibility"` | Post-binding |
+| **9018** | FIXED-family missing positive `periodValue` | `periodType` ∈ {`FIXED`, `FIXED_CUSTOMER_REGISTRATION`} AND (`periodValue` null OR ≤ 0); SLAB_UPGRADE family is NOT checked | Post-binding |
+
+**Precedence rules** (evidence: `TierCreateRequestValidator.java:65–93`):
+1. Pre-binding scans run BEFORE Jackson `treeToValue()`; unknown-but-unclassified keys fall through to Jackson strict-mode generic 400.
+2. Scan order: **Class A (9011) → Class B (9012) → eligibilityCriteriaType (9013) → string sentinel (9015) → numeric sentinel (9016) → Jackson deserialise → post-binding 9014 → 9018 → BT-62 endDate ordering → renewal → 9017.**
+3. Class A wins over sentinel on a combined payload (Class A scanner runs first).
+4. Numeric `-1` (9016) fires BEFORE FIXED-family positive guard (9018) — `periodValue: -1` surfaces 9016, not 9018.
+
+**Error body shape** (Rework Cycle 1 P1+P2 fix — codes 9011–9018 now appear on `errors[0].code`):
+
+```json
+{
+  "data": null,
+  "errors": [{ "code": 9011, "message": "Class A program-level field 'dailyDowngradeEnabled' is not allowed on per-tier write (use program config)" }],
+  "warnings": null
+}
+```
+
+For contract-hardening rejects (9011–9018): `errors[0].code` carries the numeric 4-digit code; `errors[0].message` is the descriptive text with the `[9011]` bracket prefix stripped. The bracket-prefix extractor in `TargetGroupErrorAdvice.handleInvalidInputException` performs the extraction — no `[901x]` text will appear in the wire `message` field. Evidence: `TargetGroupErrorAdvice.java` (bracket-extractor added Rework Cycle 1), `TierEnumValidation.java` (8 throw sites prefixed with `[9011]`–`[9018]`), `TierFacade.java` (widened signatures pass `rawBody` to validator).
+
+**Evidence:** `TierController.java:92–105` (raw `JsonNode rawBody` binding + `objectMapper.treeToValue`); `TierCreateRequest.java` (no `downgrade` field); `TierCreateRequestValidator.java:65–93` (scan order); `TierEnumValidation.java` (8 constants + recursive scanners); `TierFacade.createTier` L226–L258; `TierValidationService.validateNameUniqueness` (409); `TierValidationService.assignNextSerialNumber` (50-cap).
 
 ---
 
@@ -539,7 +567,7 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
 |---|---|---|:---:|---|
 | `tierId` | path | `String` | **Yes** | Mongo `objectId` (preferred) or `tierUniqueId` |
 
-**Body — `TierUpdateRequest`:** same shape as create, but **all fields are optional** (partial-update semantics). `programId` is NOT in the body — it cannot be changed.
+**Body — `TierUpdateRequest`:** same shape as create, but **all fields are optional** (partial-update semantics). `programId` is NOT in the body — it cannot be changed. Same write-narrow contract as POST — `downgrade` is not accepted (rejected by Jackson strict-mode as an unknown property → generic HTTP 400; `downgrade` is NOT a Class A key and is NOT handled by code 9011). See §5.3 for the full 9011–9018 scanner table; the update validator wires the same pre-binding + post-binding scans in parity.
 
 ```json
 {
@@ -555,6 +583,8 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
   }
 }
 ```
+
+**Evidence:** `TierUpdateRequest.java` — no `downgrade` field. `TierUpdateRequestValidator.java` wires the same 5 pre-binding + 3 post-binding scans as `TierCreateRequestValidator`.
 
 ### Behaviour by Current Status
 
@@ -607,6 +637,7 @@ For an edit-of-ACTIVE, the response is the newly-created DRAFT with `parentId` p
 | HTTP Status | Error Code | When | Example Message |
 |:---:|---|---|---|
 | `400` | — | Validator failure — blank name, name > 100, description > 500, invalid color, invalid `kpiType` / `upgradeType`, `threshold < 0` | See validator table in §5.3 |
+| `400` | **9011–9018** | Rework #6a contract-hardening rejects (Class A, Class B, `eligibilityCriteriaType`, `-1` sentinels, SLAB_UPGRADE `startDate`, FIXED missing `periodValue`, renewal drift) | See 9011–9018 code table in §5.3 |
 | `404` | `404` | Tier not found OR belongs to different org | `"Tier not found: {tierId}"` |
 | `409` | `409` | Status is `SNAPSHOT`, `DELETED`, or `PUBLISH_FAILED` | `"Cannot edit a tier in SNAPSHOT status"` |
 | `409` | `409` | Renaming collides with another tier in the same program | `"Tier name '<name>' already exists in this program"` |
@@ -1169,7 +1200,9 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ---
 
-### 6.7 `TierDowngradeConfig`
+### 6.7 `TierDowngradeConfig` — **read-only on the tier contract**
+
+> **Rework #6a (ADR-21R) — write-narrow / read-wide:** `TierDowngradeConfig` appears on **GET** responses (List, Detail, Submit, Approve, Approvals queue) but is **rejected on POST/PUT**. The bare `downgrade` key is rejected by Jackson strict-mode deserialization (generic HTTP 400; `downgrade` is NOT in `CLASS_A_CANONICAL_KEYS`). If the nested object carries any of the 8 Class A orchestration flags, the recursive pre-binding scanner catches them first → code **9011**. See §5.3 (error code table), §10.19 (asymmetry explained), and §6.11 (envelope model) for the read-side contract. Class retained as `TierDowngradeConfig.java` — used only by `TierStrategyTransformer` on the read path.
 
 ```json
 {
@@ -1186,6 +1219,8 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 | `reevaluateOnReturn` | `boolean` | Default `false` |
 | `dailyEnabled` | `boolean` | Default `false` |
 | `conditions` | `TierCondition[]` | See §6.8 |
+
+**Population source:** Derived by `TierStrategyTransformer` from the engine's `SLAB_DOWNGRADE` strategy row (MySQL `strategies` table) at read time. For LEGACY_SQL_ONLY tiers, this is synthesised from `program_slabs` + `program_downgrade_config`. For Mongo-origin DRAFT tiers, the stored value is echoed unchanged (may be `null` pre-approval).
 
 ---
 
@@ -1275,8 +1310,8 @@ See §5.1 for the envelope model and the six scenarios. `TierView` is the flatte
 | `UpgradeType` | `EAGER`, `DYNAMIC`, `LAZY` | `eligibility.upgradeType`. Engine canonical: `SlabUpgradeMode`. |
 | `PeriodType` | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` | `validity.periodType`. Engine canonical: `TierDowngradePeriodConfig.PeriodType`. See §6.5 for semantics. |
 | `ExpressionRelation` | `AND`, `OR` | `eligibility.expressionRelation` |
-| `DowngradeTarget` | `SINGLE`, `THRESHOLD`, `LOWEST` | `downgrade.target`. Engine canonical: `TierDowngradeTarget`. |
-| `ConditionType` | `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `TierCondition.type` (used in both `eligibility.conditions[]` and `downgrade.conditions[]`). |
+| `DowngradeTarget` | `SINGLE`, `THRESHOLD`, `LOWEST` | `downgrade.target` on **read** responses only (see §6.7, §10.19 — rejected on write). Engine canonical: `TierDowngradeTarget`. |
+| `ConditionType` | `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `TierCondition.type`. Used in `eligibility.conditions[]` (write + read) and `downgrade.conditions[]` (**read-only**). |
 | `TierOrigin` | `BOTH`, `MONGO_ONLY`, `LEGACY_SQL_ONLY` | `TierEnvelope.origin` |
 
 ---
@@ -1396,9 +1431,18 @@ Exposed on `TierMeta` for debuggability but carries no UI meaning. It is a froze
 
 `POST /v3/tiers` accepts the header and silently drops it. **Do not rely on it for safe retry.** Use the 409-on-duplicate-name check as your retry guard.
 
-### 10.12 Validator codes 9001–9010 are dead
+### 10.12 Validator codes 9001–9010 are dead; 9011–9018 emit on both `code` and `message`
 
-Declared as `public static final int` constants in `TierCreateRequestValidator` but never passed to any `throw`. `errors[0].code` will be `null` or a `MessageSource`-resolved number — **never 9001–9010**. Pattern-match on `errors[0].message`, not on numeric codes.
+**Codes 9001–9010** — declared as `public static final int` constants in `TierCreateRequestValidator` but never passed to any `throw`. `errors[0].code` will be `null` — **never 9001–9010**.
+
+**Codes 9011–9018** (Rework #6a contract-hardening, active after Rework Cycle 1 P1+P2 fix):
+
+- `errors[0].code` — the numeric 4-digit code (e.g. `9011`). Wire shape is `Long` (per `ResponseWrapper.ApiError`). Match on this field for programmatic routing.
+- `errors[0].message` — the descriptive text with the `[9011]`–`[9018]` bracket prefix **stripped**. Example: `"Class A program-level field 'dailyDowngradeEnabled' is not allowed on per-tier write (use program config)"`.
+
+**Implementation:** `TierEnumValidation.java` throw sites embed `[901x]` as a bracket prefix in the message string. `TargetGroupErrorAdvice.handleInvalidInputException` extracts the numeric code via regex `^\[(\d+)\]\s*(.*)$` and constructs `ApiError(code, strippedMsg)` directly — bypassing `MessageResolverService` (which returns `999999` for unregistered i18n keys).
+
+**UI guidance:** Use `errors[0].code` for programmatic error routing. `errors[0].message` is the human-readable description (bracket-stripped). For codes 9001–9010: `errors[0].code` is `null`; match on `errors[0].message` content if needed.
 
 ### 10.13 APPROVE triggers a synchronous Thrift SAGA
 
@@ -1442,6 +1486,27 @@ The `eligibility.expressionRelation` field on the request/response shape is **de
 - **Contrast with `renewal.expressionRelation`** — that sister field is actively **rejected** on write by `TierRenewalValidation` (non-null → 400 with `"renewal.expressionRelation must be null — reserved for a future engine-side renewal rule (Rework #5 B1a)"`). The eligibility-side field has no such guard today; this asymmetry is tracked for a future hardening pass.
 - **Engine-internal `EngineConfig.expressionRelation`** is a completely separate field (type `List<List<Integer>>` — a condition-grouping matrix used inside the engine). Not on `TierView`; not UI-facing; not related to this slot.
 
+### 10.19 Write-narrow / Read-wide asymmetry — `downgrade` and engine-derived fields (Rework #6a ADR-21R)
+
+The tier contract is **asymmetric** between write and read:
+
+| Field | POST / PUT (write) | GET (read) |
+|-------|-------------------|-----------|
+| `downgrade` (`TierDowngradeConfig`) | **Rejected** — Jackson strict-mode `UnrecognizedPropertyException` → **HTTP 400 (generic, not 9011)**. `downgrade` is NOT in `CLASS_A_CANONICAL_KEYS`. Nested Class A keys inside a `downgrade` object trigger 9011 via recursive scan. | **Present** — derived from engine strategies at APPROVE time, surfaced via `TierStrategyTransformer` |
+| `eligibilityCriteriaType` | **Rejected** — code **9013** | May be present on legacy SQL-origin reads |
+| `validity.periodValue` for SLAB_UPGRADE family | Not required (event-driven) | May be present on read (engine-populated) |
+| `validity.startDate` for SLAB_UPGRADE family | **Rejected** — code **9014** | May be present on read for FIXED family only |
+| Class A program-level keys (reminders, retainPoints, isDowngradeOnReturnEnabled, etc.) | **Rejected** — code **9011** | Not on `TierView` (live at `EngineConfig` / program-level) |
+
+**Rationale (ADR-21R):** Tier-scoped writes must not carry program-level orchestration flags or engine-derived state. The engine owns downgrade behaviour; the tier write path is a thin DRAFT-intent. Read responses remain wide to keep the UI's rendering code stable — the UI continues to render the full envelope shape (including `downgrade`) regardless of whether it was written through this API or seeded from engine sync.
+
+**Why this matters for the UI:**
+- On **write** forms, the downgrade panel must be a **no-op** — do not include the `downgrade` object in the POST/PUT body. If a maker edits downgrade settings in the UI, that edit surfaces through a separate program-level endpoint (not the tier endpoint).
+- On **read**, `downgrade` remains populated on `UnifiedTierConfig` and `TierView` (§6.7) — the UI's existing render code stays unchanged.
+- A **round-trip** of a GET response back to POST/PUT will **fail with HTTP 400** — Jackson strict-mode rejects the bare `downgrade` key as an unknown property (`UnrecognizedPropertyException`). The error code is a generic 400, **not** 9011. Strip the `downgrade` key client-side before round-tripping. (If the engine ever surfaces `downgrade.isActive` or any other Class A flag on a read, the recursive pre-binding scanner would additionally trigger code 9011 — but today the engine does not surface those keys on reads.)
+
+**Evidence:** `TierCreateRequest.java` / `TierUpdateRequest.java` — no `downgrade` field; `TierDowngradeConfig.java` retained for read; `TierStrategyTransformer` populates downgrade on read; `TierEnumValidation.CLASS_A_CANONICAL_KEYS` enumerates the rejected keys.
+
 ---
 
 ## 11. Error Handling — Global Advice Reference
@@ -1474,8 +1539,8 @@ Authoritative mapping from `TargetGroupErrorAdvice.java`:
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | `GET    /v3/tiers`                  | ✓ | | | param | ✓ | | | ✓ |
 | `GET    /v3/tiers/{tierId}`         | ✓ | | | | ✓ | ✓ | | ✓ |
-| `POST   /v3/tiers`                  | | ✓ | | validator + JSR-303 | ✓ | | name-dup, 50-cap | ✓ |
-| `PUT    /v3/tiers/{tierId}`         | ✓ | | | validator | ✓ | ✓ | `SNAPSHOT`/`DELETED`, rename-dup | ✓ |
+| `POST   /v3/tiers`                  | | ✓ | | validator + JSR-303 + **9011–9018** (§5.3) | ✓ | | name-dup, 50-cap | ✓ |
+| `PUT    /v3/tiers/{tierId}`         | ✓ | | | validator + **9011–9018** (§5.3) | ✓ | ✓ | `SNAPSHOT`/`DELETED`, rename-dup | ✓ |
 | `DELETE /v3/tiers/{tierId}`         | | | ✓ | | ✓ | ✓ | status ≠ `DRAFT` | ✓ |
 | `POST   /v3/tiers/{id}/submit`      | ✓ *(incl. not-found — §10.1)* | | | | ✓ | | status ≠ `DRAFT` | ✓ |
 | `POST   /v3/tiers/{id}/approve`     | ✓ *(incl. not-found — §10.1)* | | | | ✓ | | status ≠ `PENDING_APPROVAL`, **drift** | unknown action, SAGA failure |

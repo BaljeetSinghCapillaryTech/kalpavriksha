@@ -67,10 +67,11 @@
     },
     "4": {
       "status": "complete",
-      "completed_at": "2026-04-11T15:30:00Z",
+      "completed_at": "2026-04-22",
       "artifacts": [
         "blocker-decisions.md",
-        "grooming-questions.md"
+        "grooming-questions.md",
+        "q-op-3-consumer-audit.md"
       ]
     },
     "5": {
@@ -84,7 +85,7 @@
     },
     "6": {
       "status": "complete",
-      "completed_at": "2026-04-11T17:00:00Z",
+      "completed_at": "2026-04-22",
       "artifacts": [
         "01-architect.md"
       ]
@@ -92,31 +93,85 @@
     "6a": {
       "status": "complete",
       "completed_at": "2026-04-11T18:30:00Z",
-      "artifacts": ["02-analyst.md"]
+      "artifacts": [
+        "02-analyst.md"
+      ]
     },
     "6b": {
       "status": "complete",
       "completed_at": "2026-04-11T19:00:00Z",
-      "artifacts": ["01b-migrator.md"]
+      "artifacts": [
+        "01b-migrator.md"
+      ]
     },
     "7": {
       "status": "complete",
       "completed_at": "2026-04-11T19:30:00Z",
-      "artifacts": ["03-designer.md", "api-handoff.md"]
+      "artifacts": [
+        "03-designer.md",
+        "api-handoff.md"
+      ]
     },
     "8": {
       "status": "complete",
       "completed_at": "2026-04-12T10:00:00Z",
-      "artifacts": ["04-qa.md"]
+      "artifacts": [
+        "04-qa.md"
+      ]
     },
-    "8b": { "status": "complete", "completed_at": "2026-04-12T10:30:00Z", "artifacts": ["04b-business-tests.md"] },
-    "9": { "status": "complete", "completed_at": "2026-04-12T12:50:00Z", "artifacts": ["05-sdet.md"] },
-    "10": { "status": "complete", "completed_at": "2026-04-12T13:00:00Z", "artifacts": ["06-developer.md"] },
-    "10b": { "status": "complete", "completed_at": "2026-04-12T13:15:00Z", "artifacts": ["backend-readiness.md"] },
-    "10c": { "status": "complete", "completed_at": "2026-04-12T13:30:00Z", "artifacts": ["02-analyst-compliance.md"] },
-    "10d": { "status": "skipped", "note": "No migration scripts in scope for Layer 1-2" },
-    "11": { "status": "complete", "completed_at": "2026-04-12T14:00:00Z", "artifacts": ["07-reviewer.md"] },
-    "12": { "status": "complete", "completed_at": "2026-04-12T14:30:00Z", "artifacts": ["tiers-crud-blueprint.html"] }
+    "8b": {
+      "status": "complete",
+      "completed_at": "2026-04-12T10:30:00Z",
+      "artifacts": [
+        "04b-business-tests.md"
+      ]
+    },
+    "9": {
+      "status": "complete",
+      "completed_at": "2026-04-12T12:50:00Z",
+      "artifacts": [
+        "05-sdet.md"
+      ]
+    },
+    "10": {
+      "status": "complete",
+      "completed_at": "2026-04-12T13:00:00Z",
+      "artifacts": [
+        "06-developer.md"
+      ]
+    },
+    "10b": {
+      "status": "complete",
+      "completed_at": "2026-04-12T13:15:00Z",
+      "artifacts": [
+        "backend-readiness.md"
+      ]
+    },
+    "10c": {
+      "status": "complete",
+      "completed_at": "2026-04-12T13:30:00Z",
+      "artifacts": [
+        "02-analyst-compliance.md"
+      ]
+    },
+    "10d": {
+      "status": "skipped",
+      "note": "No migration scripts in scope for Layer 1-2"
+    },
+    "11": {
+      "status": "complete",
+      "completed_at": "2026-04-12T14:00:00Z",
+      "artifacts": [
+        "07-reviewer.md"
+      ]
+    },
+    "12": {
+      "status": "complete",
+      "completed_at": "2026-04-12T14:30:00Z",
+      "artifacts": [
+        "tiers-crud-blueprint.html"
+      ]
+    }
   },
   "git_branches": {
     "/Users/ritwikranjan/Desktop/Artificial Intelligence/emf-parent": {
@@ -148,11 +203,32 @@
     "epic_division_branch": "raidlc/rtest123/epic-division",
     "developer": "ritwik",
     "assignment": {
-      "epics": ["maker-checker", "tier-category"],
-      "builds_shared": ["maker-checker-framework"],
-      "consumes_shared": ["audit-trail-framework"],
-      "layer": [1, 2],
+      "epics": [
+        "maker-checker",
+        "tier-category"
+      ],
+      "builds_shared": [
+        "maker-checker-framework"
+      ],
+      "consumes_shared": [
+        "audit-trail-framework"
+      ],
+      "layer": [
+        1,
+        2
+      ],
       "status": "in-progress"
+    }
+  },
+  "confluence": {
+    "cloud_id": "69031ea7-8347-4ec3-a63d-9c7289f8dc4f",
+    "space_id": "1264386327",
+    "parent_folder_id": "5434343427",
+    "run_page_id": "5489360909",
+    "artifact_pages": {
+      "01-architect.md": "5488509111",
+      "api-handoff.md": "5488640119",
+      "03-designer.md": "5488476346"
     }
   },
   "rework_cycles": [
@@ -183,7 +259,7 @@
       "severity": "MODERATE",
       "changes": [
         "SC-1: Remove PAUSED status entirely",
-        "SC-2: Remove STOPPED status (no path — ACTIVE can't be retired)",
+        "SC-2: Remove STOPPED status (no path \u2014 ACTIVE can't be retired)",
         "SC-3: Add DELETED status (terminal, reachable from DRAFT only)",
         "SC-4: US-4 deletion: DRAFT-only, no MC, no member reassessment",
         "SC-5: Explicit no-reorder rule (serialNumber immutable)",
@@ -197,35 +273,54 @@
         "00-prd-machine.md",
         "session-memory.md"
       ],
-      "cascade_phases": ["2", "4", "6", "6a", "6b", "7", "8", "8b", "9", "10", "11", "12"],
+      "cascade_phases": [
+        "2",
+        "4",
+        "6",
+        "6a",
+        "6b",
+        "7",
+        "8",
+        "8b",
+        "9",
+        "10",
+        "11",
+        "12"
+      ],
       "resolved": true,
       "code_changes": {
         "TierStatus.java": "Removed STOPPED enum value",
         "TierFacade.java": "Rewrote deleteTier() to DRAFT-only soft-delete (DELETED status), removed STOPPED from updateTier() switch, cleaned unused imports",
-        "TierFacadeTest.java": "shouldRejectEditOnStoppedTier → shouldRejectEditOnDeletedTier, shouldDeleteDraftImmediatelyWithoutMC → shouldDeleteDraftBySettingStatusToDeleted (soft-delete), shouldCreatePendingChangeWhenDeletingActiveWithMC → shouldReturn409WhenDeletingActiveTier, shouldRejectDeleteOfBaseTierWithMembers → shouldReturn409WhenDeletingPendingApprovalTier, cleaned unused imports"
+        "TierFacadeTest.java": "shouldRejectEditOnStoppedTier \u2192 shouldRejectEditOnDeletedTier, shouldDeleteDraftImmediatelyWithoutMC \u2192 shouldDeleteDraftBySettingStatusToDeleted (soft-delete), shouldCreatePendingChangeWhenDeletingActiveWithMC \u2192 shouldReturn409WhenDeletingActiveTier, shouldRejectDeleteOfBaseTierWithMembers \u2192 shouldReturn409WhenDeletingPendingApprovalTier, cleaned unused imports"
       }
     },
     {
       "id": 3,
       "date": "2026-04-16",
       "trigger": "manual",
-      "reason": "Timezone alignment (Instant→Date+@JsonFormat XXX), rejection→DRAFT (promotion pattern), ProgramSlab status column removed from scope",
+      "reason": "Timezone alignment (Instant\u2192Date+@JsonFormat XXX), rejection\u2192DRAFT (promotion pattern), ProgramSlab status column removed from scope",
       "scope": "Model classes, MakerCheckerService<T>, TierApprovalHandler, design artifacts",
       "severity": "MODERATE",
       "changes": [
-        "SC-1: All date/time fields changed from Instant to Date with @JsonFormat(XXX) — matches promotion pattern",
+        "SC-1: All date/time fields changed from Instant to Date with @JsonFormat(XXX) \u2014 matches promotion pattern",
         "SC-2: MC rejection now reverts entity to DRAFT via ApprovableEntityHandler.postReject()",
         "SC-3: MakerCheckerService<T> uses generic state machine with ApprovableEntityHandler registry",
-        "SC-4: TierApprovalHandler.postReject() implemented — sets tier back to DRAFT on rejection",
+        "SC-4: TierApprovalHandler.postReject() implemented \u2014 sets tier back to DRAFT on rejection",
         "SC-5: ProgramSlab status column, findActiveByProgram(), Flyway migration ALL removed from scope",
         "SC-6: 01b-migrator.md M-1 and M-2 marked NOT NEEDED"
       ],
       "affected_files": [
-        "BasicDetails.java", "TierMetadata.java",
-        "TierFacade.java", "TierApprovalHandler.java",
-        "TierFacadeTest.java", "TierApprovalHandlerTest.java",
-        "03-designer.md", "01-architect.md", "01b-migrator.md",
-        "blocker-decisions.md", "session-memory.md"
+        "BasicDetails.java",
+        "TierMetadata.java",
+        "TierFacade.java",
+        "TierApprovalHandler.java",
+        "TierFacadeTest.java",
+        "TierApprovalHandlerTest.java",
+        "03-designer.md",
+        "01-architect.md",
+        "01b-migrator.md",
+        "blocker-decisions.md",
+        "session-memory.md"
       ],
       "resolved": true
     },
@@ -247,15 +342,1361 @@
         "SC-8: All 25 pipeline artifacts updated to reflect new architecture"
       ],
       "affected_files": [
-        "UnifiedTierConfig.java", "TierApprovalHandler.java (new)", "TierFacade.java",
-        "TierReviewController.java (new)", "EmfMongoConfig.java",
-        "TierFacadeTest.java", "TierApprovalHandlerTest.java (new)",
-        "01-architect.md", "03-designer.md", "api-handoff.md", "session-memory.md",
-        "04b-business-tests.md", "05-sdet.md", "04-qa.md", "00-prd.md", "00-prd-machine.md",
-        "cross-repo-trace.md", "backend-readiness.md", "07-reviewer.md",
-        "api-handoff-docs.html", "live-dashboard.html", "tiers-crud-blueprint.html"
+        "UnifiedTierConfig.java",
+        "TierApprovalHandler.java (new)",
+        "TierFacade.java",
+        "TierReviewController.java (new)",
+        "EmfMongoConfig.java",
+        "TierFacadeTest.java",
+        "TierApprovalHandlerTest.java (new)",
+        "01-architect.md",
+        "03-designer.md",
+        "api-handoff.md",
+        "session-memory.md",
+        "04b-business-tests.md",
+        "05-sdet.md",
+        "04-qa.md",
+        "00-prd.md",
+        "00-prd-machine.md",
+        "cross-repo-trace.md",
+        "backend-readiness.md",
+        "07-reviewer.md",
+        "api-handoff-docs.html",
+        "live-dashboard.html",
+        "tiers-crud-blueprint.html"
       ],
       "resolved": true
+    },
+    {
+      "id": 5,
+      "label": "Rework #6a \u2014 Contract rename + envelope flatten + program/tier reject asymmetry",
+      "date": "2026-04-22",
+      "trigger": "manual",
+      "mode": "Mode 5 \u2014 full cascade",
+      "target_phase": "1",
+      "cascade_phases": [
+        "1",
+        "2",
+        "4",
+        "6",
+        "6a",
+        "7",
+        "8",
+        "8b",
+        "9",
+        "10",
+        "10b",
+        "10c",
+        "11"
+      ],
+      "skipped_phases": [
+        "3",
+        "5"
+      ],
+      "skipped_reason": "No new screens, no new repos \u2014 Phase 3 (UI) and Phase 5 (Research) CONFIRMED unchanged",
+      "reason": "Contract rename (downgrade\u2192renewal), GET envelope flatten, drop validity.startDate for SLAB_UPGRADE, compute FIXED duration, filter/reject -1 sentinels, defensive reject multi-tracker eligibility, hard flip (no back-compat), reject Class A + Class B program-level fields on per-tier write. Advanced-settings endpoint (6b) deferred for separate discussion.",
+      "severity": "MODERATE",
+      "scope": "intouch-api-v3 only (Q13). Wire layer cleanup \u2014 no engine repo changes, no Thrift IDL, no Flyway.",
+      "locked_decisions": {
+        "Q1-Q2-Q4": "GET envelope flattens \u2014 hoist live.* to tier root + status:LIVE + forward-compat dual-block",
+        "Q3": "Rename downgrade\u2192renewal block; target\u2192downgradeTo (UI-matching, Figma 'Downgrade to'); reevaluateOnReturn/dailyEnabled hoisted out of renewal",
+        "Q5c": "Defensive reject multi-tracker eligibility on per-tier wire in 6a \u2014 subsumed by Q18/Q24. Engine storage capability (AdditionalUpgradeCriteria[]) already exists; wire plumbing for it folds into 6b (FU-01 CANCELLED 2026-04-22).",
+        "Q7": "Drop validity.startDate for SLAB_UPGRADE tiers",
+        "Q8": "Compute FIXED duration from startDate + periodValue (no new field)",
+        "Q9": "Filter value==-1 from GET conditions; reject on write (9001-9010 range)",
+        "Q11": "Hard flip \u2014 no back-compat window for downgrade\u2192renewal rename",
+        "Q12": "Full Mode 5 cascade from Phase 1 (BA)",
+        "Q13": "intouch-api-v3 only, no engine changes",
+        "Q14": "Split Rework #6 into 6a (this cycle) + 6b (advanced-settings endpoint, separate discussion)",
+        "Q15": "SUPERSEDED by Q23 \u2014 Thrift-via-intouch-api-v3 path abandoned in favour of api_gateway direct-to-ProgramsApi",
+        "Q16": "UI 'Define when to validate tier's renewal conditions' = periodType",
+        "Q17": "Per-tier POST/PUT rejects reevaluateOnReturn + dailyEnabled (Class A) \u2014 SUBSUMED by Q24",
+        "Q18": "Per-tier POST/PUT rejects kpiType, upgradeType, trackingPeriod, conditions[], expressionRelation, periodType, periodValue, retainPoints (Class B) \u2014 SUBSUMED by Q24",
+        "Q20": "Per-tier POST scope = Figma per-tier wizard fields only (name, description, color, eligibility.threshold, validity.periodType/Value/startDate, renewal.downgradeTo/conditions[]/criteriaType). No nested advancedSettings envelope.",
+        "Q22": "No nested advancedSettings block on per-tier POST/PUT \u2014 write-narrow boundary. Earlier 'advancedSettings envelope on per-tier POST' proposal explicitly rejected by user.",
+        "Q23": "Advanced-settings endpoint deployed via api_gateway (nginx-level) \u2192 pointsengine-emf/ProgramsApi.java directly. No intouch-api-v3 wrapping, no maker-checker, no auth/logging duplication. SUPERSEDES Q15 (Thrift-via-intouch-api-v3 path abandoned).",
+        "Q24": "Per-tier POST strictly REJECTS program-level fields with 400 InvalidInputException (error-code 9001-9010). Per-tier GET HOISTS program-level fields into tier root read-wide for UI pre-fill. Write-narrow / read-wide asymmetric contract. Rejected fields: kpiType, upgradeType, trackerId, trackerConditionId, additionalCriteria[], expressionRelation, reevaluateOnReturn, dailyEnabled, retainPoints, isDowngradeOnPartnerProgramExpiryEnabled. SUBSUMES Q17/Q18/Q25; SUPERSEDES Q21 (first-writer-wins no longer needed).",
+        "Q26": "renewal.criteriaType (NOT 'conditionsToSatisfy') \u2014 B1a lock unchanged: only 'Same as eligibility' accepted; expressionRelation + conditions must be null/empty. B2 (Custom) + B3 (engine wiring) deferred to a future follow-up. Earlier 'conditionsToSatisfy' references in session-memory are a doc typo \u2014 real wire field is criteriaType (TierRenewalConfig.java:57)."
+      },
+      "fu01_status": "CANCELLED 2026-04-22. Reason: AdditionalUpgradeCriteria[] in pointsengine-emf engine already supports multi-tracker (ThresholdBasedSlabUpgradeStrategyImpl.java:51,229-239). peb and pointsengine-emf are the same engine layer (user-confirmed). The silent-drop gap is purely wire plumbing in intouch-api-v3, folded into 6b.",
+      "deferred_to_6b": {
+        "endpoint": "GET|PUT|DELETE /api_gateway/loyalty/v1/programs/{programId}/advanced-settings",
+        "deployment": "api_gateway (nginx) \u2192 pointsengine-emf/ProgramsApi.java direct. Bypasses intouch-api-v3 entirely. No maker-checker, no Thrift IDL.",
+        "thrift_method": "N/A \u2014 ProgramsApi writes in-process to SlabDowngradeStrategyConfiguration + SlabUpgradeStrategy.propertyValues using existing engine services.",
+        "fields": [
+          "reevaluateOnReturn",
+          "dailyEnabled",
+          "retainPoints",
+          "isDowngradeOnPartnerProgramExpiryEnabled",
+          "eligibility.kpiType",
+          "eligibility.upgradeType",
+          "eligibility.trackerId",
+          "eligibility.trackerConditionId",
+          "eligibility.additionalCriteria[]",
+          "eligibility.expressionRelation"
+        ]
+      },
+      "open_questions_for_ba": [
+        "Wizard Step 2 'Qualifying conditions' \u2014 Figma shows these inside per-tier Eligibility wizard, but Q20/Q22/Q24 put them program-level (advanced-settings only, rejected on per-tier POST). Under the locked asymmetric contract, the per-tier wizard should pre-fill these from advanced-settings (read-wide hoist) and the UI should either (a) hide them inside per-tier create or (b) render them read-only with a deep-link to advanced-settings. BA rework must pick the UX framing; the wire contract is locked \u2014 no per-tier override mechanism."
+      ],
+      "resolved": true,
+      "execution_state": {
+        "launched_at": "2026-04-22T00:00:00Z",
+        "active_phase": "7 (Designer \u2014 LLD, Rework #6a delta)",
+        "active_phase_status": "pending",
+        "cascade_mode": "scoped-delta",
+        "blast_radius_sweep": {
+          "q3_rename_json_literals": 2,
+          "q3_rename_compile_surface_files": 13,
+          "q26_typo_occurrences": 0,
+          "q17_q24_classA_test_files_impacted": 3,
+          "q24_classB_json_literals": 8,
+          "q24_classB_test_files_impacted": 3,
+          "regenerate_candidates": [
+            "TierDtoSerializationTest.java"
+          ]
+        },
+        "phases_completed": [
+          "1",
+          "2",
+          "6a"
+        ],
+        "artifacts_touched_by_phase": {
+          "1": [
+            "00-ba.md",
+            "00-ba-machine.md",
+            "00-prd.md",
+            "00-prd-machine.md"
+          ],
+          "2": [
+            "contradictions.md",
+            "gap-analysis-brd.md"
+          ]
+        },
+        "phase_2_rework_summary": {
+          "completed_at": "2026-04-22T00:00:00Z",
+          "critic": {
+            "ba_soundness_verdict": "WEAK",
+            "new_contradictions": 11,
+            "blockers": [
+              "C-7 phantom Q-locks (Q18/Q19/Q21)",
+              "C-8 validity.* asymmetry"
+            ],
+            "high": [
+              "C-9 error code range collision",
+              "C-10 -1 string-vs-numeric",
+              "C-11 Jackson config",
+              "C-12 PeriodType enum coverage",
+              "C-17 Q11 external consumer audit"
+            ],
+            "medium": [
+              "C-13 TierRenewalNormalizer existence",
+              "C-14",
+              "C-16 DeLinking/Expiry schema drift"
+            ],
+            "low": [
+              "C-15"
+            ],
+            "model": "opus"
+          },
+          "gap_analyser": {
+            "verified_reqs": 18,
+            "confirmed": 3,
+            "contradicted": 0,
+            "unverifiable_net_new": 13,
+            "q20_verdict": "STANDS (except L-2: validity.periodType/periodValue are per-slab, not program-level)",
+            "fu01_verdict": "STANDS \u2014 engine supports multi-tracker via additionalUpgradeCriteriaList",
+            "q13_scope_lock": "HOLDS",
+            "medium_findings": [
+              "M-1 Class A reject has no DTO surface",
+              "M-2 Class B reject has no DTO surface",
+              "M-3 advancedSettings envelope has no DTO surface"
+            ],
+            "low_findings": [
+              "G-06.2 deliberate API break (documented)",
+              "L-2 validity classification nuance"
+            ],
+            "model": "opus"
+          },
+          "reconciled_blockers_for_phase_4": [
+            "C-7 phantom Q-locks",
+            "C-8 validity classification (reshaped by code evidence)"
+          ],
+          "deferred_to_designer": [
+            "C-11/M-1/M-2/M-3 Jackson config + DTO surface",
+            "C-10 -1 matcher"
+          ],
+          "user_operational_questions": [
+            "C-12 PeriodType enum scope",
+            "C-17 external consumer audit"
+          ]
+        },
+        "phase_4_blocker_resolutions": {
+          "C-7_phantom_q_locks": {
+            "resolved_at": "2026-04-22T00:00:00Z",
+            "decision": "hybrid",
+            "description": "Keep Q24 as umbrella. Added 'Subsumed Q-numbers reference map' block to session-memory.md after Q24 mapping Q17/Q18/Q19/Q21/Q25 -> Q24 with evidence anchors. Updated BA/PRD citations to 'Q24 (subsumes Q18)' form; retained Q-number entries in traceability maps with 'SUBSUMED by Q24' annotation for grep-discoverability.",
+            "artifacts_modified": [
+              "session-memory.md",
+              "00-ba.md",
+              "00-ba-machine.md",
+              "00-prd.md",
+              "00-prd-machine.md"
+            ],
+            "verification": "Grep Q18/Q19/Q21 across 00-*.md \u2014 zero phantom citations remain; all either explicitly marked subsumed or inside the reference map."
+          },
+          "C-8_validity_classification": {
+            "resolved_at": "2026-04-22T00:00:00Z",
+            "decision": "Option A \u2014 follow code truth (validity is per-tier)",
+            "evidence_base": "pointsengine-emf/.../TierDowngradeSlabConfig.java:33-34 \u2014 @SerializedName(\"periodConfig\") private TierDowngradePeriodConfig m_periodConfig is a per-slab field indexed by slabNumber. Engine storage is per-slab, not program-level.",
+            "changes_applied": [
+              "session-memory.md Q10b: amended \u2014 validity.periodType/validity.periodValue reclassified as per-tier (per-slab engine storage)",
+              "session-memory.md Q20: per-tier storage list now explicitly includes validity fields with file:line anchor",
+              "session-memory.md Contract Split table: validity.periodType/periodValue row now 'stays per-tier'; renewal-extension (separate field) still program-level in 6b",
+              "00-ba.md REQ-20: removed validity.periodType + validity.periodValue from read-wide hoist list (hoist now eligibility-only + Class A booleans)",
+              "00-ba.md REQ-34: description narrowed to 'Class B eligibility' \u2014 validity explicitly excluded from rejected list",
+              "00-prd.md US-1 AC-14: validity fields removed from hoist list",
+              "00-prd.md US-2 AC-12 + US-3 AC-12: description narrowed to 'Class B eligibility'; validity explicitly not rejected",
+              "00-ba-machine.md / 00-prd-machine.md: invariants, error codes, US-3 reject set, and Q18 traceability all relabelled to reflect eligibility-only rejection + validity per-tier",
+              "00-ba-machine.md 6b payload_fields.program_level_validity: emptied ([]) \u2014 6b no longer carries validity fields"
+            ],
+            "follow_on_for_6b": "6b advanced-settings scope shrinks \u2014 validity fields excluded; if product team wants 'one global renewal period across tiers' in future, enforce via UI cross-tier validator, not wire contract.",
+            "deferred_design_question": "Designer (Phase 7) decides: on per-tier POST/PUT, if caller omits validity.periodType/periodValue but the tier already has per-slab periodConfig in storage, does PUT preserve existing (partial-update semantics) or zero it? Expected: partial-update (REQ-49 all fields optional).",
+            "artifacts_modified": [
+              "session-memory.md",
+              "00-ba.md",
+              "00-ba-machine.md",
+              "00-prd.md",
+              "00-prd-machine.md"
+            ]
+          },
+          "Q-OP-1_error_code_allocation": {
+            "resolved_at": "2026-04-22T00:00:00Z",
+            "decision": "Option (b) \u2014 Allocate distinct Rework #6a band 9011-9020",
+            "evidence_base": "TierUpdateRequestValidator.java javadoc confirms 9001-9010 is pre-existing Rework #4 partial-update validator range. Resolves contradictions.md C-9 (silent contract break risk) by giving new rejects a non-overlapping band.",
+            "allocations": {
+              "9011": {
+                "req": "REQ-33",
+                "reject_reason": "Class A program-level boolean on per-tier wire",
+                "q_lock": "Q24 (subsumes Q17)"
+              },
+              "9012": {
+                "req": "REQ-34",
+                "reject_reason": "Class B program-level eligibility on per-tier wire",
+                "q_lock": "Q24 (subsumes Q18); amended by C-8 Option A \u2014 validity per-tier, NOT rejected"
+              },
+              "9013": {
+                "req": "REQ-27",
+                "reject_reason": "Legacy 'downgrade' field present (hard-flip)",
+                "q_lock": "Q11"
+              },
+              "9014": {
+                "req": "REQ-37",
+                "reject_reason": "Nested 'advancedSettings' envelope on per-tier wire",
+                "q_lock": "Q22 (write-narrow boundary)"
+              },
+              "9015": {
+                "req": "REQ-35",
+                "reject_reason": "value == '-1' sentinel on eligibility or renewal conditions",
+                "q_lock": "Q9 (read/write lockstep with REQ-19)"
+              },
+              "9016": {
+                "req": "REQ-36",
+                "reject_reason": "validity.startDate on SLAB_UPGRADE-type tier",
+                "q_lock": "Q7 (engine event-driven)"
+              },
+              "9017": {
+                "req": "REQ-38",
+                "reject_reason": "Non-B1a renewal contract violation (criteriaType != 'Same as eligibility' OR non-empty expressionRelation/conditions)",
+                "q_lock": "Q26 (B1a lock)"
+              },
+              "9018-9020": {
+                "req": null,
+                "reject_reason": "Reserved for 6a runtime-discovered rejects",
+                "q_lock": null
+              }
+            },
+            "changes_applied": [
+              "session-memory.md: Q-OP-1 lock block with 9011-9020 allocation table appended after Subsumed Q-numbers reference map",
+              "00-ba.md L89: invariant bullet updated \u2014 error code 9015 per Q-OP-1 for value=='-1' reject",
+              "00-ba.md REQ-27/REQ-33/REQ-34/REQ-35/REQ-36/REQ-37/REQ-38: per-REQ specific codes inserted (9013/9011/9012/9015/9016/9014/9017)",
+              "00-ba.md REQ-40: rewritten with legacy band + 6a band banding block",
+              "00-ba.md Q-lock coverage table rows (REQ-27/33/34/35/36/37/38): code-range refs replaced with specific codes",
+              "00-ba-machine.md invariants (L179-180, L185): range refs replaced with specific codes",
+              "00-ba-machine.md rework_6a_error_codes: restructured with legacy_band + rework_6a_band.allocations (per-code REQ + reject_reason + q_lock)",
+              "00-prd.md US-2 AC-8 / AC-11 / AC-12 / AC-13 / AC-14 / AC-15 / AC-16 / AC-17: per-AC specific codes inserted",
+              "00-prd.md US-3 AC-6 / AC-10 / AC-11 / AC-12 / AC-13 / AC-14: per-AC specific codes inserted",
+              "00-prd.md delta log (L317, L327): CLARIFIED -> CHANGED with rebanding note",
+              "00-prd-machine.md US-2 acceptance_criteria list (L36-43): per-line specific codes with legacy-band note",
+              "00-prd-machine.md Q9 q_lock entry (L231): 9015 per Phase 4 Q-OP-1",
+              "contradictions.md C-9: marked RESOLVED with allocation table reference",
+              "gap-analysis-brd.md G-13 row: error code note updated to per-REQ codes + band distinction"
+            ],
+            "no_back_compat_impact": "Legacy 9001-9010 codes untouched \u2014 existing API consumers parsing Rework #4 codes unaffected. New band 9011-9020 is additive.",
+            "artifacts_modified": [
+              "session-memory.md",
+              "00-ba.md",
+              "00-ba-machine.md",
+              "00-prd.md",
+              "00-prd-machine.md",
+              "contradictions.md",
+              "gap-analysis-brd.md"
+            ]
+          },
+          "Q-OP-2_periodtype_scope_and_conditional_duration": {
+            "resolved_at": "2026-04-22T00:00:00Z",
+            "decision": "Option (c) \u2014 Scope lock out of 6a, with user-imposed duration caveat",
+            "scope_lock": "6a handles SLAB_UPGRADE explicitly (REQ-21 startDate drop + REQ-36 reject). FIXED_CUSTOMER_REGISTRATION, FIXED_LAST_UPGRADE, SLAB_UPGRADE_CYCLIC are pass-through from Rework #5 behaviour \u2014 no new wire-level handling in 6a.",
+            "user_caveat": "validity.periodValue is REQUIRED when validity.periodType is FIXED-family (FIXED, FIXED_CUSTOMER_REGISTRATION, FIXED_LAST_UPGRADE). SLAB_UPGRADE-family (SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC) does NOT require periodValue \u2014 engine is event-driven.",
+            "new_req": {
+              "id": "REQ-56",
+              "scope": "Conditional duration requirement",
+              "error_code": "9018",
+              "post_rule": "If validity.periodType is FIXED-family on POST, validity.periodValue must be present + non-null + positive integer. Missing/null/non-positive -> 400 InvalidInputException code 9018.",
+              "put_rule": "If PUT payload changes periodType INTO FIXED-family, effective post-merge state must carry periodValue. Exact merge semantics (payload-only vs payload+stored) deferred to Designer Phase 7.",
+              "rationale": "Figma wizard treats duration as required on FIXED paths. Wire-level enforcement prevents FIXED tiers from being saved without durations, which would break REQ-22 computed end-date."
+            },
+            "amended_req": {
+              "id": "REQ-22",
+              "change": "FIXED duration read path made null-safe for legacy tiers with missing periodValue \u2014 computed end-date omitted rather than returned as null/0. Designer decides final field shape in Phase 7."
+            },
+            "resolves_contradictions": [
+              "C-12 (partial resolution \u2014 enum scope explicitly locked OUT of 6a; per-enum read behaviour for FIXED_CUSTOMER_REGISTRATION / FIXED_LAST_UPGRADE / SLAB_UPGRADE_CYCLIC deferred to future rework)"
+            ],
+            "error_code_allocation_delta": {
+              "9018": "REQ-56 \u2014 FIXED-family periodType without required periodValue",
+              "note": "Reserved band shrinks from 9018-9020 to 9019-9020"
+            },
+            "deferred_design_questions": [
+              "Phase 7 Designer: exact PUT merge semantics for conditional presence \u2014 does the validator check against the stored doc, or reject outright if payload alone can't satisfy the FIXED+periodValue constraint?",
+              "Phase 7 Designer: wire shape for legacy FIXED tiers with missing periodValue on GET \u2014 omit the computed end-date field, or return a sentinel?"
+            ],
+            "changes_applied": [
+              "00-ba.md REQ-22: amended with null-safe fallback for legacy tiers",
+              "00-ba.md REQ-56: NEW \u2014 conditional duration requirement (code 9018)",
+              "00-ba.md REQ-40: 9018 added to banding block; 9019-9020 reserved",
+              "00-ba.md delta log + Field-Rename Summary: REQ-56 + REQ-22 amendment entries added",
+              "00-ba.md Phase 4 Blocker Resolutions: Q-OP-2 resolution section appended",
+              "00-ba-machine.md rework_6a_invariants: FIXED duration null-safety + conditional duration + PeriodType scope-lock bullets added",
+              "00-ba-machine.md rework_6a_req_delta: REQ-56 in added, REQ-22 in updated",
+              "00-ba-machine.md rework_6a_error_codes.rework_6a_band: 9018 REQ-56 allocation; 9019-9020 reserved",
+              "00-ba-machine.md rework_6a_q_lock_coverage: Q-OP-1 and Q-OP-2 entries added",
+              "00-prd.md US-2 AC-18: NEW \u2014 POST FIXED-family requires periodValue (9018)",
+              "00-prd.md US-3 AC-16: NEW \u2014 PUT post-merge FIXED-family requires periodValue (9018)",
+              "00-prd.md AC-8 / AC-6: citations updated to Q-OP-1/Q-OP-2",
+              "00-prd.md delta log: US-2 AC-18 + US-3 AC-16 entries added",
+              "00-prd-machine.md US-2 + US-3 acceptance_criteria: 9018 rejects added",
+              "00-prd-machine.md key_decisions: Q-OP-1 and Q-OP-2 entries added; new_acs updated",
+              "contradictions.md C-12: PARTIAL RESOLUTION note appended"
+            ],
+            "artifacts_modified": [
+              "00-ba.md",
+              "00-ba-machine.md",
+              "00-prd.md",
+              "00-prd-machine.md",
+              "contradictions.md",
+              "pipeline-state.json"
+            ]
+          },
+          "Q-OP-3_external_consumer_audit": {
+            "status": "resolved",
+            "decision": "(a) Audit codebase for internal callers",
+            "resolves_contradiction": "C-17 (external consumer audit missing \u2014 upgraded C5 \u2192 C6 for audited surface; residual C5 flagged to Phase 11). C-11 is the separate Jackson FAIL_ON_UNKNOWN_PROPERTIES config contradiction and is unaffected by Q-OP-3.",
+            "audit_date": "2026-04-22",
+            "audit_artifact": "q-op-3-consumer-audit.md",
+            "scope_swept": {
+              "repos_count": 16,
+              "repos": [
+                "intouch-api-v3",
+                "emf-parent",
+                "peb",
+                "Thrift",
+                "rule-engine",
+                "cd-cheetah-apps-points-core",
+                "cd-cheetah-apps-points-core-master",
+                "cd-cheetah-etl",
+                "cd-libcheetah",
+                "cc-stack-crm",
+                "campaigns_auto",
+                "crm-mcp-servers",
+                "event-notification",
+                "emf-async-executor",
+                "cap-intouch-ui-appserver-wrapper",
+                "shopbook-datamodel"
+              ],
+              "search_terms": [
+                "v3/tiers (literal)",
+                "/v3/tiers (quoted)",
+                "TierController",
+                "TierReviewController",
+                "api_gateway.*tier",
+                "api_gateway/loyalty/v1/tiers",
+                "POST.*tier",
+                "PUT.*tier",
+                "CreateTier",
+                "UpdateTier"
+              ]
+            },
+            "findings": {
+              "internal_backend_callers_found": 0,
+              "producer_internal_files": 7,
+              "producer_location": "intouch-api-v3 (2 controllers, 2 validators, 2 transformers, 1 test \u2014 all internal to the endpoint module)",
+              "false_positives_triaged": {
+                "cd-cheetah-apps-points-core_php_widgets": "$_POST['tier_upgrade_strategy_home__...'] \u2014 HTML form fields, NOT REST HTTP POST",
+                "cc-stack-crm_nifi_sql": "0 precise-regex matches; false positive from broad POST.*tier sweep",
+                "campaigns_auto_api_gateway": "Only promotion endpoints (exportPromotion, createPromotionV2, etc.) \u2014 no tier endpoints",
+                "Thrift_partner_tier": "PartnerProgramTierUpdate is a different partner-program domain, not tier CRUD",
+                "Artificial_Intelligence_emf_parent_copy": ".claude/skills/* documentation only, not code"
+              }
+            },
+            "confidence_upgrade": "C5 \u2192 C6 for the audited surface",
+            "residual_risk_c5": [
+              "External SaaS customer integrations (not in codebase)",
+              "Third-party automation built by integration partners",
+              "QA/perf/regression automation in separate test repos",
+              "nginx api_gateway rewrites outside code (low \u2014 verified by api_gateway.*tier grep)",
+              "Operator cURL scripts / runbooks (not in repos)"
+            ],
+            "phase_11_forward_flag": [
+              "Access-log scan at staging gateway for non-UI user agents hitting POST/PUT /v3/tiers* over last 30 days",
+              "Publish 9011-9020 error code band in api-handoff.md (already done) at least 30 days before cutover",
+              "Optional soft-launch: log (don't reject) unknown fields in staging for 2 weeks before hard-flip in production"
+            ],
+            "changes_applied": [
+              "q-op-3-consumer-audit.md \u2014 new artifact (evidence trail)",
+              "contradictions.md C-11 \u2014 to be marked C5 \u2192 C6 (RESOLVED for audited surface)",
+              "session-memory.md \u2014 Q-OP-3 lock block appended",
+              "pipeline-state.json \u2014 Q-OP-3 resolution logged (this entry)"
+            ],
+            "no_back_compat_impact": "No external consumer discovered across 16 repos. Contract changes (9011-9020 band, unknown-field reject, REQ-56 conditional duration) stand as-is."
+          }
+        },
+        "phase_1_rework_summary": {
+          "completed_at": "2026-04-22T00:00:00Z",
+          "triage": {
+            "CONFIRMED": 26,
+            "UPDATE": 7,
+            "REGENERATE": 0,
+            "OBSOLETE": 1,
+            "NEW": 11
+          },
+          "total_reqs_before": 45,
+          "total_reqs_after": 55,
+          "updated_reqs": [
+            "REQ-02",
+            "REQ-05",
+            "REQ-07",
+            "REQ-25",
+            "REQ-26",
+            "REQ-27",
+            "REQ-49"
+          ],
+          "obsolete_reqs": [
+            "REQ-08"
+          ],
+          "new_reqs": [
+            "REQ-19",
+            "REQ-20",
+            "REQ-21",
+            "REQ-22",
+            "REQ-33",
+            "REQ-34",
+            "REQ-35",
+            "REQ-36",
+            "REQ-37",
+            "REQ-38",
+            "REQ-55"
+          ],
+          "q_lock_coverage": "all Q1-Q26 mapped; FU-01 CANCELLED appended to all four artifacts",
+          "open_questions_for_ux": "US-2 Step 2 'Qualifying Conditions' framing \u2014 flagged as product/UX scope, does NOT block BA sign-off",
+          "model": "opus",
+          "mode": "rework-scoped-delta"
+        },
+        "phase_4_status": "complete",
+        "phase_4_completed_at": "2026-04-22",
+        "phase_4_blocker_count_resolved": 5,
+        "phase_4_blocker_items_resolved": [
+          "C-7 phantom Q-locks (Hybrid)",
+          "C-8 validity classification (Option A)",
+          "Q-OP-1 error code range (Option b \u2014 band 9011-9020)",
+          "Q-OP-2 PeriodType enum scope (Option c + user caveat \u2192 REQ-56)",
+          "Q-OP-3 external consumer audit (Option a \u2014 C5 \u2192 C6, residual C5 flagged to Phase 11)"
+        ],
+        "phase_6_status": "complete",
+        "phase_6_completed_at": "2026-04-22",
+        "phase_6_mode": "rework",
+        "phase_6_delta": {
+          "artifact": "01-architect.md",
+          "changes_applied": [
+            "Header: date, confidence (now 29+19+7+5 decisions locked), rework trail updated to include #6a",
+            "Section 1: new subsection \"Rework #6a Context (added 2026-04-22)\" \u2014 5-decision table + scope floor + deferred-to-Designer list",
+            "Section 6.5 (NEW): \"Rework #6a Contract Hardening\" \u2014 error-code reject matrix (9011-9018), write-narrow/read-wide note, unknown-field reject note, read-side null-safety note, contradiction resolution mapping",
+            "Section 9: ADR-17R (error code band 9011-9020)",
+            "Section 9: ADR-18R (validity per-slab canonical)",
+            "Section 9: ADR-19R (PeriodType scope lock + REQ-56 conditional duration)",
+            "Section 9: ADR-20R (Jackson FAIL_ON_UNKNOWN_PROPERTIES hard-reject)",
+            "Section 9: ADR-21R (write-narrow / read-wide asymmetric contract)",
+            "Section 11: R13 (external consumer residual), R14 (Jackson config open), R15 (PeriodType pass-through rot)",
+            "Section 12: \"Rework #6a Done Criteria\" \u2014 7 new items, all unchecked, mapped to forthcoming Designer/Developer cascade"
+          ],
+          "adrs_added": [
+            "ADR-17R",
+            "ADR-18R",
+            "ADR-19R",
+            "ADR-20R",
+            "ADR-21R"
+          ],
+          "adrs_touched": [],
+          "contradictions_closed_or_partial": {
+            "C-7": "resolved via Hybrid (documented in \u00a76.5 contract matrix)",
+            "C-8": "resolved via Option A / ADR-18R",
+            "C-9": "resolved via ADR-17R",
+            "C-12": "partial \u2014 scope locked via ADR-19R, forward guard REQ-56, 3 non-SLAB_UPGRADE enum values remain pass-through (R15)",
+            "C-17": "partial \u2014 internal audit clean via Q-OP-3, external residual carried as R13 to Phase 11"
+          },
+          "contradictions_open_for_designer": [
+            "C-10 (numeric -1 wire type)",
+            "C-11 (Jackson config verification \u2014 R14)",
+            "C-13 (normalizer class)",
+            "C-14 (list hoist shape)",
+            "C-16 (Class A key-name drift)"
+          ],
+          "forward_cascade_payload_to_6a": {
+            "target_phase": "6a (Impact Analysis)",
+            "affected_adrs": [
+              "ADR-17R",
+              "ADR-18R",
+              "ADR-19R",
+              "ADR-20R",
+              "ADR-21R"
+            ],
+            "impact_scope": "Contract-hardening only \u2014 zero schema, zero storage, zero new endpoints. Analyst should focus on: (1) blast radius of 9011-9018 emission on any error-code-consuming client; (2) Jackson config verification risk (R14) as a cross-module concern if the global ObjectMapper is shared with other controllers; (3) confirm ADR-18R does not accidentally pull program-level write paths into the MC scope; (4) confirm read-side null safety (REQ-22 amendment) does not widen the Rework #5 envelope shape in a way that breaks existing GET consumers.",
+            "guardrails_to_recheck": [
+              "G-01 (timezone \u2014 REQ-22 computed end-date)",
+              "G-07 (tenant isolation \u2014 unchanged, but confirm reject paths still filter by org/program)",
+              "G-12 (error-code consistency \u2014 new band)"
+            ]
+          }
+        },
+        "cascade_policy": {
+          "set_at": "2026-04-22",
+          "dashboard_updates": "skip (user instruction)",
+          "confluence_publish": "skip for phases 6-10; final publish TBD",
+          "api_handoff_update": "regenerate from code after Phase 10 (Developer-GREEN) completes \u2014 evidence-only pattern"
+        },
+        "phase_6a_status": "complete",
+        "phase_6a_completed_at": "2026-04-22",
+        "phase_6a_mode": "delta \u2014 appended to existing 02-analyst.md",
+        "phase_6a_delta": {
+          "artifact": "02-analyst.md (Rework #6a Delta sections R6a-1 through R6a-14 appended)",
+          "blockers_against_architect": 0,
+          "blast_radius_confirmed": {
+            "repos_touched": [
+              "intouch-api-v3"
+            ],
+            "files_touched_estimate": "TierCreateRequestValidator.java, TierUpdateRequestValidator.java, error-code constants file (+ <=1 config/annotation file if ADR-20R fallback needed)",
+            "zero_mod_repos": [
+              "emf-parent",
+              "peb",
+              "Thrift",
+              "pointsengine-emf",
+              "cap-intouch-ui-appserver-wrapper"
+            ],
+            "schema_changes": 0,
+            "thrift_idl_changes": 0,
+            "engine_changes": 0
+          },
+          "guardrails_recheck": {
+            "G-01": "compliant",
+            "G-02": "needs_attention (D-6a-2 locks wire shape)",
+            "G-03": "compliant",
+            "G-04": "compliant (+<1ms overhead, improved bad-input latency)",
+            "G-05.4": "N/A (zero schema)",
+            "G-06": "compliant",
+            "G-07": "compliant",
+            "G-12": "compliant"
+          },
+          "cross_module_concerns_resolved_at_c6": {
+            "jackson_config_bleed": "mitigated by D-6a-1 \u2014 per-DTO or scanning validator if global is permissive; never flip global",
+            "adr_18r_mc_scope": "preserved \u2014 per-slab writes inside existing per-tier MC SAGA; program-level writes remain on separate 6b surface",
+            "req_22_envelope_stability": "no widening \u2014 D-6a-2 locks Designer to omit or explicit null (forbids 0)"
+          },
+          "designer_locked_instructions_5_total": {
+            "from_adr_19r_20r": [
+              "Verify global Jackson config as first step of LLD (ADR-20R)",
+              "Pick PUT merge semantics (payload-only vs post-merge) for REQ-56 (ADR-19R)",
+              "Pick exact read-side wire shape for legacy FIXED tiers missing periodValue (ADR-19R)"
+            ],
+            "new_from_phase_6a": {
+              "D-6a-1": "If Jackson global is permissive, use per-DTO @JsonIgnoreProperties OR scanning validator; do NOT flip global",
+              "D-6a-2": "Wire shape for legacy FIXED reads: pick omit or explicit null; NEVER 0"
+            }
+          },
+          "reviewer_forward_flags_3_total": {
+            "P11-6a-1": "External-consumer residual (R13) \u2014 staging access-log scan >=30 days or executed soft-launch",
+            "P11-6a-2": "Error-code band announcement in api-handoff.md >=30 days pre-cutover",
+            "P11-6a-3": "R14 closure \u2014 Designer verification outcome + SDET reject tests"
+          },
+          "risk_delta": {
+            "architect_risks_augmented": [
+              "R13 (MEDIUM, LOW-MEDIUM likelihood)",
+              "R14 (MEDIUM, UNKNOWN-until-verified)",
+              "R15 (LOW, LOW)"
+            ],
+            "new_risks_introduced_by_6a": 0
+          },
+          "forward_cascade_payload_to_7": {
+            "target_phase": "7 (Designer \u2014 LLD)",
+            "task": "Implement ADR-17R..ADR-21R on 2-3 validator/constants/config files in intouch-api-v3",
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift IDL, zero engine changes",
+            "locked_designer_picks": [
+              "Jackson verify + scoped fallback (D-6a-1)",
+              "PUT merge semantics for REQ-56",
+              "read wire shape omit/null (D-6a-2)"
+            ],
+            "contradictions_to_resolve": [
+              "C-10 (-1 wire type: string vs number, code 9015 vs 9016)",
+              "C-11 (Jackson global verification \u2014 R14)",
+              "C-13 (TierRenewalNormalizer class existence)",
+              "C-14 (list endpoint hoist shape)",
+              "C-16 (isDowngradeOnPartnerProgramDeLinkingEnabled key-name drift)"
+            ],
+            "files_in_scope": [
+              "intouch-api-v3/.../TierCreateRequestValidator.java",
+              "intouch-api-v3/.../TierUpdateRequestValidator.java",
+              "intouch-api-v3/.../<error-code constants file>"
+            ]
+          },
+          "phase_7_status": "complete",
+          "phase_7_completed_at": "2026-04-22",
+          "phase_7_artifact": "03-designer.md \u00a7Rework #6a Delta \u2014 Designer LLD",
+          "phase_7_delta": {
+            "reconnaissance_findings": {
+              "F1_jackson_strict_default": "C6 \u2014 IntouchApiV3Application.java:94-99 @Bean ObjectMapper = new ObjectMapper() only sets TimeZone; 36 DTOs opt out via @JsonIgnoreProperties(ignoreUnknown=true) pattern",
+              "F2_tier_dtos_no_optout": "C7 \u2014 TierCreateRequest/TierUpdateRequest have no class-level annotation",
+              "F3_periodtype_4_values_not_5": "C7 \u2014 peb/.../TierDowngradePeriodConfig.java:17-18 canonical {FIXED, SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC, FIXED_CUSTOMER_REGISTRATION}; FIXED_LAST_UPGRADE is phantom",
+              "F4_tier_renewal_normalizer_exists": "C7 \u2014 49-line class at tier/TierRenewalNormalizer.java",
+              "F5_canonical_key_is_expiry_not_delinking": "C7 \u2014 EngineConfig.java:14 declares isDowngradeOnPartnerProgramExpiryEnabled; TierStrategyTransformer.java:287 javadoc enumerates program-level fields; \u2026DeLinkingEnabled exists only in unrelated rule-engine event profiles",
+              "F6_list_endpoint_already_enveloped": "C6 \u2014 TierController.java:52 returns TierListResponse \u2192 List<TierEnvelope> (Rework #5); no hoist reshape by #6a"
+            },
+            "designer_picks_locked_5": {
+              "ADR-20R_jackson_verify": "Scenario A (global strict) \u2014 NO code change for ADR-20R; DTO field removal alone gives strict-mode reject",
+              "ADR-19R_put_merge_semantics": "payload-only \u2014 matches existing validator signature, deterministic 400s, correct partial-update semantics",
+              "ADR-19R_read_wire_shape": "OMIT \u2014 existing @JsonInclude(NON_NULL) on TierValidityConfig delivers the contract; null/0 forbidden per D-6a-2",
+              "D-6a-1_jackson_fallback": "NOT invoked \u2014 Scenario A confirmed; global NOT flipped (forward guard honored)",
+              "D-6a-2_wire_shape": "OMIT (locked via ADR-19R read wire shape)"
+            },
+            "contradictions_closed": {
+              "C-10": "C6 \u2014 reject both string (9015) and numeric (9016) -1 sentinels; precedence 9016 > 9018 for numeric -1 specifically",
+              "C-11": "C6 \u2014 Scenario A confirmed; R14 CLOSED",
+              "C-13": "C7 \u2014 TierRenewalNormalizer exists; CLOSED",
+              "C-14": "C6 \u2014 list endpoint already enveloped (Rework #5); CLOSED",
+              "C-16": "C7 \u2014 canonical is isDowngradeOnPartnerProgramExpiryEnabled; PRD wording drift flagged to P11; CLOSED"
+            },
+            "adr_19r_factual_correction_applied_to_01_architect_md": {
+              "phantom_value_removed": "FIXED_LAST_UPGRADE",
+              "corrected_families": {
+                "fixed_family": [
+                  "FIXED",
+                  "FIXED_CUSTOMER_REGISTRATION"
+                ],
+                "slab_upgrade_family": [
+                  "SLAB_UPGRADE",
+                  "SLAB_UPGRADE_CYCLIC"
+                ]
+              },
+              "edits_applied": 5,
+              "locations": [
+                "Section 5 table row 4 (enum scope lock)",
+                "Error-code table row 9018",
+                "ADR-19R decision text (points 1 and 2)",
+                "ADR-19R deferred-to-Designer block (now showing resolved picks)",
+                "Reviewer checklist ADR-19R bullet"
+              ]
+            },
+            "new_error_code_constants_8": {
+              "9011": "TIER_CLASS_A_PROGRAM_LEVEL_FIELD",
+              "9012": "TIER_CLASS_B_SCHEDULE_FIELD",
+              "9013": "TIER_ELIGIBILITY_CRITERIA_TYPE",
+              "9014": "TIER_START_DATE_ON_SLAB_UPGRADE",
+              "9015": "TIER_SENTINEL_STRING_MINUS_ONE",
+              "9016": "TIER_SENTINEL_NUMERIC_MINUS_ONE",
+              "9017": "TIER_RENEWAL_CRITERIA_TYPE_DRIFT",
+              "9018": "TIER_FIXED_FAMILY_MISSING_PERIOD_VALUE"
+            },
+            "files_in_scope_for_phase_10": [
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/dto/TierCreateRequest.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/dto/TierUpdateRequest.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/validation/TierCreateRequestValidator.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/validation/TierUpdateRequestValidator.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/validation/TierEnumValidation.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/resources/TierController.java"
+            ],
+            "files_NOT_in_scope": [
+              "TierDowngradeConfig.java (class retained)",
+              "TierValidityConfig.java (field retained for read-wide contract)",
+              "any Thrift IDL",
+              "any SQL schema",
+              "peb / emf-parent / Thrift / rule-engine repos"
+            ]
+          },
+          "forward_cascade_payload_to_8": {
+            "target_phase": "8 (QA \u2014 test scenarios)",
+            "task": "Generate test scenarios for 8 new reject codes 9011-9018 + DTO field removals + read-side omit for legacy FIXED tiers",
+            "minimum_scenarios": 16,
+            "must_cover": [
+              "POST with legacy downgrade block \u2192 400 via Jackson strict (not 9011-9018; generic Jackson 400)",
+              "POST with Class A program-level key \u2192 400 code 9011",
+              "POST with Class B schedule key \u2192 400 code 9012",
+              "POST with eligibilityCriteriaType on write \u2192 400 code 9013",
+              "POST with SLAB_UPGRADE + startDate \u2192 400 code 9014",
+              "POST with programId: '-1' (string) \u2192 400 code 9015",
+              "POST with programId: -1 (numeric) \u2192 400 code 9016",
+              "POST with renewal.criteriaType lowercase/spacing drift \u2192 400 code 9017",
+              "POST with FIXED no periodValue \u2192 400 code 9018",
+              "POST with FIXED_CUSTOMER_REGISTRATION no periodValue \u2192 400 code 9018",
+              "POST with FIXED periodValue=0 \u2192 400 code 9018 (non-positive)",
+              "POST with FIXED periodValue=-5 \u2192 400 code 9018 (9016 precedence tests -1 only)",
+              "POST with SLAB_UPGRADE no periodValue \u2192 200 (negative-control: periodValue optional for SLAB_UPGRADE family)",
+              "PUT SLAB_UPGRADE \u2192 FIXED transition no periodValue \u2192 400 code 9018 (payload-only)",
+              "PUT validity absent \u2192 200 (partial update doesn't fire REQ-56)",
+              "GET legacy FIXED tier without periodValue \u2192 periodValue OMITTED (not null, not 0)"
+            ],
+            "precedence_rules_to_test": [
+              "numeric -1 on any numeric field \u2192 9016 fires before 9018",
+              "pre-binding scans (9011/9012/9013/9015/9016) run BEFORE Jackson strict-mode; unknown-but-unclassified keys flow through to Jackson's generic 400"
+            ],
+            "open_contradictions_remaining": [],
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift, zero engine"
+          },
+          "reviewer_forward_flags_augmented": {
+            "P11-6a-3": "R14 CLOSED at Phase 7 (Scenario A confirmed); reduced to single strict-mode reject assertion in SDET",
+            "P11-6a-4_NEW": "PRD/BA wording drift scan \u2014 verify all references to 'isDowngradeOnPartnerProgramDeLinkingEnabled' have been corrected to 'isDowngradeOnPartnerProgramExpiryEnabled' across BA/PRD/rework-6a docs"
+          },
+          "phase_8_status": "complete",
+          "phase_8_completed_at": "2026-04-22",
+          "phase_8_artifact": "04-qa.md \u00a7Rework #6a Delta \u2014 QA Test Scenarios",
+          "phase_8_delta": {
+            "istqb_triage_summary": {
+              "confirmed": 88,
+              "update": 1,
+              "regenerate": 0,
+              "obsolete": 0,
+              "new": 26
+            },
+            "updated_scenarios": {
+              "TS-C11": "Qualified to FIXED-family only; SLAB_UPGRADE-family endDate-before-startDate can't fire (9014 rejects pre-binding)"
+            },
+            "new_scenarios_by_group": {
+              "group_A_pre_binding_reject_scans": [
+                "TS-6a-01",
+                "TS-6a-02",
+                "TS-6a-03",
+                "TS-6a-04",
+                "TS-6a-05",
+                "TS-6a-06",
+                "TS-6a-07",
+                "TS-6a-08"
+              ],
+              "group_B_post_binding_rejects": [
+                "TS-6a-09",
+                "TS-6a-10",
+                "TS-6a-11",
+                "TS-6a-12",
+                "TS-6a-13",
+                "TS-6a-14",
+                "TS-6a-15",
+                "TS-6a-16"
+              ],
+              "group_C_negative_controls": [
+                "TS-6a-17",
+                "TS-6a-18",
+                "TS-6a-19",
+                "TS-6a-20"
+              ],
+              "group_D_read_side_asymmetric": [
+                "TS-6a-21",
+                "TS-6a-22",
+                "TS-6a-23"
+              ],
+              "group_E_cross_cutting": [
+                "TS-6a-24",
+                "TS-6a-25",
+                "TS-6a-26"
+              ]
+            },
+            "coverage_matrix": {
+              "requirements_covered": "16/16 (REQ-21..REQ-56 via Rework #6a)",
+              "put_post_parity_reqs": 11,
+              "read_side_reqs": 3,
+              "acs_covered_total": "68/68 (52 pre-6a + 16 Rework #6a)",
+              "error_codes_covered_total": "18 (9001-9010 + 9011-9018)"
+            },
+            "precedence_rules_locked_for_sdet": [
+              "Class A scanner runs BEFORE sentinel scanner (TS-6a-25 asserts 9011 wins on combined payload)",
+              "Numeric -1 sentinel (9016) fires BEFORE FIXED-family positive guard (9018) \u2014 TS-6a-14 is the assertion",
+              "Pre-binding scans catch only classified keys; unclassified unknown keys fall through to Jackson generic 400 (TS-6a-24)"
+            ],
+            "total_post_6a_scenarios": 115
+          },
+          "forward_cascade_payload_to_8b": {
+            "target_phase": "8b (Business Test Gen \u2014 test-case-by-test-case mapping with BT-xx IDs)",
+            "task": "Suspect-link triage on existing BT-xx + map 26 new TS-6a-xx + 8 edge cases + 1 amendment (TS-C11) to new BT-xx IDs",
+            "triage_instructions": {
+              "confirmed_bt_xx": "Keep as-is \u2014 BTs tracing to 88 CONFIRMED scenarios untouched",
+              "update_bt_xx": "TS-C11 trace \u2014 amend expected-output text; no logic change",
+              "new_bt_xx": "Required for all 26 TS-6a-xx scenarios + 8 edge cases; continue numbering from last BT-xx in 04b-business-tests.md"
+            },
+            "each_new_bt_must_trace_to": [
+              "one TS-6a-xx",
+              "one REQ-xx (from \u00a76a.Q3)",
+              "one Designer interface method (from \u00a76a.4.3)",
+              "zero or more ADRs from \u00a76a.Q6"
+            ],
+            "open_contradictions_remaining": [],
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift, zero engine"
+          },
+          "phase_8b_status": "complete",
+          "phase_8b_completed_at": "2026-04-22",
+          "phase_8b_artifact": "04b-business-tests.md \u00a7Section 7: Rework #6a Delta",
+          "phase_8b_delta": {
+            "istqb_triage_summary": {
+              "confirmed": 187,
+              "update": 2,
+              "regenerate": 0,
+              "obsolete": 0,
+              "new": 34
+            },
+            "updated_bts": {
+              "BT-17": "shouldEnumerateStoredFieldsForClassAConfig \u2014 remove `downgrade` from request fixture (DTO no longer accepts it); stored-field enumeration unchanged (field continues to be stored from legacy paths per ADR-21R read-wide)",
+              "BT-62": "shouldRejectEndDateBeforeStartDate \u2014 qualify to FIXED-family only; SLAB_UPGRADE-family now rejected pre-binding at 9014 not post-binding at 9002"
+            },
+            "new_bts_by_group": {
+              "group_A_pre_binding_unit": {
+                "range": "BT-190..BT-198",
+                "count": 9,
+                "test_file": "TierCreateRequestValidatorTest.java",
+                "covers": "9011/9012/9013/9015/9016 scanners + legacy downgrade block + PRD-drift key"
+              },
+              "group_B_post_binding_mixed": {
+                "range": "BT-199..BT-209",
+                "count": 11,
+                "test_files": [
+                  "TierCreateRequestValidatorTest.java",
+                  "TierStrategyTransformerTest.java",
+                  "TierControllerIT.java"
+                ],
+                "covers": "9014/9017/9018 + precedence 9016>9018"
+              },
+              "group_C_negative_controls": {
+                "range": "BT-210..BT-213",
+                "count": 4,
+                "test_files": [
+                  "TierCreateRequestValidatorTest.java",
+                  "TierControllerIT.java"
+                ],
+                "covers": "must stay 2xx; PUT parity; payload-only proof"
+              },
+              "group_D_read_side_IT": {
+                "range": "BT-214..BT-216",
+                "count": 3,
+                "test_file": "TierControllerIT.java",
+                "covers": "GET legacy FIXED omits periodValue; read-wide downgrade preserved; renewal normalizer"
+              },
+              "group_E_cross_cutting_unit": {
+                "range": "BT-217..BT-219",
+                "count": 3,
+                "test_file": "TierCreateRequestValidatorTest.java",
+                "covers": "unclassified Jackson / Class A precedence over sentinel / tenant isolation"
+              },
+              "edge_cases": {
+                "range": "BT-220..BT-223",
+                "count": 4,
+                "test_files": [
+                  "TierCreateRequestValidatorTest.java",
+                  "TierUpdateRequestValidatorTest.java"
+                ],
+                "covers": "nested legacy keys / zero-value numerics / PUT payload-only / empty-object coercion"
+              }
+            },
+            "coverage_matrix": {
+              "requirements_covered": "16/16 (REQ-21..REQ-56 Rework #6a)",
+              "designer_interface_methods_covered": "8/8 (\u00a76a.4.3 scanners + normalizer)",
+              "adrs_covered": "5/5 (ADR-19R, ADR-20R, ADR-21R, ADR-22R-new, ADR-23R-new)",
+              "error_codes_covered": "8/8 (9011\u20139018) with \u22651 positive + \u22651 precedence/negative per code"
+            },
+            "total_post_6a_bts": 223,
+            "total_unit_bts_estimate": 158,
+            "total_it_bts_estimate": 74,
+            "structured_disagreement_log": {
+              "acceptance_rate": "100%",
+              "items_challenged": 0,
+              "clarifications_requested": 0
+            }
+          },
+          "forward_cascade_payload_to_9": {
+            "target_phase": "9 (SDET \u2014 RED test code phase)",
+            "task": "Author Java test code for 34 new BTs (BT-190..BT-223) + amend 2 UPDATE BTs (BT-17, BT-62)",
+            "mode": "REWORK \u2014 delta-aware; do NOT touch 187 CONFIRMED BT test methods",
+            "test_files_to_modify": {
+              "TierCreateRequestValidatorTest.java": "23 new @Test methods for unit-layer scanners + Class A precedence + tenant isolation + edge cases",
+              "TierUpdateRequestValidatorTest.java": "3 new @Test methods for PUT-parity (BT-207, 208, 209)",
+              "TierStrategyTransformerTest.java": "1 new @Test method for BT-211 (FIXED-family transform-path periodValue guard)",
+              "TierControllerIT.java": "7 new @Test IT methods (BT-210, 212, 214, 215, 216) + 2 re-asserts of BT-17 and BT-62 under new semantics"
+            },
+            "skeleton_classes_to_create": {
+              "TierPreBindingScanner.java": "NEW scaffold \u2014 5 static scan methods (scanProgramLevelFields, scanScheduleField, scanEligibilityCriteriaType, scanStringMinusOneSentinels, scanNumericMinusOneSentinels) \u2014 throw UnsupportedOperationException",
+              "TierEnumValidation.java": "Extend existing class with 8 new static stubs matching \u00a76a.4.3 signatures \u2014 throw UnsupportedOperationException",
+              "TierRenewalNormalizer.java": "Already exists (49 lines per F4/C7 evidence in Phase 7 \u00a76a.1) \u2014 no scaffold needed",
+              "TierController#rawBody": "Add `@RequestBody JsonNode rawBody` parameter and `objectMapper.treeToValue(rawBody, TierCreateRequest.class)` wiring \u2014 production logic deferred to Phase 10"
+            },
+            "red_confirmation_requirements": [
+              "mvn compile PASS \u2014 skeleton classes compile; 8 new TierEnumValidation stubs + TierPreBindingScanner exist but throw UnsupportedOperationException",
+              "mvn test on BT-190..BT-223 \u2192 ALL FAIL (production code absent)",
+              "mvn test on amended BT-17 + BT-62 \u2192 FAIL (test expectations updated; production code still old)",
+              "mvn test on 187 CONFIRMED BTs \u2192 ALL PASS (zero regression \u2014 triaged as unaffected)"
+            ],
+            "repo_scope": "intouch-api-v3 only \u2014 tests live in this repo's src/test/java tree",
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift, zero engine",
+            "open_contradictions_remaining": [],
+            "reviewer_forward_flags_unchanged": {
+              "P11-6a-3": "R14 CLOSED",
+              "P11-6a-4": "PRD drift scan \u2014 still live"
+            }
+          },
+          "phase_9_status": "complete",
+          "phase_9_completed_at": "2026-04-22",
+          "phase_9_artifact": "05-sdet.md \u00a7Section 8: Rework #6a Delta \u2014 SDET RED",
+          "phase_9_delta": {
+            "jdk_used": "17.0.17-amzn (Corretto)",
+            "mvn_compile": "BUILD SUCCESS",
+            "mvn_test_compile": "BUILD SUCCESS",
+            "mvn_test_summary": {
+              "total_run_excluding_new_create_update_validators": 296,
+              "failures": 1,
+              "errors": 3,
+              "skipped": 0,
+              "confirmed_bt_regressions": 0
+            },
+            "test_files_created": [
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierCreateRequestValidatorTest.java",
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierUpdateRequestValidatorTest.java",
+              "src/test/java/integrationTests/TierControllerIntegrationTest.java"
+            ],
+            "test_files_appended": [
+              "src/test/java/com/capillary/intouchapiv3/tier/strategy/TierStrategyTransformerTest.java (+1 BT-211)",
+              "src/test/java/com/capillary/intouchapiv3/tier/TierValidationServiceTest.java (BT-62 amendment + import)"
+            ],
+            "production_files_modified": {
+              "TierEnumValidation.java": "Promoted to public final class; added 8 static skeleton methods throwing UnsupportedOperationException; error codes 9011-9018 documented in javadoc only (NOT as public static final int constants)",
+              "TierCreateRequest.java": "Removed `downgrade` field + getter/setter/references (Designer \u00a76a.3 hard flip)",
+              "TierUpdateRequest.java": "Removed `downgrade` field + getter/setter/references",
+              "TierController.java": "Added @RequestBody JsonNode rawBody parameter on POST/PUT; wired objectMapper.treeToValue(rawBody, TierCreateRequest.class); scanner invocation TODOs for Phase 10"
+            },
+            "design_deviations_accepted": {
+              "class_topology": "All 8 methods consolidated on TierEnumValidation (not split onto new TierPreBindingScanner); acceptable because tests bind to method signatures only",
+              "method_naming": "SDET chose validateNo*/validate* instead of Designer scan*; semantically equivalent",
+              "error_code_constants": "Declared in javadoc only, not as public static final int; Phase 10 Developer must add them as first GREEN step"
+            },
+            "red_classification": {
+              "red_expected_UOE_fail": 4,
+              "red_expected_amendment_fail": 1,
+              "red_expected_infra_error": 3,
+              "red_safe_uoe_asserting_pass": 24,
+              "confirmed_bt_pass_no_regression": 156
+            },
+            "bt_coverage": {
+              "new_bts_authored": 34,
+              "bt_ids": "BT-190..BT-223",
+              "update_bts_amended": 2,
+              "update_bt_ids": [
+                "BT-17",
+                "BT-62"
+              ]
+            },
+            "total_post_6a_tests_targeted": 37
+          },
+          "forward_cascade_payload_to_10": {
+            "target_phase": "10 (Developer \u2014 GREEN test-passing phase)",
+            "task": "Replace 8 UnsupportedOperationException skeletons on TierEnumValidation with real validation logic; add public static final int error code constants; implement controller scanner invocation order",
+            "precedence_rules_to_enforce": [
+              "Pre-binding scanners run BEFORE Jackson treeToValue() (\u00a76a.4.5); unclassified unknown keys fall through to Jackson strict-mode generic 400",
+              "Class A scanner runs BEFORE sentinel scanner (9011 wins on combined payload \u2014 BT-219)",
+              "Numeric -1 sentinel (9016) fires BEFORE FIXED-family positive guard (9018) \u2014 BT-204",
+              "Controller invocation order: Class A (9011) \u2192 Class B (9012) \u2192 eligibilityCriteriaType (9013) \u2192 string sentinels (9015) \u2192 numeric sentinels (9016) \u2192 Jackson treeToValue \u2192 post-binding 9014/9017/9018"
+            ],
+            "first_green_step": "Add public static final int TIER_CLASS_A_PROGRAM_LEVEL_FIELD=9011 \u2026 TIER_FIXED_FAMILY_MISSING_PERIOD_VALUE=9018 constants on TierEnumValidation so tests can assert by symbol",
+            "developer_debt_from_sdet_choices": [
+              "24 RED-safe tests assert UnsupportedOperationException \u2014 must flip to InvalidInputException + code assertion during GREEN",
+              "Class topology decision: retain consolidated TierEnumValidation OR extract pre-binding methods onto TierPreBindingScanner per Designer \u00a76a.4.3 \u2014 tests bind to method signatures only, either acceptable",
+              "IT infra \u2014 ensure Testcontainers/Mongo available when Phase 10 runs mvn test; 3 IT tests must turn GREEN"
+            ],
+            "green_exit_criteria": [
+              "All 37 new BTs PASS",
+              "BT-17 and BT-62 PASS under amended semantics",
+              "187 CONFIRMED BTs remain PASS (zero regression)",
+              "mvn compile + mvn test-compile + mvn test all BUILD SUCCESS"
+            ],
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift, zero engine",
+            "open_contradictions_remaining": [],
+            "reviewer_forward_flags_unchanged": {
+              "P11-6a-3": "R14 CLOSED",
+              "P11-6a-4": "PRD drift scan \u2014 still live"
+            }
+          },
+          "phase_10_status": "complete",
+          "phase_10_completed_at": "2026-04-22",
+          "phase_10_artifact": "06-developer.md",
+          "phase_10_delta": {
+            "jdk_used": "17.0.17-amzn (Corretto via SDKMAN)",
+            "mvn_compile": "BUILD SUCCESS",
+            "mvn_test_regression_sweep_non_it": {
+              "total": 326,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            "new_contract_bts_green": 37,
+            "confirmed_bts_no_regression": 187,
+            "it_infra_status": {
+              "tests": 3,
+              "classification": "infra_gated",
+              "reason": "TierControllerIntegrationTest \u2014 Testcontainers/Docker not available; ApplicationContext failure threshold exceeded",
+              "next_gate": "Phase 10b or CI with Docker daemon"
+            },
+            "production_files_modified": {
+              "TierEnumValidation.java": "Added 8 public static final int code constants (9011-9018); implemented 8 validator methods replacing UOE skeletons; added 3 canonical-key lists + 4 private recursive scan helpers (+~130 lines)",
+              "TierCreateRequestValidator.java": "Wired canonical validate(req, rawBody) with 5 pre-binding + 3 post-binding scans; added validateEndDateNotBeforeStartDate private helper for BT-62 FIXED-family ordering; added @Deprecated validate(request) single-arg overload delegating with rawBody=null",
+              "TierUpdateRequestValidator.java": "PUT parity wiring of 5 pre-binding + 3 post-binding scans; same @Deprecated single-arg overload"
+            },
+            "test_files_modified": {
+              "TierCreateRequestValidatorTest.java": "21 RED-safe UOE assertions flipped to InvalidInputException / assertDoesNotThrow",
+              "TierUpdateRequestValidatorTest.java": "3 RED-safe UOE assertions flipped",
+              "TierValidationServiceTest.java": "1 BT-62 sibling assertion flipped"
+            },
+            "design_decisions_locked_at_c5_plus": {
+              "class_topology": "Retained SDET consolidated TierEnumValidation (did NOT split to TierPreBindingScanner); tests bind to method signatures \u2014 topology is a reversible refactor",
+              "error_code_mechanism": "Codes carried in message string; InvalidInputException.java:11 has no int code constructor (confirmed); widening the exception contract is P2 Phase 10b decision",
+              "scanner_invocation_order_validator_layer": "Class A (9011) \u2192 Class B (9012) \u2192 eligibilityCriteriaType (9013) \u2192 string sentinels (9015) \u2192 numeric sentinels (9016) \u2192 post-binding 9014 \u2192 9018 \u2192 BT-62 ordering \u2192 renewal \u2192 9017",
+              "bt_62_qualification": "Only FIXED-family tiers reach endDate/startDate ordering guard; SLAB_UPGRADE-family blocked at 9014 pre-binding; lexicographic ISO-8601 UTC string comparison",
+              "dto_hard_flip": "downgrade field removed from TierCreateRequest and TierUpdateRequest; TierDowngradeConfig class retained for read path only (ADR-21R)"
+            },
+            "p1_production_wiring_gap": {
+              "severity": "C4 (reversible via PR, real contract-integrity impact)",
+              "description": "Pre-binding scans 9011/9012/9013/9015/9016 silently skipped on production HTTP path",
+              "evidence_chain": [
+                "TierController.java:90 \u2014 TODO Phase 10 comment remains; scanner invocation not wired at HTTP layer",
+                "TierController.java:103 \u2014 tierFacade.createTier(orgId, request, userId) has no rawBody parameter",
+                "TierController.java:110 \u2014 TODO Phase 10 comment on PUT path",
+                "TierController.java:117 \u2014 tierFacade.updateTier(orgId, tierId, request, userId) has no rawBody parameter",
+                "TierFacade.java:227 \u2014 createValidator.validate(request) \u2014 single-arg @Deprecated overload",
+                "TierFacade.java:262 \u2014 updateValidator.validate(request) \u2014 single-arg @Deprecated overload",
+                "TierCreateRequestValidator.java:131 \u2014 @Deprecated validate(request) delegates to validate(request, null); scans guarded by if (rawBody != null)"
+              ],
+              "net_effect": "Class A, Class B, eligibilityCriteriaType, string/numeric -1 sentinel payloads pass through to Jackson strict-mode (generic 400) instead of firing specific codes 9011-9016. Post-binding 9014, 9017, 9018 fire as designed.",
+              "why_unit_tests_pass": "Unit tests call canonical validate(request, rawBody) directly, bypassing facade",
+              "fix_options_for_10b": {
+                "option_a_minimal": "Widen TierFacade.createTier/updateTier to accept JsonNode rawBody; controller passes rawBody; facade calls validate(req, rawBody)",
+                "option_b_cleaner": "Move scanner invocations into controller; facade stays narrow",
+                "option_c_interceptor": "Spring interceptor or @InitBinder runs scanners pre-controller"
+              }
+            }
+          },
+          "phase_10c_status": "complete_compliant_with_findings",
+          "phase_10c_completed_at": "2026-04-23",
+          "phase_10c_artifact": "06b-gap-analysis.md",
+          "phase_10c_verdict": "COMPLIANT WITH FINDINGS (0 CRITICAL, 0 HIGH, 1 MEDIUM, 2 LOW, 1 INFO \u2014 no blockers for Phase 11)",
+          "phase_10c_findings": [
+            {
+              "id": "F-10c-1",
+              "severity": "LOW",
+              "title": "Pre-binding scans execute AFTER treeToValue at controller (semantic vs literal)",
+              "action": "documented in api-handoff \u00a75.3; no fix required"
+            },
+            {
+              "id": "F-10c-2",
+              "severity": "INFO",
+              "title": "Deprecated single-arg validator overloads remain",
+              "action": "tech-debt cleanup candidate; user decision Q2"
+            },
+            {
+              "id": "F-10c-3",
+              "severity": "LOW",
+              "title": "Error-message diagnostics content (G-07 residual)",
+              "action": "no action required; spot-check PASS"
+            },
+            {
+              "id": "F-10c-4",
+              "severity": "MEDIUM",
+              "title": "ADR-20R strict-mode fragile to future Jackson2ObjectMapperBuilder migration",
+              "action": "defensive configure(FAIL_ON_UNKNOWN_PROPERTIES,true) OR SDET coverage confirmation; user decision Q1"
+            }
+          ],
+          "phase_10c_adr_scorecard": {
+            "ADR-17R": "PASS C7 (error code band 9011-9020; no 9001-9010 reuse)",
+            "ADR-18R": "PASS C6 (periodType/periodValue per-slab canonical)",
+            "ADR-19R": "PASS C7 (FIXED family = 2 values; REQ-56 wired POST+PUT; PUT payload-only)",
+            "ADR-20R": "PASS C6 (Jackson native strict default preserved; F-10c-4 fragility flagged)",
+            "ADR-21R": "PASS C7 (write-narrow/read-wide asymmetric contract verified)"
+          },
+          "phase_10c_guardrail_scorecard": {
+            "G-12": "PASS (pre-binding scans fire before validator business logic)",
+            "G-13.1": "PASS (InvalidInputException used exclusively)",
+            "G-13.2": "PASS (no try-catch in controllers)",
+            "G-13.4": "PASS (bracket-prefix regex extractor; errors[0].code=Long)",
+            "G-07": "PASS (no tenant data leakage in 6a throws)"
+          },
+          "phase_10c_designer_interface_scorecard": "11/11 EXACT at C7 \u2014 all 8 static validator methods + 2 two-arg validator forms match Designer \u00a76a.4.3 prescriptions exactly",
+          "phase_10c_questions_for_user": [
+            {
+              "id": "Q1",
+              "confidence": "C5",
+              "question": "Add defensive configure(FAIL_ON_UNKNOWN_PROPERTIES,true) to IntouchApiV3Application.java:95-99 now, or defer?",
+              "options": [
+                "now (closes F-10c-4 at code level)",
+                "defer (rely on Jackson native default; accept fragility risk)",
+                "verify-via-test (Phase 11 SDET confirms TierUnknownFieldRejectIT coverage)"
+              ],
+              "user_answer": "c (verify-via-test \u2014 Phase 11 SDET confirms TierUnknownFieldRejectIT coverage)",
+              "answered_at": "2026-04-23"
+            },
+            {
+              "id": "Q2",
+              "confidence": "C5",
+              "question": "Remove deprecated single-arg validator overloads now, or defer?",
+              "options": [
+                "now (small follow-up commit)",
+                "defer (cleanup ticket)"
+              ],
+              "user_answer": "b (defer to cleanup ticket)",
+              "answered_at": "2026-04-23"
+            }
+          ],
+          "phase_10d_status": "skipped_no_schema_changes",
+          "phase_10d_skip_reason": "Rework #6a is contract-hardening only \u2014 zero schema, zero Thrift, zero engine. Phase 7b (Migrator) was skipped; no 01b-migrator.md artifact exists to validate. Per orchestrator protocol, Phase 10d runs only if Phase 7b ran.",
+          "phase_10b_status": "complete_ready_with_warnings",
+          "phase_10b_completed_at": "2026-04-22",
+          "phase_10b_regate_at": "2026-04-23",
+          "phase_10b_initial_verdict": "NOT_READY (2 BLOCKERS: P1 wiring + P2 wire contract)",
+          "phase_10b_final_verdict": "READY_WITH_WARNINGS (both BLOCKERS closed after Rework Cycle 1; P3/P4/P5 WARNINGS retained)",
+          "phase_10b_artifact": "backend-readiness.md",
+          "phase_10b_verdict": "NOT READY",
+          "phase_10b_blockers": [
+            {
+              "id": "P1",
+              "severity": "BLOCKER",
+              "confidence": "C7",
+              "title": "Controller wiring gap \u2014 pre-binding scans silently skipped on production HTTP path",
+              "evidence": "TierController.java:103,122 passes typed request not rawBody; TierFacade.java:227,262 calls @Deprecated validate(request); TierCreateRequestValidator.java:131 delegates rawBody=null; lines 67-73 skip scans if rawBody==null",
+              "recommended_fix_option": "A \u2014 widen TierFacade.createTier/updateTier to accept JsonNode rawBody; controller passes rawBody; facade calls validate(request, rawBody)"
+            },
+            {
+              "id": "P2",
+              "severity": "BLOCKER",
+              "confidence": "C7",
+              "title": "Error code wire contract \u2014 9011-9018 emit as code:999999 on the wire",
+              "evidence": "MessageResolverService.java:44,49 returns 999999L when message not a registered i18n key; TierEnumValidation.java \u2014 8 new throw sites use descriptive messages with NO bracketed [9011]-[9018] prefix; TargetGroupErrorAdvice.java:81 routes through resolverService.getCode()",
+              "recommended_fix_option": "B \u2014 prefix 8 throw sites in TierEnumValidation with [9011]-[9018]; update TargetGroupErrorAdvice to extract bracket prefix as errors[0].code (G-13.4 pattern)"
+            }
+          ],
+          "phase_10b_warnings": [
+            {
+              "id": "W1",
+              "maps_to": "P3",
+              "confidence": "C5",
+              "title": "IT infra \u2014 Testcontainers/Docker unavailable locally; CI-gated"
+            },
+            {
+              "id": "W2",
+              "maps_to": "P4",
+              "confidence": "C4",
+              "title": "Date strictness \u2014 lexicographic String comparison unsafe for non-UTC client input"
+            }
+          ],
+          "phase_10b_info": [
+            {
+              "id": "I1",
+              "title": "Recursive scanners have no depth limit; negligible risk at typical payload sizes"
+            },
+            {
+              "id": "I2",
+              "title": "@Deprecated single-arg validator overloads become dead code after P1 fix"
+            },
+            {
+              "id": "I3",
+              "title": "api-handoff.md \u00a710.12 wrongly promises [9011] prefix matching \u2014 must update during rework"
+            }
+          ],
+          "rework_cycles": [
+            {
+              "cycle": 1,
+              "from_phase": "10b (Backend Readiness)",
+              "to_phase": "10 (Developer)",
+              "trigger": "blocker",
+              "severity": "BLOCKER",
+              "scope": [
+                "P1 controller wiring",
+                "P2 error code wire contract"
+              ],
+              "routed_at": "2026-04-22",
+              "user_decision": "R,R (re-run both blockers)",
+              "resolved": true,
+              "resolved_at": "2026-04-23",
+              "resolution_summary": {
+                "P1_fix": {
+                  "approach": "Option A \u2014 widen TierFacade.createTier/updateTier with JsonNode rawBody and forward to validator.validate(request, rawBody)",
+                  "production_files": [
+                    "TierFacade.java \u2014 signatures widened (createTier L227, updateTier L262); import JsonNode added L21",
+                    "TierController.java \u2014 passes rawBody to facade on POST (L103) and PUT (L122); Javadoc explains forwarding; TODO comments removed"
+                  ],
+                  "test_files": [
+                    "TierFacadeTest.java \u2014 15 call sites updated with null rawBody (3\u00d7 createTier + 12\u00d7 updateTier)"
+                  ],
+                  "verification": "Scans 9011-9016 now fire on production HTTP path (previously silently skipped)"
+                },
+                "P2_fix": {
+                  "approach": "Option B \u2014 bracket-prefix throws `[<constant>] message` using public static final int constants; regex extractor in ControllerAdvice",
+                  "production_files": [
+                    "TierEnumValidation.java \u2014 8 throw sites (9011-9018) prefixed with `[CONSTANT]`; lines 244, 270, 296, 323, 351, 385, 421, 447",
+                    "TargetGroupErrorAdvice.java \u2014 handleInvalidInputException at L87-101 extracts code via regex `^\\[(\\d+)\\]\\s*(.*)$`; bypasses MessageResolverService (which returned 999999 default); falls through on non-match"
+                  ],
+                  "verification": "errors[0].code now carries 9011-9018 as long; errors[0].message is the stripped human-readable text"
+                }
+              },
+              "verification_evidence": {
+                "independent_verification_date": "2026-04-23",
+                "method": "trust-but-verify \u2014 orchestrator re-read all modified files + re-ran mvn test",
+                "signature_check": "TierFacade.java L227/L262 confirmed; TierController.java L103/L122 confirmed",
+                "bracket_prefix_check": "All 8 throws (9011-9018) verified with `public static final int` constants at L244/L270/L296/L323/L351/L385/L421/L447",
+                "advice_extractor_check": "TargetGroupErrorAdvice.handleInvalidInputException L87-101 verified \u2014 regex matcher + ApiError(long, strippedMsg) builder + fall-through",
+                "test_result": "mvn test -Dtest='Tier*Test': 329 run, 0 failures, 3 errors \u2192 326/0/0 non-IT; 3 errors = pre-existing Docker/Testcontainers ApplicationContext load failure (P3 WARNING, unchanged)",
+                "out_of_scope_throws_untouched": "4 pre-existing throws at L98/L103/L108/L125/L140/L156 (kpiType, upgradeType, expressionRelation, periodType, downgrade.target, conditions[].type) NOT prefixed \u2014 out of Rework #6a scope, per design"
+              },
+              "assumptions_documented": [
+                "TierFacadeTest.java rawBody=null acceptable at unit scope \u2014 pre-binding scan behavior covered by validator-direct tests",
+                "TargetGroupErrorAdvice regex pattern applies only to InvalidInputException messages that opt in to bracket prefix; pre-existing throws without prefix continue to route through resolverService (backward compatible)"
+              ],
+              "cascade_phases_after_fix": [
+                "10b abbreviated gate",
+                "10c",
+                "11"
+              ]
+            }
+          ],
+          "forward_cascade_payload_to_10b": {
+            "target_phase": "10b (Backend Readiness)",
+            "priorities": [
+              {
+                "priority": "P1",
+                "severity": "CRITICAL",
+                "concern": "Controller wiring gap \u2014 pre-binding scans silently skipped on production HTTP path",
+                "evidence": "TierController.java:90,103,110,117 + TierFacade.java:227,262 + TierCreateRequestValidator.java:131",
+                "action": "Decide fix path (A/B/C); wire rawBody through facade OR move scans to controller OR add interceptor"
+              },
+              {
+                "priority": "P2",
+                "severity": "MEDIUM",
+                "concern": "Error response envelope \u2014 codes 9011-9018 live in message string only",
+                "evidence": "TierControllerExceptionMappingTest \u2014 2 passing tests; no per-code routing; InvalidInputException.java:11 no int code constructor",
+                "action": "Verify TargetGroupErrorAdvice serialisation; decide whether to widen exception contract with int code field"
+              },
+              {
+                "priority": "P3",
+                "severity": "INFRA",
+                "concern": "IT infra \u2014 TierControllerIntegrationTest 3 tests error on ApplicationContext load",
+                "evidence": "mvn test output \u2014 IllegalState: Failed to load ApplicationContext (Testcontainers/Docker unavailable locally)",
+                "action": "Phase 10b runs in CI or with Docker daemon; confirm BT-210, BT-212, BT-215 turn GREEN"
+              },
+              {
+                "priority": "P4",
+                "severity": "MEDIUM",
+                "concern": "Date format strictness \u2014 lexicographic ISO-8601 UTC comparison only",
+                "evidence": "TierCreateRequestValidator.java:114-120",
+                "action": "Verify all client date inputs arrive as ISO-8601 UTC; decide whether to use Instant.parse() for stricter parsing"
+              },
+              {
+                "priority": "P5",
+                "severity": "LOW",
+                "concern": "Performance \u2014 new recursive tree scanners are O(n) on JSON node count",
+                "evidence": "TierEnumValidation.java scan helpers; typical payload <50 nodes",
+                "action": "Smoke-test with deeply nested adversarial payload; confirm no pathological recursion"
+              }
+            ],
+            "scope_floor": "Contract-hardening only \u2014 zero schema, zero Thrift, zero engine",
+            "cascade_policy_note": "api-handoff.md regeneration (evidence-only from actual code) is pending \u2014 scheduled ONCE after Phase 10 per user directive; to be executed after state closure"
+          }
+        }
+      },
+      "phase_11_closure": {
+        "closed_at": "2026-04-23",
+        "initial_verdict": "APPROVED WITH WARNINGS",
+        "final_verdict": "APPROVED",
+        "warnings_at_phase_11_start": 2,
+        "warnings_closed": 2,
+        "user_decisions": {
+          "R11_1_routing": "M (manual docs-only edit of api-handoff.md)",
+          "Q11_1_R11_2_resolution": "b+c (tier-scoped @JsonIgnoreProperties + BT-197b empirical test)"
+        },
+        "R11_1": {
+          "status": "CLOSED",
+          "confidence": "C7",
+          "locations_fixed": 7,
+          "correctly_attributed_refs_preserved": 3,
+          "files_touched": [
+            "docs/pipeline/tier/api-handoff.md"
+          ],
+          "verification": "grep confirmed only L547, L1441, L1499 remain referencing 9011 near downgrade \u2014 all correctly attributed",
+          "corrected_lines": [
+            361,
+            389,
+            409,
+            527,
+            570,
+            1205,
+            1495,
+            1506
+          ]
+        },
+        "R11_2": {
+          "status": "CLOSED",
+          "confidence": "C7",
+          "resolution": "b+c",
+          "b_annotation_added": {
+            "files": [
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/dto/TierCreateRequest.java",
+              "intouch-api-v3/src/main/java/com/capillary/intouchapiv3/tier/dto/TierUpdateRequest.java"
+            ],
+            "annotation": "@JsonIgnoreProperties(ignoreUnknown = false)",
+            "scope": "type-level, tier-write DTOs only",
+            "rationale": "Immune to Spring Boot global spring.jackson.deserialization.fail-on-unknown-properties flag; ADR-20R + ADR-21R now environmentally resilient"
+          },
+          "c_tests_added": {
+            "count": 4,
+            "tests": [
+              "BT-197b (POST): TierCreateRequestValidatorTest#shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer",
+              "BT-197b-control (POST): TierCreateRequestValidatorTest#shouldAcceptKnownFieldsAtJacksonBindingLayer",
+              "BT-197b (PUT): TierUpdateRequestValidatorTest#shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut",
+              "BT-197b-control (PUT): TierUpdateRequestValidatorTest#shouldAcceptKnownFieldsAtJacksonBindingLayerOnPut"
+            ],
+            "assertion_core": "objectMapper.treeToValue({\"downgrade\":{...}}, TierXxxRequest.class) throws UnrecognizedPropertyException with propertyName=\"downgrade\""
+          },
+          "verification_evidence": {
+            "focused_run": "TierCreateRequestValidatorTest 30/0/0 (was 28, +2) + TierUpdateRequestValidatorTest 7/0/0 (was 5, +2) = 37/0/0 BUILD SUCCESS",
+            "regression_sweep": "com.capillary.intouchapiv3.tier.** = 354/0/0 BUILD SUCCESS \u2014 no regressions from annotation"
+          }
+        },
+        "remaining_pre_merge_gates": [
+          "P3/W1: TierControllerIntegrationTest GREEN in Docker-capable CI (blocker for merge)",
+          "P4/W2: Date format consistency on read path",
+          "P5/I1: Scanner performance guard on large payloads (INFO \u2014 post-merge acceptable)"
+        ],
+        "remaining_pre_deploy_gates": [
+          "R13/P11-6a-1: Staging access-log scan for legacy codes 9001-9010 consumers"
+        ],
+        "phase_11_final_status": "CLOSED \u2014 APPROVED. Proceed to Phase 12 Blueprint."
+      },
+      "resolved_at": "2026-04-23",
+      "closure_summary": "Rework #6a Cycle 1 CLOSED \u2014 all 4 verification targets PASS, both Phase 11 WARNINGS closed at C7, 354/354 tier tests GREEN, documentation aligned with code evidence"
     }
   ]
 }
