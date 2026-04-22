@@ -144,7 +144,7 @@ Body: `ResponseWrapper<TierListResponse>`.
             "conditions": []
           },
           "validity": {
-            "periodType": "MONTHS",
+            "periodType": "FIXED",
             "periodValue": 12,
             "startDate": "2026-03-15T00:00:00+00:00",
             "endDate": null,
@@ -281,7 +281,7 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
       "serialNumber": 2,
       "tierStartDate": "2026-03-15T08:14:02+00:00",
       "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 5000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-      "validity":    { "periodType": "MONTHS", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
+      "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
       "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] }
     },
     "pendingDraft": {
@@ -293,7 +293,7 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
       "color": "#FFD700",
       "serialNumber": 2,
       "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 4500, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-      "validity":    { "periodType": "MONTHS", "periodValue": 12, "startDate": "2026-04-21T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
+      "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-04-21T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
       "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
       "meta": {
         "createdBy": "15043871",
@@ -372,7 +372,7 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
     "conditions": []
   },
   "validity": {
-    "periodType": "MONTHS",
+    "periodType": "FIXED",
     "periodValue": 12,
     "startDate": "2026-04-21T00:00:00+00:00",
     "renewal": {
@@ -398,20 +398,20 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 | `name` | `String` | **Yes** | Non-blank. Max 100 chars. Must be unique within `programId` + `orgId` (across `DRAFT`, `ACTIVE`, `PENDING_APPROVAL`). |
 | `description` | `String` | No | Max 500 chars. |
 | `color` | `String` | No | Hex format `#RRGGBB` (regex `^#[0-9A-Fa-f]{6}$`). |
-| `eligibility.kpiType` | enum | Yes (if `eligibility` sent) | One of `CURRENT_POINTS`, `LIFETIME_POINTS`, `LIFETIME_PURCHASES`, `TRACKER_VALUE`, `PURCHASE`, `VISITS`, `POINTS`, `TRACKER`. |
+| `eligibility.kpiType` | enum | Yes (if `eligibility` sent) | One of `CURRENT_POINTS`, `CUMULATIVE_POINTS`, `CUMULATIVE_PURCHASES`, `TRACKER_VALUE_BASED`. Matches engine `SlabUpgradeStrategy.CurrentValueType` (writes to `SLAB_UPGRADE.propertyValues.current_value_type`). |
 | `eligibility.threshold` | `Integer` | Yes (if `eligibility` sent) | `>= 0` (zero is accepted; only negatives rejected). |
-| `eligibility.upgradeType` | enum | Yes (if `eligibility` sent) | One of `EAGER`, `DYNAMIC`, `LAZY`, `IMMEDIATE`, `SCHEDULED`. |
+| `eligibility.upgradeType` | enum | Yes (if `eligibility` sent) | One of `EAGER`, `DYNAMIC`, `LAZY`. Matches engine `SlabUpgradeMode`. |
 | `eligibility.expressionRelation` | enum | No | `AND` or `OR`. |
-| `eligibility.conditions[]` | array | No | See §6.6 (TierCondition). |
-| `validity.periodType` | `String` | No | Free-form; `"MONTHS"` is the canonical engine form. |
+| `eligibility.conditions[].type` | enum | No | One of `PURCHASE`, `VISITS`, `POINTS`, `TRACKER`. See §6.8 (TierCondition). |
+| `validity.periodType` | enum | No | One of `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION`. Matches engine `TierDowngradePeriodConfig.PeriodType`. See §6.5 for semantics. |
 | `validity.periodValue` | `Integer` | No | Positive. |
 | `validity.startDate` | ISO-8601 | No | Format `yyyy-MM-ddTHH:mm:ss+00:00` (see §10). |
 | `validity.endDate` | — | — | **Never stored. Derived from `startDate + periodValue` at read time if needed.** Do not send. |
 | `validity.renewal.criteriaType` | `String` | Yes (if `renewal` sent) | **Must be `"Same as eligibility"`.** Any other value → 400. If you omit `renewal` entirely, the server fills the default pre-save. |
-| `downgrade.target` | enum | No | `SINGLE`, `THRESHOLD`, or `LOWEST`. |
+| `downgrade.target` | enum | No | `SINGLE`, `THRESHOLD`, or `LOWEST`. Matches engine `TierDowngradeTarget`. |
 | `downgrade.reevaluateOnReturn` | `boolean` | No | Default `false`. |
 | `downgrade.dailyEnabled` | `boolean` | No | Default `false`. |
-| `downgrade.conditions[]` | array | No | See §6.6. |
+| `downgrade.conditions[].type` | enum | No | One of `PURCHASE`, `VISITS`, `POINTS`, `TRACKER`. See §6.8. |
 
 ### Response — Success (HTTP 201 Created)
 
@@ -440,7 +440,7 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
       "conditions": []
     },
     "validity": {
-      "periodType": "MONTHS",
+      "periodType": "FIXED",
       "periodValue": 12,
       "startDate": "2026-04-21T00:00:00+00:00",
       "endDate": null,
@@ -515,11 +515,15 @@ Body: `ResponseWrapper<UnifiedTierConfig>`. `status = DRAFT`, `version = 1`, `sl
 | `name` length > 100 | `"name must not exceed 100 characters"` |
 | `description` length > 500 | `"description must not exceed 500 characters"` |
 | `color` not `#RRGGBB` | `"color must be hex format #RRGGBB"` |
-| `kpiType` not in allowed set | `"kpiType must be one of: [CURRENT_POINTS, LIFETIME_POINTS, LIFETIME_PURCHASES, TRACKER_VALUE, PURCHASE, VISITS, POINTS, TRACKER]"` |
+| `kpiType` not in allowed set | `"kpiType must be one of: [CURRENT_POINTS, CUMULATIVE_POINTS, CUMULATIVE_PURCHASES, TRACKER_VALUE_BASED]"` |
 | `threshold` < 0 | `"threshold must be positive"` *(zero is accepted; only negatives rejected)* |
-| `upgradeType` not in allowed set | `"upgradeType must be one of: [EAGER, DYNAMIC, LAZY, IMMEDIATE, SCHEDULED]"` |
+| `upgradeType` not in allowed set | `"upgradeType must be one of: [EAGER, DYNAMIC, LAZY]"` |
+| `expressionRelation` not in allowed set | `"expressionRelation must be one of: [AND, OR]"` |
+| `periodType` not in allowed set | `"periodType must be one of: [FIXED, SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC, FIXED_CUSTOMER_REGISTRATION]"` |
+| `downgrade.target` not in allowed set | `"downgrade.target must be one of: [SINGLE, THRESHOLD, LOWEST]"` |
+| `conditions[].type` not in allowed set | `"eligibility.conditions[].type must be one of: [PURCHASE, VISITS, POINTS, TRACKER] (got: <value>)"` (identical message with `downgrade.conditions[]` prefix for the downgrade side) |
 
-**Evidence:** `TierController.java` L78–L89; `TierCreateRequest.java`; `TierCreateRequestValidator.java` (L80–L82 for threshold-zero acceptance); `TierFacade.createTier` L226–L258; `TierValidationService.validateNameUniqueness` (409 path); `TierValidationService.assignNextSerialNumber` (50-tier cap).
+**Evidence:** `TierController.java` L78–L89; `TierCreateRequest.java`; `TierCreateRequestValidator.java` (threshold-zero acceptance is in `validateThreshold`); enum validation lives in `TierEnumValidation.java` (single source shared with `TierUpdateRequestValidator`); `TierFacade.createTier` L226–L258; `TierValidationService.validateNameUniqueness` (409 path); `TierValidationService.assignNextSerialNumber` (50-tier cap).
 
 ---
 
@@ -581,7 +585,7 @@ For an edit-of-ACTIVE, the response is the newly-created DRAFT with `parentId` p
     "color": "#E6B800",
     "serialNumber": 2,
     "eligibility":  { "kpiType": "CURRENT_POINTS", "threshold": 4500, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-    "validity":     { "periodType": "MONTHS", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
+    "validity":     { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
     "downgrade":    { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
     "memberStats":  { "memberCount": 12034, "lastRefreshed": "2026-04-21T04:30:00+00:00" },
     "meta": {
@@ -1096,9 +1100,9 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 | Field | Type | Allowed Values |
 |---|---|---|
-| `kpiType` | enum | `CURRENT_POINTS`, `LIFETIME_POINTS`, `LIFETIME_PURCHASES`, `TRACKER_VALUE`, `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` |
+| `kpiType` | enum | `CURRENT_POINTS`, `CUMULATIVE_POINTS`, `CUMULATIVE_PURCHASES`, `TRACKER_VALUE_BASED` — matches engine `SlabUpgradeStrategy.CurrentValueType`. Writes to `SLAB_UPGRADE.propertyValues.current_value_type`. |
 | `threshold` | `Integer` | ≥ 0 (zero accepted; negatives rejected) |
-| `upgradeType` | enum | `EAGER`, `DYNAMIC`, `LAZY`, `IMMEDIATE`, `SCHEDULED` |
+| `upgradeType` | enum | `EAGER`, `DYNAMIC`, `LAZY` — matches engine `SlabUpgradeMode` |
 | `expressionRelation` | enum | `AND`, `OR` |
 | `conditions` | `TierCondition[]` | See §6.8 |
 
@@ -1108,7 +1112,7 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ```json
 {
-  "periodType":  "MONTHS",
+  "periodType":  "FIXED",
   "periodValue": 12,
   "startDate":   "2026-04-21T00:00:00+00:00",
   "endDate":     null,
@@ -1120,9 +1124,26 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 }
 ```
 
+| Field | Type | Allowed Values |
+|---|---|---|
+| `periodType` | enum | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` — matches engine `TierDowngradePeriodConfig.PeriodType`. See semantics below. |
+| `periodValue` | `Integer` | Positive integer; units are **months** regardless of `periodType`. |
+| `startDate` | ISO-8601 | Validity period start. |
+| `endDate` | — | Always `null` on responses (see key rules). |
+| `renewal` | `TierRenewalConfig` | See §6.6. |
+
+**periodType semantics:**
+- `FIXED` — validity lasts for `periodValue` months starting at `startDate`. The most common choice for a classic "expires after N months" tier.
+- `SLAB_UPGRADE` — validity is tied to the slab-upgrade lifecycle: the tier stays valid as long as the member remains eligible under the upgrade KPI. No hard expiry date. Expect this on legacy tiers that were written directly through the engine (e.g. tiers 4006/4007 in sample programs).
+- `SLAB_UPGRADE_CYCLIC` — cyclic variant of `SLAB_UPGRADE`: validity extends on each qualifying upgrade event, effectively renewing the window on every KPI trigger.
+- `FIXED_CUSTOMER_REGISTRATION` — `FIXED` but anchored to the member's **registration date** rather than tier-join date. Used when the program requires uniform cohort-based validity windows.
+
+> `periodType` is a **validity-strategy enum**, not an event. A `SLAB_UPGRADE` value on read does not mean "an upgrade just happened" — it means "validity is governed by the slab-upgrade rule." This is the contract whether the tier came from a v3 write or was written pre-v3 directly to the engine.
+
 **Key rules:**
 - `endDate` is **always `null` on responses**. It is derived as `startDate + periodValue` if the UI needs it.
 - `renewal` is **never null on the wire** — if the client omits it on write, the server fills the default before persistence. On read, the SQL-sourced LIVE view and the Mongo DRAFT view surface identical renewal objects (keeps the drift-checker free of phantom false-positives).
+- **Slab 1 (base tier) has no validity block.** The engine treats slab 1 as the always-valid entry state, so `validity` is absent on envelopes for it — don't mistake the absence for a drift.
 
 ---
 
@@ -1250,11 +1271,12 @@ See §5.1 for the envelope model and the six scenarios. `TierView` is the flatte
 |---|---|---|
 | `TierStatus` | `DRAFT`, `PENDING_APPROVAL`, `ACTIVE`, `DELETED`, `SNAPSHOT`, `PUBLISH_FAILED` | `SNAPSHOT` is internal — filtered from envelopes. `PUBLISH_FAILED` is a SAGA failure state. |
 | `ApprovalAction` | `APPROVE`, `REJECT` | Used in `approvalStatus` body field on `/approve`. Case-insensitive. |
-| `KpiType` | `CURRENT_POINTS`, `LIFETIME_POINTS`, `LIFETIME_PURCHASES`, `TRACKER_VALUE`, `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `eligibility.kpiType` |
-| `UpgradeType` | `EAGER`, `DYNAMIC`, `LAZY`, `IMMEDIATE`, `SCHEDULED` | `eligibility.upgradeType` |
+| `KpiType` | `CURRENT_POINTS`, `CUMULATIVE_POINTS`, `CUMULATIVE_PURCHASES`, `TRACKER_VALUE_BASED` | `eligibility.kpiType`. Engine canonical: `SlabUpgradeStrategy.CurrentValueType`. |
+| `UpgradeType` | `EAGER`, `DYNAMIC`, `LAZY` | `eligibility.upgradeType`. Engine canonical: `SlabUpgradeMode`. |
+| `PeriodType` | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` | `validity.periodType`. Engine canonical: `TierDowngradePeriodConfig.PeriodType`. See §6.5 for semantics. |
 | `ExpressionRelation` | `AND`, `OR` | `eligibility.expressionRelation` |
-| `DowngradeTarget` | `SINGLE`, `THRESHOLD`, `LOWEST` | `downgrade.target` |
-| `ConditionType` | `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `TierCondition.type` |
+| `DowngradeTarget` | `SINGLE`, `THRESHOLD`, `LOWEST` | `downgrade.target`. Engine canonical: `TierDowngradeTarget`. |
+| `ConditionType` | `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `TierCondition.type` (used in both `eligibility.conditions[]` and `downgrade.conditions[]`). |
 | `TierOrigin` | `BOTH`, `MONGO_ONLY`, `LEGACY_SQL_ONLY` | `TierEnvelope.origin` |
 
 ---
