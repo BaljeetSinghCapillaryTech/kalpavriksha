@@ -47,6 +47,7 @@
 - [C7] cc-stack-crm `program_config_keys.sql` seed data: current max ID = 47 (`ROLLING_EXPIRY_INCLUDE_ZERO_POINTS`, added 2025-02-04). Next safe ID = 48 for `MAX_EF_COUNT_PER_PROGRAM`. _(Analyst)_
 - [C7] emf.thrift confirmed at `/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-emf/emf.thrift` (1,883 lines). +~80 lines for 4 structs + 3 service methods. _(Analyst)_
 - [C7] Designer phase complete: compile-safe interfaces produced for all 12 new classes across 4 repos. Thrift IDL finalized (4 structs + 3 methods). `EFThriftException` added (extends `EMFThriftException` with `int statusCode`) because `EMFThriftException` only carries `String message` — insufficient for HTTP status code mapping in `LoyaltyExtendedFieldErrorAdvice`. `@Table(schema="warehouse")` confirmed for entity routing (not `@DataSourceSpecification` — that is service-level). `GenericDao<E,PK>` + `@Transactional(value="warehouse", propagation=SUPPORTS)` confirmed as DAO pattern. _(Designer)_
+- [C7] SDET phase complete: 5 test files written, 59 test methods covering BT-EF-01 through BT-EF-45. RED phase confirmed — tests will not compile until Phase 10 production code is written. Files: SubscriptionExtendedFieldsTest.java (updated, 366L), LoyaltyExtendedFieldServiceImplTest.java (new, 462L, emf-parent), ExtendedFieldValidatorTest.java (new, 373L), LoyaltyExtendedFieldControllerIT.java (new, 616L), SubscriptionEFValidationIT.java (new, 382L). JUnit 4 used in emf-parent; JUnit 5 in intouch-api-v3. _(SDET)_
 
 ---
 
