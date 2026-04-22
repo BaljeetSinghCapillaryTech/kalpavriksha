@@ -13,6 +13,7 @@ epics:
     confidence: C6
     complexity: MEDIUM
     dependencies: []
+    note: "3 stories (was 4) — EF-US-03 (Deactivate) merged into EF-US-02 (PUT); no separate DELETE endpoint (D-24)"
     stories:
       - id: EF-US-01
         title: Create EF Definition
@@ -21,36 +22,28 @@ epics:
           - "[ ] POST /v3/extendedfields/config creates row in loyalty_extended_fields for caller's org"
           - "[ ] Uniqueness: (org_id, scope, name) — duplicate returns 409 CONFLICT"
           - "[ ] scope must be SUBSCRIPTION_META; invalid scope returns 400"
-          - "[ ] data_type must be STRING | NUMBER | BOOLEAN | DATE | ENUM; invalid returns 400"
-          - "[ ] data_type=ENUM with null or empty enum_values returns 400"
-          - "[ ] data_type=ENUM with valid enum_values persists allowed values list"
+          - "[ ] data_type must be STRING | NUMBER | BOOLEAN | DATE; invalid returns 400"
           - "[ ] is_active defaults to 1 (active)"
           - "[ ] created_on and last_updated_on populated in UTC"
           - "[ ] Response includes created record with generated id"
           - "[ ] Org cannot exceed MAX_EF_COUNT_PER_ORG (from program_config_key_values, default=10) — 400 if exceeded"
 
       - id: EF-US-02
-        title: Update EF Definition
+        title: Update EF Definition (including soft-delete)
         complexity: SMALL
         acceptance_criteria:
           - "[ ] PUT /v3/extendedfields/config/{id} updates row for caller's org"
-          - "[ ] name, scope, data_type are immutable — attempt to change returns 400"
-          - "[ ] is_mandatory and default_value are mutable"
+          - "[ ] Only name (String) and is_active (boolean) are mutable — D-23"
+          - "[ ] scope, data_type, is_mandatory, default_value are immutable — attempt to change returns 400"
+          - "[ ] Name change: re-validates uniqueness (org_id, scope, new_name); 409 if conflict"
+          - "[ ] is_active=false performs soft-delete — no separate DELETE endpoint (D-24)"
+          - "[ ] is_active=false on already-inactive field returns 200 (idempotent)"
           - "[ ] Non-existent id or wrong org_id returns 404"
           - "[ ] last_updated_on updated on every successful PUT (UTC)"
+          - "[ ] Deactivated field (is_active=0) no longer passes EF validation on new subscription write events"
+          - "[ ] Existing subscription programs with that field value are NOT affected by deactivation (D-18)"
 
       - id: EF-US-03
-        title: Deactivate EF Definition (Soft Delete)
-        complexity: SMALL
-        acceptance_criteria:
-          - "[ ] DELETE /v3/extendedfields/config/{id} sets is_active=0 (no row deletion)"
-          - "[ ] ACTIVE→INACTIVE returns 200/204"
-          - "[ ] Already INACTIVE returns 200/204 (idempotent)"
-          - "[ ] Never existed returns 404"
-          - "[ ] Deactivated field (is_active=0) no longer passes EF validation on new subscription write events"
-          - "[ ] Existing subscription programs with that field value are NOT affected (D-18)"
-
-      - id: EF-US-04
         title: List EF Definitions
         complexity: SMALL
         acceptance_criteria:
@@ -75,8 +68,7 @@ epics:
           - "[ ] POST /v3/subscriptions with extendedFields triggers validation"
           - "[ ] Each entry: scope must be SUBSCRIPTION_META"
           - "[ ] Each entry: key must match is_active=1 record in loyalty_extended_fields for (org_id, scope)"
-          - "[ ] Each entry: value data type must match registered data_type"
-          - "[ ] Each entry: when data_type=ENUM, value must be in registered enum_values list"
+          - "[ ] Each entry: value data type must match registered data_type (STRING/NUMBER/BOOLEAN/DATE)"
           - "[ ] All is_mandatory=true fields for (org_id, SUBSCRIPTION_META) must be present"
           - "[ ] null extendedFields when mandatory fields exist returns 400"
           - "[ ] Valid extendedFields persisted in MongoDB subscription_programs.extendedFields"
@@ -162,7 +154,6 @@ schema:
           `data_type`        VARCHAR(30)   NOT NULL,
           `is_mandatory`     TINYINT(1)    NOT NULL DEFAULT 0,
           `default_value`    VARCHAR(255)  NULL,
-          `enum_values`      VARCHAR(1000) NULL,
           `is_active`        TINYINT(1)    NOT NULL DEFAULT 1,
           `created_on`       DATETIME      NOT NULL,
           `last_updated_on`  DATETIME      NOT NULL,
@@ -171,8 +162,8 @@ schema:
           KEY `idx_org_scope_active` (`org_id`, `scope`, `is_active`)
         );
       decisions:
-        - "D-14: is_active TINYINT(1) — cc-stack-crm convention, BRD status VARCHAR overridden"
-        - "D-21 OPEN: enum_values as VARCHAR column (shown) vs child table loyalty_extended_field_enum_values — Architect to decide"
+        - "D-14: is_active TINYINT(1) — cc-stack-crm convention"
+        - "D-22: ENUM data type removed from scope; enum_values column not needed"
 
   modified_models:
     - entity: SubscriptionProgram.ExtendedField
@@ -197,13 +188,12 @@ thrift:
         - "2: required i64 orgId"
         - "3: required string name"
         - "4: required string scope"
-        - "5: required string dataType"           # STRING | NUMBER | BOOLEAN | DATE | ENUM
+        - "5: required string dataType"    # STRING | NUMBER | BOOLEAN | DATE
         - "6: required bool isMandatory"
         - "7: optional string defaultValue"
-        - "8: optional list<string> enumValues"   # populated when dataType=ENUM
-        - "9: required bool isActive"
-        - "10: required string createdOn"
-        - "11: required string lastUpdatedOn"
+        - "8: required bool isActive"
+        - "9: required string createdOn"
+        - "10: required string lastUpdatedOn"
 
     - name: CreateLoyaltyExtendedFieldRequest
       fields:
@@ -213,15 +203,13 @@ thrift:
         - "4: required string dataType"
         - "5: required bool isMandatory"
         - "6: optional string defaultValue"
-        - "7: optional list<string> enumValues"   # required when dataType=ENUM
 
     - name: UpdateLoyaltyExtendedFieldRequest
       fields:
         - "1: required i64 id"
         - "2: required i64 orgId"
-        - "3: optional bool isMandatory"
-        - "4: optional string defaultValue"
-        - "5: optional list<string> enumValues"   # updatable for ENUM type
+        - "3: optional string name"        # rename — uniqueness re-validated
+        - "4: optional bool isActive"      # false = soft-delete; replaces DELETE endpoint
 
     - name: LoyaltyExtendedFieldListResponse
       fields:
@@ -237,10 +225,8 @@ thrift:
         story: EF-US-01
       - signature: "LoyaltyExtendedFieldConfig updateLoyaltyExtendedFieldConfig(1: UpdateLoyaltyExtendedFieldRequest request) throws (1: EMFException ex)"
         story: EF-US-02
-      - signature: "LoyaltyExtendedFieldConfig deleteLoyaltyExtendedFieldConfig(1: i64 id, 2: i64 orgId) throws (1: EMFException ex)"
-        story: EF-US-03
       - signature: "LoyaltyExtendedFieldListResponse getLoyaltyExtendedFieldConfigs(1: i64 orgId, 2: optional string scope, 3: bool includeInactive, 4: i32 page, 5: i32 size) throws (1: EMFException ex)"
-        story: EF-US-04
+        story: EF-US-03
 
 apis:
   - method: POST
@@ -249,10 +235,9 @@ apis:
     request:
       name: string (required)
       scope: string (required, validated: SUBSCRIPTION_META)
-      data_type: string (required, validated: STRING|NUMBER|BOOLEAN|DATE|ENUM)
+      data_type: string (required, validated: STRING|NUMBER|BOOLEAN|DATE)
       is_mandatory: boolean (required)
       default_value: string (optional)
-      enum_values: list<string> (required when data_type=ENUM; null otherwise)
     response_201:
       id: long
       org_id: long
@@ -261,44 +246,30 @@ apis:
       data_type: string
       is_mandatory: boolean
       default_value: string
-      enum_values: list<string> (null if not ENUM)
       is_active: boolean
       created_on: string (UTC ISO-8601)
       last_updated_on: string (UTC ISO-8601)
     errors:
       400: invalid scope or data_type
-      400: data_type=ENUM but enum_values null or empty
       409: (org_id, scope, name) already exists
 
   - method: PUT
     path: /v3/extendedfields/config/{id}
     story: EF-US-02
+    note: "Handles both update AND soft-delete (no separate DELETE endpoint — D-24)"
     request:
-      is_mandatory: boolean (optional)
-      default_value: string (optional)
-      enum_values: list<string> (optional, updatable for ENUM type)
-    immutable_fields: [name, scope, data_type]
+      name: string (optional — rename; uniqueness re-validated)
+      is_active: boolean (optional — false = soft-delete; idempotent)
+    immutable_fields: [scope, data_type, is_mandatory, default_value]
     response_200: LoyaltyExtendedFieldConfig (updated)
     errors:
-      400: attempt to change immutable fields
+      400: attempt to change immutable fields (scope, data_type, is_mandatory, default_value)
       404: id not found for caller's org_id
-
-  - method: DELETE
-    path: /v3/extendedfields/config/{id}
-    story: EF-US-03
-    behaviour:
-      - "ACTIVE → INACTIVE: 200/204 (idempotent)"
-      - "already INACTIVE: 200/204 (idempotent)"
-      - "never existed: 404"
-    response_200:
-      id: long
-      is_active: false
-    errors:
-      404: id never existed for caller's org_id
+      409: new name conflicts with existing active record for (org_id, scope)
 
   - method: GET
     path: /v3/extendedfields/config
-    story: EF-US-04
+    story: EF-US-03
     query_params:
       scope: string (optional)
       includeInactive: boolean (default false)
@@ -327,7 +298,7 @@ validation_rules:
 
 allowed_values:
   scope: [SUBSCRIPTION_META]
-  data_type: [STRING, NUMBER, BOOLEAN, DATE, ENUM]
+  data_type: [STRING, NUMBER, BOOLEAN, DATE]   # ENUM removed — out of scope (D-22)
   is_active: [0, 1]  # 1=active, 0=inactive
 
 org_config:
@@ -358,10 +329,9 @@ open_questions:
     status: RESOLVED
     resolution: "No impact on existing values; new events only validate against active fields — D-18"
   - id: OQ-06
-    question: "ENUM allowed values storage: enum_values VARCHAR column on loyalty_extended_fields OR child table loyalty_extended_field_enum_values?"
-    status: OPEN
-    owner: Architect
-    phase: 6
+    question: "ENUM allowed values storage?"
+    status: RESOLVED
+    resolution: "ENUM data type removed from scope entirely — D-22"
 
 guardrails_applicable: [G-01, G-02, G-03, G-04, G-05, G-06, G-07, G-08, G-09, G-11, G-12]
 critical_guardrails:

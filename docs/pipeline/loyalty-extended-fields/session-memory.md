@@ -55,7 +55,11 @@
 | D-18 | Deactivating an EF config does NOT affect existing subscription program values — only new events validate against active fields | Backward safety for existing data; consistent with soft-delete semantics | GQ-05 answer | C7 |
 | D-19 | `data_type` can be `ENUM` in addition to STRING/NUMBER/BOOLEAN/DATE. When `data_type=ENUM`, allowed values must be provided at create time and stored; CRUD APIs handle allowed-values list. Validation checks submitted value is in allowed list. | User-defined enum flexibility | GQ-05 answer | C6 |
 | D-20 | GET /v3/extendedfields/config must support `includeInactive` boolean query param (default false) in addition to `scope` and pagination | Makes deactivated fields discoverable for admin/audit without cluttering default list | GQ-05 answer | C7 |
-| D-21 | ENUM allowed values storage: requires either `enum_values VARCHAR(1000)` column on `loyalty_extended_fields` OR a child table `loyalty_extended_field_enum_values`. Architect to decide. | New design question surfaced from D-19 | GQ-05 / D-19 | C4 |
+| D-21 | ~~ENUM allowed values storage~~ — moot: ENUM removed from scope (D-22) | Superseded | OQ-06 | C7 |
+| D-22 | ENUM data type is **out of scope**. Allowed data_type values: STRING / NUMBER / BOOLEAN / DATE only | Simpler for first release; ENUM complexity deferred | OQ-06 answer | C7 |
+| D-23 | PUT `/v3/extendedfields/config/{id}` allows editing only: `name` (String) and `is_active` (boolean). All other fields (`scope`, `data_type`, `is_mandatory`, `default_value`) are **immutable after creation**. | Reversal of prior mutable fields: is_mandatory and default_value are now immutable | User clarification | C7 |
+| D-24 | No separate DELETE endpoint. Soft-delete (is_active=false) achieved via PUT. EF-US-03 merged into EF-US-02. API surface: POST + PUT + GET only. | Simpler API — fewer endpoints, same capability | User clarification | C7 |
+| D-25 | `name` is now **mutable** via PUT (reversal of original BA assumption). Since `name` is part of the uniqueness key `(org_id, scope, name)`, PUT must re-validate uniqueness when name changes. | User clarified only name and is_active are editable | User clarification / D-23 | C7 |
 
 ---
 
@@ -79,10 +83,10 @@
 
 - [x] `status` column → resolved: use `is_active TINYINT(1) DEFAULT 1` per cc-stack-crm convention (D-14) _(GQ-01)_
 - [x] Org-level max EF count → resolved: `program_config_key_values`, default=10 (D-15) _(GQ-02)_
-- [x] DELETE idempotency → resolved: 200/204 for both ACTIVE→INACTIVE and already-INACTIVE; 404 for never-existed (D-16) _(GQ-03)_
+- [x] DELETE idempotency → resolved: no DELETE endpoint; soft-delete via PUT is_active=false (D-16, D-24) _(GQ-03)_
 - [x] Validation caching → resolved: deferred; integrate based on usage (D-17) _(GQ-04)_
 - [x] Deactivation impact on existing values → resolved: existing values unaffected; new events validate against active only (D-18) _(GQ-05)_
-- [ ] ENUM allowed values storage: `enum_values VARCHAR(1000)` on loyalty_extended_fields OR child table `loyalty_extended_field_enum_values`? Architect to decide. _(D-21)_
+- [x] ENUM allowed values storage → resolved: ENUM removed from scope entirely (D-22) _(OQ-06)_
 - [ ] Error code/message format for validation failures — to be defined in Designer phase. _(BA)_
 
 ---

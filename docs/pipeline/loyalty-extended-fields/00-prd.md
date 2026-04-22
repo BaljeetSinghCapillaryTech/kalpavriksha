@@ -91,19 +91,9 @@ Request:
 {
   "name": "renewal_discount_pct",
   "scope": "SUBSCRIPTION_META",
-  "data_type": "NUMBER",          // STRING | NUMBER | BOOLEAN | DATE | ENUM
+  "data_type": "NUMBER",          // STRING | NUMBER | BOOLEAN | DATE
   "is_mandatory": false,
-  "default_value": "0",
-  "enum_values": null             // Required (non-empty) when data_type=ENUM; null otherwise
-}
-
-// ENUM example:
-{
-  "name": "plan_tier",
-  "scope": "SUBSCRIPTION_META",
-  "data_type": "ENUM",
-  "is_mandatory": true,
-  "enum_values": ["GOLD", "SILVER", "PLATINUM"]
+  "default_value": "0"
 }
 
 Response 201:
@@ -115,36 +105,31 @@ Response 201:
   "data_type": "NUMBER",
   "is_mandatory": false,
   "default_value": "0",
-  "enum_values": null,
   "is_active": true,
   "created_on": "2026-04-22T10:00:00Z",
   "last_updated_on": "2026-04-22T10:00:00Z"
 }
 
 Error 400: invalid scope or data_type
-Error 400: data_type=ENUM but enum_values null or empty
-Error 409: (org_id, scope, name) already exists
+Error 409: (org_id, scope, name) already exists and is_active=1
 ```
 
 #### PUT /v3/extendedfields/config/{id}
+Handles both field rename and soft-delete. No separate DELETE endpoint.
 ```
-Request (only mutable fields):
+Request (only mutable fields — D-23, D-24):
 {
-  "is_mandatory": true,
-  "default_value": "10",
-  "enum_values": ["GOLD", "SILVER", "PLATINUM", "DIAMOND"]   // updatable for ENUM type
+  "name": "new_field_name",   // optional — rename; uniqueness re-validated on change
+  "is_active": false          // optional — false = soft-delete
 }
 
 Response 200: updated LoyaltyExtendedFieldConfig
-Error 400: attempt to mutate immutable fields (name, scope, data_type)
+Notes:
+- Idempotent for is_active: setting is_active=false on already-inactive → 200
+- scope, data_type, is_mandatory, default_value are immutable after creation
+Error 400: attempt to change immutable fields (scope, data_type, is_mandatory, default_value)
 Error 404: id not found for caller's org_id
-```
-
-#### DELETE /v3/extendedfields/config/{id}
-```
-Response 200/204: { "id": 1001, "is_active": false }
-                  (idempotent — same response if already inactive)
-Error 404: id never existed for caller's org_id
+Error 409: new name conflicts with existing active record for same (org_id, scope)
 ```
 
 #### GET /v3/extendedfields/config
@@ -176,7 +161,6 @@ CREATE TABLE `loyalty_extended_fields` (
   `data_type`        VARCHAR(30)   NOT NULL,
   `is_mandatory`     TINYINT(1)    NOT NULL DEFAULT 0,
   `default_value`    VARCHAR(255)  NULL,
-  `enum_values`      VARCHAR(1000) NULL,   -- JSON array of allowed values when data_type=ENUM; storage TBD by Architect (D-21)
   `is_active`        TINYINT(1)    NOT NULL DEFAULT 1,
   `created_on`       DATETIME      NOT NULL,
   `last_updated_on`  DATETIME      NOT NULL,
@@ -187,7 +171,7 @@ CREATE TABLE `loyalty_extended_fields` (
 ```
 
 > **D-14**: `is_active TINYINT(1)` replaces the original `status VARCHAR(20)` — aligns with cc-stack-crm convention.
-> **D-21 OPEN**: `enum_values` column shown above is one option. Architect may choose a child table `loyalty_extended_field_enum_values (id, field_id, enum_value)` instead.
+> **D-22**: ENUM data type removed from scope; `enum_values` column not needed.
 
 ### Modified: `SubscriptionProgram.ExtendedField` (MongoDB — `subscription_programs`)
 
@@ -210,13 +194,12 @@ struct LoyaltyExtendedFieldConfig {
     2: required i64 orgId
     3: required string name
     4: required string scope
-    5: required string dataType          // STRING | NUMBER | BOOLEAN | DATE | ENUM
+    5: required string dataType          // STRING | NUMBER | BOOLEAN | DATE
     6: required bool isMandatory
     7: optional string defaultValue
-    8: optional list<string> enumValues  // populated when dataType=ENUM
-    9: required bool isActive
-    10: required string createdOn
-    11: required string lastUpdatedOn
+    8: required bool isActive
+    9: required string createdOn
+    10: required string lastUpdatedOn
 }
 
 struct CreateLoyaltyExtendedFieldRequest {
@@ -226,15 +209,13 @@ struct CreateLoyaltyExtendedFieldRequest {
     4: required string dataType
     5: required bool isMandatory
     6: optional string defaultValue
-    7: optional list<string> enumValues  // required when dataType=ENUM
 }
 
 struct UpdateLoyaltyExtendedFieldRequest {
     1: required i64 id
     2: required i64 orgId
-    3: optional bool isMandatory
-    4: optional string defaultValue
-    5: optional list<string> enumValues  // updatable for ENUM type fields
+    3: optional string name       // rename — uniqueness re-validated
+    4: optional bool isActive     // false = soft-delete; replaces DELETE endpoint
 }
 
 struct LoyaltyExtendedFieldListResponse {
@@ -244,10 +225,9 @@ struct LoyaltyExtendedFieldListResponse {
     4: required i32 size
 }
 
-// New methods in EMFService:
+// New methods in EMFService (no separate delete method — D-24):
 LoyaltyExtendedFieldConfig createLoyaltyExtendedFieldConfig(1: CreateLoyaltyExtendedFieldRequest request) throws (1: EMFException ex)
 LoyaltyExtendedFieldConfig updateLoyaltyExtendedFieldConfig(1: UpdateLoyaltyExtendedFieldRequest request) throws (1: EMFException ex)
-LoyaltyExtendedFieldConfig deleteLoyaltyExtendedFieldConfig(1: i64 id, 2: i64 orgId) throws (1: EMFException ex)
 LoyaltyExtendedFieldListResponse getLoyaltyExtendedFieldConfigs(1: i64 orgId, 2: optional string scope, 3: bool includeInactive, 4: i32 page, 5: i32 size) throws (1: EMFException ex)
 ```
 
