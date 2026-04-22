@@ -48,7 +48,7 @@
     "6": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["01-architect.md"]},
     "6a": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["02-analyst.md"]},
     "6b": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["06b-migrator.md"]},
-    "7": {"status": "pending"},
+    "7": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["03-designer.md"]},
     "8": {"status": "pending"},
     "8b": {"status": "pending"},
     "9": {"status": "pending"},
