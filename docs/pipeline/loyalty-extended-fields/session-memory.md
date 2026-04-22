@@ -114,4 +114,25 @@
 
 ## Risk Register
 
-*(Populated as phases identify risks)*
+**CRITICAL risks — Architect must resolve in Phase 6:**
+- [C-1] Thrift `required` fields in `LoyaltyExtendedFieldConfig` violate G-09.5; all struct fields should be `optional` _(Phase 2 Critic)_
+- [C-2/C-3] MongoDB migration: `type`→`scope` rename leaves existing `subscription_programs` documents with `scope=null`. Fix: use `@Field("type")` annotation — no migration needed, Java field named `scope`, MongoDB key stays `type` _(Phase 2 Critic)_
+- [C-4] Race condition: EF deactivated mid-subscription-create validation window; fail-open vs fail-closed not specified _(Phase 2 Critic)_
+- [C-6] D-15 (`program_config_key_values`) is program-scoped (mandatory `program_id` FK), not org-scoped. Org-level EF count cannot be stored there without sentinel `program_id` convention + `ProgramConfigKey` seed data. C7 confidence rating on D-15 must be downgraded to C3. _(Phase 2 Analyst M-02, M-08)_
+- [C-7] Uniqueness constraint `uq_org_scope_name (org_id, scope, name)` blocks ALL duplicates regardless of `is_active`. POST 409 condition says "already exists AND is_active=1" implying names are reusable after deactivation — DB prevents this. Schema and API contract are inconsistent. _(Phase 2 Critic)_
+- [C-28] Name mutability (D-25) + uniqueness-as-lookup-key: renaming EF orphans all existing `subscription_programs` MongoDB docs referencing the old name. D-25 should be re-examined — recommend making `name` immutable and using a different display label field if editable naming is needed _(Phase 2 Critic)_
+
+**HIGH risks — address in design phases:**
+- [H-8] Backward compatibility break: any org that creates a mandatory EF causes ALL existing subscription-create callers without EF to receive 400. Needs migration/grace-period story _(Phase 2 Critic)_
+- [H-11] `extendedFields: []` on PUT is a silent destructive clear — unintuitive distinction from `null`. Needs explicit product sign-off _(Phase 2 Critic)_
+- [H-13] Story numbering inconsistency: BA uses EF-US-03=Deactivate (now removed), EF-US-04=List; PRD uses EF-US-02=Update+Deactivate, EF-US-03=List. **Fixed in BA during Phase 2.** _(Phase 2 Critic)_
+- [H-12] R-03a (ENUM validation rule) was zombie remnant — **deleted from prd-machine during Phase 2** _(Phase 2 Critic)_
+- [CCC-4] EMFException error codes not mapped to HTTP status codes — V3 will receive EMFException and produce 500 without an explicit mapping table _(Phase 2 Critic)_
+- [M-01/M-04] `DATETIME` vs `TIMESTAMP` for audit columns; cc-stack-crm convention uses `auto_update_time TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` _(Phase 2 Analyst)_
+- [M-07] Deployment order constraint: EMF must deploy before V3 calls new Thrift methods — not documented _(Phase 2 Analyst)_
+
+**Codebase facts confirmed by Analyst (C7 evidence):**
+- `SubscriptionProgram.ExtendedField` fields: `type: ExtendedFieldType`, `key: String`, `value: String` at lines 297-300 _(Phase 2 Analyst)_
+- `ExtendedFieldType` enum: `CUSTOMER_EXTENDED_FIELD`, `TXN_EXTENDED_FIELD` — only 3 usages: SubscriptionProgram.java, ExtendedFieldType.java, SubscriptionExtendedFieldsTest.java _(Phase 2 Analyst)_
+- BT-EF-05 description wrong: Javadoc says "NOT copied" but test asserts ARE copied — production code (SubscriptionFacade:385) copies EFs on duplicate _(Phase 2 Analyst)_
+- `program_config_key_values` has mandatory `program_id` FK — org-level config needs sentinel or separate key _(Phase 2 Analyst)_

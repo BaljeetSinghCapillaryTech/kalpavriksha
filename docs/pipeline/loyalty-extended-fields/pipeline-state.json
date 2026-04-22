@@ -41,7 +41,7 @@
   "phases": {
     "0": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["brd-raw.md", "pipeline-state.json", "session-memory.md", "process-log.md", "approach-log.md"]},
     "1": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["00-ba.md", "00-ba-machine.md", "00-prd.md", "00-prd-machine.md"]},
-    "2": {"status": "pending"},
+    "2": {"status": "complete", "completed_at": "2026-04-22T00:00:00Z", "artifacts": ["contradictions.md", "gap-analysis-brd.md"]},
     "3": {"status": "skipped", "reason": "No UI — purely backend feature"},
     "4": {"status": "pending"},
     "5": {"status": "pending"},

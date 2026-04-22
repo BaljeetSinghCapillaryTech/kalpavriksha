@@ -39,3 +39,21 @@
 - 4th repo identified: thrift-ifaces-emf (/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-emf)
 - Open questions surfaced: OQ-01 (status column), OQ-02 (org-level count), OQ-03 (error format), OQ-04 (DELETE idempotency), OQ-05 (deactivation impact on existing subscriptions)
 - Phase 1 complete ✅
+
+### Phase 2: Critic + Gap Analysis — 2026-04-22
+- Two parallel subagents: Critic (devil's advocate) + Analyst (compliance)
+- Critic: 28 contradictions + 4 cross-cutting concerns (7 Critical, 9 High, 8 Medium, 4 Low)
+- Analyst: 13 claims verified (10 Confirmed, 2 Partial with caveats); 2 guardrail findings; 8 missing items
+- Immediate PRD fixes applied:
+  - R-03a zombie ENUM rule deleted from prd-machine.md ✅
+  - BA EF-US-02 updated to reflect D-23/D-25 (name mutable, no separate DELETE) ✅
+  - BA EF-US-03 (Deactivate) removed, EF-US-04 (List) renumbered to EF-US-03 ✅
+- Key open items for Architect (Phase 6):
+  - C-1: All Thrift struct fields → optional (G-09.5 fix)
+  - C-2/C-3: MongoDB migration — use @Field("type") annotation
+  - C-6: program_config_key_values is program-scoped; org-level EF count storage needs redesign
+  - C-7: Uniqueness constraint vs name-reuse-after-deactivation inconsistency
+  - C-28: Name mutability (D-25) orphans MongoDB references — reconsider making name immutable
+  - CCC-4: EMFException → HTTP status mapping needed
+- Artifacts: contradictions.md ✅, gap-analysis-brd.md ✅
+- Phase 2 complete ✅
