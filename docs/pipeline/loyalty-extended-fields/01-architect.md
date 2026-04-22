@@ -720,15 +720,15 @@ When caching is added, it MUST fit between Step 1 and Step 2:
 
 **Context**: G-09.5 states new Thrift fields should be `optional` for backward compatibility (old clients won't break on new fields). However, `LoyaltyExtendedFieldConfig` is a new struct with no existing consumers. Risk C-1 was raised about using `required` fields.
 
-**Decision**: Use `required` for response struct fields that will always be present on a well-formed EF config row (id, orgId, programId, name, scope, dataType, isMandatory, isActive, createdOn, updatedOn). Use `optional` for nullable fields (defaultValue, updatedBy, createdBy). Use `required` for request struct mandatory parameters (orgId, programId, name, scope, dataType, isMandatory in Create; id, orgId in Update).
+**Decision**: Use `required` on all non-nullable response struct fields (id, orgId, programId, name, scope, dataType, isMandatory, isActive, createdOn, updatedOn). Use `optional` on all request struct parameters — including `orgId`, `programId`, `name`, `scope` — with server-side null-guard in `EMFThriftServiceImpl` that throws `EMFException(statusCode=400)` if any are null. This is the safe choice for rolling deployments (avoids `TProtocolException` during the deployment window when EMF is deployed before V3).
 
 **Alternatives considered**:
-- All `optional`: Reduces backward-compat risk but generates nullable getters in Java, requiring null-checks everywhere. Since this is a new struct with no existing consumers, the risk is theoretical.
-- All `required`: More defensive, but blocks adding nullable fields later without a schema version.
+- `required` on request fields: Compile-time safety but throws `TProtocolException` at wire-read time if V3 is on old code during rolling deploy. Rejected for operational safety.
+- All `optional` including response: Rejected — response fields that are always present should be `required` so consuming code doesn't need null-checks.
 
-**Consequences**: If a field must be added to an existing struct later, it MUST be `optional` (per G-09.5). New required fields can only be added to new struct versions. This is acceptable for the current scope.
+**Consequences**: Server-side null-guard adds a small amount of defensive code in `EMFThriftServiceImpl`. Any future addition of fields to existing structs MUST be `optional` (G-09.5). `required` on response fields is permanent.
 
-**Related guardrail**: G-09.5
+**Related guardrail**: G-09.5, G-07.1 (null orgId would be a multi-tenancy breach)
 
 ---
 

@@ -42,6 +42,10 @@
 - [C7] `ExceptionCodes.java` (emf-parent): highest existing code is 7007 (`EXTEND_TIER_EXPIRY_DATE_NOT_PERMITTED`). New EF-specific exception codes go in 8xxx range (8001-8010). _(Architect OQ-10)_
 - [C6] `SubscriptionFacade` (intouch-api-v3) lines 343 and 385: extendedFields copied as-is during fork/duplicate without re-validation. EF ids are stable PKs; stale deactivated ids caught at next explicit subscription create/update event. Fail-open on fork/duplicate is acceptable. _(Architect OQ-9)_
 - [C6] Existing emf.thrift `get*` methods use plain positional parameters (no `required` qualifier on fields). New EF Thrift methods intentionally use `required` on `orgId` fields to prevent zero-default multi-tenancy bypass. _(Architect OQ-7)_
+- [C7] Impact analysis complete: 5 modified files in intouch-api-v3 (SubscriptionProgram.java 312L, SubscriptionFacade.java 648L, SubscriptionErrorAdvice.java 73L, ExtendedFieldType.java 15L deleted, SubscriptionExtendedFieldsTest.java 272L); all-new in emf-parent (5 classes). ExtendedFieldType callers confirmed: exactly 3 usages across 2 source files + 1 test file — no surprise callers. _(Analyst)_
+- [C7] EMFThriftServiceImpl.java confirmed at `emf/src/main/java/com/capillary/shopbook/emf/impl/external/EMFThriftServiceImpl.java` (4,272 lines, 58 existing @Override methods). Error code range 8001-8010 confirmed free: highest existing code is 7007 (`EXTEND_TIER_EXPIRY_DATE_NOT_PERMITTED`), no 8xxx codes exist anywhere in `ExceptionCodes.java`. _(Analyst)_
+- [C7] cc-stack-crm `program_config_keys.sql` seed data: current max ID = 47 (`ROLLING_EXPIRY_INCLUDE_ZERO_POINTS`, added 2025-02-04). Next safe ID = 48 for `MAX_EF_COUNT_PER_PROGRAM`. _(Analyst)_
+- [C7] emf.thrift confirmed at `/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-emf/emf.thrift` (1,883 lines). +~80 lines for 4 structs + 3 service methods. _(Analyst)_
 
 ---
 
