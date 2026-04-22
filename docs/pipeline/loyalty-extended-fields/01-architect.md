@@ -9,7 +9,7 @@
 
 ## STEP 2: Open Question Resolutions
 
-### OQ-1: `@Field` Annotation Strategy for `SubscriptionProgram.ExtendedField.id`
+### OQ-1: `SubscriptionProgram.ExtendedField` Model — Final Design
 
 **Evidence**: `SubscriptionProgram.java:295-301` (read directly):
 ```java
@@ -17,17 +17,25 @@ public static class ExtendedField {
     @NotNull
     private ExtendedFieldType type;
     @NotBlank
-    private String key;         // ← current field name in Java
-    private String value;
+    private String key;         // field name e.g. "gender"
+    private String value;       // field value e.g. "Male"
 }
 ```
-No `@Field` annotation exists on the `key` field. Spring Data MongoDB uses the Java field name as the MongoDB document key unless overridden by `@Field`.
 
-**Resolution**: The new Java field must be named `id` (Long). To avoid breaking existing MongoDB documents that contain `"key": "field_name_string"`, add `@Field("key")` on the new `id: Long` field. This maps the Java field `id` to the MongoDB document field `"key"`. Existing documents will be read as `id = null` (because "key" previously held a String, not a Long). Since D-28 stores EF ids (Long), and existing documents predate this feature, the approach is: existing documents have `extendedFields=[]` or contain old `{type, key, value}` objects — after model correction, old documents will deserialize with `id=null` (not a crash, just null). The EF validation feature only fires on new subscription creates/updates (R-01 checks `is_active=1`), so old documents are unaffected.
+**User correction (2026-04-22)**: The earlier assumption that `key` would be replaced by `id` was wrong. `key` has semantic value — it stores the extended field's name (e.g. "gender") which is meaningful for display and trace. `efId` (Long) is added as the FK to `loyalty_extended_fields.id` for authoritative validation.
 
-**Decision**: Add `@Field("key")` on the new `id: Long` field in `SubscriptionProgram.ExtendedField`. No MongoDB migration needed. Old documents with non-null string "key" will deserialize to `id=null` — acceptable because old documents predate EF validation and will not be re-validated unless explicitly PUT.
+**Resolution**: Final model after correction:
+```java
+public static class ExtendedField {
+    private Long efId;          // NEW — FK to loyalty_extended_fields.id (D-28)
+    private String key;         // KEPT — field name e.g. "gender"
+    private String value;       // KEPT — field value e.g. "Male"
+    // type: ExtendedFieldType  DELETED (D-27)
+}
+```
+No `@Field` annotation needed — `key` is not renamed. `efId` is purely additive. Old MongoDB documents `{type, key, value}` deserialize with `efId=null`, `key`/`value` preserved — no migration needed.
 
-**Confidence**: C6 — verified from reading actual file. No `@Field` currently; Spring Data MongoDB behaviour confirmed from framework docs. C6 (not C7) because deserialization of String→Long from old documents was not verified with a test.
+**Confidence**: C7 — model confirmed directly by user.
 
 ---
 
@@ -214,7 +222,7 @@ The `ExceptionCodes.getHttpStatusCode()` method must be updated to include `8001
 - No existing LoyaltyExtendedField* classes — all new
 
 ### intouch-api-v3
-- `SubscriptionProgram.ExtendedField`: currently `{type: ExtendedFieldType, key: String, value: String}` — must become `{id: Long, value: String}` with `@Field("key")` on `id`
+- `SubscriptionProgram.ExtendedField`: currently `{type: ExtendedFieldType, key: String, value: String}` — must become `{efId: Long, key: String, value: String}` — `type` deleted, `key` kept, `efId` added as FK (D-27, D-28)
 - `ExtendedFieldType` enum: must be deleted
 - `SubscriptionFacade`: 4 usages of `extendedFields` (lines 102, 289, 343, 385) — lines 102 and 289 need EF validation hook
 - `PointsEngineRulesThriftService` uses `PointsEngineRuleService.Iface` — WRONG for new EF methods
@@ -307,13 +315,13 @@ graph TB
 
 ### Data Flow: EF Validation (V3 Subscription → EMF → MySQL → MongoDB)
 
-1. Client sends `POST /v3/subscriptions` with `{programId, ..., extendedFields: [{id:1001, value:"yes"}]}`
+1. Client sends `POST /v3/subscriptions` with `{programId, ..., extendedFields: [{efId:1001, key:"gender", value:"Male"}]}`
 2. `SubscriptionController` delegates to `SubscriptionFacade.createSubscription()`
 3. `SubscriptionFacade` calls `ExtendedFieldValidator.validate(orgId, programId, extendedFields)` before MongoDB save
 4. `ExtendedFieldValidator` calls `EmfExtendedFieldsThriftService.getLoyaltyExtendedFieldConfigs(orgId, programId, null, false, 0, 100)` to fetch all active configs in one call
-5. Validator performs in-memory: R-01 (id exists), R-02 (data_type match), R-03 (mandatory fields present)
+5. Validator performs in-memory: R-01 (efId exists in active configs), R-02 (data_type match), R-03 (mandatory fields present)
 6. On failure: throws `ExtendedFieldValidationException` → caught by `SubscriptionErrorAdvice` → HTTP 400
-7. On success: subscription proceeds to MongoDB save with `extendedFields: [{id: Long, value: String}]`
+7. On success: subscription proceeds to MongoDB save with `extendedFields: [{efId: Long, key: String, value: String}]`
 
 ---
 
@@ -501,7 +509,7 @@ Add entry for `MAX_EF_COUNT_PER_PROGRAM`:
   - `create(CreateLoyaltyExtendedFieldRequest)` → check count limit → check name uniqueness → save entity → return `LoyaltyExtendedFieldConfig` struct
   - `update(UpdateLoyaltyExtendedFieldRequest)` → fetch by (id, orgId) → 404 if missing → immutability guard → optional name uniqueness check → save → return struct
   - `list(orgId, programId, scope, includeInactive, page, size)` → dynamic query → paginate → map to `LoyaltyExtendedFieldListResponse`
-  - `validateExtendedFieldValues(orgId, programId, List<{id, value}>)` → fetch all active configs → R-01/R-02/R-03 validation → return void or throw `EMFException`
+  - `validateExtendedFieldValues(orgId, programId, List<{efId, key, value}>)` → fetch all active configs → R-01/R-02/R-03 validation → return void or throw `EMFException`
   - `toThriftStruct(LoyaltyExtendedField)` → map entity fields to `LoyaltyExtendedFieldConfig` Thrift struct
 - Analogous to: `BulkRedemptionService.java` (service layer, transaction, validation)
 - Annotations: `@Service`, `@Transactional(value = "warehouse", propagation = Propagation.REQUIRED)`, `@DataSourceSpecification(schemaType = SchemaType.WAREHOUSE)`
@@ -580,8 +588,8 @@ Add entry for `MAX_EF_COUNT_PER_PROGRAM`:
 - Remove `import com.capillary.intouchapiv3.unified.subscription.enums.ExtendedFieldType`
 - Modify `ExtendedField` nested static class:
   - Delete `@NotNull private ExtendedFieldType type;`
-  - Delete `@NotBlank` from key field
-  - Rename `private String key;` → `@Field("key") @NotNull private Long id;`
+  - Keep `private String key;` — no change (stores field name, e.g. "gender")
+  - Add `private Long efId;` — new FK field to `loyalty_extended_fields.id`
   - Retain `private String value;`
 
 **`SubscriptionFacade.java`**
@@ -594,10 +602,10 @@ Add entry for `MAX_EF_COUNT_PER_PROGRAM`:
 - Add new `@ExceptionHandler(ExtendedFieldValidationException.class)` method returning appropriate 400 response with structured error body `{code, message, field}`
 
 **`SubscriptionExtendedFieldsTest.java`** (BT-EF-01 through BT-EF-06)
-- Replace all `CUSTOMER_EXTENDED_FIELD`/`TXN_EXTENDED_FIELD` enum references with `id: Long` values
-- Remove `type` field from test data builders
-- Update assertions to use `id` instead of `key`
-- Update scope assertions per D-27 (scope not stored)
+- Replace all `CUSTOMER_EXTENDED_FIELD`/`TXN_EXTENDED_FIELD` enum references — delete `type` field from all test builders
+- Add `efId: Long` to test data builders (use seeded `loyalty_extended_fields.id` values)
+- Keep `key: String` in test builders (e.g. `.key("gender")`)
+- Remove scope assertions per D-27 (scope not stored in document)
 
 #### Files to Delete
 
@@ -617,24 +625,24 @@ Null `extendedFields` on create: preserved as `[]` (existing null-guard at line 
 ### Validation Sequence (pseudocode)
 
 ```
-FUNCTION validate(orgId, programId, List<{id, value}> submittedEFs):
+FUNCTION validate(orgId, programId, List<{efId, key, value}> submittedEFs):
 
   // Step 1: Fetch all active EF configs for this (org, program) in one Thrift call
   configs = emfThriftService.getLoyaltyExtendedFieldConfigs(
       orgId, programId, scope=null, includeInactive=false, page=0, size=100)
   
-  configMap = {config.id → config}  // in-memory index for O(1) lookup
+  configMap = {config.id → config}  // in-memory index for O(1) lookup by efId
   
-  // Step 2: R-01 — each submitted id must exist and be active
+  // Step 2: R-01 — each submitted efId must exist and be active
   FOR EACH ef IN submittedEFs:
-    IF ef.id NOT IN configMap:
+    IF ef.efId NOT IN configMap:
       THROW ExtendedFieldValidationException(
           code="EF_VALIDATION_001",
-          message="Unknown or inactive extended field id: {ef.id}",
-          field="extendedFields[{index}].id")
+          message="Unknown or inactive extended field id: {ef.efId}",
+          field="extendedFields[{index}].efId")
     
     // Step 3: R-02 — value must match data_type
-    config = configMap[ef.id]
+    config = configMap[ef.efId]
     IF NOT matchesDataType(config.dataType, ef.value):
       THROW ExtendedFieldValidationException(
           code="EF_VALIDATION_002",
@@ -643,9 +651,9 @@ FUNCTION validate(orgId, programId, List<{id, value}> submittedEFs):
   
   // Step 4: R-03 — all mandatory fields must be present
   mandatoryConfigs = configMap.values() WHERE isMandatory=true
-  submittedIds = SET(ef.id FOR ef IN submittedEFs)
+  submittedEfIds = SET(ef.efId FOR ef IN submittedEFs)
   FOR EACH mandatoryConfig IN mandatoryConfigs:
-    IF mandatoryConfig.id NOT IN submittedIds:
+    IF mandatoryConfig.id NOT IN submittedEfIds:
       THROW ExtendedFieldValidationException(
           code="EF_VALIDATION_003",
           message="Missing mandatory extended field: {mandatoryConfig.name} (id: {mandatoryConfig.id})",
@@ -742,23 +750,33 @@ When caching is added, it MUST fit between Step 1 and Step 2:
 
 ---
 
-### ADR-03: `@Field` Annotation for `SubscriptionProgram.ExtendedField.id`
+### ADR-03: `SubscriptionProgram.ExtendedField` Model — `efId` Added, `key` Kept
 
-**Status**: Accepted
+**Status**: Accepted (supersedes earlier `@Field("key")` assumption — corrected 2026-04-22)
 
-**Context**: Existing MongoDB documents in `subscription_programs` collection store `extendedFields` with Java field `key: String`. The new model changes this to `id: Long`. Without annotation, Spring Data MongoDB would look for `"id"` in the document (no match) and the new field would always read as `null` for old documents. With `@Field("key")`, the new `id: Long` field maps to the MongoDB document key `"key"`.
+**Context**: The initial design assumed `key: String` would be replaced by `id: Long` (rename). User clarified that `key` carries semantic meaning — it is the field name (e.g. "gender") and should be stored alongside the value for display and trace. The FK to `loyalty_extended_fields.id` is therefore a new additive field (`efId`), not a rename.
 
-**Decision**: Add `@Field("key")` on the new `id: Long` field. This means:
-1. New documents (post-feature): store `{id: 1001, value: "yes"}` as MongoDB `{key: 1001, value: "yes"}` (a Long, not a String)
-2. Old documents (pre-feature): contain `{key: "field_name_string", value: "..."}` — deserialized as `id=null` (String → Long coercion fails gracefully to null in MongoDB)
+**Decision**: Final `SubscriptionProgram.ExtendedField` model:
+```
+{
+  efId:  Long    // NEW — FK to loyalty_extended_fields.id; used for validation
+  key:   String  // KEPT — field name e.g. "gender"; display and traceability
+  value: String  // KEPT — field value e.g. "Male"
+  // type: ExtendedFieldType DELETED (D-27)
+}
+```
+No `@Field` annotation needed — `key` stays as `key` with no rename. `efId` is a new field added to the MongoDB document. No migration required.
 
 **Alternatives considered**:
-- Rename MongoDB field to `"id"`: Requires a MongoDB migration across all `subscription_programs` documents in production — high operational risk; out of scope
-- No annotation (use `id` as document key): Old documents lose EF data on read; risk of NPE in downstream logic
+- Replace `key` with `id` (original assumption): Rejected — `key` has display and traceability value; id alone is opaque
+- Keep `type` field and rename to `scope`: Rejected — scope is always `SUBSCRIPTION_META` for subscription programs; storing it per-document is redundant
 
-**Consequences**: Old documents with pre-existing EF values will have `id=null` after deserialization. Since EF validation (R-01) only fires on new subscription creates/updates with a non-empty submitted extendedFields list, old documents are not affected by validation. If an old subscription is PUT without extendedFields, null-guard at line 289 preserves the existing (null-id) list without re-validation.
+**Consequences**:
+- Old documents `{type, key, value}` deserialize with `efId=null` (new field) — no crash, no data loss
+- `key` continues to be stored and readable for admin display without extra joins
+- Validation path uses `efId` exclusively (O(1) lookup in configMap); `key` is informational
 
-**Related guardrail**: G-09.1 (backward-compatible schema changes)
+**Related guardrail**: G-09.1 (backward-compatible schema changes — additive only)
 
 ---
 

@@ -182,11 +182,12 @@ CREATE TABLE `loyalty_extended_fields` (
 | Field | Before | After |
 |-------|--------|-------|
 | `type` (ExtendedFieldType) | CUSTOMER_EXTENDED_FIELD \| TXN_EXTENDED_FIELD | **Deleted** — field removed entirely (D-27) |
-| `key` (String) | field name lookup key | **Replaced by `id` (Long)** — FK to `loyalty_extended_fields.id` (D-28) |
+| `key` (String) | field name lookup key | **Kept** — stores field name e.g. "gender" (D-28) |
+| `efId` (Long) | — did not exist — | **Added** — FK to `loyalty_extended_fields.id` (D-28) |
 | `value` (String) | unchanged | unchanged |
 
 > **D-27**: `type` deleted (not renamed). Scope is always `SUBSCRIPTION_META` for subscription programs — validated server-side, not stored per-document.
-> **D-28**: `key` (name-based lookup) replaced by `id` (id-based lookup). Validation by id. Name is display-only.
+> **D-28**: `key` stays (display/trace). `efId: Long` added as authoritative FK for validation. Final model: `{efId, key, value}`. No `@Field` annotation needed — no field rename.
 
 ---
 

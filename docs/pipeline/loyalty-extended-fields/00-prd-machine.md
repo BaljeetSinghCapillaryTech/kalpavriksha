@@ -176,10 +176,12 @@ schema:
           action: DELETE_FIELD   # D-27: deleted entirely, not renamed
           reason: "scope always SUBSCRIPTION_META for subscription programs; validated server-side"
         - field: key (String)
-          action: REPLACE
-          new_field: id
-          type_after: Long
-          reason: "D-28: validation by id, not name; name is display-only"
+          action: KEEP                # D-28: key stays — stores field name e.g. "gender"
+          reason: "D-28: key has display and trace value; kept as-is"
+        - field: efId (Long)
+          action: ADD_FIELD           # D-28: new FK to loyalty_extended_fields.id
+          type: Long
+          reason: "D-28: authoritative FK for validation; no @Field annotation needed"
         - field: ExtendedFieldType
           action: DELETE_CLASS
           file: src/main/java/com/capillary/intouchapiv3/unified/subscription/enums/ExtendedFieldType.java
@@ -300,7 +302,7 @@ apis:
 validation_rules:
   trigger: "POST /v3/subscriptions OR PUT /v3/subscriptions/{id} with extendedFields present"
   rules:
-    - "R-01: each extendedField.id must exist in loyalty_extended_fields for (org_id, program_id, is_active=1) — 400 if not (D-28)"
+    - "R-01: each extendedField.efId must exist in loyalty_extended_fields for (org_id, program_id, is_active=1) — 400 if not (D-28)"
     - "R-02: value data type must match loyalty_extended_fields.data_type — 400 if mismatch"
     - "R-03: all is_mandatory=true fields for (org_id, program_id, SUBSCRIPTION_META) must be present — 400 if missing; does NOT apply when extendedFields is empty list []"
   null_guard: "null extendedFields on PUT → preserve existing values (R-33)"
