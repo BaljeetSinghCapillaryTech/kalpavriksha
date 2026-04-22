@@ -89,17 +89,20 @@ flowchart TD
 ```
 Request:
 {
+  "program_id": 5001,
   "name": "renewal_discount_pct",
   "scope": "SUBSCRIPTION_META",
   "data_type": "NUMBER",          // STRING | NUMBER | BOOLEAN | DATE
   "is_mandatory": false,
   "default_value": "0"
 }
+// org_id sourced from auth context (not in request body — G-07.1)
 
 Response 201:
 {
   "id": 1001,
   "org_id": 100,
+  "program_id": 5001,
   "name": "renewal_discount_pct",
   "scope": "SUBSCRIPTION_META",
   "data_type": "NUMBER",
@@ -107,34 +110,32 @@ Response 201:
   "default_value": "0",
   "is_active": true,
   "created_on": "2026-04-22T10:00:00Z",
-  "last_updated_on": "2026-04-22T10:00:00Z"
+  "updated_on": "2026-04-22T10:00:00Z",
+  "updated_by": "user-ref-abc"
 }
 
 Error 400: invalid scope or data_type
-Error 409: (org_id, scope, name) already exists and is_active=1
+Error 409: (org_id, program_id, scope, name) already exists
 ```
 
 #### PUT /v3/extendedfields/config/{id}
-Handles both field rename and soft-delete. No separate DELETE endpoint.
+Handles rename and soft-delete. No separate DELETE endpoint.
 ```
-Request (only mutable fields — D-23, D-24):
+Request (mutable fields only — D-23, D-24):
 {
-  "name": "new_field_name",   // optional — rename; uniqueness re-validated on change
+  "name": "new_field_name",   // optional — display rename only (D-28: validation by id)
   "is_active": false          // optional — false = soft-delete
 }
 
 Response 200: updated LoyaltyExtendedFieldConfig
-Notes:
-- Idempotent for is_active: setting is_active=false on already-inactive → 200
-- scope, data_type, is_mandatory, default_value are immutable after creation
-Error 400: attempt to change immutable fields (scope, data_type, is_mandatory, default_value)
+Idempotent: is_active=false on already-inactive → 200
 Error 404: id not found for caller's org_id
-Error 409: new name conflicts with existing active record for same (org_id, scope)
+Error 409: new name conflicts with existing record for same (org_id, program_id, scope) — D-30
 ```
 
 #### GET /v3/extendedfields/config
 ```
-Query params: scope=SUBSCRIPTION_META, includeInactive=false, page=0, size=20
+Query params: program_id=5001, scope=SUBSCRIPTION_META, includeInactive=false, page=0, size=20
 
 Response 200:
 {
@@ -156,31 +157,36 @@ Response 200:
 CREATE TABLE `loyalty_extended_fields` (
   `id`               BIGINT        NOT NULL AUTO_INCREMENT,
   `org_id`           BIGINT        NOT NULL,
+  `program_id`       BIGINT        NOT NULL,
   `name`             VARCHAR(100)  NOT NULL,
   `scope`            VARCHAR(50)   NOT NULL,
   `data_type`        VARCHAR(30)   NOT NULL,
   `is_mandatory`     TINYINT(1)    NOT NULL DEFAULT 0,
   `default_value`    VARCHAR(255)  NULL,
   `is_active`        TINYINT(1)    NOT NULL DEFAULT 1,
-  `created_on`       DATETIME      NOT NULL,
-  `last_updated_on`  DATETIME      NOT NULL,
+  `created_on`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_on`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_by`       VARCHAR(100)  NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_org_scope_name` (`org_id`, `scope`, `name`),
-  KEY `idx_org_scope_active` (`org_id`, `scope`, `is_active`)
+  UNIQUE KEY `uq_org_prog_scope_name` (`org_id`, `program_id`, `scope`, `name`),
+  KEY `idx_org_prog_scope_active` (`org_id`, `program_id`, `scope`, `is_active`)
 );
 ```
 
-> **D-14**: `is_active TINYINT(1)` replaces the original `status VARCHAR(20)` — aligns with cc-stack-crm convention.
-> **D-22**: ENUM data type removed from scope; `enum_values` column not needed.
+> **D-14**: `is_active TINYINT(1)` — cc-stack-crm convention.
+> **D-26**: `TIMESTAMP` (UTC-aware) replaces `DATETIME`. `updated_by` added.
+> **D-29**: `program_id` added — EF configs are program-scoped. Uniqueness key includes `program_id`.
 
 ### Modified: `SubscriptionProgram.ExtendedField` (MongoDB — `subscription_programs`)
 
 | Field | Before | After |
 |-------|--------|-------|
-| `type` (ExtendedFieldType) | CUSTOMER_EXTENDED_FIELD \| TXN_EXTENDED_FIELD | **Removed** |
-| `scope` (String) | N/A | SUBSCRIPTION_META |
-| `key` (String) | unchanged | unchanged |
+| `type` (ExtendedFieldType) | CUSTOMER_EXTENDED_FIELD \| TXN_EXTENDED_FIELD | **Deleted** — field removed entirely (D-27) |
+| `key` (String) | field name lookup key | **Replaced by `id` (Long)** — FK to `loyalty_extended_fields.id` (D-28) |
 | `value` (String) | unchanged | unchanged |
+
+> **D-27**: `type` deleted (not renamed). Scope is always `SUBSCRIPTION_META` for subscription programs — validated server-side, not stored per-document.
+> **D-28**: `key` (name-based lookup) replaced by `id` (id-based lookup). Validation by id. Name is display-only.
 
 ---
 
@@ -192,30 +198,34 @@ CREATE TABLE `loyalty_extended_fields` (
 struct LoyaltyExtendedFieldConfig {
     1: required i64 id
     2: required i64 orgId
-    3: required string name
-    4: required string scope
-    5: required string dataType          // STRING | NUMBER | BOOLEAN | DATE
-    6: required bool isMandatory
-    7: optional string defaultValue
-    8: required bool isActive
-    9: required string createdOn
-    10: required string lastUpdatedOn
+    3: required i64 programId
+    4: required string name
+    5: required string scope
+    6: required string dataType        // STRING | NUMBER | BOOLEAN | DATE
+    7: required bool isMandatory
+    8: optional string defaultValue
+    9: required bool isActive
+    10: required string createdOn
+    11: required string updatedOn
+    12: optional string updatedBy
 }
 
 struct CreateLoyaltyExtendedFieldRequest {
-    1: required i64 orgId
-    2: required string name
-    3: required string scope
-    4: required string dataType
-    5: required bool isMandatory
-    6: optional string defaultValue
+    1: required i64 orgId             // populated from auth context by V3
+    2: required i64 programId
+    3: required string name
+    4: required string scope
+    5: required string dataType
+    6: required bool isMandatory
+    7: optional string defaultValue
 }
 
 struct UpdateLoyaltyExtendedFieldRequest {
     1: required i64 id
-    2: required i64 orgId
-    3: optional string name       // rename — uniqueness re-validated
-    4: optional bool isActive     // false = soft-delete; replaces DELETE endpoint
+    2: required i64 orgId             // populated from auth context by V3
+    3: optional string name           // display rename only; uniqueness re-validated
+    4: optional bool isActive         // false = soft-delete
+    5: optional string updatedBy
 }
 
 struct LoyaltyExtendedFieldListResponse {
@@ -225,10 +235,10 @@ struct LoyaltyExtendedFieldListResponse {
     4: required i32 size
 }
 
-// New methods in EMFService (no separate delete method — D-24):
+// New methods in EMFService:
 LoyaltyExtendedFieldConfig createLoyaltyExtendedFieldConfig(1: CreateLoyaltyExtendedFieldRequest request) throws (1: EMFException ex)
 LoyaltyExtendedFieldConfig updateLoyaltyExtendedFieldConfig(1: UpdateLoyaltyExtendedFieldRequest request) throws (1: EMFException ex)
-LoyaltyExtendedFieldListResponse getLoyaltyExtendedFieldConfigs(1: i64 orgId, 2: optional string scope, 3: bool includeInactive, 4: i32 page, 5: i32 size) throws (1: EMFException ex)
+LoyaltyExtendedFieldListResponse getLoyaltyExtendedFieldConfigs(1: i64 orgId, 2: required i64 programId, 3: optional string scope, 4: bool includeInactive, 5: i32 page, 6: i32 size) throws (1: EMFException ex)
 ```
 
 ---
