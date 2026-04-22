@@ -48,6 +48,14 @@
 | D-11 | `ExtendedFieldType` enum (CUSTOMER_EXTENDED_FIELD, TXN_EXTENDED_FIELD) is WRONG — field is actually a `scope`, not a type. Must be removed and replaced with correct scope values: SUBSCRIPTION_META, SUBSCRIPTION_LINK, SUBSCRIPTION_DELINK | User clarification — incorrect naming from prior implementation | User Q2 answer | C7 |
 | D-12 | `SubscriptionProgram.ExtendedField.type` field must be renamed to `scope` (or the enum renamed to reflect scope semantics) | Terminology alignment with `loyalty_extended_fields.scope` column | User Q2 answer | C7 |
 | D-13 | Tests BT-EF-01 to BT-EF-06 reference CUSTOMER_EXTENDED_FIELD/TXN_EXTENDED_FIELD — these must be updated to use SUBSCRIPTION_META/SUBSCRIPTION_LINK/SUBSCRIPTION_DELINK | D-11 makes existing EF tests wrong | Derived from D-11 | C7 |
+| D-14 | `loyalty_extended_fields` schema: use `is_active TINYINT(1) NOT NULL DEFAULT 1` instead of `status VARCHAR(20)` | Aligns with cc-stack-crm convention (custom_fields.sql pattern); BRD preference overridden by convention | GQ-01 answer | C7 |
+| D-15 | Org-level max EF count stored in `program_config_key_values` table with default value = 10 | Reuses existing config infra; no separate table needed | GQ-02 answer | C7 |
+| D-16 | DELETE idempotency: ACTIVE→INACTIVE returns 200/204; already-INACTIVE returns 200/204; never-existed returns 404 | Idempotent soft-delete is safer for retries; 404 only on genuine not-found | GQ-03 answer | C7 |
+| D-17 | Validation caching (per org_id, scope) deferred — integrate based on actual usage data | Premature optimization; measure first | GQ-04 answer | C7 |
+| D-18 | Deactivating an EF config does NOT affect existing subscription program values — only new events validate against active fields | Backward safety for existing data; consistent with soft-delete semantics | GQ-05 answer | C7 |
+| D-19 | `data_type` can be `ENUM` in addition to STRING/NUMBER/BOOLEAN/DATE. When `data_type=ENUM`, allowed values must be provided at create time and stored; CRUD APIs handle allowed-values list. Validation checks submitted value is in allowed list. | User-defined enum flexibility | GQ-05 answer | C6 |
+| D-20 | GET /v3/extendedfields/config must support `includeInactive` boolean query param (default false) in addition to `scope` and pagination | Makes deactivated fields discoverable for admin/audit without cluttering default list | GQ-05 answer | C7 |
+| D-21 | ENUM allowed values storage: requires either `enum_values VARCHAR(1000)` column on `loyalty_extended_fields` OR a child table `loyalty_extended_field_enum_values`. Architect to decide. | New design question surfaced from D-19 | GQ-05 / D-19 | C4 |
 
 ---
 
@@ -69,8 +77,12 @@
 
 ## Open Questions
 
-- [ ] `status` column in `loyalty_extended_fields`: BRD says `VARCHAR(20) ACTIVE/INACTIVE` but cc-stack-crm convention uses `is_active tinyint(1)`. Architect to decide. _(BA)_
-- [ ] Org-level config (max EF count per org): BRD mentions as Task 3, Sprint 1-3. Needs Architect to determine storage (separate table or a config key in existing `program_config_key_values`). _(BA)_
+- [x] `status` column → resolved: use `is_active TINYINT(1) DEFAULT 1` per cc-stack-crm convention (D-14) _(GQ-01)_
+- [x] Org-level max EF count → resolved: `program_config_key_values`, default=10 (D-15) _(GQ-02)_
+- [x] DELETE idempotency → resolved: 200/204 for both ACTIVE→INACTIVE and already-INACTIVE; 404 for never-existed (D-16) _(GQ-03)_
+- [x] Validation caching → resolved: deferred; integrate based on usage (D-17) _(GQ-04)_
+- [x] Deactivation impact on existing values → resolved: existing values unaffected; new events validate against active only (D-18) _(GQ-05)_
+- [ ] ENUM allowed values storage: `enum_values VARCHAR(1000)` on loyalty_extended_fields OR child table `loyalty_extended_field_enum_values`? Architect to decide. _(D-21)_
 - [ ] Error code/message format for validation failures — to be defined in Designer phase. _(BA)_
 
 ---
