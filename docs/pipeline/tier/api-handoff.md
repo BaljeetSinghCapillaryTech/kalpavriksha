@@ -386,7 +386,7 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 }
 ```
 
-**Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated `@JsonIgnoreProperties(ignoreUnknown = false)` so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner.
+**Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation, NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag, so environment drift cannot silently loosen this contract) so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner. **Regression cover:** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` (BT-197b POST) empirically verifies the rejection and asserts `ex.getPropertyName() == "downgrade"`; `shouldAcceptKnownFieldsAtJacksonBindingLayer()` is the negative control.
 
 ### Request Field Validation
 
@@ -584,7 +584,7 @@ For contract-hardening rejects (9011–9018): `errors[0].code` carries the numer
 }
 ```
 
-**Evidence:** `TierUpdateRequest.java` — no `downgrade` field. `TierUpdateRequestValidator.java` wires the same 5 pre-binding + 3 post-binding scans as `TierCreateRequestValidator`.
+**Evidence:** `TierUpdateRequest.java` — no `downgrade` field; class annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation for PUT parity with POST; NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag). `TierUpdateRequestValidator.java` wires the same 5 pre-binding + 3 post-binding scans as `TierCreateRequestValidator`. **Regression cover:** `TierUpdateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut()` (BT-197b PUT variant) empirically verifies the rejection on PUT round-trip vectors (GET → PUT same envelope); `shouldAcceptKnownFieldsAtJacksonBindingLayerOnPut()` is the negative control.
 
 ### Behaviour by Current Status
 
@@ -1505,7 +1505,7 @@ The tier contract is **asymmetric** between write and read:
 - On **read**, `downgrade` remains populated on `UnifiedTierConfig` and `TierView` (§6.7) — the UI's existing render code stays unchanged.
 - A **round-trip** of a GET response back to POST/PUT will **fail with HTTP 400** — Jackson strict-mode rejects the bare `downgrade` key as an unknown property (`UnrecognizedPropertyException`). The error code is a generic 400, **not** 9011. Strip the `downgrade` key client-side before round-tripping. (If the engine ever surfaces `downgrade.isActive` or any other Class A flag on a read, the recursive pre-binding scanner would additionally trigger code 9011 — but today the engine does not surface those keys on reads.)
 
-**Evidence:** `TierCreateRequest.java` / `TierUpdateRequest.java` — no `downgrade` field; `TierDowngradeConfig.java` retained for read; `TierStrategyTransformer` populates downgrade on read; `TierEnumValidation.CLASS_A_CANONICAL_KEYS` enumerates the rejected keys.
+**Evidence:** `TierCreateRequest.java` / `TierUpdateRequest.java` — no `downgrade` field; both DTO classes annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation on the write DTOs; read DTOs `TierListResponse.java` and `KpiSummary.java` are deliberately NOT annotated so new engine-derived read-side fields can roll in without breaking the UI). This is NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag — tier-scoped annotation defends against environment drift in the global Spring Boot setting. `TierDowngradeConfig.java` retained for read; `TierStrategyTransformer` populates downgrade on read; `TierEnumValidation.CLASS_A_CANONICAL_KEYS` enumerates the rejected keys. **Regression cover (BT-197b, POST + PUT):** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` and `TierUpdateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut()` empirically verify the binding-layer rejection on both verbs with negative controls.
 
 ---
 
