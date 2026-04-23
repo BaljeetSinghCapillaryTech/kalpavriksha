@@ -1,12 +1,14 @@
 # API Contract — Tiers (v3)
 
 > **For:** UI Development Team (Garuda)
-> **Version:** 3.2 — rewritten 2026-04-21 from live source under `intouch-api-v3/`
+> **Version:** 3.3 — rewritten 2026-04-23 (Q27 envelope→flat-entry pivot on GET path; write contract unchanged)
 > **Base URL:** `https://{host}/v3`
 > **Auth:** Bearer token in `Authorization` header
 > **Content-Type:** `application/json`
 > **Source phases:** `00-ba.md`, `01-architect.md`, `03-designer.md`, session-memory.md
 > **Status:** Implemented and in QA. Every behavioural claim here is evidence-backed from code — file paths and line numbers are cited at the end of each section under **Evidence**.
+
+> **Q27 pivot (2026-04-23) — GET path replaced:** The listing and detail GET endpoints now return a **flat `List<TierEntry>`** (see §5.1, §5.2, §6.11). Previously the list returned envelopes that paired SQL LIVE with a Mongo pending draft inside a single object; now each side is a separate entry in the list (same `slabId`, different `status`). The top-level `validity` block on GET responses has been renamed to `renewal`, and the nested `validity.renewal` sub-block has been dropped. The `summary` (KpiSummary) block has been removed from the list response. `TierStatus` now includes `REJECTED` as a first-class wire value. **Write contract (POST / PUT / DELETE / review endpoints) is unchanged in Q27.**
 
 ---
 
@@ -16,7 +18,7 @@ Tier Programs let loyalty administrators create, configure, and publish tier str
 
 - A **dual-backed lifecycle**: `DRAFT` / `PENDING_APPROVAL` live in MongoDB (maker-checker workflow); `ACTIVE` tiers are published to MySQL `program_slabs` via a synchronous Thrift SAGA.
 - A **maker-checker approval workflow** — makers create/edit drafts, reviewers approve or reject.
-- An **envelope read model** that pairs the SQL LIVE state with any Mongo-side pending edit on a per-slab basis. UI consumes envelopes, not raw documents.
+- A **flat `TierEntry` read model** (Q27) — one entry per state per slabId. LIVE entries come from SQL `program_slabs`; DRAFT / PENDING_APPROVAL / REJECTED entries come from MongoDB. Two entries sharing the same `slabId` = LIVE tier with an in-flight edit. UI consumes `List<TierEntry>`, not raw `UnifiedTierConfig` documents.
 - **Versioned drafts-of-active** — editing an ACTIVE tier creates a new DRAFT document (`parentId` → ACTIVE's `objectId`, `version++`), leaving the LIVE row untouched until approved.
 
 ---
@@ -94,7 +96,7 @@ Every response is wrapped in `ResponseWrapper<T>`:
 
 ## 5.1 `GET /v3/tiers` — List Tiers
 
-**Purpose:** List all tiers for a program, returned as **envelopes** pairing SQL-LIVE state with Mongo workflow state.
+**Purpose:** List all tiers for a program as a **flat array of `TierEntry`**. When a slab has both a LIVE SQL row and a workflow-visible Mongo doc (DRAFT / PENDING_APPROVAL / REJECTED), **two separate entries** appear in the list sharing the same `slabId`.
 
 **Maps to:** E1-US2 (List Tiers), AC-1.1 through AC-1.6
 
@@ -103,7 +105,7 @@ Every response is wrapped in `ResponseWrapper<T>`:
 | Parameter | Location | Type | Required | Description |
 |---|---|---|:---:|---|
 | `programId` | query | `int` | **Yes** | The loyalty program id |
-| `status` | query | `List<TierStatus>` (CSV) | No | **See "Known behaviour" below — non-empty short-circuits to empty response.** Omit to get the normal envelope list. |
+| `status` | query | `List<TierStatus>` (CSV) | No | **See "Known behaviour" below — non-empty short-circuits to empty response.** Omit to get the default entry list. |
 
 ```http
 GET /v3/tiers?programId=977
@@ -112,22 +114,15 @@ Authorization: Bearer <token>
 
 ### Response — Success (HTTP 200 OK)
 
-Body: `ResponseWrapper<TierListResponse>`.
+Body: `ResponseWrapper<TierListResponse>` where `TierListResponse = { "tiers": List<TierEntry> }`.
 
 ```json
 {
   "data": {
-    "summary": {
-      "totalTiers": 3,
-      "liveTiers": 2,
-      "pendingApprovalTiers": 1,
-      "totalMembers": 120345,
-      "lastMemberCountRefresh": "2026-04-21T04:30:00+00:00"
-    },
     "tiers": [
       {
-        "slabId": 3850,
         "status": "LIVE",
+        "slabId": 3850,
         "name": "Gold",
         "description": "Premium tier",
         "color": "#FFD700",
@@ -140,16 +135,11 @@ Body: `ResponseWrapper<TierListResponse>`.
           "expressionRelation": "AND",
           "conditions": []
         },
-        "validity": {
+        "renewal": {
           "periodType": "FIXED",
           "periodValue": 12,
           "startDate": "2026-03-15T00:00:00+00:00",
-          "endDate": null,
-          "renewal": {
-            "criteriaType": "Same as eligibility",
-            "expressionRelation": null,
-            "conditions": null
-          }
+          "endDate": null
         },
         "downgrade": {
           "target": "SINGLE",
@@ -157,76 +147,59 @@ Body: `ResponseWrapper<TierListResponse>`.
           "dailyEnabled": false,
           "conditions": []
         },
-        "origin": "LEGACY_SQL_ONLY",
-        "hasPendingDraft": false,
-        "live": {
-          "slabId": 3850,
-          "name": "Gold",
-          "description": "Premium tier",
-          "color": "#FFD700",
-          "serialNumber": 2,
-          "tierStartDate": "2026-03-15T08:14:02+00:00",
-          "eligibility": { "...": "..." },
-          "validity":    { "...": "..." },
-          "downgrade":   { "...": "..." }
+        "meta": {
+          "createdBy": "15043871",
+          "createdAt": "2026-03-15T08:14:02+00:00",
+          "updatedBy": "15043871",
+          "updatedAt": "2026-03-15T08:14:02+00:00"
         }
       },
       {
-        "slabId": 3851,
         "status": "LIVE",
+        "slabId": 3851,
         "name": "Platinum",
         "description": "Top tier",
         "color": "#E5E4E2",
         "serialNumber": 3,
         "tierStartDate": "2026-02-10T09:12:00+00:00",
         "eligibility": { "...": "..." },
-        "validity":    { "...": "..." },
+        "renewal":     { "...": "..." },
         "downgrade":   { "...": "..." },
-        "origin": "BOTH",
-        "hasPendingDraft": true,
-        "live": { "slabId": 3851, "name": "Platinum", "...": "..." },
-        "pendingDraft": {
-          "tierUniqueId": "ut-977-003",
-          "draftStatus": "PENDING_APPROVAL",
-          "name": "Platinum (revised)",
-          "description": "...",
-          "color": "#E5E4E2",
-          "serialNumber": 3,
-          "eligibility": { "...": "..." },
-          "validity":    { "...": "..." },
-          "downgrade":   { "...": "..." },
-          "meta": {
-            "createdBy": "15043871",
-            "createdAt": "2026-04-20T10:15:00+00:00",
-            "updatedBy": "15043871",
-            "updatedAt": "2026-04-20T10:15:00+00:00"
-          }
+        "meta":        { "...": "..." }
+      },
+      {
+        "status": "PENDING_APPROVAL",
+        "slabId": 3851,
+        "tierUniqueId": "ut-977-003",
+        "name": "Platinum (revised)",
+        "description": "Top tier — revised",
+        "color": "#E5E4E2",
+        "serialNumber": 3,
+        "eligibility": { "...": "..." },
+        "renewal":     { "...": "..." },
+        "downgrade":   { "...": "..." },
+        "meta": {
+          "createdBy": "15043871",
+          "createdAt": "2026-04-20T10:15:00+00:00",
+          "updatedBy": "15043871",
+          "updatedAt": "2026-04-20T10:15:00+00:00"
         }
       },
       {
         "status": "DRAFT",
         "tierUniqueId": "ut-977-004",
         "name": "Diamond",
-        "description": "Brand new tier — pending approval",
+        "description": "Brand new tier",
         "color": "#B9F2FF",
         "serialNumber": 4,
         "eligibility": { "...": "..." },
-        "validity":    { "...": "..." },
+        "renewal":     { "...": "..." },
         "downgrade":   { "...": "..." },
         "meta": {
           "createdBy": "15043871",
           "createdAt": "2026-04-22T11:00:00+00:00",
           "updatedBy": "15043871",
           "updatedAt": "2026-04-22T11:00:00+00:00"
-        },
-        "origin": "MONGO_ONLY",
-        "hasPendingDraft": true,
-        "pendingDraft": {
-          "tierUniqueId": "ut-977-004",
-          "draftStatus": "DRAFT",
-          "name": "Diamond",
-          "description": "Brand new tier — pending approval",
-          "...": "..."
         }
       }
     ]
@@ -236,49 +209,47 @@ Body: `ResponseWrapper<TierListResponse>`.
 }
 ```
 
-### The Envelope Model (READ FIRST)
+> **Key change from v3.2 (Rework #6a):** the previous **envelope** model (pairing SQL-LIVE with a pending draft inside one object, with hoisted fields + nested `live`/`pendingDraft` blocks) is gone. In Q27 (2026-04-23) each side is its own entry. Two entries with the same `slabId` means "LIVE tier with an in-flight edit" — the UI groups them client-side by `slabId`.
 
-`tiers` is an array of `TierEnvelope`. Each envelope groups together what the user perceives as *one tier*. The envelope **flattens the visible-side fields onto the tier root** and carries a `status` discriminator, so the default reading path is just `tier.name` / `tier.eligibility` etc. The `live` and `pendingDraft` blocks remain populated as forward-compat placeholders (see "Envelope flatten" below).
+### The Entry Model (READ FIRST)
+
+`tiers` is an array of `TierEntry`. **Each entry is one side** of what the user perceives as a tier. Pairing is expressed by two entries sharing a `slabId`.
 
 ```
-TierEnvelope
-├── slabId            (Long)       — the SQL anchor; null only in brand-new-DRAFT
-├── status            (String)     — "LIVE" | "DRAFT" — visible-side discriminator
-├── tierUniqueId      (String?)    — Mongo id; present when status = "DRAFT"
-├── name              (String)     ┐
-├── description       (String)     │
-├── color             (String)     │
-├── serialNumber      (Integer)    ├── visible-side fields hoisted to root
-├── tierStartDate     (Date?)      │   (LIVE fields when status=LIVE;
-├── eligibility       (obj)        │    DRAFT fields when status=DRAFT)
-├── validity          (obj)        │
-├── downgrade         (obj)        │
-├── rejectionComment  (String?)    │
-├── meta              (obj?)       ┘
-├── origin            (enum)       — "BOTH" | "MONGO_ONLY" | "LEGACY_SQL_ONLY"
-├── hasPendingDraft   (boolean)    — convenience flag; true iff pendingDraft != null
-├── live              (TierView?)  — forward-compat placeholder (the SQL-sourced LIVE side)
-└── pendingDraft      (TierView?)  — forward-compat placeholder (the Mongo-sourced pending edit)
+TierEntry
+├── status          (String)   — "LIVE" | "DRAFT" | "PENDING_APPROVAL" | "REJECTED"
+├── slabId          (Long?)    — SQL anchor; present on LIVE; present on DRAFT/PENDING/REJECTED
+│                                iff the draft is editing a LIVE tier; null for brand-new drafts
+├── tierUniqueId    (String?)  — Mongo-side stable id; absent on LIVE, present on DRAFT/PENDING/REJECTED
+├── name            (String)   ┐
+├── description     (String?)  │
+├── color           (String?)  ├── tier-facing fields
+├── serialNumber    (Integer)  │
+├── tierStartDate   (Date?)    │   LIVE-only (SQL program_slabs.created_on)
+├── eligibility     (obj)      │
+├── renewal         (obj)      │   ← renamed from `validity` in Q27
+├── downgrade       (obj)      ┘   read-only (rejected on POST/PUT — see §10.19)
+├── rejectionComment (String?) — present on a DRAFT whose last review action was REJECT
+└── meta            (obj)      — trimmed audit: createdBy/At, updatedBy/At only
 ```
 
-**Envelope flatten (visible-side rule):**
+**Four `status` values the UI must handle:**
 
-- **LIVE wins when present.** Scenarios #1, #3, #4, #5 → root carries LIVE fields, `status = "LIVE"`. In edit-of-LIVE (scenarios #3/#4), the LIVE tier is still what the customer *sees* — the in-flight DRAFT is surfaced via the `pendingDraft` block and `hasPendingDraft = true`.
-- **DRAFT is visible only when LIVE doesn't exist.** Scenario #2 (brand-new DRAFT, no SQL row) → root carries DRAFT fields, `status = "DRAFT"`.
-- **Blocks are forward-compat.** The `live` and `pendingDraft` blocks are kept populated for planned future divergence (if LIVE and DRAFT shapes ever diverge). They duplicate the data on the wire today but are **not a backward-compat scheme** — clients should read the root fields. The Java API still exposes `envelope.getLive()` / `envelope.getPendingDraft()` unchanged.
+| `status` wire value | `slabId` | `tierUniqueId` | `tierStartDate` | Source | What it represents |
+|---|:---:|:---:|:---:|---|---|
+| `LIVE`             | present  | absent   | present  | SQL `program_slabs` | The currently-running tier |
+| `DRAFT`            | present or null | present | absent | Mongo DRAFT doc | Maker is editing (new or edit-of-LIVE) |
+| `PENDING_APPROVAL` | present or null | present | absent | Mongo PENDING_APPROVAL doc | Submitted; awaiting reviewer |
+| `REJECTED`         | present or null | present | absent | Mongo REJECTED doc | Reviewer rejected; maker can re-edit |
 
-**Six scenarios the UI must handle:**
+**Pairing semantics (client-side):**
 
-| # | `origin` | root `status` | root carries | `live` block | `pendingDraft` block | `hasPendingDraft` | What it represents |
-|---|---|---|---|---|---|:---:|---|
-| 1 | `LEGACY_SQL_ONLY` | `"LIVE"` | LIVE fields | present | absent | false | LIVE tier, no pending edit (legacy SQL-only) |
-| 2 | `MONGO_ONLY`      | `"DRAFT"` | DRAFT fields | absent | present | true  | Brand-new DRAFT / PENDING (no SQL row yet) |
-| 3 | `BOTH`            | `"LIVE"` | LIVE fields | present | present (`draftStatus=DRAFT`) | true | Edit-of-LIVE, maker editing |
-| 4 | `BOTH`            | `"LIVE"` | LIVE fields | present | present (`draftStatus=PENDING_APPROVAL`) | true | Edit-of-LIVE, awaiting reviewer |
-| 5 | `LEGACY_SQL_ONLY` | `"LIVE"` | LIVE fields | present | absent | false | Same shape as #1 — "legacy" means no Mongo doc ever existed |
-| 6 | *(not listed)*    | —       | —       | —     | — | — | `SNAPSHOT` / `DELETED` / `PUBLISH_FAILED` Mongo docs are filtered out |
+- Entries with the same `slabId` are the **two sides of the same tier** — the LIVE (`status: "LIVE"`) and an in-flight edit (`DRAFT` / `PENDING_APPROVAL` / `REJECTED`).
+- A `status: "DRAFT"` entry with `slabId: null` is a **brand-new draft** — a tier that has never been LIVE.
+- A `status: "LIVE"` entry **never** has a paired sibling if there is no in-flight edit.
+- Ordering: the list groups each LIVE row immediately followed by its in-flight edit (if any). Brand-new drafts tail the list in Mongo-insertion order.
 
-Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present on the wire.** Test `envelope.hasPendingDraft` and `envelope.status === "LIVE"` at the root — not `envelope.pendingDraft === null`.
+Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present on the wire.** UI should test by key presence, not by `field === null`.
 
 ### Response — Error Cases
 
@@ -290,21 +261,23 @@ Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present
 
 ### Known Behaviour — `status` query param short-circuits
 
-`GET /v3/tiers?status=ACTIVE` (or any non-empty status list) returns an **empty envelope list with all-zero KPI summary**. This is by design: the method does not support filtering by status in its current form. **The UI should omit the `status` query param** and filter client-side if needed.
+`GET /v3/tiers?status=ACTIVE` (or any non-empty status list) returns an **empty `tiers` array**. This is by design: the method does not support filtering by status in its current form. **The UI should omit the `status` query param** and filter client-side if needed.
 
 ### Notes
 
-- **Three sequential round-trips** (1 SQL + 2 Mongo) are assembled into envelopes. The list read is **non-transactional** — a writer concurrently publishing a tier can produce stale reads. A tier just published may be missing for one poll cycle; a just-deleted DRAFT may appear. UI must defensively handle "id from last list no longer exists" (a follow-up edit/approve may 404).
-- **`totalMembers` can be `null`** — explicitly returned as `null` when any envelope is `LEGACY_SQL_ONLY`, because member counts live only on the Mongo side and silently returning 0 would be a lie. Render as `—` or `n/a`, not `0`.
-- **`tierStartDate` is LIVE-only** — sourced exclusively from SQL `program_slabs.created_on`. Absent on `pendingDraft` (no SQL row yet); absent on `live` only if the backing emf-parent server predates Rework #3. Do NOT substitute a fallback (e.g., `new Date(0)`) when it is missing.
+- **Three sequential round-trips** (1 SQL + 2 Mongo) feed the flat list. The list read is **non-transactional** — a writer concurrently publishing a tier can produce stale reads. A tier just published may be missing for one poll cycle; a just-deleted DRAFT may appear. UI must defensively handle "id from last list no longer exists" (a follow-up edit/approve may 404).
+- **`tierStartDate` is LIVE-only** — sourced exclusively from SQL `program_slabs.created_on`. Absent on DRAFT/PENDING/REJECTED entries (no SQL row yet); absent on a LIVE entry only if the backing emf-parent server predates Rework #3. Do NOT substitute a fallback (e.g., `new Date(0)`) when it is missing.
+- **No `summary` block** — `TierListResponse` no longer carries `KpiSummary` (dropped in Q27). Count of tiers, live-count, pending-count, member totals are all UI-computed if needed.
+- **No `origin` field** — the old `TierOrigin` enum (`LEGACY_SQL_ONLY` / `MONGO_ONLY` / `BOTH`) has been removed in Q27. `status` is now the sole discriminator.
+- **No `live` / `pendingDraft` nested blocks** — the old forward-compat dual-block pattern is gone. Each side is its own entry.
 
-**Evidence:** `TierController.java` L52–L62; `TierFacade.listTiers` L131–L194 (status short-circuit at L132–L144); `TierEnvelope.java` (Q1/Q2/Q4 flatten — computed getters for `status` and hoisted root fields derive from `live`/`pendingDraft`); `TierEnvelopeBuilder.java` `build()` / `buildOne()`; `SqlTierConverter.toView`; `TierStrategyTransformer.fromStrategies` (uses `slab.isSetCreatedOn()` to distinguish unset from 0L epoch — BT-187 is the regression fence). Flatten regression is fenced by three tests in `TierEnvelopeJsonSerializationTest` — `liveOnlyEnvelopeShouldHoistLiveFieldsToRootAndSetStatusLive`, `brandNewDraftEnvelopeShouldHoistDraftFieldsToRootAndSetStatusDraft`, `editOfLiveEnvelopeShouldHoistLiveFieldsAtRootWithPendingDraftBlockFlaggingEdit`.
+**Evidence:** `TierController.java` (Q27 signatures); `TierFacade.listTiers` (new builder call, no KpiSummary); `TierEntryBuilder.build()` (two-pass: LIVE entries then in-flight entries grouped by slabId, brand-new drafts tail); `SqlTierConverter.toEntry()` (LIVE side → TierEntry with `status = "LIVE"`, invokes `stripNestedRenewal` to drop `validity.renewal` from the wire without mutating the server-side `TierValidityConfig`); `TierStrategyTransformer.extractValidity` still synthesizes the default `renewal` server-side (L813-815) for round-trip symmetry with normalized DRAFT — the Q27 wire-drop is a read-side concern handled at the converter boundary.
 
 ---
 
 ## 5.2 `GET /v3/tiers/{tierId}` — Get Tier Detail
 
-**Purpose:** Retrieve a single tier as a `TierEnvelope`.
+**Purpose:** Retrieve a single tier view as a **`List<TierEntry>` of 1 or 2 entries** (Q27 pivot — the old `TierEnvelope` is gone).
 
 **Maps to:** E1-US3 (View Tier), AC-2.1 through AC-2.4
 
@@ -312,83 +285,152 @@ Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present
 
 | Parameter | Location | Type | Required | Description |
 |---|---|---|:---:|---|
-| `tierId` | path | `String` | **Yes** | The Mongo `objectId` (preferred) **or** `tierUniqueId` (e.g. `"ut-977-003"`) |
+| `tierId` | path | `String` | **Yes** | Either a **numeric `slabId`** (e.g. `"3850"`) **or** a **Mongo `tierUniqueId`** (e.g. `"ut-977-003"`). Legacy Mongo `objectId` is not supported by the new endpoint — use `tierUniqueId`. |
 
 ```http
-GET /v3/tiers/660a1b2c3d4e5f6a7b8c9d0e
+GET /v3/tiers/3850
 Authorization: Bearer <token>
 ```
 
-### Lookup rules
+### URL Disambiguation (Q27-B-b — locked)
 
-1. Try Mongo by `objectId`. If hit and status is `DRAFT` / `PENDING_APPROVAL` → return as `pendingDraft`. If hit and status is `ACTIVE` / `SNAPSHOT` / `DELETED` / `PUBLISH_FAILED` → look up the paired SQL LIVE row by `slabId`; if present return a LIVE-only envelope; otherwise **404**.
-2. Try Mongo by `tierUniqueId`.
-3. If `tierId` parses as a numeric `slabId` → **still 404** (see "Known behaviour" below).
+The facade decides between two lookup modes based on whether `{tierId}` parses as a `Long`:
+
+| `{tierId}` shape | Lookup mode | What you get back |
+|---|---|---|
+| **Numeric** (parses as `Long`) | **slabId lookup.** Resolve the SQL LIVE row by `slabId`, then pair it with any workflow-visible Mongo doc whose `slabId` matches (status ∈ `DRAFT` / `PENDING_APPROVAL` / `REJECTED`). | Array of **1 entry** (LIVE only) **or 2 entries** (LIVE + paired in-flight), same slabId on both. |
+| **String** (doesn't parse) | **tierUniqueId lookup.** Resolve the Mongo doc by `tierUniqueId`. No pairing — even if the doc points at a LIVE slabId, only the draft entry is returned. | Array of **1 entry** (the draft, status ∈ `DRAFT` / `PENDING_APPROVAL` / `REJECTED`). |
+
+**Why tierUniqueId returns draft-only:** the UI uses `tierUniqueId` when it already has a LIVE row on screen and wants to fetch *just* the in-flight revision. Returning the LIVE again would duplicate data the UI already has. To get the pair, call with the numeric `slabId` instead.
 
 ### Response — Success (HTTP 200 OK)
 
-Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one element).
+Body: `ResponseWrapper<List<TierEntry>>`.
+
+**Example A — numeric `slabId` path (edit-of-LIVE, array of 2):**
+
+```http
+GET /v3/tiers/3850
+```
 
 ```json
 {
-  "data": {
-    "slabId": 3850,
-    "status": "LIVE",
-    "name": "Gold",
-    "description": "Premium tier",
-    "color": "#FFD700",
-    "serialNumber": 2,
-    "tierStartDate": "2026-03-15T08:14:02+00:00",
-    "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 5000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-    "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
-    "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
-    "origin": "BOTH",
-    "hasPendingDraft": true,
-    "live": {
+  "data": [
+    {
+      "status": "LIVE",
       "slabId": 3850,
+      "tierUniqueId": null,
       "name": "Gold",
       "description": "Premium tier",
       "color": "#FFD700",
       "serialNumber": 2,
       "tierStartDate": "2026-03-15T08:14:02+00:00",
-      "eligibility": { "...": "..." },
-      "validity":    { "...": "..." },
-      "downgrade":   { "...": "..." }
+      "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 5000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
+      "renewal":     { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null },
+      "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] }
     },
-    "pendingDraft": {
+    {
+      "status": "DRAFT",
+      "slabId": 3850,
       "tierUniqueId": "ut-977-002",
-      "draftStatus": "DRAFT",
-      "rejectionComment": "Threshold too aggressive — reduce to 4500",
       "name": "Gold (revised)",
       "description": "Premium tier — revised",
       "color": "#FFD700",
       "serialNumber": 2,
       "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 4500, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-      "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-04-21T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
+      "renewal":     { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-04-21T00:00:00+00:00", "endDate": null },
       "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
+      "rejectionComment": null,
       "meta": {
         "createdBy": "15043871",
         "createdAt": "2026-04-20T10:15:00+00:00",
         "updatedBy": "15043871",
-        "updatedAt": "2026-04-21T08:14:02+00:00",
-        "rejectedBy": "reviewer_till_01",
-        "rejectedAt": "2026-04-20T14:22:00+00:00",
-        "rejectionComment": "Threshold too aggressive — reduce to 4500"
+        "updatedAt": "2026-04-21T08:14:02+00:00"
       }
     }
-  },
+  ],
   "errors": null,
   "warnings": null
 }
 ```
 
-> **Edit-of-LIVE flatten:** the root carries the **LIVE** fields (`name = "Gold"`, `threshold = 5000`) because LIVE is the visible side for customers. The in-flight DRAFT edit (`name = "Gold (revised)"`, `threshold = 4500`) is surfaced via the `pendingDraft` block and `hasPendingDraft = true`. The UI's edit-of-LIVE screen should render the form from the `pendingDraft` block when `hasPendingDraft` is true — the root reflects what customers currently see.
+**Example B — `tierUniqueId` path (draft-only, array of 1):**
+
+```http
+GET /v3/tiers/ut-977-002
+```
+
+```json
+{
+  "data": [
+    {
+      "status": "DRAFT",
+      "slabId": 3850,
+      "tierUniqueId": "ut-977-002",
+      "name": "Gold (revised)",
+      "description": "Premium tier — revised",
+      "color": "#FFD700",
+      "serialNumber": 2,
+      "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 4500, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
+      "renewal":     { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-04-21T00:00:00+00:00", "endDate": null },
+      "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
+      "rejectionComment": null,
+      "meta": {
+        "createdBy": "15043871",
+        "createdAt": "2026-04-20T10:15:00+00:00",
+        "updatedBy": "15043871",
+        "updatedAt": "2026-04-21T08:14:02+00:00"
+      }
+    }
+  ],
+  "errors": null,
+  "warnings": null
+}
+```
+
+**Example C — brand-new DRAFT via `tierUniqueId` (array of 1, `slabId: null`):**
+
+```http
+GET /v3/tiers/ut-977-003
+```
+
+```json
+{
+  "data": [
+    {
+      "status": "DRAFT",
+      "slabId": null,
+      "tierUniqueId": "ut-977-003",
+      "name": "Diamond",
+      "description": "New top tier",
+      "color": "#B9F2FF",
+      "serialNumber": 4,
+      "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 20000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
+      "renewal":     { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-05-01T00:00:00+00:00", "endDate": null },
+      "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
+      "rejectionComment": null,
+      "meta": {
+        "createdBy": "15043871",
+        "createdAt": "2026-04-22T09:00:00+00:00",
+        "updatedBy": "15043871",
+        "updatedAt": "2026-04-22T09:00:00+00:00"
+      }
+    }
+  ],
+  "errors": null,
+  "warnings": null
+}
+```
+
+### Ordering within the Array
+
+When both LIVE and an in-flight draft exist for the same slabId (numeric path, array of 2), the **LIVE entry is returned first**, followed by the paired in-flight entry (Q27-O-a). Callers may rely on this order.
 
 ### Response — Error Cases
 
 | HTTP Status | Error Code | When | Example Message |
 |:---:|---|---|---|
-| `404` | `404` | Tier not found OR belongs to different org OR `tierId` is a numeric slabId | `"Tier not found: 660a1b2c3d4e5f6a7b8c9d0e"` |
+| `404` | `404` | Numeric path: `slabId` not found for this org's programs. String path: `tierUniqueId` not found in Mongo (or not workflow-visible). Cross-org access. | `"Tier not found: 3850"` |
 | `401` / `403` | — | Auth failure | — |
 | `500` | — | Unexpected | Generic message |
 
@@ -397,21 +439,20 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
 ```json
 {
   "data": null,
-  "errors": [ { "code": 404, "message": "Tier not found: 660a1b2c3d4e5f6a7b8c9d0e" } ],
+  "errors": [ { "code": 404, "message": "Tier not found: 3850" } ],
   "warnings": null
 }
 ```
-
-### Known Behaviour — Detail by numeric `slabId` returns 404
-
-When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve the SQL row via `SqlTierReader`, but the detail endpoint doesn't receive `programId`. Rather than guess, it returns 404. **To view a legacy SQL-only tier, fetch it through the list endpoint** which does receive `programId`.
 
 ### Notes
 
 - `ConflictException → 409` is impossible on this endpoint (no conflict path).
 - Unlike the review endpoints, this endpoint has a **local `@ExceptionHandler`** — 404 is a real 404 here.
+- The array shape is **always** an array — even for a single entry. UI callers should iterate / destructure; there is no single-object response variant.
+- `tierUniqueId` is `null` on LIVE entries that have no paired Mongo side (legacy SQL-only tiers). On DRAFT entries `tierUniqueId` is always populated.
+- `slabId` is `null` only on brand-new DRAFT entries (Example C). On LIVE entries and on edit-of-LIVE drafts `slabId` is always populated.
 
-**Evidence:** `TierController.java` L64–L76, L129–L135 (local NotFound handler); `TierFacade.getTierDetail` L328–L369 (numeric slabId 404 at L356–L365).
+**Evidence:** `TierController.java` (getTierDetail — response type `ResponseWrapper<List<TierEntry>>`, local NotFound handler); `TierFacade.getTierDetail` (Q27-B-b URL sniffing: `Long.parseLong` try/catch → slabId lookup, else tierUniqueId lookup); `TierEntryBuilder.buildOne` (pairs SQL row + Mongo doc into 1 or 2 entries); `TierEntryBuilder.buildDraftOnly` (tierUniqueId path — no pairing).
 
 ---
 
@@ -433,6 +474,42 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 
 > **Write-narrow contract (Rework #6a — ADR-21R):** `downgrade` is **not accepted on write**. The field was removed from `TierCreateRequest` in Rework #6a (Q11 hard-flip). Downgrade configuration is engine-derived at APPROVE time and is only present on **read** responses (see §6.7, §10.19). Sending `downgrade` on POST is **rejected by Jackson strict-mode deserialization** as an unknown property (generic HTTP 400) — `downgrade` is **NOT** in `CLASS_A_CANONICAL_KEYS`, so the 9011 scanner does not target it. The 9011 Class A scanner targets the 8 program-level orchestration flags only (`isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`). If those flags appear nested inside a `downgrade` object they WILL trigger 9011 via the recursive scanner — but the bare `downgrade` key itself is Jackson-rejected.
 
+> **Rework #7 Commit 1 addition (2026-04-23) — Per-tier engine-backed renewal fields:** The following fields on `validity.renewal` are now accepted on write and map to engine `TierDowngradeSlabConfig` per-slab storage:
+> - `downgradeTo` (String, enum `SINGLE`/`THRESHOLD`/`LOWEST`) — engine `slab.downgradeTarget`. Runtime consumer: `peb BaseCalculatorBuilder:182-201` switch on this value to pick per-slab calculator bean.
+> - `shouldDowngrade` (Boolean, optional) — engine `slab.shouldDowngrade`. When `false`, the engine does not auto-downgrade this tier.
+> - `conditions[]` (List of `TierCondition`) — maps per-element to engine `slab.conditions.{purchase,numVisits,points,tracker[]}`. Previously reserved / forced null — now active.
+> - `expressionRelation` (**String — DNF boolean expression**) — e.g. `"(PURCHASE AND VISITS) OR POINTS"`. Parsed and serialised to the engine's bracket format (`"[[purchase,numVisits],[points]]"`) at APPROVE. Previously reserved / forced null — now active. See §6.6 for grammar and §10.20 for the serialisation rules.
+>
+> All four fields are **optional**. POSTs without them behave identically to before Rework #7 (SLAB_DOWNGRADE strategy left untouched at APPROVE). `criteriaType` lock from Q26 B1a is preserved — still only `"Same as eligibility"` accepted (code 9017 otherwise). See §6.6 for full field details and §10.20 for the synthesis wiring.
+
+**Minimal canonical shape (backward-compatible — no new fields):**
+
+```json
+{
+  "programId": 977,
+  "name": "Gold",
+  "description": "Premium tier",
+  "color": "#FFD700",
+  "eligibility": {
+    "kpiType": "CURRENT_POINTS",
+    "threshold": 5000,
+    "upgradeType": "EAGER",
+    "expressionRelation": "AND",
+    "conditions": []
+  },
+  "validity": {
+    "periodType": "FIXED",
+    "periodValue": 12,
+    "startDate": "2026-04-21T00:00:00+00:00",
+    "renewal": {
+      "criteriaType": "Same as eligibility"
+    }
+  }
+}
+```
+
+**Rich shape with Rework #7 per-tier renewal fields:**
+
 ```json
 {
   "programId": 977,
@@ -452,14 +529,23 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
     "startDate": "2026-04-21T00:00:00+00:00",
     "renewal": {
       "criteriaType": "Same as eligibility",
-      "expressionRelation": null,
-      "conditions": null
+      "downgradeTo": "SINGLE",
+      "shouldDowngrade": true,
+      "expressionRelation": "(PURCHASE AND VISITS) OR POINTS OR (TRACKER AND POINTS)",
+      "conditions": [
+        { "type": "PURCHASE", "value": "2000" },
+        { "type": "VISITS",   "value": "3"    },
+        { "type": "POINTS",   "value": "1500" },
+        { "type": "TRACKER",  "value": "10",  "trackerName": "store_visits_q1" }
+      ]
     }
   }
 }
 ```
 
-**Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation, NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag, so environment drift cannot silently loosen this contract) so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner. **Regression cover:** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` (BT-197b POST) empirically verifies the rejection and asserts `ex.getPropertyName() == "downgrade"`; `shouldAcceptKnownFieldsAtJacksonBindingLayer()` is the negative control.
+The `expressionRelation` above reads as *(PURCHASE AND VISITS) OR POINTS OR (TRACKER AND POINTS)* — the customer renews if **any** of: (a) they've spent ≥ 2000 AND visited ≥ 3 times, (b) they've earned ≥ 1500 points, or (c) the tracker `store_visits_q1` ≥ 10 AND they've earned ≥ 1500 points. See §6.6 for the grammar.
+
+**Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation, NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag, so environment drift cannot silently loosen this contract) so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner. **Regression cover:** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` (BT-197b POST) empirically verifies the rejection and asserts `ex.getPropertyName() == "downgrade"`; `shouldAcceptKnownFieldsAtJacksonBindingLayer()` is the negative control. **Rework #7:** `TierRenewalConfig.java` carries the four new per-tier fields; `TierStrategyTransformer.synthesiseDowngradeFromRenewal` bridges `validity.renewal.*` → engine `TierDowngradeSlabConfig` per-slab fields at APPROVE time via `TierApprovalHandler.applyDowngradeDelta`. Regression cover: BT-198..BT-210 (`TierRenewalValidationTest` + `TierStrategyTransformerTest`).
 
 ### Request Field Validation
 
@@ -479,6 +565,10 @@ When `{tierId}` parses as a `Long`, the facade would need `programId` to resolve
 | `validity.startDate` | ISO-8601 | No | Format `yyyy-MM-ddTHH:mm:ss+00:00` (see §10). |
 | `validity.endDate` | — | — | **Never stored. Derived from `startDate + periodValue` at read time if needed.** Do not send. |
 | `validity.renewal.criteriaType` | `String` | Yes (if `renewal` sent) | **Must be `"Same as eligibility"`.** Any other value → 400 with code **9017**. If you omit `renewal` entirely, the server fills the default pre-save. |
+| `validity.renewal.downgradeTo` | `String` enum | No (Rework #7) | Must be one of `SINGLE`/`THRESHOLD`/`LOWEST`. Maps to engine `TierDowngradeSlabConfig.downgradeTarget` per-slab. Invalid value → **9019**. |
+| `validity.renewal.shouldDowngrade` | `Boolean` | No (Rework #7) | Boxed Boolean — null omits the field (engine keeps prior value), explicit `false` disables auto-downgrade for this tier. Maps to engine `slab.shouldDowngrade`. |
+| `validity.renewal.expressionRelation` | `String` (DNF boolean) | No (Rework #7) | e.g. `"PURCHASE AND VISITS"`, `"PURCHASE OR VISITS OR POINTS"`, `"(PURCHASE AND VISITS) OR POINTS"`. Grammar: `group (OR group)*`, `group = '(' kpi (AND kpi)* ')' \| kpi (AND kpi)*`, `kpi ∈ {PURCHASE,VISITS,POINTS,TRACKER}`. Strict parens when mixing AND+OR at top level. Case-insensitive. Serialised to engine bracket format. Invalid → **9021**. |
+| `validity.renewal.conditions[]` | `TierCondition[]` | No (Rework #7) | Each element: `{type, value, trackerName?}`. Types `PURCHASE`/`VISITS`/`POINTS`/`TRACKER`. Maps to engine `slab.conditions.{purchase,numVisits,points,tracker[]}`. Every KPI referenced in `expressionRelation` must be present here. **Multi-tracker rejected** (≥2 `TRACKER` entries) → **9020** (Q5c symmetry). |
 | `downgrade` (bare key) | — | **Rejected on write** | Jackson strict-mode — `UnrecognizedPropertyException` → **HTTP 400** (generic, not 9011). `downgrade` is NOT in `CLASS_A_CANONICAL_KEYS`. See §10.19 write-narrow / read-wide asymmetry. |
 | `downgrade.*` (nested Class A keys) | — | **Rejected on write** | If the nested object carries any of the 8 Class A orchestration keys (`isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`), the recursive pre-binding scanner catches them first → code **9011**. |
 
@@ -605,6 +695,9 @@ Rework #6a contract-hardening codes (9011–9018) — evidence: `TierEnumValidat
 | **9016** | Numeric `-1` sentinel | Field `programId`, `periodValue`, or `threshold` carries numeric value `-1` at any nesting level; fires BEFORE 9018 post-binding guard | Pre-binding — recursive scan |
 | **9017** | Renewal `criteriaType` drift | `renewal.criteriaType` non-null AND not exactly `"Same as eligibility"` | Post-binding |
 | **9018** | FIXED-family missing positive `periodValue` | `periodType` ∈ {`FIXED`, `FIXED_CUSTOMER_REGISTRATION`} AND (`periodValue` null OR ≤ 0); SLAB_UPGRADE family is NOT checked | Post-binding |
+| **9019** | Invalid `renewal.downgradeTo` | `renewal.downgradeTo` non-null AND not in {`SINGLE`, `THRESHOLD`, `LOWEST`}. Engine canonical `TierDowngradeSlabConfig.downgradeTarget`. Rework #7. | Post-binding |
+| **9020** | Multi-tracker renewal | `renewal.conditions[]` contains ≥ 2 entries with `type=TRACKER`. Q5c eligibility symmetry — multi-tracker renewal deferred pending follow-up epic. Rework #7. | Post-binding |
+| **9021** | Invalid `renewal.expressionRelation` DNF | Grammar error (unknown KPI token, unknown operator, unbalanced parens, ambiguous AND+OR at top level without parens), OR the expression references a KPI not present in `renewal.conditions[]`. Rework #7. | Post-binding |
 
 **Precedence rules** (evidence: `TierCreateRequestValidator.java:65–93`):
 1. Pre-binding scans run BEFORE Jackson `treeToValue()`; unknown-but-unclassified keys fall through to Jackson strict-mode generic 400.
@@ -978,7 +1071,7 @@ When `TierApprovalHandler.preApprove` detects that the LIVE SQL row has been mod
 ### Notes
 
 - **On approving an edit-of-ACTIVE** (draft had `parentId`):
-  - The old ACTIVE's status is set to `SNAPSHOT` (preserved for audit history — filtered out of envelope listings)
+  - The old ACTIVE's status is set to `SNAPSHOT` (preserved for audit history — filtered out of GET responses)
   - The DRAFT becomes the new ACTIVE
   - Thrift publish is called with the updated strategies
   - The response returns the newly-ACTIVE document with `parentId: null`
@@ -1089,9 +1182,9 @@ Implementation: all 7 tier `Date` fields use `@JsonSerialize(using = TierDateFor
 
 **`Z` must NOT appear in any tier payload.** If you see it, it's a backend misconfiguration — file a ticket.
 
-**Fields covered:** `TierView.tierStartDate`, `TierMeta.{createdAt, updatedAt, approvedAt, rejectedAt}`, `MemberStats.lastRefreshed`, `KpiSummary.lastMemberCountRefresh`. All uniform as of 2026-04-21.
+**Fields covered:** `TierEntry.tierStartDate`, `TierMeta.{createdAt, updatedAt, approvedAt, rejectedAt}`, `MemberStats.lastRefreshed`. All uniform as of 2026-04-21. (`KpiSummary.lastMemberCountRefresh` applied historically; `KpiSummary` is removed in Q27.)
 
-**Evidence:** `TierDateFormat.java` (utility + serializer); `TierView.java` L63, `TierMeta.java` L27/L32/L37/L42, `MemberStats.java` L14, `KpiSummary.java` L27.
+**Evidence:** `TierDateFormat.java` (utility + serializer); `TierEntry.java` (tierStartDate serializer), `TierMeta.java` L27/L32/L37/L42, `MemberStats.java` L14.
 
 ---
 
@@ -1139,7 +1232,7 @@ Implementation: all 7 tier `Date` fields use `@JsonSerialize(using = TierDateFor
 | `validity` | `TierValidityConfig` | See §6.5. |
 | `downgrade` | `TierDowngradeConfig` | See §6.7. |
 | `memberStats` | `MemberStats` | `{ memberCount, lastRefreshed }`. |
-| `engineConfig` | — | **Engine-internal.** UI must treat as opaque. Absent on `TierView`. |
+| `engineConfig` | — | **Engine-internal.** UI must treat as opaque. Absent on `TierEntry` (GET responses). |
 | `meta` | `TierMeta` | Audit block — §6.3. |
 | `comments` | `String?` | Reviewer comment trail (most recent). |
 
@@ -1148,17 +1241,19 @@ Implementation: all 7 tier `Date` fields use `@JsonSerialize(using = TierDateFor
 ### 6.2 `TierStatus` (enum)
 
 ```
-DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
+DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 ```
 
-| Value | Meaning |
-|---|---|
-| `DRAFT` | Maker editing. Mutable via PUT. Can be submitted or deleted. |
-| `PENDING_APPROVAL` | Awaiting reviewer. Mutable via PUT (edit-in-place) but UI maker seat should treat as locked. |
-| `ACTIVE` | Published to SQL `program_slabs`. PUT creates a versioned-draft — ACTIVE row is not touched. |
-| `DELETED` | Soft-deleted (DRAFT only). History retained. |
-| `SNAPSHOT` | Historical copy left when a versioned-draft was approved. Never surfaces in envelopes. |
-| `PUBLISH_FAILED` | SAGA failure state. Best-effort saved when Thrift publish fails. Not surfaced in envelope listings (filtered — see §5.1 envelope scenario 6). Recovery flow deferred to a later epic. |
+| Value | Wire? | Meaning |
+|---|:---:|---|
+| `LIVE` | ✅ (synthetic, read-only) | Synthetic wire value emitted on the `status` field of an entry built from a SQL `program_slabs` row. **Not** a member of the Java `TierStatus` enum — it is produced as a string literal by `TierEntryBuilder` / `SqlTierConverter.toEntry()` and has no corresponding stored state. |
+| `DRAFT` | ✅ | Maker editing. Mutable via PUT. Can be submitted or deleted. Surfaces in the GET listing / detail arrays. |
+| `PENDING_APPROVAL` | ✅ | Awaiting reviewer. Mutable via PUT (edit-in-place) but UI maker seat should treat as locked. Surfaces in the GET listing / detail arrays. |
+| `REJECTED` | ✅ | Reviewer rejected the submission. The maker's doc is sent back with `rejectionComment` populated. First-class wire value (Q27/RJ-a). Surfaces in the GET listing / detail arrays so the maker can see and re-edit. |
+| `ACTIVE` | ❌ | Server-internal only. Published to SQL `program_slabs`. On the wire the corresponding entry shows `status = "LIVE"` (built from the SQL row, not the Mongo ACTIVE doc). PUT creates a versioned-draft — ACTIVE row is not touched. |
+| `DELETED` | ❌ | Soft-deleted. History retained. Filtered from GET responses. |
+| `SNAPSHOT` | ❌ | Historical copy left when a versioned-draft was approved. Filtered from GET responses (use approval history endpoint). |
+| `PUBLISH_FAILED` | ❌ | SAGA failure state. Best-effort saved when Thrift publish fails. Filtered from GET responses. Recovery flow deferred to a later epic. |
 
 ---
 
@@ -1212,18 +1307,39 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ---
 
-### 6.5 `TierValidityConfig`
+### 6.5 `TierValidityConfig` on write — `renewal` on GET
+
+> **Q27 wire rename (2026-04-23):** on **GET** responses this block is emitted as **`renewal`** at the tier-entry root (not `validity`). The Java class is still `TierValidityConfig` — only the JSON key differs between write and read. The nested `renewal` sub-block inside this config is **dropped from the wire** on GET (see §6.6).
+
+**On write (POST/PUT):** clients still send the block under the key **`validity`** inside the request body.
+
+**On read (GET):** the same fields are emitted under the key **`renewal`** at the tier-entry root, and the nested `renewal` sub-object is suppressed.
 
 ```json
+// GET read-side shape (on a TierEntry)
 {
-  "periodType":  "FIXED",
-  "periodValue": 12,
-  "startDate":   "2026-04-21T00:00:00+00:00",
-  "endDate":     null,
-  "renewal":     {
-    "criteriaType":       "Same as eligibility",
-    "expressionRelation": null,
-    "conditions":         null
+  "renewal": {
+    "periodType":  "FIXED",
+    "periodValue": 12,
+    "startDate":   "2026-04-21T00:00:00+00:00",
+    "endDate":     null
+  }
+}
+```
+
+```json
+// POST/PUT write-side shape (inside the request body, unchanged)
+{
+  "validity": {
+    "periodType":  "FIXED",
+    "periodValue": 12,
+    "startDate":   "2026-04-21T00:00:00+00:00",
+    "endDate":     null,
+    "renewal":     {
+      "criteriaType":       "Same as eligibility",
+      "expressionRelation": null,
+      "conditions":         null
+    }
   }
 }
 ```
@@ -1234,7 +1350,7 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 | `periodValue` | `Integer` | Positive integer; units are **months** regardless of `periodType`. |
 | `startDate` | ISO-8601 | Validity period start. |
 | `endDate` | — | Always `null` on responses (see key rules). |
-| `renewal` | `TierRenewalConfig` | See §6.6. |
+| `renewal` *(nested — write only)* | `TierRenewalConfig` | See §6.6. Present on write, absent on the GET wire. |
 
 **periodType semantics:**
 - `FIXED` — validity lasts for `periodValue` months starting at `startDate`. The most common choice for a classic "expires after N months" tier.
@@ -1246,28 +1362,46 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 **Key rules:**
 - `endDate` is **always `null` on responses**. It is derived as `startDate + periodValue` if the UI needs it.
-- `renewal` is **never null on the wire** — if the client omits it on write, the server fills the default before persistence. On read, the SQL-sourced LIVE view and the Mongo DRAFT view surface identical renewal objects (keeps the drift-checker free of phantom false-positives).
-- **Slab 1 (base tier) has no validity block.** The engine treats slab 1 as the always-valid entry state, so `validity` is absent on envelopes for it — don't mistake the absence for a drift.
+- The nested **`renewal` sub-block is suppressed on GET** (Q27). On write, if the client omits it the server fills the default (`criteriaType = "Same as eligibility"`) before persistence. The default is still authoritative server-side but never reaches the wire.
+- **Slab 1 (base tier) has no validity block.** The engine treats slab 1 as the always-valid entry state, so `renewal` is absent on GET entries for it — don't mistake the absence for a drift.
 
 ---
 
-### 6.6 `TierRenewalConfig` (inside `TierValidityConfig.renewal`)
+### 6.6 `TierRenewalConfig` — write-only (not emitted on GET)
 
 ```json
 {
   "criteriaType":       "Same as eligibility",
-  "expressionRelation": null,
-  "conditions":         null
+  "downgradeTo":        "SINGLE",
+  "shouldDowngrade":    true,
+  "expressionRelation": "(PURCHASE AND VISITS) OR POINTS OR (TRACKER AND POINTS)",
+  "conditions": [
+    { "type": "PURCHASE", "value": "2000" },
+    { "type": "VISITS",   "value": "3"    },
+    { "type": "POINTS",   "value": "1500" },
+    { "type": "TRACKER",  "value": "10",  "trackerName": "store_visits_q1" }
+  ]
 }
 ```
 
-**Accept-only contract (as of 2026-04-21):**
-- The server accepts **only** `criteriaType = "Same as eligibility"` on write.
-- Any other value (including `"Active subscription"`, `"Custom"`, or any unrecognised string) → **HTTP 400** with the validator message listing allowed values.
-- `expressionRelation` and `conditions` are reserved for future contracts and must be `null` today.
-- Clients that omit `renewal` entirely are accepted — server fills the default pre-save.
+> **Q27 GET drop (2026-04-23):** this nested block is **not emitted on GET responses**. The Java field `TierValidityConfig.renewal` is preserved on the server (the write path still uses it, and persistence still stores it) but is nulled out before serialisation on the read path so that `@JsonInclude(NON_NULL)` omits it from the wire. See §6.5 for the GET shape.
 
-**Why this restriction?** The engine has no storage slot for an explicit renewal rule. The tier engine implicitly fires renewal on every slab upgrade; locking the API to the one shape the engine semantically supports keeps the contract honest. Support for `"Custom"` renewal is an additive change that won't break clients on this contract.
+| Field | Type | Required | Allowed values | Engine mapping |
+|---|---|:---:|---|---|
+| `criteriaType` | `String` | Yes (if `renewal` sent) | **`"Same as eligibility"` only** (Q26 B1a lock preserved) | Wire-only marker — engine has no slot. Any drift → **9017**. |
+| `downgradeTo` | `String` enum | No (Rework #7) | `SINGLE` / `THRESHOLD` / `LOWEST` | `TierDowngradeSlabConfig.downgradeTarget` per-slab. Runtime consumer: `peb BaseCalculatorBuilder:182-201`. Invalid value → **9019**. |
+| `shouldDowngrade` | `Boolean` | No (Rework #7) | `true` / `false` (boxed — null omits) | `TierDowngradeSlabConfig.shouldDowngrade` per-slab. `false` disables auto-downgrade for this tier. |
+| `expressionRelation` | `String` (DNF boolean) | No (Rework #7) | Grammar: `group (OR group)*`, `group = '(' kpi (AND kpi)* ')' \| kpi (AND kpi)*`. KPI ∈ `{PURCHASE,VISITS,POINTS,TRACKER}`. Strict parens when mixing AND+OR at top level. Case-insensitive on write; canonicalised to uppercase on read. | `slab.conditions.expression_relation` (engine bracket format — `"[[purchase,numVisits],[points]]"` — serialised via `TierRenewalExpressionParser`). Runtime consumer: `TrackerService:236-237`. |
+| `conditions[].type` | `String` enum | No (Rework #7) | `PURCHASE` / `VISITS` / `POINTS` / `TRACKER` | Per-element — `PURCHASE`→`slab.conditions.purchase`, `VISITS`→`numVisits`, `POINTS`→`points`, `TRACKER`→`slab.conditions.tracker[]` entry. |
+| `conditions[].value` | `String` (numeric) | No | ≥ 0 | Integer after parse. |
+| `conditions[].trackerName` | `String` | Only when `type=TRACKER` | — | `slab.conditions.tracker[].name`. |
+
+**Rework #7 Commit 1 (2026-04-23) — Per-tier engine-backed renewal fields:**
+`downgradeTo`, `shouldDowngrade`, `expressionRelation`, and `conditions[]` are now accepted on write and wired to the engine's per-slab `TierDowngradeSlabConfig` via `TierStrategyTransformer.synthesiseDowngradeFromRenewal` at APPROVE time. See §10.20 for the wiring details.
+
+**Multi-tracker rejection (9020):** `conditions[]` may contain at most one entry with `type=TRACKER` — mirrors Q5c eligibility multi-tracker rejection. Follow-up epic will lift both at once.
+
+**Criteria-type lock (Q26 B1a preserved):** The engine still has no storage slot for an alternate `criteriaType` value. Renewal fires implicitly via `UpgradeSlabActionImpl:815` whenever upgrade evaluation resolves to the customer's current slab. `"Same as eligibility"` remains the only accepted value.
 
 **Dropped from v3.1:** `schedule` field (previously a free-text display string; the engine stripped it on write so it never reached SQL).
 
@@ -1293,7 +1427,7 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 | `dailyEnabled` | `boolean` | Default `false` |
 | `conditions` | `TierCondition[]` | See §6.8 |
 
-**Population source:** Derived by `TierStrategyTransformer` from the engine's `SLAB_DOWNGRADE` strategy row (MySQL `strategies` table) at read time. For LEGACY_SQL_ONLY tiers, this is synthesised from `program_slabs` + `program_downgrade_config`. For Mongo-origin DRAFT tiers, the stored value is echoed unchanged (may be `null` pre-approval).
+**Population source:** Derived by `TierStrategyTransformer` from the engine's `SLAB_DOWNGRADE` strategy row (MySQL `strategies` table) at read time. For legacy SQL-only tiers (LIVE entries with no paired Mongo doc), this is synthesised from `program_slabs` + `program_downgrade_config`. For Mongo-origin draft entries, the stored value is echoed unchanged (may be `null` pre-approval).
 
 ---
 
@@ -1331,47 +1465,70 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ---
 
-### 6.10 `KpiSummary` (on list response)
+### 6.10 `KpiSummary` — **REMOVED (Q27, 2026-04-23)**
 
-```json
-{
-  "totalTiers":             4,
-  "liveTiers":              3,
-  "pendingApprovalTiers":   1,
-  "totalMembers":           120345,
-  "lastMemberCountRefresh": "2026-04-21T04:30:00+00:00"
-}
-```
-
-| Field | Type | Notes |
-|---|---|---|
-| `totalTiers` | `Integer` | Count of envelopes in the response |
-| `liveTiers` | `Integer` | Count of envelopes with a LIVE (SQL) side. Renamed from `activeTiers` in Rework #5. |
-| `pendingApprovalTiers` | `Integer` | Count of envelopes with a `pendingDraft` whose `draftStatus = PENDING_APPROVAL` |
-| `totalMembers` | `Integer?` | Sum of member counts across envelopes. **`null` when any envelope is `LEGACY_SQL_ONLY`** — member counts live on Mongo only; silently returning 0 would be a lie. Render `null` as `—` / `n/a`, not `0`. |
-| `lastMemberCountRefresh` | ISO-8601? | Most recent `lastRefreshed` across all envelopes. |
+> The `summary` block (count + member aggregation) is **dropped from the list response** in the Q27 pivot. The GET listing body is now simply `{ "tiers": TierEntry[] }` with no KPI envelope around it — counts and member totals move to a dedicated endpoint (or are computed client-side from the flat list). The Java class `KpiSummary` and the facade method `computeTotalMembers()` are deleted. This eliminates the longstanding ambiguity where `totalMembers = null` (for `LEGACY_SQL_ONLY`) had to be rendered as `—` by every consumer.
 
 ---
 
-### 6.11 `TierEnvelope` + `TierView` — the read shape
+### 6.11 `TierEntry` — the read shape (replaces `TierEnvelope` + `TierView`)
 
-See §5.1 for the envelope model and the six scenarios. `TierView` is the per-side payload inside `live` / `pendingDraft`; the envelope **hoists the visible-side `TierView` fields onto its root** and carries a `status` discriminator ("LIVE" or "DRAFT" — see §5.1 "Envelope flatten"). Class-level `@JsonInclude(NON_NULL)` on both.
+> **Q27 pivot (2026-04-23):** the paired-envelope model (one `TierEnvelope` per `slabId`, with `live` + `pendingDraft` sub-blocks and a computed flatten) is **replaced** by a flat entry. The GET listing returns `List<TierEntry>` — up to **two entries per `slabId`**, one per state (LIVE and in-flight). Pairing is done by the UI using the shared `slabId` field. See §5.1 for the listing contract and §5.2 for the detail contract.
 
-The root-level fields (`name`, `description`, `color`, `serialNumber`, `tierStartDate`, `eligibility`, `validity`, `downgrade`, `rejectionComment`, `meta`, `tierUniqueId`) are **computed getters** on `TierEnvelope.java` — they read through to the visible-side `TierView` on serialisation. UI should use them as the primary read path; the `live` / `pendingDraft` blocks remain populated as forward-compat placeholders.
+A `TierEntry` is a single flat record. There is no `live` / `pendingDraft` wrapper, no `origin`, no `hasPendingDraft`. The `status` field identifies which state this entry represents; entries for the same logical tier share a `slabId`.
 
-**`TierView` differs from `UnifiedTierConfig` in these ways:**
+**Shape (JSON wire):**
 
-| Field | On LIVE side | On pendingDraft side | Notes |
-|---|:---:|:---:|---|
-| `slabId` | present | absent | Also sits on the envelope itself |
-| `tierUniqueId` | absent | present | Mongo-side stable id |
-| `draftStatus` | absent | `DRAFT` or `PENDING_APPROVAL` | Only these two values surface here |
-| `rejectionComment` | absent | present if last review was REJECT | |
-| `name`, `description`, `color`, `serialNumber` | present | present | Shared fields |
-| `tierStartDate` | present (backend ≥ R3) | absent | **LIVE-only**, sourced from SQL `program_slabs.created_on` |
-| `eligibility`, `validity`, `downgrade` | present | present | |
-| `meta` | present | present | `TierMeta` — audit |
-| `engineConfig` | **absent** | **absent** | Engine internals are not exposed on reads |
+```json
+{
+  "status":           "LIVE",                  // see §6.2 — LIVE | DRAFT | PENDING_APPROVAL | REJECTED
+  "slabId":           3850,                    // null only for brand-new DRAFTs (no SQL row yet)
+  "tierUniqueId":     null,                    // null on LIVE-only entries; populated on every draft entry
+  "name":             "Gold",
+  "description":      "Premium tier",
+  "color":            "#FFD700",
+  "serialNumber":     2,
+  "tierStartDate":    "2026-03-15T08:14:02+00:00",  // LIVE entries only (SQL program_slabs.created_on)
+  "eligibility":      { "...": "see §6.4" },
+  "renewal":          { "...": "see §6.5 (GET shape — periodType / periodValue / startDate / endDate)" },
+  "downgrade":        { "...": "see §6.7 (read-only)" },
+  "rejectionComment": null,                    // populated only on REJECTED entries
+  "meta":             { "...": "see §6.3 — createdBy/At + updatedBy/At only on the wire" }
+}
+```
+
+**Field reference:**
+
+| Field | Type | Wire behaviour |
+|---|---|---|
+| `status` | `String` | `"LIVE"` on SQL-origin entries (synthetic marker); `"DRAFT"` / `"PENDING_APPROVAL"` / `"REJECTED"` on Mongo-origin entries. Always present. |
+| `slabId` | `Long?` | The SQL `program_slabs.id`. Non-null on LIVE entries and on edit-of-LIVE draft entries. **Null** on brand-new DRAFT entries (no SQL row yet). Used by UI to pair two entries of the same tier. |
+| `tierUniqueId` | `String?` | Mongo-side stable id. **Null** on LIVE entries that have no paired Mongo doc (legacy SQL-only tiers). Non-null on every Mongo-origin entry (DRAFT / PENDING_APPROVAL / REJECTED). |
+| `name`, `description`, `color`, `serialNumber` | shared | Always present. |
+| `tierStartDate` | ISO-8601? | **LIVE entries only.** Serialised via `TierDateFormat.Serializer`. Absent on draft entries. |
+| `eligibility` | `TierEligibilityConfig` | See §6.4. |
+| `renewal` | `TierValidityConfig` flat | See §6.5. Wire key is `renewal`; the nested `renewal` sub-block (the old `TierRenewalConfig`) is suppressed on GET. Absent on slab 1. |
+| `downgrade` | `TierDowngradeConfig` | See §6.7 — read-only, rejected on write. |
+| `rejectionComment` | `String?` | Populated only when `status = REJECTED` (and the maker is viewing the bounce-back). Absent otherwise. |
+| `meta` | `TierMeta` | Wire trimmed to `createdBy` / `createdAt` / `updatedBy` / `updatedAt` only (M-b lock). Server-internal fields (e.g. `basisSqlSnapshot`, rejection audit) are preserved in Java but not serialised. |
+
+**Removed from the earlier envelope contract (Q27 drops):**
+- `TierEnvelope` class — deleted.
+- `TierView` class — deleted (fields folded into `TierEntry`).
+- `TierOrigin` enum (`BOTH` / `MONGO_ONLY` / `LEGACY_SQL_ONLY`) — deleted. Origin is no longer surfaced on the wire; callers infer it from `status` + `slabId` + `tierUniqueId` presence.
+- `hasPendingDraft` convenience flag — deleted. Callers detect pairing by grouping entries on `slabId`.
+- `live` / `pendingDraft` sub-blocks — deleted. No more nested read shape.
+- `draftStatus` field — deleted. Folded into the single `status` discriminator.
+
+**Pairing inference rule (for UI):**
+
+Group entries by `slabId`. For a given `slabId`:
+- **1 LIVE entry** → LIVE only (scenario: published tier with no in-flight edit).
+- **1 LIVE + 1 draft entry (same `slabId`)** → edit-of-LIVE. Draft's `status` tells you what stage (`DRAFT` / `PENDING_APPROVAL` / `REJECTED`).
+- **1 draft entry with `slabId = null`** → brand-new DRAFT (no LIVE row yet). Identify it by the null `slabId`; pair it within the UI using `tierUniqueId` if needed.
+- **2 draft entries with the same `slabId`** → should never happen post-F-15 (partial unique index enforces at most one in-flight doc per slabId). The defensive behaviour in `TierEntryBuilder` is "last one wins on the pending side"; log a server warning.
+
+**Implementing classes:** `TierEntry.java` (new — package `com.capillary.intouchapiv3.tier.entry`), `TierEntryBuilder.java` (new — same package), `SqlTierConverter.toEntry()` (renamed from `toView()`).
 
 ---
 
@@ -1379,15 +1536,15 @@ The root-level fields (`name`, `description`, `color`, `serialNumber`, `tierStar
 
 | Enum | Values | Notes |
 |---|---|---|
-| `TierStatus` | `DRAFT`, `PENDING_APPROVAL`, `ACTIVE`, `DELETED`, `SNAPSHOT`, `PUBLISH_FAILED` | `SNAPSHOT` is internal — filtered from envelopes. `PUBLISH_FAILED` is a SAGA failure state. |
+| `TierStatus` | `DRAFT`, `PENDING_APPROVAL`, `REJECTED`, `ACTIVE`, `DELETED`, `SNAPSHOT`, `PUBLISH_FAILED` | On the wire (GET): `"LIVE"` (synthetic — SQL rows), `"DRAFT"`, `"PENDING_APPROVAL"`, `"REJECTED"`. `ACTIVE` is server-internal — SQL rows surface as `"LIVE"`. `DELETED` / `SNAPSHOT` / `PUBLISH_FAILED` are filtered from GET. See §6.2. |
 | `ApprovalAction` | `APPROVE`, `REJECT` | Used in `approvalStatus` body field on `/approve`. Case-insensitive. |
 | `KpiType` | `CURRENT_POINTS`, `CUMULATIVE_POINTS`, `CUMULATIVE_PURCHASES`, `TRACKER_VALUE_BASED` | `eligibility.kpiType`. Engine canonical: `SlabUpgradeStrategy.CurrentValueType`. |
 | `UpgradeType` | `EAGER`, `DYNAMIC`, `LAZY` | `eligibility.upgradeType`. Engine canonical: `SlabUpgradeMode`. |
-| `PeriodType` | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` | `validity.periodType`. Engine canonical: `TierDowngradePeriodConfig.PeriodType`. See §6.5 for semantics. |
+| `PeriodType` | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` | `renewal.periodType` on GET (`validity.periodType` on write). Engine canonical: `TierDowngradePeriodConfig.PeriodType`. See §6.5 for semantics. |
 | `ExpressionRelation` | `AND`, `OR` | `eligibility.expressionRelation` |
 | `DowngradeTarget` | `SINGLE`, `THRESHOLD`, `LOWEST` | `downgrade.target` on **read** responses only (see §6.7, §10.19 — rejected on write). Engine canonical: `TierDowngradeTarget`. |
 | `ConditionType` | `PURCHASE`, `VISITS`, `POINTS`, `TRACKER` | `TierCondition.type`. Used in `eligibility.conditions[]` (write + read) and `downgrade.conditions[]` (**read-only**). |
-| `TierOrigin` | `BOTH`, `MONGO_ONLY`, `LEGACY_SQL_ONLY` | `TierEnvelope.origin` |
+| ~~`TierOrigin`~~ | — | **Removed (Q27).** The enum and the `origin` wire field are deleted; callers infer origin from `status` + `slabId`/`tierUniqueId` presence. |
 
 ---
 
@@ -1400,7 +1557,7 @@ The root-level fields (`name`, `description`, `color`, `serialNumber`, `tierStar
 | `ACTIVE` | Active | Green | Yes (creates versioned draft) | No | Live in SQL. Members enrolled. |
 | `DELETED` | Deleted | Dark Gray | No | No | Soft-deleted; retained for audit. **Do not surface in UI lists.** |
 | `SNAPSHOT` | (hidden) | — | No | No | Internal maker-checker history. **Do not display.** |
-| `PUBLISH_FAILED` | (hidden today) | — | No | No | SAGA failure. Filtered from envelope listings. Recovery flow deferred. |
+| `PUBLISH_FAILED` | (hidden today) | — | No | No | SAGA failure. Filtered from GET responses. Recovery flow deferred. |
 
 ---
 
@@ -1437,7 +1594,7 @@ The root-level fields (`name`, `description`, `color`, `serialNumber`, `tierStar
                                                 │ parent becomes…
                                                 ▼
                                            ┌──────────┐
-                                           │ SNAPSHOT │ (filtered from envelopes)
+                                           │ SNAPSHOT │ (filtered from GET responses)
                                            └──────────┘
 
   SAGA publish failure on APPROVE:  ACTIVE-attempt ──▶ PUBLISH_FAILED
@@ -1465,19 +1622,19 @@ as a not-found condition even on 200.
 
 ### 10.2 `GET /v3/tiers?status=…` returns an empty list
 
-If `status` (non-empty list) is sent on list, the method short-circuits to `{ summary: all-zero, tiers: [] }`. **Omit the `status` query param** on `GET /v3/tiers`. Filter client-side on the envelope if needed.
+If `status` (non-empty list) is sent on list, the method short-circuits to `{ tiers: [] }`. **Omit the `status` query param** on `GET /v3/tiers`. Filter client-side on the entries by their `status` field (`"LIVE"` / `"DRAFT"` / `"PENDING_APPROVAL"` / `"REJECTED"`) if needed.
 
-### 10.3 `totalMembers` can be `null`
+### 10.3 ~~`totalMembers` can be `null`~~ **(removed — Q27)**
 
-Explicitly `null` when any envelope in the result is `LEGACY_SQL_ONLY`, because member counts are Mongo-only. Render as `—` / `n/a`, not `0`.
+> This note applied to the old `KpiSummary.totalMembers` field on the list response. The summary block was dropped in Q27; there is no longer a `totalMembers` on the wire. If the UI needs a member count it will come from a dedicated endpoint (not yet defined).
 
 ### 10.4 `PUBLISH_FAILED` is a real status
 
-If the Thrift publish during APPROVE fails, the tier is best-effort saved with `status = PUBLISH_FAILED` before the exception propagates (HTTP 500 with the generic message). **`PUBLISH_FAILED` tiers do not appear in list responses** — envelopes filter them out. They may be fetched by detail if a paired SQL row exists, otherwise are invisible. Recovery flow deferred.
+If the Thrift publish during APPROVE fails, the tier is best-effort saved with `status = PUBLISH_FAILED` before the exception propagates (HTTP 500 with the generic message). **`PUBLISH_FAILED` tiers do not appear in list or detail responses** — the `TierEntryBuilder.isWorkflowVisible` filter excludes them. They may resurface once recovery flow ships (deferred).
 
-### 10.5 Detail by numeric `slabId` returns 404
+### 10.5 Detail by numeric `slabId` now supported
 
-`GET /v3/tiers/{tierId}` with a purely numeric id returns 404 — the detail endpoint doesn't receive `programId`, which is required to resolve a legacy SQL-only tier by `slabId`. **To detail a legacy tier, fetch it through the list endpoint.**
+> **Q27 reversal (2026-04-23):** this previously noted "numeric slabId returns 404". Under the Q27 contract the detail endpoint now **does** accept numeric paths — see §5.2. Numeric `{tierId}` resolves to an array of 1 LIVE entry (or 1 LIVE + 1 paired in-flight entry). 404 is returned only when the `slabId` is not found for the caller's org. String `tierUniqueId` is also accepted and returns a draft-only array of 1.
 
 ### 10.6 Unknown `approvalStatus` is a 500, not a 400
 
@@ -1490,13 +1647,13 @@ If the Thrift publish during APPROVE fails, the tier is best-effort saved with `
 - A newly-created DRAFT always appears (safe).
 - A just-deleted DRAFT may appear; a subsequent edit/approve call on it will 404 (or 200 with errors on `/submit`-`/approve`). **UI must defensively handle "id from last list no longer exists".**
 
-### 10.8 `rejectionComment` on a DRAFT envelope's `pendingDraft`
+### 10.8 `rejectionComment` on a REJECTED entry
 
-When a reviewer rejects, the tier transitions back to `DRAFT` and `meta.rejectionComment` is stamped. The next list poll surfaces the doc as `pendingDraft` with `draftStatus = DRAFT` and `rejectionComment` populated. **This is intentional** — the maker seat renders the rejection reason next to the editable draft.
+> **Q27 update (2026-04-23):** under the old envelope contract the bounce-back doc was demoted to `DRAFT` with `rejectionComment` stamped on the pendingDraft side. Under the Q27 contract a rejected doc surfaces as its own entry with **`status = "REJECTED"`** and a populated `rejectionComment` field. The maker seat renders the rejection reason on that entry; when the maker re-edits, the server transitions the doc back through `DRAFT` (existing write flow — unchanged).
 
-### 10.9 `engineConfig` is on `UnifiedTierConfig` but NOT on `TierView`
+### 10.9 `engineConfig` is on `UnifiedTierConfig` but NOT on `TierEntry`
 
-`TierView` deliberately omits `engineConfig`. The list and detail endpoints (which return envelopes of `TierView`) never expose engine internals. **If you see `engineConfig` on a payload, you are looking at a create/update/approve response** (which returns `UnifiedTierConfig`), not a read response.
+`TierEntry` deliberately omits `engineConfig`. The list and detail endpoints (which return `List<TierEntry>`) never expose engine internals. **If you see `engineConfig` on a payload, you are looking at a create/update/approve response** (which returns `UnifiedTierConfig`), not a read response.
 
 ### 10.10 `basisSqlSnapshot` is server-internal
 
@@ -1551,7 +1708,7 @@ The `eligibility.expressionRelation` field on the request/response shape is **de
 | Aspect | Behaviour today | Evidence |
 |---|---|---|
 | On `POST` / `PUT` request body | Accepted, deserialised, then **silently dropped** — no validator checks it, no transformer reads it, no persistence layer uses it for logic. | Zero matches for `getExpressionRelation()` / `setExpressionRelation` / `.expressionRelation(` in the tier write path (`TierStrategyTransformer`, `TierCreateRequestValidator`, `TierUpdateRequestValidator`, `TierFacade`). |
-| On `GET` LIVE response (LEGACY_SQL_ONLY tiers) | Always `null` → **omitted** from wire via `@JsonInclude(NON_NULL)`. `TierStrategyTransformer.extractEligibilityForSlab` does not populate it — the engine has no per-tier source. | `TierEligibilityConfig.java` class Javadoc (L19–24); `TierStrategyTransformer.java` Javadoc on `extractEligibilityForSlab`. |
+| On `GET` LIVE entry (SQL-origin) | Always `null` → **omitted** from wire via `@JsonInclude(NON_NULL)`. `TierStrategyTransformer.extractEligibilityForSlab` does not populate it — the engine has no per-tier source. | `TierEligibilityConfig.java` class Javadoc (L19–24); `TierStrategyTransformer.java` Javadoc on `extractEligibilityForSlab`. |
 | On `GET` DRAFT response (Mongo origin) | Echoes whatever the maker originally sent on `POST` / `PUT` — Mongo persists the DTO as-is. Carries no semantic meaning end-to-end. | Mongo `@Document` round-trip; no read-side consumer. |
 
 **UI guidance:**
@@ -1559,7 +1716,7 @@ The `eligibility.expressionRelation` field on the request/response shape is **de
 - **Don't render `eligibility.expressionRelation`** — treat it as absent. On LIVE tiers it will not be on the wire at all; on DRAFT tiers any stored value is stale / unprocessed.
 - **Don't send it** on create/update — it will be silently dropped. If the field appears in a form today, hide it until the backend advertises support.
 - **Contrast with `renewal.expressionRelation`** — that sister field is actively **rejected** on write by `TierRenewalValidation` (non-null → 400 with `"renewal.expressionRelation must be null — reserved for a future engine-side renewal rule (Rework #5 B1a)"`). The eligibility-side field has no such guard today; this asymmetry is tracked for a future hardening pass.
-- **Engine-internal `EngineConfig.expressionRelation`** is a completely separate field (type `List<List<Integer>>` — a condition-grouping matrix used inside the engine). Not on `TierView`; not UI-facing; not related to this slot.
+- **Engine-internal `EngineConfig.expressionRelation`** is a completely separate field (type `List<List<Integer>>` — a condition-grouping matrix used inside the engine). Not on `TierEntry`; not UI-facing; not related to this slot.
 
 ### 10.19 Write-narrow / Read-wide asymmetry — `downgrade` and engine-derived fields (Rework #6a ADR-21R)
 
@@ -1571,16 +1728,88 @@ The tier contract is **asymmetric** between write and read:
 | `eligibilityCriteriaType` | **Rejected** — code **9013** | May be present on legacy SQL-origin reads |
 | `validity.periodValue` for SLAB_UPGRADE family | Not required (event-driven) | May be present on read (engine-populated) |
 | `validity.startDate` for SLAB_UPGRADE family | **Rejected** — code **9014** | May be present on read for FIXED family only |
-| Class A program-level keys (reminders, retainPoints, isDowngradeOnReturnEnabled, etc.) | **Rejected** — code **9011** | Not on `TierView` (live at `EngineConfig` / program-level) |
+| Class A program-level keys (reminders, retainPoints, isDowngradeOnReturnEnabled, etc.) | **Rejected** — code **9011** | Not on `TierEntry` (live at `EngineConfig` / program-level) |
 
-**Rationale (ADR-21R):** Tier-scoped writes must not carry program-level orchestration flags or engine-derived state. The engine owns downgrade behaviour; the tier write path is a thin DRAFT-intent. Read responses remain wide to keep the UI's rendering code stable — the UI continues to render the full envelope shape (including `downgrade`) regardless of whether it was written through this API or seeded from engine sync.
+**Rationale (ADR-21R):** Tier-scoped writes must not carry program-level orchestration flags or engine-derived state. The engine owns downgrade behaviour; the tier write path is a thin DRAFT-intent. Read responses remain wide to keep the UI's rendering code stable — the UI continues to render the full entry shape (including `downgrade`) regardless of whether it was written through this API or seeded from engine sync.
 
 **Why this matters for the UI:**
 - On **write** forms, the downgrade panel must be a **no-op** — do not include the `downgrade` object in the POST/PUT body. If a maker edits downgrade settings in the UI, that edit surfaces through a separate program-level endpoint (not the tier endpoint).
-- On **read**, `downgrade` remains populated on `UnifiedTierConfig` and `TierView` (§6.7) — the UI's existing render code stays unchanged.
+- On **read**, `downgrade` remains populated on `UnifiedTierConfig` and `TierEntry` (§6.7) — the UI's existing render code stays unchanged.
 - A **round-trip** of a GET response back to POST/PUT will **fail with HTTP 400** — Jackson strict-mode rejects the bare `downgrade` key as an unknown property (`UnrecognizedPropertyException`). The error code is a generic 400, **not** 9011. Strip the `downgrade` key client-side before round-tripping. (If the engine ever surfaces `downgrade.isActive` or any other Class A flag on a read, the recursive pre-binding scanner would additionally trigger code 9011 — but today the engine does not surface those keys on reads.)
 
-**Evidence:** `TierCreateRequest.java` / `TierUpdateRequest.java` — no `downgrade` field; both DTO classes annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation on the write DTOs; read DTOs `TierListResponse.java` and `KpiSummary.java` are deliberately NOT annotated so new engine-derived read-side fields can roll in without breaking the UI). This is NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag — tier-scoped annotation defends against environment drift in the global Spring Boot setting. `TierDowngradeConfig.java` retained for read; `TierStrategyTransformer` populates downgrade on read; `TierEnumValidation.CLASS_A_CANONICAL_KEYS` enumerates the rejected keys. **Regression cover (BT-197b, POST + PUT):** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` and `TierUpdateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut()` empirically verify the binding-layer rejection on both verbs with negative controls.
+**Evidence:** `TierCreateRequest.java` / `TierUpdateRequest.java` — no `downgrade` field; both DTO classes annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation on the write DTOs; read DTOs `TierListResponse.java` and (historically) `KpiSummary.java` were deliberately NOT annotated so new engine-derived read-side fields can roll in without breaking the UI. Q27: `KpiSummary.java` is deleted; `TierListResponse.java` now wraps only `List<TierEntry>`. `TierEntry.java` is also not annotated). This is NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag — tier-scoped annotation defends against environment drift in the global Spring Boot setting. `TierDowngradeConfig.java` retained for read; `TierStrategyTransformer` populates downgrade on read; `TierEnumValidation.CLASS_A_CANONICAL_KEYS` enumerates the rejected keys. **Regression cover (BT-197b, POST + PUT):** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` and `TierUpdateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut()` empirically verify the binding-layer rejection on both verbs with negative controls.
+
+---
+
+### 10.20 Per-tier renewal-backed downgrade synthesis (Rework #7 Commit 1 — 2026-04-23)
+
+`downgrade` remains rejected on write (§10.19), but the engine's per-slab downgrade configuration — `TierDowngradeSlabConfig` (pointsengine-emf) — is now reachable via `validity.renewal.*`.
+
+**Wire ↔ Engine mapping (APPROVE-time):**
+
+| Wire path (`validity.renewal.*`) | Engine field (`TierDowngradeSlabConfig.*`) | Runtime consumer |
+|---|---|---|
+| `downgradeTo` (`SINGLE`/`THRESHOLD`/`LOWEST`) | `downgradeTarget` (enum) | `peb BaseCalculatorBuilder:182-201` — switch picks per-slab calculator bean |
+| `shouldDowngrade` (Boolean) | `shouldDowngrade` (boolean) | `AbstractTierDowngradeCalculator` gate |
+| `conditions[].type=PURCHASE, value=N` | `conditions.purchase` (int) | `AbstractTierDowngradeCalculator:357-397` |
+| `conditions[].type=VISITS, value=N` | `conditions.numVisits` (int) | same |
+| `conditions[].type=POINTS, value=N` | `conditions.points` (int) | same |
+| `conditions[].type=TRACKER, value=N, trackerName=X` | `conditions.tracker[]` entry (`{name: X, trackedValue: N}`) | `AbstractTierDowngradeCalculator:397` |
+| `expressionRelation` (DNF string — `"(PURCHASE AND VISITS) OR POINTS"`) | `conditions.expression_relation` (engine bracket format — `"[[purchase,numVisits],[points]]"`) | `TrackerService:236-237` — engine parses via `PointsEngineUtils.parseExpressionRelation`; runtime evaluates OR-of-AND |
+
+**DNF grammar for `renewal.expressionRelation`:**
+
+```
+expression := group ( 'OR' group )*
+group      := '(' and_group ')'  |  and_group
+and_group  := kpi ( 'AND' kpi )*
+kpi        := 'PURCHASE' | 'VISITS' | 'POINTS' | 'TRACKER'
+```
+
+Rules:
+1. Strict parens when mixing AND + OR at the top level — `"PURCHASE AND VISITS OR POINTS"` rejected as ambiguous; write `"(PURCHASE AND VISITS) OR POINTS"` or `"PURCHASE AND (VISITS OR POINTS)"`.
+2. Case-insensitive on write; canonicalised to uppercase on read.
+3. Every KPI token must correspond to a type in `renewal.conditions[]`.
+4. Empty-string / null `expressionRelation` → no expression written to engine.
+
+**Serialisation — wire DNF ↔ engine bracket format** (via `TierRenewalExpressionParser`):
+
+| Wire DNF | Engine bracket |
+|---|---|
+| `"PURCHASE AND VISITS"` | `"[[purchase,numVisits]]"` |
+| `"PURCHASE OR VISITS OR POINTS"` | `"[[purchase],[numVisits],[points]]"` |
+| `"(PURCHASE AND VISITS) OR POINTS"` | `"[[purchase,numVisits],[points]]"` |
+| `"(PURCHASE AND VISITS) OR POINTS OR (TRACKER AND POINTS)"` | `"[[purchase,numVisits],[points],[1,points]]"` |
+
+Wire-KPI → engine-name mapping: `PURCHASE→purchase`, `VISITS→numVisits`, `POINTS→points`, `TRACKER→"1"` (1-based tracker index; multi-tracker rejected at 9020).
+
+**Canonical output on read** (for wire round-trip stability):
+- Single group with single KPI → bare KPI (no parens)
+- Single group with multiple KPIs → AND-list (no outer parens)
+- Multiple single-KPI groups → OR-list (no parens)
+- Multi-group with any multi-KPI group → multi-KPI groups get parens; singleton groups don't
+
+**Synthesis flow:**
+1. POST `/v3/tiers` arrives with `validity.renewal.downgradeTo` / `.conditions[]` / `.expressionRelation` (DNF string) / `.shouldDowngrade`.
+2. `TierCreateRequestValidator` + `TierRenewalValidation` accept the shape — `expressionRelation` parsed by `TierRenewalExpressionParser` (grammar + KPI enum + referential check against `conditions[]`); rejects with code 9021 on any violation. Multi-tracker rejected at 9020. Downgrade-to enum rejected at 9019.
+3. `TierFacade.createTier` persists the DRAFT to Mongo — `TierRenewalConfig` fields round-trip through standard Spring Data serialization, carrying the DNF string verbatim.
+4. On SUBMIT → APPROVE, `TierApprovalHandler.applyDowngradeDelta` checks `entity.getDowngrade()`. Pre-Rework #7 this was always null (since Q11 hard-flip removed `downgrade` from the write DTO). Rework #7 adds a fallback: if `entity.getDowngrade()` is null, call `TierStrategyTransformer.synthesiseDowngradeFromRenewal(entity.getValidity().getRenewal())` and use the synthesised `TierDowngradeConfig`.
+5. `TierStrategyTransformer.buildConditionsObject` calls `TierRenewalExpressionParser.toEngineBracket(...)` to translate the DNF string to the engine's bracket format, then writes it as `slabs[n].conditions.expression_relation` alongside `slabs[n].downgradeTarget`, `slabs[n].shouldDowngrade`, `slabs[n].conditions.{purchase, numVisits, points, tracker[]}`.
+6. Atomic Thrift publish via `createSlabAndUpdateStrategies` — engine picks up the per-slab fields and uses them at runtime for downgrade-calculator dispatch and renewal evaluation.
+
+**What does NOT happen (safety):**
+- If `validity.renewal` is null, or carries only `criteriaType`, `synthesiseDowngradeFromRenewal` returns null and the SLAB_DOWNGRADE strategy is left byte-untouched — pre-Rework #7 no-op behaviour for POSTs without any of the new fields.
+- Program-level booleans (`reevaluateOnReturn`, `dailyEnabled`, `retainPoints`, etc.) are still rejected (9011) on per-tier write — unchanged by Rework #7.
+- `downgrade` block at the root is still rejected by Jackson strict-mode (generic 400) — unchanged.
+
+**Read path:** engine JSON → wire surfaces `downgrade.target`, `downgrade.shouldDowngrade` (when set), `downgrade.conditions[]` via `TierStrategyTransformer.extractDowngradeForSlab`. The `downgrade` block on GET responses (§6.7) continues to carry these fields — unchanged for UI consumers. Rework #7 additionally surfaces `shouldDowngrade` and `expressionRelation` on this block when present on the engine side (round-trip symmetry).
+
+**Regression cover:**
+- `TierRenewalValidationTest` — 51 tests covering BT-197 through BT-212 (incl. BT-198 downgradeTo enum, BT-199 shouldDowngrade both-values, BT-200 per-type conditions with DNF, BT-201 single TRACKER, BT-202 full envelope with DNF, BT-203 backward-compat canonical shape, BT-211 DNF grammar acceptance suite covering 12 valid shapes, BT-212 DNF rejection suite covering 8 invalid shapes with code 9021, plus 9019 / 9020 negative cases)
+- `TierStrategyTransformerTest` — 92 tests incl. BT-204 through BT-215 (incl. synthesis-copies-all-fields, synthesis-returns-null-when-no-engine-fields, shouldDowngrade round-trip, DNF-AND serialises to `"[[a,b]]"` round-trip, DNF-OR serialises to `"[[a],[b]]"` round-trip, mixed DNF with canonical parens, three-group DNF with TRACKER reference, lowercase input canonicalised to uppercase, malformed engine expression surfaces as null, null-expression-relation-omitted, pre-Rework-7-shape-unchanged)
+- Total: 455 tests in `tier/**` — 0 failures, 0 errors
+
+**Evidence:** `TierRenewalConfig.java` (new fields — `downgradeTo`, `shouldDowngrade`, DNF `expressionRelation`, `conditions[]`) · `TierDowngradeConfig.java` (synthesis-only Boolean shouldDowngrade + DNF expressionRelation fields) · `TierEnumValidation.java` (9019/9020/9021 error codes + `validateRenewalDowngradeTo` + `validateRenewalConditionsAndExpression` + `validateRenewalExpressionRelation`) · `TierRenewalValidation.java` (loosened B1a to permit engine-backed conditions/expressionRelation while preserving criteriaType lock) · `TierRenewalExpressionParser.java` (new — DNF tokeniser + parser + wire↔engine-bracket bridge + canonical formatter) · `TierStrategyTransformer.java:synthesiseDowngradeFromRenewal` (wire → engine adapter) · `TierStrategyTransformer.buildConditionsObject` (serialises DNF to engine bracket format via parser) · `TierStrategyTransformer.extractDowngradeForSlab` (reverses engine bracket → wire DNF with canonical output) · `TierApprovalHandler.java:applyDowngradeDelta` (fallback synthesis when `entity.getDowngrade()` is null).
 
 ---
 
@@ -1628,8 +1857,8 @@ Authoritative mapping from `TargetGroupErrorAdvice.java`:
 | Feature / User Story | Endpoint(s) | Behaviour |
 |---|---|---|
 | E1-US1: Create Tier | `POST /v3/tiers` | Returns 201 with full document |
-| E1-US2: List Tiers | `GET /v3/tiers` | Envelopes per slab with KPI summary |
-| E1-US3: View Tier | `GET /v3/tiers/{tierId}` | Single envelope |
+| E1-US2: List Tiers | `GET /v3/tiers` | Flat `List<TierEntry>` (up to 2 entries per slabId — LIVE + in-flight). No KPI summary (Q27). |
+| E1-US3: View Tier | `GET /v3/tiers/{tierId}` | Array of 1 or 2 `TierEntry` — numeric path returns LIVE + paired in-flight; string path returns draft only (Q27). |
 | E1-US4: Edit Tier | `PUT /v3/tiers/{tierId}` | `DRAFT`/`PENDING_APPROVAL` in-place; `ACTIVE` creates versioned draft |
 | E1-US5: Delete Tier | `DELETE /v3/tiers/{tierId}` | DRAFT only; soft-delete |
 | E2-US1: Submit for Approval | `POST /v3/tiers/{tierId}/submit` | DRAFT → PENDING_APPROVAL |
@@ -1667,7 +1896,7 @@ Examples:
 |---|---|:---:|---|
 | `objectId` (`UnifiedTierConfig.objectId`) | MongoDB ObjectId (24-char hex, e.g. `660a1b2c3d4e5f6a7b8c9d0e`) | No | **Primary handle** — path param for `GET`/`PUT`/`DELETE`/`submit`/`approve` |
 | `tierUniqueId` | String, pattern `ut-{programId}-{serial3d}`, e.g. `ut-977-002` | No | Also accepted as `{tierId}` path param for `GET`/`PUT`/`DELETE` (facade resolves both) |
-| `slabId` | `Long` (MySQL `program_slabs.id`, e.g. `3850`) | No | SQL linkage. Populated **after** first APPROVE. `null` before. Sits on envelope AND on `TierView.live`. **Cannot be used directly as `{tierId}`** — §10.5. |
+| `slabId` | `Long` (MySQL `program_slabs.id`, e.g. `3850`) | No | SQL linkage. Populated **after** first APPROVE. `null` before. Sits on each `TierEntry` — the shared `slabId` is how UI pairs a LIVE entry with its in-flight draft entry (Q27). **Accepted as numeric `{tierId}` on detail** — returns an array of 1 or 2 entries (§5.2). |
 | `parentId` | MongoDB ObjectId | No | On versioned drafts-of-ACTIVE, points at the ACTIVE's `objectId`. `null` on originals. |
 | `serialNumber` | `Integer`, assigned on create | No (immutable across edits) | Visible ordering handle on the UI — part of `tierUniqueId`. |
 | `programId` | `Integer` | **No (immutable)** | Identifies the loyalty program this tier belongs to. Set at create. Cannot be changed via PUT. |
@@ -1677,15 +1906,16 @@ Examples:
 
 ## 16. UI Handoff Checklist
 
-1. **Consume `TierEnvelope`, not `UnifiedTierConfig`, as the read shape.** Tests that assumed flat documents from `GET /v3/tiers` (v2) need to be updated.
-2. **Handle all six envelope scenarios** (§5.1). Never assume both `live` and `pendingDraft` are present; never assume only one is either.
+1. **Consume `TierEntry` (flat), not `UnifiedTierConfig` or `TierEnvelope`, as the read shape.** Q27 replaced the envelope pairing with a flat `List<TierEntry>`. Tests that assumed envelopes with `live`/`pendingDraft` blocks or `origin` — or flat `UnifiedTierConfig` documents from v2 — must be updated.
+2. **Pair entries client-side by shared `slabId`.** Two entries with the same `slabId` = LIVE tier with an in-flight edit. One entry with `slabId = null` = brand-new DRAFT. Use the `status` field to identify the state (`"LIVE"` / `"DRAFT"` / `"PENDING_APPROVAL"` / `"REJECTED"`). See §5.1, §6.11.
 3. **Check `errors[0]` on HTTP 200 responses from `/submit` and `/approve`.** Not-found returns 200 with an error object (§10.1).
-4. **Omit the `status` query param on `GET /v3/tiers`** or you'll get an empty list (§10.2). Filter client-side if you need status subsets.
-5. **Render `totalMembers === null` as `—` or `n/a`.** It is not zero (§10.3).
+4. **Omit the `status` query param on `GET /v3/tiers`** or you'll get an empty list (§10.2). Filter client-side on each entry's `status` field if you need subsets.
+5. **Compute counts (total tiers, live count, pending count) client-side.** The old `KpiSummary` block is gone (§10.3). Iterate the flat list.
 6. **Validate `approvalStatus` is `APPROVE` or `REJECT` on the client.** Anything else is a 500 (§10.6).
 7. **On drift 409, render `data.diffs`, not `errors[0].message`.** The structured diff is the source of truth (§5.7.1).
-8. **Store `objectId` as the primary tier handle.** `tierUniqueId` works too, but numeric `slabId` does not route correctly through the detail endpoint (§10.5).
+8. **Choose the right detail path.** `GET /v3/tiers/{slabId}` (numeric) returns an array of 1 or 2 entries (LIVE ± paired in-flight). `GET /v3/tiers/{tierUniqueId}` (string) returns a single-element array containing only the draft. See §5.2.
 9. **Do not send the `Idempotency-Key` header and expect dedup.** Use it as a client-side correlation id only (§10.11).
 10. **Do not render `engineConfig` or `basisSqlSnapshot`.** These are engine internals leaked through the document, not part of the visible contract (§10.9, §10.10).
 11. **Offer a retry UX on HTTP 500 during APPROVE.** The Thrift SAGA can fail transiently (§10.13).
 12. **All dates on responses are `yyyy-MM-ddTHH:mm:ss+00:00`.** Never `Z`. Your parser should accept both defensively, but generate `+00:00` on outbound requests for consistency (§14).
+13. **Read-side field key for validity is `renewal`.** On the write side (POST/PUT body) send the block under `validity` (unchanged). On GET responses the same block is emitted as `renewal` at the tier-entry root, and the nested `renewal` sub-object (the old `TierRenewalConfig`) is suppressed. See §6.5.
