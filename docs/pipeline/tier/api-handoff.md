@@ -527,6 +527,10 @@ When both LIVE and an in-flight draft exist for the same slabId (numeric path, a
     "periodType": "FIXED",
     "periodValue": 12,
     "startDate": "2026-04-21T00:00:00+00:00",
+    "renewalWindowType": "CUSTOM_PERIOD",
+    "computationWindowStartValue": 3,
+    "computationWindowEndValue": 12,
+    "minimumDuration": 6,
     "renewal": {
       "criteriaType": "Same as eligibility",
       "downgradeTo": "SINGLE",
@@ -544,6 +548,8 @@ When both LIVE and an in-flight draft exist for the same slabId (numeric path, a
 ```
 
 The `expressionRelation` above reads as *(PURCHASE AND VISITS) OR POINTS OR (TRACKER AND POINTS)* — the customer renews if **any** of: (a) they've spent ≥ 2000 AND visited ≥ 3 times, (b) they've earned ≥ 1500 points, or (c) the tracker `store_visits_q1` ≥ 10 AND they've earned ≥ 1500 points. See §6.6 for the grammar.
+
+The advanced validity fields (Rework #7 Commit 3): `renewalWindowType=CUSTOM_PERIOD` with `computationWindowStartValue=3` + `computationWindowEndValue=12` means "evaluate the renewal conditions over months 3 through 12 before the evaluation date". `minimumDuration=6` floors the tier duration — engine won't downgrade before 6 months elapse regardless of renewal-rule outcome.
 
 **Evidence:** `TierCreateRequest.java` — no `downgrade` field, no getter/setter; the DTO class is annotated **`@JsonIgnoreProperties(ignoreUnknown = false)`** (Rework #6a R11-2 — tier-scoped annotation, NOT the global `spring.jackson.deserialization.fail-on-unknown-properties` flag, so environment drift cannot silently loosen this contract) so any unknown root-level key (including a bare `downgrade` object) fails binding with `UnrecognizedPropertyException` → HTTP 400 generic. `TierEnumValidation.CLASS_A_CANONICAL_KEYS` (see `TierEnumValidation.java:190–199`) lists exactly **8** program-level orchestration keys — `isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`. The bare key `downgrade` is **NOT** in this set — it is rejected by Jackson, not by the 9011 scanner. **Regression cover:** `TierCreateRequestValidatorTest.shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer()` (BT-197b POST) empirically verifies the rejection and asserts `ex.getPropertyName() == "downgrade"`; `shouldAcceptKnownFieldsAtJacksonBindingLayer()` is the negative control. **Rework #7:** `TierRenewalConfig.java` carries the four new per-tier fields; `TierStrategyTransformer.synthesiseDowngradeFromRenewal` bridges `validity.renewal.*` → engine `TierDowngradeSlabConfig` per-slab fields at APPROVE time via `TierApprovalHandler.applyDowngradeDelta`. Regression cover: BT-198..BT-210 (`TierRenewalValidationTest` + `TierStrategyTransformerTest`).
 
@@ -569,6 +575,10 @@ The `expressionRelation` above reads as *(PURCHASE AND VISITS) OR POINTS OR (TRA
 | `validity.renewal.shouldDowngrade` | `Boolean` | No (Rework #7) | Boxed Boolean — null omits the field (engine keeps prior value), explicit `false` disables auto-downgrade for this tier. Maps to engine `slab.shouldDowngrade`. |
 | `validity.renewal.expressionRelation` | `String` (DNF boolean) | No (Rework #7) | e.g. `"PURCHASE AND VISITS"`, `"PURCHASE OR VISITS OR POINTS"`, `"(PURCHASE AND VISITS) OR POINTS"`. Grammar: `group (OR group)*`, `group = '(' kpi (AND kpi)* ')' \| kpi (AND kpi)*`, `kpi ∈ {PURCHASE,VISITS,POINTS,TRACKER}`. Strict parens when mixing AND+OR at top level. Case-insensitive. Serialised to engine bracket format. Invalid → **9021**. |
 | `validity.renewal.conditions[]` | `TierCondition[]` | No (Rework #7) | Each element: `{type, value, trackerName?}`. Types `PURCHASE`/`VISITS`/`POINTS`/`TRACKER`. Maps to engine `slab.conditions.{purchase,numVisits,points,tracker[]}`. Every KPI referenced in `expressionRelation` must be present here. **Multi-tracker rejected** (≥2 `TRACKER` entries) → **9020** (Q5c symmetry). |
+| `validity.renewalWindowType` | `String` enum | No (Rework #7 Commit 3) | One of `FIXED_DATE_BASED`, `LAST_CALENDAR_YEAR`, `CUSTOM_PERIOD`. Engine canonical `TierDowngradePeriodConfig.RenewalWindowType`. Defines how `computationWindow*` offsets are interpreted. Invalid → **9022**. |
+| `validity.computationWindowStartValue` | `Integer` (months) | No (Rework #7 Commit 3) | Back-offset for evaluation window START. ≥ 0. **Requires** `renewalWindowType` (atomic coupling — inert without it, code **9023**). Negative → **9024**. |
+| `validity.computationWindowEndValue` | `Integer` (months) | No (Rework #7 Commit 3) | Back-offset for evaluation window END. ≥ 0. **Requires** `renewalWindowType` (atomic coupling — code **9023**). Negative → **9024**. |
+| `validity.minimumDuration` | `Integer` (months) | No (Rework #7 Commit 3) | Minimum tier duration — engine refuses downgrade if computed end < `now + minimumDuration months`. Standalone (no coupling to `renewalWindowType`). ≥ 0. Negative → **9024**. |
 | `downgrade` (bare key) | — | **Rejected on write** | Jackson strict-mode — `UnrecognizedPropertyException` → **HTTP 400** (generic, not 9011). `downgrade` is NOT in `CLASS_A_CANONICAL_KEYS`. See §10.19 write-narrow / read-wide asymmetry. |
 | `downgrade.*` (nested Class A keys) | — | **Rejected on write** | If the nested object carries any of the 8 Class A orchestration keys (`isActive`, `reminders`, `downgradeConfirmation`, `renewalConfirmation`, `retainPoints`, `dailyDowngradeEnabled`, `isDowngradeOnReturnEnabled`, `isDowngradeOnPartnerProgramExpiryEnabled`), the recursive pre-binding scanner catches them first → code **9011**. |
 
@@ -698,6 +708,9 @@ Rework #6a contract-hardening codes (9011–9018) — evidence: `TierEnumValidat
 | **9019** | Invalid `renewal.downgradeTo` | `renewal.downgradeTo` non-null AND not in {`SINGLE`, `THRESHOLD`, `LOWEST`}. Engine canonical `TierDowngradeSlabConfig.downgradeTarget`. Rework #7. | Post-binding |
 | **9020** | Multi-tracker renewal | `renewal.conditions[]` contains ≥ 2 entries with `type=TRACKER`. Q5c eligibility symmetry — multi-tracker renewal deferred pending follow-up epic. Rework #7. | Post-binding |
 | **9021** | Invalid `renewal.expressionRelation` DNF | Grammar error (unknown KPI token, unknown operator, unbalanced parens, ambiguous AND+OR at top level without parens), OR the expression references a KPI not present in `renewal.conditions[]`. Rework #7. | Post-binding |
+| **9022** | Invalid `validity.renewalWindowType` | `validity.renewalWindowType` non-null AND not in {`FIXED_DATE_BASED`, `LAST_CALENDAR_YEAR`, `CUSTOM_PERIOD`}. Engine canonical `TierDowngradePeriodConfig.RenewalWindowType`. Rework #7 Commit 3. | Post-binding |
+| **9023** | `validity.computationWindow*` without `renewalWindowType` | Any of `validity.computationWindowStartValue` / `computationWindowEndValue` is set but `validity.renewalWindowType` is null — the offsets are inert on the engine without a window type (`TierDowngradeDateHelper:35-37`). Rework #7 Commit 3. | Post-binding |
+| **9024** | Negative numeric `validity.*` | Any of `validity.computationWindowStartValue` / `computationWindowEndValue` / `minimumDuration` is negative. Rework #7 Commit 3. | Post-binding |
 
 **Precedence rules** (evidence: `TierCreateRequestValidator.java:65–93`):
 1. Pre-binding scans run BEFORE Jackson `treeToValue()`; unknown-but-unclassified keys fall through to Jackson strict-mode generic 400.
@@ -1317,10 +1330,15 @@ DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ```json
 // GET read-side shape (on a TierEntry) — Rework #7 Commit 2 flattened view
+// + Commit 3 advanced validity fields
 {
   "renewal": {
     "periodType": "FIXED",
     "periodValue": 12,
+    "renewalWindowType": "CUSTOM_PERIOD",
+    "computationWindowStartValue": 3,
+    "computationWindowEndValue": 12,
+    "minimumDuration": 6,
     "criteriaType": "Same as eligibility",
     "downgradeTo": "SINGLE",
     "shouldDowngrade": true,
@@ -1364,6 +1382,10 @@ DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 | `shouldDowngrade` | `Boolean` | Boxed — null omits field. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
 | `expressionRelation` | `String` (DNF) | DNF boolean — see §6.6. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
 | `conditions` | `TierCondition[]` | See §6.8 + §6.6. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
+| `renewalWindowType` | `String` enum | `FIXED_DATE_BASED` / `LAST_CALENDAR_YEAR` / `CUSTOM_PERIOD`. Engine `TierDowngradePeriodConfig.RenewalWindowType`. Rework #7 Commit 3. Invalid → 9022. | Write + GET |
+| `computationWindowStartValue` | `Integer` (months) | Back-offset for window START. ≥ 0. Requires `renewalWindowType` (9023). Rework #7 Commit 3. | Write + GET |
+| `computationWindowEndValue` | `Integer` (months) | Back-offset for window END. ≥ 0. Requires `renewalWindowType` (9023). Rework #7 Commit 3. | Write + GET |
+| `minimumDuration` | `Integer` (months) | Minimum tier duration floor. ≥ 0. Standalone (no `renewalWindowType` coupling). Rework #7 Commit 3. | Write + GET |
 
 **periodType semantics:**
 - `FIXED` — validity lasts for `periodValue` months starting at `startDate`. The most common choice for a classic "expires after N months" tier.
@@ -1811,7 +1833,8 @@ Wire-KPI → engine-name mapping: `PURCHASE→purchase`, `VISITS→numVisits`, `
 4. On SUBMIT → APPROVE, `TierApprovalHandler.applyDowngradeDelta` checks `entity.getDowngrade()`. Pre-Rework #7 this was always null (since Q11 hard-flip removed `downgrade` from the write DTO). Rework #7 adds a fallback: if `entity.getDowngrade()` is null, call `TierStrategyTransformer.synthesiseDowngradeFromRenewal(entity.getValidity().getRenewal())` and use the synthesised `TierDowngradeConfig`.
 5. `TierStrategyTransformer.buildConditionsObject` calls `TierRenewalExpressionParser.toEngineBracket(...)` to translate the DNF string to the engine's bracket format, then writes it as `slabs[n].conditions.expression_relation` alongside `slabs[n].downgradeTarget`, `slabs[n].shouldDowngrade`, `slabs[n].conditions.{purchase, numVisits, points, tracker[]}`.
 6. **Rework #7 Commit 2 (2026-04-23):** `TierApprovalHandler.applyValidityDelta` — newly activated alongside `applyDowngradeDelta` — writes the draft's `validity.{periodType, periodValue, startDate}` into the engine's `slabs[n].periodConfig`. This closes the pre-existing per-slab validity dead-wire gap (the validator accepted these fields and they were persisted to Mongo, but pre-Commit-2 they never reached the engine at APPROVE). The overlay uses **null-as-preserve** semantics — a null field on the DRAFT leaves the engine-side value intact (safe for edit-of-LIVE / versioned PUT where the DRAFT may carry only a subset). `applySlabValidityDelta` is permissive on APPEND — creates a bare slab entry if `applyDowngradeDelta` was a no-op. UPDATE path includes a legacy-gap recovery — retries as APPEND if the engine-side slab lacks `periodConfig` (legacy tier that predates Commit 2).
-7. Atomic Thrift publish via `createSlabAndUpdateStrategies` — engine picks up the per-slab fields and uses them at runtime for downgrade-calculator dispatch, renewal evaluation, and downgrade-date calculation.
+7. **Rework #7 Commit 3 (2026-04-23):** four additional per-tier engine-backed validity fields (`renewalWindowType`, `computationWindowStartValue`, `computationWindowEndValue`, `minimumDuration`) are now accepted on the write path and carried through the same `applyValidityDelta` flow. They write to `slabs[n].periodConfig.{renewalWindowType, computationWindowStartValue, computationWindowEndValue, minimumDuration}` with the same null-as-preserve semantics. Runtime consumers: `peb TierDowngradeDateHelper:33-66` (window type + offsets govern evaluation-window date math) + every downgrade date calculator (`FixedTierDowngradeDateCalculator`, `CyclicTierDowngradeDateCalculator`, `SlabUpgradeBasedTierDowngradeDateCalculator`, `FixedCustomerRegistrationTierDowngradeDateCalculator` — all enforce `minimumDuration`). Atomic coupling: `computationWindow*` requires `renewalWindowType` (code 9023) — offsets are inert on the engine without a window type.
+8. Atomic Thrift publish via `createSlabAndUpdateStrategies` — engine picks up the per-slab fields and uses them at runtime for downgrade-calculator dispatch, renewal evaluation, renewal-window date math, minimum-duration floor enforcement, and downgrade-date calculation.
 
 **What does NOT happen (safety):**
 - If `validity.renewal` is null, or carries only `criteriaType`, `synthesiseDowngradeFromRenewal` returns null and the SLAB_DOWNGRADE strategy is left byte-untouched — pre-Rework #7 no-op behaviour for POSTs without any of the new fields.
@@ -1824,7 +1847,10 @@ Wire-KPI → engine-name mapping: `PURCHASE→purchase`, `VISITS→numVisits`, `
 - `TierRenewalValidationTest` — 51 tests covering BT-197 through BT-212 (incl. BT-198 downgradeTo enum, BT-199 shouldDowngrade both-values, BT-200 per-type conditions with DNF, BT-201 single TRACKER, BT-202 full envelope with DNF, BT-203 backward-compat canonical shape, BT-211 DNF grammar acceptance suite covering 12 valid shapes, BT-212 DNF rejection suite covering 8 invalid shapes with code 9021, plus 9019 / 9020 negative cases)
 - `TierStrategyTransformerTest` — 93 tests incl. BT-204 through BT-215 (incl. synthesis-copies-all-fields, synthesis-returns-null-when-no-engine-fields, shouldDowngrade round-trip, DNF-AND serialises to `"[[a,b]]"` round-trip, DNF-OR serialises to `"[[a],[b]]"` round-trip, mixed DNF with canonical parens, three-group DNF with TRACKER reference, lowercase input canonicalised to uppercase, malformed engine expression surfaces as null, null-expression-relation-omitted, pre-Rework-7-shape-unchanged); plus Rework #7 Commit 2 additions — APPEND on missing slab creates a bare entry with periodConfig (permissive isAppend semantics)
 - `TierApprovalHandlerTest` — 31 tests incl. Rework #7 Commit 2 BT-221 through BT-224 (writeValidityPeriodConfigToEngineOnCreate, updateExistingPeriodConfigOnVersionedEdit with null-as-preserve + engine-field preservation, leaveEnginePeriodConfigUntouchedWhenDraftHasNoValidity, recoverLegacyTierMissingPeriodConfigByRetryingAsAppendOnUpdate)
-- Total: 459 tests in `tier/**` — 0 failures, 0 errors (+4 vs Commit 1.5 baseline of 455)
+- `TierValidatorEnumTest` — 84 tests incl. Rework #7 Commit 3 BT-225 through BT-230 (all 3 canonical renewalWindowType values accepted, phantom values rejected with 9022, atomic-coupling rejections for computationWindowStart/End without renewalWindowType at 9023, negative-value rejections on all 3 numeric fields at 9024, minimumDuration accepted standalone, zero accepted on all numeric fields)
+- `TierStrategyTransformerTest` — 97 tests incl. Rework #7 Commit 3 BT-231 through BT-234 (advanced fields serialise to engine periodConfig on APPEND, extractValidityForSlab surfaces them on read, null-as-preserve on UPDATE with partial field sets, CREATE with only core fields doesn't write null-valued advanced fields)
+- `SqlTierConverterTest` — 22 tests incl. BT-235 (flat TierRenewalView on GET surfaces all 4 advanced fields alongside the existing period + renewal-trigger fields)
+- Total: 486 tests in `tier/**` — 0 failures, 0 errors (+27 vs Commit 2 baseline of 459)
 
 **Evidence:** `TierRenewalConfig.java` (new fields — `downgradeTo`, `shouldDowngrade`, DNF `expressionRelation`, `conditions[]`) · `TierDowngradeConfig.java` (synthesis-only Boolean shouldDowngrade + DNF expressionRelation fields) · `TierEnumValidation.java` (9019/9020/9021 error codes + `validateRenewalDowngradeTo` + `validateRenewalConditionsAndExpression` + `validateRenewalExpressionRelation`) · `TierRenewalValidation.java` (loosened B1a to permit engine-backed conditions/expressionRelation while preserving criteriaType lock) · `TierRenewalExpressionParser.java` (new — DNF tokeniser + parser + wire↔engine-bracket bridge + canonical formatter) · `TierStrategyTransformer.java:synthesiseDowngradeFromRenewal` (wire → engine adapter) · `TierStrategyTransformer.buildConditionsObject` (serialises DNF to engine bracket format via parser) · `TierStrategyTransformer.extractDowngradeForSlab` (reverses engine bracket → wire DNF with canonical output) · `TierApprovalHandler.java:applyDowngradeDelta` (fallback synthesis when `entity.getDowngrade()` is null).
 
