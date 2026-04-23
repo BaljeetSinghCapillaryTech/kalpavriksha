@@ -127,7 +127,37 @@ Body: `ResponseWrapper<TierListResponse>`.
     "tiers": [
       {
         "slabId": 3850,
-        "origin": "BOTH",
+        "status": "LIVE",
+        "name": "Gold",
+        "description": "Premium tier",
+        "color": "#FFD700",
+        "serialNumber": 2,
+        "tierStartDate": "2026-03-15T08:14:02+00:00",
+        "eligibility": {
+          "kpiType": "CURRENT_POINTS",
+          "threshold": 5000,
+          "upgradeType": "EAGER",
+          "expressionRelation": "AND",
+          "conditions": []
+        },
+        "validity": {
+          "periodType": "FIXED",
+          "periodValue": 12,
+          "startDate": "2026-03-15T00:00:00+00:00",
+          "endDate": null,
+          "renewal": {
+            "criteriaType": "Same as eligibility",
+            "expressionRelation": null,
+            "conditions": null
+          }
+        },
+        "downgrade": {
+          "target": "SINGLE",
+          "reevaluateOnReturn": false,
+          "dailyEnabled": false,
+          "conditions": []
+        },
+        "origin": "LEGACY_SQL_ONLY",
         "hasPendingDraft": false,
         "live": {
           "slabId": 3850,
@@ -136,34 +166,22 @@ Body: `ResponseWrapper<TierListResponse>`.
           "color": "#FFD700",
           "serialNumber": 2,
           "tierStartDate": "2026-03-15T08:14:02+00:00",
-          "eligibility": {
-            "kpiType": "CURRENT_POINTS",
-            "threshold": 5000,
-            "upgradeType": "EAGER",
-            "expressionRelation": "AND",
-            "conditions": []
-          },
-          "validity": {
-            "periodType": "FIXED",
-            "periodValue": 12,
-            "startDate": "2026-03-15T00:00:00+00:00",
-            "endDate": null,
-            "renewal": {
-              "criteriaType": "Same as eligibility",
-              "expressionRelation": null,
-              "conditions": null
-            }
-          },
-          "downgrade": {
-            "target": "SINGLE",
-            "reevaluateOnReturn": false,
-            "dailyEnabled": false,
-            "conditions": []
-          }
+          "eligibility": { "...": "..." },
+          "validity":    { "...": "..." },
+          "downgrade":   { "...": "..." }
         }
       },
       {
         "slabId": 3851,
+        "status": "LIVE",
+        "name": "Platinum",
+        "description": "Top tier",
+        "color": "#E5E4E2",
+        "serialNumber": 3,
+        "tierStartDate": "2026-02-10T09:12:00+00:00",
+        "eligibility": { "...": "..." },
+        "validity":    { "...": "..." },
+        "downgrade":   { "...": "..." },
         "origin": "BOTH",
         "hasPendingDraft": true,
         "live": { "slabId": 3851, "name": "Platinum", "...": "..." },
@@ -184,6 +202,32 @@ Body: `ResponseWrapper<TierListResponse>`.
             "updatedAt": "2026-04-20T10:15:00+00:00"
           }
         }
+      },
+      {
+        "status": "DRAFT",
+        "tierUniqueId": "ut-977-004",
+        "name": "Diamond",
+        "description": "Brand new tier — pending approval",
+        "color": "#B9F2FF",
+        "serialNumber": 4,
+        "eligibility": { "...": "..." },
+        "validity":    { "...": "..." },
+        "downgrade":   { "...": "..." },
+        "meta": {
+          "createdBy": "15043871",
+          "createdAt": "2026-04-22T11:00:00+00:00",
+          "updatedBy": "15043871",
+          "updatedAt": "2026-04-22T11:00:00+00:00"
+        },
+        "origin": "MONGO_ONLY",
+        "hasPendingDraft": true,
+        "pendingDraft": {
+          "tierUniqueId": "ut-977-004",
+          "draftStatus": "DRAFT",
+          "name": "Diamond",
+          "description": "Brand new tier — pending approval",
+          "...": "..."
+        }
       }
     ]
   },
@@ -194,29 +238,47 @@ Body: `ResponseWrapper<TierListResponse>`.
 
 ### The Envelope Model (READ FIRST)
 
-`tiers` is an array of `TierEnvelope`. Each envelope groups together what the user perceives as *one tier*:
+`tiers` is an array of `TierEnvelope`. Each envelope groups together what the user perceives as *one tier*. The envelope **flattens the visible-side fields onto the tier root** and carries a `status` discriminator, so the default reading path is just `tier.name` / `tier.eligibility` etc. The `live` and `pendingDraft` blocks remain populated as forward-compat placeholders (see "Envelope flatten" below).
 
 ```
 TierEnvelope
 ├── slabId            (Long)       — the SQL anchor; null only in brand-new-DRAFT
+├── status            (String)     — "LIVE" | "DRAFT" — visible-side discriminator
+├── tierUniqueId      (String?)    — Mongo id; present when status = "DRAFT"
+├── name              (String)     ┐
+├── description       (String)     │
+├── color             (String)     │
+├── serialNumber      (Integer)    ├── visible-side fields hoisted to root
+├── tierStartDate     (Date?)      │   (LIVE fields when status=LIVE;
+├── eligibility       (obj)        │    DRAFT fields when status=DRAFT)
+├── validity          (obj)        │
+├── downgrade         (obj)        │
+├── rejectionComment  (String?)    │
+├── meta              (obj?)       ┘
 ├── origin            (enum)       — "BOTH" | "MONGO_ONLY" | "LEGACY_SQL_ONLY"
 ├── hasPendingDraft   (boolean)    — convenience flag; true iff pendingDraft != null
-├── live              (TierView?)  — the SQL-sourced live state (may be absent)
-└── pendingDraft      (TierView?)  — the Mongo-sourced pending edit (may be absent)
+├── live              (TierView?)  — forward-compat placeholder (the SQL-sourced LIVE side)
+└── pendingDraft      (TierView?)  — forward-compat placeholder (the Mongo-sourced pending edit)
 ```
+
+**Envelope flatten (visible-side rule):**
+
+- **LIVE wins when present.** Scenarios #1, #3, #4, #5 → root carries LIVE fields, `status = "LIVE"`. In edit-of-LIVE (scenarios #3/#4), the LIVE tier is still what the customer *sees* — the in-flight DRAFT is surfaced via the `pendingDraft` block and `hasPendingDraft = true`.
+- **DRAFT is visible only when LIVE doesn't exist.** Scenario #2 (brand-new DRAFT, no SQL row) → root carries DRAFT fields, `status = "DRAFT"`.
+- **Blocks are forward-compat.** The `live` and `pendingDraft` blocks are kept populated for planned future divergence (if LIVE and DRAFT shapes ever diverge). They duplicate the data on the wire today but are **not a backward-compat scheme** — clients should read the root fields. The Java API still exposes `envelope.getLive()` / `envelope.getPendingDraft()` unchanged.
 
 **Six scenarios the UI must handle:**
 
-| # | `origin` | `live` | `pendingDraft` | `hasPendingDraft` | What it represents |
-|---|---|---|---|:---:|---|
-| 1 | `BOTH`            | present | absent  | false | LIVE tier, no pending edit |
-| 2 | `MONGO_ONLY`      | absent  | present | true  | Brand-new DRAFT / PENDING (no SQL row yet) |
-| 3 | `BOTH`            | present | present (`draftStatus=DRAFT`) | true | Edit-of-LIVE, maker editing |
-| 4 | `BOTH`            | present | present (`draftStatus=PENDING_APPROVAL`) | true | Edit-of-LIVE, awaiting reviewer |
-| 5 | `LEGACY_SQL_ONLY` | present | absent  | false | Legacy tier, no Mongo doc ever |
-| 6 | *(not listed)*    | —       | —       | —     | `SNAPSHOT` / `DELETED` / `PUBLISH_FAILED` Mongo docs are filtered out |
+| # | `origin` | root `status` | root carries | `live` block | `pendingDraft` block | `hasPendingDraft` | What it represents |
+|---|---|---|---|---|---|:---:|---|
+| 1 | `LEGACY_SQL_ONLY` | `"LIVE"` | LIVE fields | present | absent | false | LIVE tier, no pending edit (legacy SQL-only) |
+| 2 | `MONGO_ONLY`      | `"DRAFT"` | DRAFT fields | absent | present | true  | Brand-new DRAFT / PENDING (no SQL row yet) |
+| 3 | `BOTH`            | `"LIVE"` | LIVE fields | present | present (`draftStatus=DRAFT`) | true | Edit-of-LIVE, maker editing |
+| 4 | `BOTH`            | `"LIVE"` | LIVE fields | present | present (`draftStatus=PENDING_APPROVAL`) | true | Edit-of-LIVE, awaiting reviewer |
+| 5 | `LEGACY_SQL_ONLY` | `"LIVE"` | LIVE fields | present | absent | false | Same shape as #1 — "legacy" means no Mongo doc ever existed |
+| 6 | *(not listed)*    | —       | —       | —     | — | — | `SNAPSHOT` / `DELETED` / `PUBLISH_FAILED` Mongo docs are filtered out |
 
-Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present on the wire.** Test `envelope.hasPendingDraft` and `envelope.live != null` — not `envelope.pendingDraft === null`.
+Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present on the wire.** Test `envelope.hasPendingDraft` and `envelope.status === "LIVE"` at the root — not `envelope.pendingDraft === null`.
 
 ### Response — Error Cases
 
@@ -236,7 +298,7 @@ Because of class-level `@JsonInclude(NON_NULL)`, **absent fields are not present
 - **`totalMembers` can be `null`** — explicitly returned as `null` when any envelope is `LEGACY_SQL_ONLY`, because member counts live only on the Mongo side and silently returning 0 would be a lie. Render as `—` or `n/a`, not `0`.
 - **`tierStartDate` is LIVE-only** — sourced exclusively from SQL `program_slabs.created_on`. Absent on `pendingDraft` (no SQL row yet); absent on `live` only if the backing emf-parent server predates Rework #3. Do NOT substitute a fallback (e.g., `new Date(0)`) when it is missing.
 
-**Evidence:** `TierController.java` L52–L62; `TierFacade.listTiers` L131–L194 (status short-circuit at L132–L144); `TierEnvelope.java`; `TierEnvelopeBuilder.java` `build()` / `buildOne()`; `SqlTierConverter.toView`; `TierStrategyTransformer.fromStrategies` (uses `slab.isSetCreatedOn()` to distinguish unset from 0L epoch — BT-187 is the regression fence).
+**Evidence:** `TierController.java` L52–L62; `TierFacade.listTiers` L131–L194 (status short-circuit at L132–L144); `TierEnvelope.java` (Q1/Q2/Q4 flatten — computed getters for `status` and hoisted root fields derive from `live`/`pendingDraft`); `TierEnvelopeBuilder.java` `build()` / `buildOne()`; `SqlTierConverter.toView`; `TierStrategyTransformer.fromStrategies` (uses `slab.isSetCreatedOn()` to distinguish unset from 0L epoch — BT-187 is the regression fence). Flatten regression is fenced by three tests in `TierEnvelopeJsonSerializationTest` — `liveOnlyEnvelopeShouldHoistLiveFieldsToRootAndSetStatusLive`, `brandNewDraftEnvelopeShouldHoistDraftFieldsToRootAndSetStatusDraft`, `editOfLiveEnvelopeShouldHoistLiveFieldsAtRootWithPendingDraftBlockFlaggingEdit`.
 
 ---
 
@@ -271,6 +333,15 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
 {
   "data": {
     "slabId": 3850,
+    "status": "LIVE",
+    "name": "Gold",
+    "description": "Premium tier",
+    "color": "#FFD700",
+    "serialNumber": 2,
+    "tierStartDate": "2026-03-15T08:14:02+00:00",
+    "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 5000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
+    "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
+    "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] },
     "origin": "BOTH",
     "hasPendingDraft": true,
     "live": {
@@ -280,9 +351,9 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
       "color": "#FFD700",
       "serialNumber": 2,
       "tierStartDate": "2026-03-15T08:14:02+00:00",
-      "eligibility": { "kpiType": "CURRENT_POINTS", "threshold": 5000, "upgradeType": "EAGER", "expressionRelation": "AND", "conditions": [] },
-      "validity":    { "periodType": "FIXED", "periodValue": 12, "startDate": "2026-03-15T00:00:00+00:00", "endDate": null, "renewal": { "criteriaType": "Same as eligibility", "expressionRelation": null, "conditions": null } },
-      "downgrade":   { "target": "SINGLE", "reevaluateOnReturn": false, "dailyEnabled": false, "conditions": [] }
+      "eligibility": { "...": "..." },
+      "validity":    { "...": "..." },
+      "downgrade":   { "...": "..." }
     },
     "pendingDraft": {
       "tierUniqueId": "ut-977-002",
@@ -310,6 +381,8 @@ Body: `ResponseWrapper<TierEnvelope>` (same envelope shape as list — one eleme
   "warnings": null
 }
 ```
+
+> **Edit-of-LIVE flatten:** the root carries the **LIVE** fields (`name = "Gold"`, `threshold = 5000`) because LIVE is the visible side for customers. The in-flight DRAFT edit (`name = "Gold (revised)"`, `threshold = 4500`) is surfaced via the `pendingDraft` block and `hasPendingDraft = true`. The UI's edit-of-LIVE screen should render the form from the `pendingDraft` block when `hasPendingDraft` is true — the root reflects what customers currently see.
 
 ### Response — Error Cases
 
@@ -1282,7 +1355,9 @@ DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ### 6.11 `TierEnvelope` + `TierView` — the read shape
 
-See §5.1 for the envelope model and the six scenarios. `TierView` is the flattened per-side payload inside `live` / `pendingDraft`. Class-level `@JsonInclude(NON_NULL)` on both.
+See §5.1 for the envelope model and the six scenarios. `TierView` is the per-side payload inside `live` / `pendingDraft`; the envelope **hoists the visible-side `TierView` fields onto its root** and carries a `status` discriminator ("LIVE" or "DRAFT" — see §5.1 "Envelope flatten"). Class-level `@JsonInclude(NON_NULL)` on both.
+
+The root-level fields (`name`, `description`, `color`, `serialNumber`, `tierStartDate`, `eligibility`, `validity`, `downgrade`, `rejectionComment`, `meta`, `tierUniqueId`) are **computed getters** on `TierEnvelope.java` — they read through to the visible-side `TierView` on serialisation. UI should use them as the primary read path; the `live` / `pendingDraft` blocks remain populated as forward-compat placeholders.
 
 **`TierView` differs from `UnifiedTierConfig` in these ways:**
 
