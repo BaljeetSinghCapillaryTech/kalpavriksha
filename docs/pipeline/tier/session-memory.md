@@ -1261,3 +1261,33 @@ Upgraded from "APPROVED WITH WARNINGS" to **APPROVED** after both warnings close
 - [ ] R13 / P11-6a-1: Staging access-log scan for legacy codes 9001-9010 consumers
 
 **Rework #6a Cycle 1 — CLOSED** on 2026-04-23. Proceeding to Phase 12 Blueprint.
+
+---
+
+## Phase 12: Blueprint — Rework #6a Cycle 1 Closure (2026-04-23)
+
+**Scope decision (C6):** Produced a **focused closure blueprint** (`rework-6a-cycle-1-closure.html`, 29.7 KB, 592 lines) rather than regenerating the full `tiers-crud-blueprint.html`. Rationale: Rework #6a is a cycle-based rework on a completed pipeline; the original stakeholder-facing blueprint already exists and remains valid for the feature-level view. The closure blueprint captures the delta — what Phase 11 Cycle 1 changed and why — so stakeholders reviewing the rework don't have to re-read the full-run blueprint.
+
+### Closure blueprint structure
+
+1. **Header** — Rework #6a Cycle 1 identifier, ticket, final verdict (APPROVED), date
+2. **Executive summary** — one-paragraph outcome: R11-1 + R11-2 resolved, both at C7 evidence
+3. **R11-1 (api-handoff docs fix)** — 7 misattribution locations corrected, 3 correct references preserved, evidence-backed diff summary
+4. **R11-2 (@JsonIgnoreProperties + BT-197b)** — decision rationale (write-narrow hardening, environment-drift defence), tier-scoped annotation approach (not global property toggle), regression probe BT-197b (POST + PUT variants with negative controls)
+5. **Evidence register** — confidence levels per claim, primary sources cited (file:line, test output, mvn verify)
+6. **Pre-merge gate status** — closed items (R11-1, R11-2) vs deferred items (P3/W1, P4/W2, P5/I1) with clear routing
+7. **Pre-deploy gate** — R13/P11-6a-1 staging access-log scan task
+8. **Rework artifact map** — links to the 9 pipeline artifacts touched during Cycle 1 (07-reviewer.md, api-handoff.md, session-memory.md, pipeline-state.json + 4 code files in intouch-api-v3 + 1 new test file)
+9. **Final verdict** — APPROVED with evidence trail
+
+### Full pipeline stats (tier feature, original fresh run + Rework #6a Cycle 1)
+
+- **Phases completed**: 13/13 (original run) + Rework Cycle 1 closed
+- **Artifacts generated (tier/)**: ~35 .md files + 3 HTML (live dashboard, api-handoff-docs, tiers-crud-blueprint) + 1 rework closure HTML
+- **Code files modified (intouch-api-v3)**: 4 production (TargetGroupErrorAdvice, TierController, TierUpdateRequest, TierEnumValidation) + 2 test (TierCreateRequestValidatorTest, TierUpdateRequestValidatorTest)
+- **Rework cycles**: 1 (Cycle 1 / Rework #6a, R11-1 + R11-2)
+- **Blockers resolved**: 2 at C7 (R11-1 C7 after codebase evidence scan; R11-2 C7 after annotation commit + regression tests GREEN)
+
+### Final git tag
+
+`aidlc/raidlc-ai_tier/phase-12` — Rework #6a Cycle 1 closure blueprint committed.

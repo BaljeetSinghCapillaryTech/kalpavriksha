@@ -167,10 +167,11 @@
     },
     "12": {
       "status": "complete",
-      "completed_at": "2026-04-12T14:30:00Z",
+      "completed_at": "2026-04-23T01:25:00Z",
       "artifacts": [
-        "tiers-crud-blueprint.html"
-      ]
+        "rework-6a-cycle-1-closure.html"
+      ],
+      "note": "Rework #6a Cycle 1 closure blueprint \u2014 focused HTML summary of R11-1 docs fix + R11-2 @JsonIgnoreProperties/BT-197b resolution. Not a full pipeline blueprint regeneration (tiers-crud-blueprint.html already exists from the original fresh run)."
     }
   },
   "git_branches": {
@@ -191,7 +192,9 @@
       "feature_branch": "raidlc/ai_tier"
     }
   },
-  "git_tags": [],
+  "git_tags": [
+    "aidlc/raidlc-ai_tier/phase-12"
+  ],
   "lsp_enabled": true,
   "lsp_note": "jdtls 1.57.0 running via /tmp/emf-parent symlink (Java 23). Patched find_daemon_for_cwd for symlink resolution.",
   "lsp_symlink": "/tmp/emf-parent",

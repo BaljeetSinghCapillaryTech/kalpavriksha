@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rework #6a Cycle 1 — Closure Blueprint</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e; --bg2: #16213e; --card: #1e2a45; --sidebar-bg: #0f1629;
+    --text: #e0e0e0; --muted: #6b7280; --accent: #00d4ff; --success: #10b981;
+    --warning: #f59e0b; --danger: #ef4444; --border: #2a3a5c;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; line-height: 1.6; }
+  .sidebar { width: 260px; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 24px 16px; position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; z-index: 10; }
+  .sidebar h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 20px; }
+  .sidebar a { display: block; padding: 6px 12px; margin: 2px 0; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 13px; }
+  .sidebar a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .main { margin-left: 260px; flex: 1; padding: 40px 48px; max-width: 960px; }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h2 { font-size: 20px; margin: 32px 0 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 15px; margin: 20px 0 8px; color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(42,58,92,0.5); color: #a0a0b0; vertical-align: top; }
+  code { background: #0d1117; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--accent); }
+  pre { background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid var(--border); overflow-x: auto; font-size: 12px; color: #d0d0e0; margin: 8px 0; }
+  .badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.pass { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .badge.closed { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .badge.open { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .badge.warn { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .badge.danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+  .badge.info { background: rgba(96,165,250,0.15); color: #93c5fd; border: 1px solid rgba(96,165,250,0.3); }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat .num { font-size: 28px; font-weight: 800; color: var(--accent); }
+  .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .mermaid { display: flex; justify-content: center; margin: 16px 0; }
+  .diagram { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; overflow-x: auto; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  .evidence { color: var(--muted); font-size: 12px; font-style: italic; }
+  .closure-banner { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(0,212,255,0.08)); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .closure-banner h3 { color: #34d399; margin: 0 0 8px 0; }
+  ul { margin-left: 20px; margin-bottom: 8px; }
+  li { margin: 4px 0; color: #a0a0b0; font-size: 13px; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h2>Rework #6a · Cycle 1</h2>
+  <a href="#overview">Overview</a>
+  <a href="#stats">Cycle Stats</a>
+  <a href="#scope">Scope &amp; Non-scope</a>
+  <a href="#contract">Contract Changes</a>
+  <a href="#error-codes">Error Codes 9011–9018</a>
+  <a href="#scan-order">Scan Order</a>
+  <a href="#write-read">Write-narrow / Read-wide</a>
+  <a href="#phase-11">Phase 11 Closure</a>
+  <a href="#r11-1">R11-1 Resolution</a>
+  <a href="#r11-2">R11-2 Resolution</a>
+  <a href="#verification">Verification</a>
+  <a href="#gates">Remaining Gates</a>
+  <a href="#files">Files Changed</a>
+  <a href="#artifacts">Artifacts</a>
+</nav>
+
+<main class="main">
+
+<h1>Rework #6a Cycle 1 &mdash; Closure Blueprint</h1>
+<p style="color:var(--muted); margin-bottom: 24px;">
+  Ticket: <code>raidlc/ai_tier</code> &middot; Pipeline: feature-pipeline v1.0 &middot;
+  Rework start: 2026-04-22 &middot; Closure: 2026-04-23
+</p>
+
+<div class="closure-banner">
+  <h3>✅ Rework #6a Cycle 1 — CLOSED</h3>
+  <p style="margin: 0; font-size: 14px;">
+    Phase 11 final verdict: <strong>APPROVED</strong> (upgraded from APPROVED WITH WARNINGS
+    after R11-1 docs correction + R11-2 tier-scoped hardening + BT-197b empirical probe).
+    All forward-cascade phases re-run: 2 → 4 → 6 → 6a → 7 → 8 → 8b → 9 → 10 → 10b → 10c → 11.
+    Phases 3 (UI) and 5 (Research) skipped — no new screens or repos.
+    Phase 10d skipped — no schema changes in scope.
+  </p>
+</div>
+
+<section id="overview">
+<h2>Overview</h2>
+<div class="card">
+<p>
+  Rework #6a is a <strong>contract-hardening</strong> cycle — not a feature change.
+  Zero schema changes, zero Thrift changes, zero engine changes. The work converts
+  silent Jackson-drop and permissive-field-accept behaviour on the tier write path
+  into a deterministic, traceable <strong>pre-binding rejection contract</strong> with
+  8 dedicated error codes (9011–9018) and an asymmetric read/write envelope.
+</p>
+<p style="margin-top:8px;">
+  <strong>Motivation:</strong> The UI team's v3 tier integration exposed that the existing
+  v3.1 validator silently accepted ignored fields (e.g. legacy <code>downgrade</code>
+  objects from v2 round-trips) and used opaque generic 400s when rejecting. The new
+  contract surfaces precise error codes, rejects pre-binding (before Jackson sees the
+  payload), and documents the write-narrow / read-wide asymmetry.
+</p>
+<p style="margin-top:8px; color:var(--muted); font-size: 13px;">
+  Primary repo: <code>intouch-api-v3</code> (branch <code>common-sprint-73</code>).
+  Orchestrator: <code>kalpavriksha</code> (branch <code>raidlc/ai_tier</code>).
+</p>
+</div>
+</section>
+
+<section id="stats">
+<h2>Cycle Stats</h2>
+<div class="stat-grid">
+  <div class="stat"><div class="num">8</div><div class="label">New Error Codes (9011–9018)</div></div>
+  <div class="stat"><div class="num">5</div><div class="label">New ADRs (17R–21R)</div></div>
+  <div class="stat"><div class="num">354/354</div><div class="label">Tier Tests GREEN</div></div>
+  <div class="stat"><div class="num">2→0</div><div class="label">Phase 11 Warnings Resolved</div></div>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="num">4</div><div class="label">New BT-197b Tests</div></div>
+  <div class="stat"><div class="num">1</div><div class="label">Rework Cycle (Phase 10b)</div></div>
+  <div class="stat"><div class="num">11</div><div class="label">Phases Re-run</div></div>
+  <div class="stat"><div class="num">0</div><div class="label">Schema / Thrift / Engine Changes</div></div>
+</div>
+</section>
+
+<section id="scope">
+<h2>Scope &amp; Non-scope</h2>
+
+<h3>In Scope</h3>
+<ul>
+  <li>Contract rename: legacy <code>downgrade</code> block removed from write DTOs</li>
+  <li>8 new error codes 9011–9018 with deterministic scan ordering</li>
+  <li>Pre-binding recursive scanners for Class A (program-level orchestration flags) and Class B (schedule/nudges/notificationConfig)</li>
+  <li>Wire contract: <code>[9011]</code> bracket-prefix → <code>errors[0].code</code> numeric via <code>TargetGroupErrorAdvice</code> regex extractor</li>
+  <li>Asymmetric envelope: write-narrow request DTOs, read-wide response from engine</li>
+  <li>Tier-scoped Jackson strict-mode via <code>@JsonIgnoreProperties(ignoreUnknown = false)</code> (Phase 11 R11-2 (b+c))</li>
+</ul>
+
+<h3>Explicitly Out of Scope</h3>
+<ul>
+  <li>❌ Database schema changes</li>
+  <li>❌ Thrift IDL or protocol changes</li>
+  <li>❌ Engine-side tier/slab strategy changes</li>
+  <li>❌ Global <code>ObjectMapper</code> bean hardening (risk to 35+ opt-out DTOs)</li>
+  <li>❌ Benefits / subscriptions / program-level rework</li>
+</ul>
+</section>
+
+<section id="contract">
+<h2>Contract Changes</h2>
+
+<h3>Write DTO shape (before → after)</h3>
+<div class="diagram">
+<div class="mermaid">
+graph LR
+  B[v3.1 TierCreateRequest<br/>pre-Rework #6a<br/>&bull; downgrade: TierDowngradeConfig<br/>&bull; lenient Jackson<br/>&bull; silent field-drop]
+  A[v3.2 TierCreateRequest<br/>Rework #6a Cycle 1<br/>&bull; downgrade REMOVED<br/>&bull; @JsonIgnoreProperties<br/>&nbsp;&nbsp;&nbsp;ignoreUnknown=false<br/>&bull; 5 pre-binding scans]
+  B -.→|Rework #6a| A
+  style B fill:#2a1a2e,stroke:#f87171,color:#e0e0e0
+  style A fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+</div>
+</div>
+
+<h3>Request DTOs now type-level strict</h3>
+<pre>@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = false)    ← NEW (Phase 11 R11-2 b)
+public class TierCreateRequest {
+    @NotNull private Integer programId;
+    private String name, description, color;
+    @Valid private TierEligibilityConfig eligibility;
+    @Valid private TierValidityConfig validity;
+    // downgrade block removed (Rework #6a, Q11 hard-flip)
+}</pre>
+<p class="evidence">
+  Evidence: <code>TierCreateRequest.java:22–36</code>, <code>TierUpdateRequest.java:18–28</code>.
+</p>
+</section>
+
+<section id="error-codes">
+<h2>Error Codes 9011–9018</h2>
+<table>
+  <thead>
+    <tr><th>Code</th><th>Scope</th><th>Trigger</th><th>Stage</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>9011</code></td><td>Class A program-level field</td><td>Any of 8 orchestration keys at any nesting: <code>isActive</code>, <code>reminders</code>, <code>downgradeConfirmation</code>, <code>renewalConfirmation</code>, <code>retainPoints</code>, <code>dailyDowngradeEnabled</code>, <code>isDowngradeOnReturnEnabled</code>, <code>isDowngradeOnPartnerProgramExpiryEnabled</code></td><td>Pre-binding, recursive</td></tr>
+    <tr><td><code>9012</code></td><td>Class B schedule family</td><td>Root-level <code>schedule</code>, <code>nudges</code>, or <code>notificationConfig</code></td><td>Pre-binding, root-level</td></tr>
+    <tr><td><code>9013</code></td><td><code>eligibilityCriteriaType</code> on write</td><td>Key present at any nesting</td><td>Pre-binding, recursive</td></tr>
+    <tr><td><code>9014</code></td><td><code>startDate</code> on SLAB_UPGRADE family</td><td><code>periodType ∈ {SLAB_UPGRADE, SLAB_UPGRADE_CYCLIC}</code> AND <code>startDate</code> non-null</td><td>Post-binding</td></tr>
+    <tr><td><code>9015</code></td><td>String <code>"-1"</code> sentinel</td><td><code>programId</code>, <code>periodValue</code>, <code>threshold</code> = text <code>"-1"</code></td><td>Pre-binding, recursive</td></tr>
+    <tr><td><code>9016</code></td><td>Numeric <code>-1</code> sentinel</td><td>Same keys as 9015, numeric <code>-1</code>; fires BEFORE 9018</td><td>Pre-binding, recursive</td></tr>
+    <tr><td><code>9017</code></td><td>Renewal criteria drift</td><td><code>renewal.criteriaType</code> non-null AND ≠ <code>"Same as eligibility"</code></td><td>Post-binding</td></tr>
+    <tr><td><code>9018</code></td><td>FIXED-family missing positive <code>periodValue</code></td><td><code>periodType ∈ {FIXED, FIXED_CUSTOMER_REGISTRATION}</code> AND (<code>periodValue</code> null OR ≤ 0)</td><td>Post-binding</td></tr>
+  </tbody>
+</table>
+<p class="evidence">
+  Evidence: <code>TierEnumValidation.java:176–199</code> constants; 8 throw sites at
+  L244, L270, L296, L323, L351, L385, L421, L447 — all prefix <code>"[9011]"</code>–<code>"[9018]"</code>
+  stripped by <code>TargetGroupErrorAdvice.java:81–101</code> regex extractor.
+</p>
+</section>
+
+<section id="scan-order">
+<h2>Scan Order</h2>
+<div class="diagram">
+<div class="mermaid">
+flowchart LR
+  A[JsonNode rawBody]
+  A --> B[Class A scan<br/>9011]
+  B --> C[Class B scan<br/>9012]
+  C --> D[eligibilityCriteriaType<br/>9013]
+  D --> E[String -1 sentinel<br/>9015]
+  E --> F[Numeric -1 sentinel<br/>9016]
+  F --> G[Jackson treeToValue]
+  G --> H[startDate SLAB_UPGRADE<br/>9014]
+  H --> I[FIXED + periodValue<br/>9018]
+  I --> J[BT-62 endDate ordering]
+  J --> K[Renewal criteriaType<br/>9017]
+  K --> L[Accept]
+
+  style B fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+  style C fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+  style D fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+  style E fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+  style F fill:#1e3a2a,stroke:#34d399,color:#e0e0e0
+  style G fill:#1a2a45,stroke:#60a5fa,color:#e0e0e0
+  style H fill:#2a2a1e,stroke:#fbbf24,color:#e0e0e0
+  style I fill:#2a2a1e,stroke:#fbbf24,color:#e0e0e0
+  style J fill:#2a2a1e,stroke:#fbbf24,color:#e0e0e0
+  style K fill:#2a2a1e,stroke:#fbbf24,color:#e0e0e0
+  style L fill:#0d1117,stroke:#9ca3af,color:#e0e0e0
+</div>
+</div>
+<p class="evidence">
+  Evidence: <code>TierCreateRequestValidator.java:65–93</code>, mirrored in
+  <code>TierUpdateRequestValidator.java:42–66</code>.
+</p>
+<p>
+  <strong>Precedence:</strong> Class A wins over sentinel on combined payload (Class A scans first).
+  Numeric <code>-1</code> (9016) fires before FIXED-family positive guard (9018) — so
+  <code>periodValue: -1</code> surfaces as 9016, not 9018.
+</p>
+</section>
+
+<section id="write-read">
+<h2>Write-narrow / Read-wide Asymmetry (ADR-21R)</h2>
+<table>
+  <thead>
+    <tr><th>Field</th><th>POST / PUT (write)</th><th>GET (read)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>downgrade</code><br/>(TierDowngradeConfig)</td>
+      <td>
+        <span class="badge danger">Rejected</span><br/>
+        Jackson strict-mode via <code>@JsonIgnoreProperties(ignoreUnknown = false)</code><br/>
+        → generic HTTP 400 (<strong>NOT 9011</strong>; <code>downgrade</code> is NOT in
+        CLASS_A_CANONICAL_KEYS)<br/>
+        Nested Class A keys inside a <code>downgrade</code> object would trigger 9011
+        via the recursive scanner.
+      </td>
+      <td>
+        <span class="badge pass">Present</span><br/>
+        Derived from engine strategies at APPROVE time, surfaced via
+        <code>TierStrategyTransformer</code>.
+      </td>
+    </tr>
+    <tr>
+      <td><code>eligibilityCriteriaType</code></td>
+      <td><span class="badge danger">Rejected</span> code <code>9013</code></td>
+      <td>May be present on legacy SQL-origin reads.</td>
+    </tr>
+    <tr>
+      <td><code>validity.startDate</code> for SLAB_UPGRADE family</td>
+      <td><span class="badge danger">Rejected</span> code <code>9014</code></td>
+      <td>May be present on FIXED-family reads only.</td>
+    </tr>
+    <tr>
+      <td>Class A orchestration flags<br/>(reminders, retainPoints, isDowngradeOnReturnEnabled, etc.)</td>
+      <td><span class="badge danger">Rejected</span> code <code>9011</code></td>
+      <td>Not on TierView — live at EngineConfig / program level.</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  <strong>Rationale:</strong> Tier-scoped writes must not carry program-level orchestration
+  flags or engine-derived state. The engine owns downgrade behaviour. Read responses
+  remain wide so the UI's existing render code (which expects the full envelope) stays
+  unchanged.
+</p>
+</section>
+
+<section id="phase-11">
+<h2>Phase 11 Closure</h2>
+<div class="card">
+<p>
+  Phase 11 Reviewer returned <strong>APPROVED WITH WARNINGS</strong> — 2 non-blocking
+  warnings. Trust-but-verify on R11-1 escalated the impact from 4 → 7 affected
+  locations. Both warnings closed on the same day.
+</p>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Severity</th><th>Summary</th><th>Resolution</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>R11-1</code></td>
+      <td><span class="badge warn">WARNING</span></td>
+      <td>api-handoff.md misattributes <code>downgrade</code> rejection to code 9011 (actually Jackson strict-mode)</td>
+      <td>User: <code>[M] Manual</code> — docs-only edit, 7 locations</td>
+      <td><span class="badge closed">CLOSED C7</span></td>
+    </tr>
+    <tr>
+      <td><code>R11-2</code></td>
+      <td><span class="badge warn">WARNING</span></td>
+      <td>ADR-20R strict-mode guarantee depends on unverified global <code>ObjectMapper</code> behaviour</td>
+      <td>User: <code>Q11-1 = (b+c)</code> — tier-scoped <code>@JsonIgnoreProperties</code> + BT-197b</td>
+      <td><span class="badge closed">CLOSED C7</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section id="r11-1">
+<h2>R11-1 Resolution — Docs Fix</h2>
+
+<h3>Problem</h3>
+<p>
+  7 locations in <code>api-handoff.md</code> claimed that sending <code>downgrade</code> on
+  the tier write path returns error code <strong>9011</strong>. This is false:
+  <code>CLASS_A_CANONICAL_KEYS</code> at <code>TierEnumValidation.java:190–199</code> contains
+  exactly 8 orchestration keys; <code>downgrade</code> is <strong>not</strong> among them.
+  The actual rejection mechanism is Jackson's strict-mode
+  <code>UnrecognizedPropertyException</code> → generic HTTP 400.
+</p>
+<p>
+  The Reviewer initially identified 4 locations. Trust-but-verify via grep found 7 actual
+  misattributions plus 3 correctly-attributed references.
+</p>
+
+<h3>Lines Corrected</h3>
+<table>
+  <thead>
+    <tr><th>#</th><th>Line</th><th>Section</th><th>Fix</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>L361</td><td>§5.3 write-narrow callout</td><td>Attribute rejection to Jackson strict-mode; clarify nested-Class-A 9011 nuance</td></tr>
+    <tr><td>2</td><td>L389</td><td>§5.3 evidence footer</td><td>List the 8 actual Class A keys; explicitly state <code>downgrade</code> not in set</td></tr>
+    <tr><td>3</td><td>L409</td><td>§5.3 field-validation table</td><td>Split into 2 rows (bare <code>downgrade</code> vs nested Class A)</td></tr>
+    <tr><td>4</td><td>L527</td><td>§5.3 scanner table</td><td>Clarifying note on bare-vs-nested rejection path</td></tr>
+    <tr><td>5</td><td>L570</td><td>§5.4 PUT body narrative</td><td>Corrected PUT-parity mechanism description</td></tr>
+    <tr><td>6</td><td>L1205</td><td>§6.7 TierDowngradeConfig</td><td>Two-layer rejection model documented</td></tr>
+    <tr><td>7</td><td>L1495</td><td>§10.19 asymmetry table</td><td><code>downgrade</code> row: Jackson 400</td></tr>
+    <tr><td>8</td><td>L1506</td><td>§10.19 round-trip warning</td><td>Fixed round-trip guidance with nested-flag caveat</td></tr>
+  </tbody>
+</table>
+
+<h3>Preserved (correctly attributed)</h3>
+<ul>
+  <li>L547 — JSON error body example with <code>dailyDowngradeEnabled → 9011</code> (that key IS a Class A orchestration flag)</li>
+  <li>L1441 — bracket-prefix extraction example</li>
+  <li>L1499 — "Class A program-level keys" asymmetry table row</li>
+</ul>
+</section>
+
+<section id="r11-2">
+<h2>R11-2 Resolution — Tier-scoped Jackson Hardening + BT-197b</h2>
+
+<h3>Problem</h3>
+<p>
+  ADR-20R's write-narrow pre-binding scan contract relies on Jackson rejecting unknown
+  keys (i.e. unclassified-but-unwanted fields) via <code>FAIL_ON_UNKNOWN_PROPERTIES</code>.
+  The <code>@Bean ObjectMapper</code> in <code>IntouchApiV3Application</code> does not
+  explicitly configure this — it relies on Jackson's native default (<code>true</code>),
+  which Spring Boot's global property <code>spring.jackson.deserialization.fail-on-unknown-properties</code>
+  can override. If anyone flips this property (or refactors to use
+  <code>Jackson2ObjectMapperBuilder</code>), the write-narrow guarantee silently breaks
+  for any key not covered by the pre-binding scanners.
+</p>
+
+<h3>Resolution: (b) Tier-scoped annotation</h3>
+<p>
+  Option (b) + (c) chosen over (a) (global hardening) to avoid blast-radius on 35+ DTOs
+  that opt out of strict-mode intentionally. Tier-scoped annotation cannot be overridden
+  by the global property.
+</p>
+<table>
+  <thead>
+    <tr><th>File</th><th>Change</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>TierCreateRequest.java</code></td>
+      <td>+ <code>import com.fasterxml.jackson.annotation.JsonIgnoreProperties;</code><br/>+ type-level <code>@JsonIgnoreProperties(ignoreUnknown = false)</code></td>
+    </tr>
+    <tr>
+      <td><code>TierUpdateRequest.java</code></td>
+      <td>Same annotation + Javadoc extension documenting Phase 11 R11-2 (b+c) rationale</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Resolution: (c) BT-197b — 4 new empirical tests</h3>
+<table>
+  <thead>
+    <tr><th>Test ID</th><th>File</th><th>Method</th><th>Assertion</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BT-197b (POST)</td>
+      <td><code>TierCreateRequestValidatorTest.java</code></td>
+      <td><code>shouldRejectLegacyDowngradeBlockAtJacksonBindingLayer</code></td>
+      <td><code>treeToValue({...,"downgrade":{...}}, TierCreateRequest.class)</code> throws <code>UnrecognizedPropertyException</code>; <code>ex.getPropertyName() == "downgrade"</code></td>
+    </tr>
+    <tr>
+      <td>BT-197b-control (POST)</td>
+      <td>same</td>
+      <td><code>shouldAcceptKnownFieldsAtJacksonBindingLayer</code></td>
+      <td>Happy-path: well-formed payload binds without error</td>
+    </tr>
+    <tr>
+      <td>BT-197b (PUT)</td>
+      <td><code>TierUpdateRequestValidatorTest.java</code></td>
+      <td><code>shouldRejectLegacyDowngradeBlockAtJacksonBindingLayerOnPut</code></td>
+      <td>Same assertion on PUT partial-update DTO</td>
+    </tr>
+    <tr>
+      <td>BT-197b-control (PUT)</td>
+      <td>same</td>
+      <td><code>shouldAcceptKnownFieldsAtJacksonBindingLayerOnPut</code></td>
+      <td>Happy-path partial PUT binds cleanly</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  BT-197b targets the <strong>Jackson binding layer</strong> (the annotation); BT-197
+  (pre-existing) targets the <strong>validator layer</strong> (the scanner's negative control).
+  Together they pin the contract from both directions — the <code>getPropertyName()</code>
+  assertion guards against the test passing for the wrong reason.
+</p>
+</section>
+
+<section id="verification">
+<h2>Verification Evidence</h2>
+<pre>JAVA_HOME=~/.sdkman/candidates/java/17.0.17-amzn mvn test \
+  -f intouch-api-v3/pom.xml \
+  -Dtest='TierCreateRequestValidatorTest,TierUpdateRequestValidatorTest'
+
+  → TierCreateRequestValidatorTest: 30 tests, 0 failures, 0 errors (was 28, +2 BT-197b)
+  → TierUpdateRequestValidatorTest:  7 tests, 0 failures, 0 errors (was 5, +2 BT-197b)
+  Total: 37 PASS  BUILD SUCCESS
+
+Regression sweep:
+  mvn test -Dtest='com.capillary.intouchapiv3.tier.**'
+  → 354 tests, 0 failures, 0 errors, 0 skipped  BUILD SUCCESS
+  → no regression from the annotation across tier package.</pre>
+</section>
+
+<section id="gates">
+<h2>Remaining Gates</h2>
+
+<h3>Pre-merge CI gates</h3>
+<table>
+  <thead>
+    <tr><th>Gate</th><th>Severity</th><th>Blocker?</th><th>Owner</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>P3 / W1: <code>TierControllerIntegrationTest</code> GREEN in Docker-capable CI</td>
+      <td><span class="badge warn">WARNING</span></td>
+      <td>Yes — merge blocker</td>
+      <td>CI pipeline</td>
+    </tr>
+    <tr>
+      <td>P4 / W2: Date-format consistency on read path</td>
+      <td><span class="badge warn">WARNING</span></td>
+      <td>No — non-blocking</td>
+      <td>Review at merge time</td>
+    </tr>
+    <tr>
+      <td>P5 / I1: Scanner performance guard on large payloads</td>
+      <td><span class="badge info">INFO</span></td>
+      <td>Post-merge acceptable</td>
+      <td>Future hardening cycle</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Pre-deploy gate</h3>
+<table>
+  <thead>
+    <tr><th>Gate</th><th>Severity</th><th>Blocker?</th><th>Owner</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>R13 / P11-6a-1: Staging access-log scan for legacy codes 9001–9010 consumers</td>
+      <td><span class="badge warn">WARNING</span></td>
+      <td>Pre-deploy gate</td>
+      <td>SRE / deployment</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section id="files">
+<h2>Files Changed (Phase 11 Closure Commit)</h2>
+<div class="card">
+<h3>Code repo: <code>intouch-api-v3</code> (branch <code>common-sprint-73</code>)</h3>
+<p><strong>Commit:</strong> <code>d510ec0c8</code></p>
+<ul>
+  <li><code>src/main/java/.../tier/dto/TierCreateRequest.java</code> — annotation + Javadoc</li>
+  <li><code>src/main/java/.../tier/dto/TierUpdateRequest.java</code> — annotation + Javadoc</li>
+  <li><code>src/test/java/.../tier/validation/TierCreateRequestValidatorTest.java</code> — new, +30 tests (includes +2 BT-197b)</li>
+  <li><code>src/test/java/.../tier/validation/TierUpdateRequestValidatorTest.java</code> — new, +7 tests (includes +2 BT-197b)</li>
+</ul>
+<p class="evidence">4 files changed, 749 insertions(+), 2 deletions(−).</p>
+
+<h3>Orchestrator repo: <code>kalpavriksha</code> (branch <code>raidlc/ai_tier</code>)</h3>
+<p><strong>Commit:</strong> <code>69d76ef</code> &middot; Tag: <code>aidlc/raidlc-ai_tier/phase-11</code></p>
+<ul>
+  <li><code>docs/pipeline/tier/07-reviewer.md</code> — Phase 11 closure section appended</li>
+  <li><code>docs/pipeline/tier/api-handoff.md</code> — 7 misattributions corrected</li>
+  <li><code>docs/pipeline/tier/session-memory.md</code> — Rework #6a Phase 11 CLOSURE block</li>
+  <li><code>docs/pipeline/tier/pipeline-state.json</code> — <code>rework_cycles[4].phase_11_closure</code> + <code>resolved: true</code></li>
+</ul>
+<p class="evidence">4 files changed, 2,892 insertions(+), 325 deletions(−).</p>
+</div>
+</section>
+
+<section id="artifacts">
+<h2>Artifacts</h2>
+<div class="card">
+<table>
+  <thead>
+    <tr><th>Artifact</th><th>Role</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>00-ba.md</code> / <code>00-ba-machine.md</code></td><td>Business Analysis (Rework #6a re-run)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>00-prd.md</code> / <code>00-prd-machine.md</code></td><td>PRD (merged into BA)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>contradictions.md</code></td><td>Critic findings (Phase 2)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>01-architect.md</code></td><td>HLD — 5 new ADRs 17R–21R</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>02-analyst.md</code></td><td>Impact Analysis (Phase 6a)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>03-designer.md</code></td><td>LLD — interface contracts</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>04-qa.md</code></td><td>QA scenarios</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>04b-business-tests.md</code></td><td>BT-190..BT-223 + BT-197b</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>05-sdet.md</code></td><td>SDET — RED confirmation</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>06-developer.md</code></td><td>Developer — GREEN + Cycle 1 rework</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>backend-readiness.md</code></td><td>Phase 10b — READY WITH WARNINGS</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>06b-gap-analysis.md</code></td><td>Phase 10c — COMPLIANT WITH FINDINGS</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>07-reviewer.md</code></td><td>Phase 11 — APPROVED</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>api-handoff.md</code></td><td>UI team API contract doc (R11-1 corrected)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>session-memory.md</code></td><td>Cross-phase shared context (closure appended)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>pipeline-state.json</code></td><td>Run state (<code>rework_cycles[4].resolved = true</code>)</td><td><span class="badge pass">Complete</span></td></tr>
+    <tr><td><code>tiers-crud-blueprint.html</code></td><td>Original pipeline blueprint (pre-#6a)</td><td><span class="badge info">Reference</span></td></tr>
+    <tr><td><code>rework-6a-cycle-1-closure.html</code></td><td>This document</td><td><span class="badge closed">Current</span></td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<hr/>
+
+<p style="color:var(--muted); font-size: 12px; text-align: center;">
+  Generated by feature-pipeline Phase 12 · 2026-04-23 · Rework #6a Cycle 1 CLOSED
+</p>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2a45',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#2a3a5c',
+      lineColor: '#6b7280',
+      secondaryColor: '#16213e',
+      tertiaryColor: '#0f1629'
+    }
+  });
+</script>
+
+</body>
+</html>
