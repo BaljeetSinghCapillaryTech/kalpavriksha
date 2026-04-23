@@ -1307,28 +1307,35 @@ DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 ---
 
-### 6.5 `TierValidityConfig` on write — `renewal` on GET
+### 6.5 `TierValidityConfig` on write — flattened `renewal` view on GET
 
-> **Q27 wire rename (2026-04-23):** on **GET** responses this block is emitted as **`renewal`** at the tier-entry root (not `validity`). The Java class is still `TierValidityConfig` — only the JSON key differs between write and read. The nested `renewal` sub-block inside this config is **dropped from the wire** on GET (see §6.6).
+> **Q27 wire rename (2026-04-23) + Rework #7 Commit 2 flatten (2026-04-23):** on **GET** responses this block is emitted as **`renewal`** at the tier-entry root (not `validity`). On write, clients continue to send it nested under `validity`. The GET read shape is a **flat** `TierRenewalView` that merges the period fields (from `TierValidityConfig`) and the renewal-trigger fields (from the nested `TierRenewalConfig`) into one block — no `renewal.renewal` nesting.
 
-**On write (POST/PUT):** clients still send the block under the key **`validity`** inside the request body.
+**On write (POST/PUT):** clients send the block under the key **`validity`** with the nested `renewal` sub-object (unchanged).
 
-**On read (GET):** the same fields are emitted under the key **`renewal`** at the tier-entry root, and the nested `renewal` sub-object is suppressed.
+**On read (GET):** a single flat **`renewal`** block at the tier-entry root carries everything — period config, `criteriaType`, and Rework #7 renewal-trigger fields (`downgradeTo`, `shouldDowngrade`, `expressionRelation`, `conditions[]`).
 
 ```json
-// GET read-side shape (on a TierEntry)
+// GET read-side shape (on a TierEntry) — Rework #7 Commit 2 flattened view
 {
   "renewal": {
-    "periodType":  "FIXED",
+    "periodType": "FIXED",
     "periodValue": 12,
-    "startDate":   "2026-04-21T00:00:00+00:00",
-    "endDate":     null
+    "criteriaType": "Same as eligibility",
+    "downgradeTo": "SINGLE",
+    "shouldDowngrade": true,
+    "expressionRelation": "(PURCHASE AND VISITS) OR POINTS",
+    "conditions": [
+      { "type": "PURCHASE", "value": "2000" },
+      { "type": "VISITS",   "value": "3"    },
+      { "type": "POINTS",   "value": "1500" }
+    ]
   }
 }
 ```
 
 ```json
-// POST/PUT write-side shape (inside the request body, unchanged)
+// POST/PUT write-side shape (inside the request body, unchanged — nested)
 {
   "validity": {
     "periodType":  "FIXED",
@@ -1337,20 +1344,26 @@ DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
     "endDate":     null,
     "renewal":     {
       "criteriaType":       "Same as eligibility",
-      "expressionRelation": null,
-      "conditions":         null
+      "downgradeTo":        "SINGLE",
+      "shouldDowngrade":    true,
+      "expressionRelation": "(PURCHASE AND VISITS) OR POINTS",
+      "conditions":         [ ... ]
     }
   }
 }
 ```
 
-| Field | Type | Allowed Values |
-|---|---|---|
-| `periodType` | enum | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` — matches engine `TierDowngradePeriodConfig.PeriodType`. See semantics below. |
-| `periodValue` | `Integer` | Positive integer; units are **months** regardless of `periodType`. |
-| `startDate` | ISO-8601 | Validity period start. |
-| `endDate` | — | Always `null` on responses (see key rules). |
-| `renewal` *(nested — write only)* | `TierRenewalConfig` | See §6.6. Present on write, absent on the GET wire. |
+| Field | Type | Allowed Values | Wire visibility |
+|---|---|---|---|
+| `periodType` | enum | `FIXED`, `SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`, `FIXED_CUSTOMER_REGISTRATION` — matches engine `TierDowngradePeriodConfig.PeriodType`. See semantics below. | Write + GET |
+| `periodValue` | `Integer` | Positive integer; units are **months** regardless of `periodType`. | Write + GET |
+| `startDate` | ISO-8601 | Validity period start. | **Write only** — stripped on GET (available as `tierStartDate` at tier-entry root) |
+| `endDate` | — | Always `null` on responses (see key rules). | Never on GET (Decision V6) |
+| `criteriaType` | `String` | Locked to `"Same as eligibility"` (Q26 B1a). | Write (nested under `renewal`) + GET (flattened) |
+| `downgradeTo` | enum | `SINGLE`, `THRESHOLD`, `LOWEST`. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
+| `shouldDowngrade` | `Boolean` | Boxed — null omits field. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
+| `expressionRelation` | `String` (DNF) | DNF boolean — see §6.6. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
+| `conditions` | `TierCondition[]` | See §6.8 + §6.6. Rework #7 Commit 1. | Write (nested under `renewal`) + GET (flattened) |
 
 **periodType semantics:**
 - `FIXED` — validity lasts for `periodValue` months starting at `startDate`. The most common choice for a classic "expires after N months" tier.
@@ -1362,8 +1375,10 @@ DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED
 
 **Key rules:**
 - `endDate` is **always `null` on responses**. It is derived as `startDate + periodValue` if the UI needs it.
-- The nested **`renewal` sub-block is suppressed on GET** (Q27). On write, if the client omits it the server fills the default (`criteriaType = "Same as eligibility"`) before persistence. The default is still authoritative server-side but never reaches the wire.
+- On **GET**, the `renewal` block is a flat `TierRenewalView` (Rework #7 Commit 2). No `renewal.renewal` nesting — all fields surfaced at the same level.
+- On **write** (POST/PUT), the `renewal` sub-object stays nested under `validity`. If the client omits it, the server fills the default (`criteriaType = "Same as eligibility"`) before persistence.
 - **Slab 1 (base tier) has no validity block.** The engine treats slab 1 as the always-valid entry state, so `renewal` is absent on GET entries for it — don't mistake the absence for a drift.
+- **Precedence on GET** — when a renewal-trigger field could be sourced from either the Mongo-doc nested renewal (maker's POST intent) or the engine-derived `TierDowngradeSlabConfig` (LIVE tiers), the nested renewal wins. Engine is the fallback for LIVE entries where the nested renewal was synthesised with only the B1a default.
 
 ---
 
