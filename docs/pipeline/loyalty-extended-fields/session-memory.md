@@ -48,6 +48,8 @@
 - [C7] emf.thrift confirmed at `/Users/baljeetsingh/IdeaProjects/thrifts/thrift-ifaces-emf/emf.thrift` (1,883 lines). +~80 lines for 4 structs + 3 service methods. _(Analyst)_
 - [C7] Designer phase complete: compile-safe interfaces produced for all 12 new classes across 4 repos. Thrift IDL finalized (4 structs + 3 methods). `EFThriftException` added (extends `EMFThriftException` with `int statusCode`) because `EMFThriftException` only carries `String message` — insufficient for HTTP status code mapping in `LoyaltyExtendedFieldErrorAdvice`. `@Table(schema="warehouse")` confirmed for entity routing (not `@DataSourceSpecification` — that is service-level). `GenericDao<E,PK>` + `@Transactional(value="warehouse", propagation=SUPPORTS)` confirmed as DAO pattern. _(Designer)_
 - [C7] SDET phase complete: 5 test files written, 59 test methods covering BT-EF-01 through BT-EF-45. RED phase confirmed — tests will not compile until Phase 10 production code is written. Files: SubscriptionExtendedFieldsTest.java (updated, 366L), LoyaltyExtendedFieldServiceImplTest.java (new, 462L, emf-parent), ExtendedFieldValidatorTest.java (new, 373L), LoyaltyExtendedFieldControllerIT.java (new, 616L), SubscriptionEFValidationIT.java (new, 382L). JUnit 4 used in emf-parent; JUnit 5 in intouch-api-v3. _(SDET)_
+- [C7] Developer phase complete: 20 new production files written + 7 modified + 1 deleted across 4 repos. GREEN phase — all Phase 9 test compile dependencies satisfied. Repos: thrift-ifaces-emf (+4 structs +3 methods), cc-stack-crm (new schema SQL + seed row), emf-parent (LoyaltyExtendedFieldPK, LoyaltyExtendedField, LoyaltyExtendedFieldRepository, LoyaltyExtendedFieldService/Impl, ExceptionCodes 8001-8010, EMFThriftServiceImpl methods 58-60), intouch-api-v3 (EFThriftException, EmfExtendedFieldsThriftService, 10 extendedfields package classes, SubscriptionProgram/Facade/ErrorAdvice modified, ExtendedFieldType deleted). _(Developer)_
+- [C7] Reviewer phase complete (Phase 11): 2 blockers identified, 6 non-blocking findings. Build verification confirmed: compilation PASS, 13 unit tests PASS, 0 ITs. RTM: 27 requirements traced — 24 PASS, 1 FAIL, 1 PARTIAL. BLOCKER-R01: mandatory EF enforcement bypassed when extendedFields=null on subscription create (SubscriptionFacade.java:90 condition skips validator). BLOCKER-R02: extendedFields=[] on PUT fails R-03 mandatory check when mandatory configs exist — product intent ambiguity. _(Reviewer)_
 
 ---
 
@@ -123,12 +125,18 @@
 - [x] Validation caching → resolved: deferred; integrate based on usage (D-17) _(GQ-04)_
 - [x] Deactivation impact on existing values → resolved: existing values unaffected; new events validate against active only (D-18) _(GQ-05)_
 - [x] ENUM allowed values storage → resolved: ENUM removed from scope entirely (D-22) _(OQ-06)_
-- [ ] Error code/message format for validation failures — to be defined in Designer phase. _(BA)_
+- [x] Error code/message format for validation failures → resolved: EFErrorResponse{code, message, field} per Designer phase; note diverges from V3 ResponseWrapper convention (NB-04, Reviewer). _(BA → Designer → Reviewer)_
 - [x] @Field annotation strategy for SubscriptionProgram.ExtendedField key→id rename in existing MongoDB documents → resolved: `@Field("key")` on new `id: Long` field; no MongoDB migration needed; old docs get `id=null` gracefully (A-03). _(Architect OQ-1)_
 - [x] ProgramConfigKey seed data approach: how/where is MAX_EF_COUNT_PER_PROGRAM key seeded? → resolved: `seed_data/dbmaster/warehouse/program_config_keys.sql`, `REPLACE INTO`, ID=48, default value=10 (A-01, OQ-2). _(Architect OQ-2)_
 - [x] Schema convention: custom_fields.sql uses DATETIME for created_on; D-26 says TIMESTAMP. Confirm for loyalty_extended_fields → resolved: `loyalty_extended_fields` uses TIMESTAMP intentionally per D-26/G-01.1 (A-07). _(Architect OQ-3)_
 - [ ] BLOCKER (Architect): `required` orgId in Thrift methods — Thrift generated code treats `required` missing field as protocol exception, not business exception. Review Thrift `required` semantics against existing EMFService `required` usages before finalizing IDL. _(Architect ADR-01 residual risk)_
 - [ ] INFO (Architect): Deployment order — EMF must deploy before V3 (new Thrift methods not yet available). Deployment runbook needed for Phase 12. _(Architect, M-07 inherited)_
+- [x] BLOCKER-R01 (Reviewer): RESOLVED — always call validate(); pass empty list when extendedFields=null. _(Fixed 2026-04-23, commit 71884af29)_
+- [x] BLOCKER-R02 (Reviewer): RESOLVED — Option B adopted: null=no change, []=clear (skip R-03), [items]=validate+save. _(Fixed 2026-04-23, commit 71884af29)_
+- [ ] NB-01 (Reviewer): Add @Trace(dispatcher=true) to 3 new EMFThriftServiceImpl methods before production. _(Reviewer Phase 11)_
+- [ ] NB-02 (Reviewer): resolveMaxEfCount() hardcoded stub — program_config_key_values lookup deferred. Track as follow-up story. _(Reviewer Phase 11)_
+- [ ] NB-03 (Reviewer): UpdateExtendedFieldRequest.name missing @Size(max=100); long name will cause DB constraint violation rather than 400. _(Reviewer Phase 11)_
+- [ ] NB-06 (Reviewer): extendedFields=[] on PUT clears data but is blocked by mandatory check — needs product decision. _(Reviewer Phase 11)_
 
 ---
 
@@ -171,6 +179,20 @@
 - [CCC-4] EMFException error codes not mapped to HTTP status codes — V3 will receive EMFException and produce 500 without an explicit mapping table _(Phase 2 Critic)_
 - [M-01/M-04] `DATETIME` vs `TIMESTAMP` for audit columns; cc-stack-crm convention uses `auto_update_time TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` _(Phase 2 Analyst)_
 - [M-07] Deployment order constraint: EMF must deploy before V3 calls new Thrift methods — not documented _(Phase 2 Analyst)_
+
+**Reviewer phase findings (2026-04-23):**
+- [BLOCKER-R01, C7] Mandatory EF enforcement bypassed: `SubscriptionFacade.java:90` condition `extendedFields != null && !isEmpty()` skips `ExtendedFieldValidator.validate()` entirely when `extendedFields` is null. R-03 mandatory check never fires for null submissions. Violates EF-US-05 AC. Requires code change before release.
+- [BLOCKER-R02, C4] `extendedFields=[]` on PUT subscription fires R-03 mandatory check and returns 400 when mandatory configs exist — intent was to allow clear. Product decision needed.
+- [NB-01, C5] `@Trace(dispatcher=true)` absent from 3 new EMFThriftServiceImpl methods — reduced APM observability.
+- [NB-03, C4] `UpdateExtendedFieldRequest.name` missing `@Size(max=100)` — DB constraint failure instead of clean 400 for over-length names.
+- [C7] Build verification confirmed: 13 tests pass. Fix cycles consumed all 3 allowed slots.
+
+**Reviewer blockers resolved (2026-04-23 — post-Reviewer fix cycle):**
+- [BLOCKER-R01 RESOLVED, C7] `SubscriptionFacade.createSubscription()` now always calls `extendedFieldValidator.validate(orgId, programId, extendedFields != null ? extendedFields : List.of())` when `programId != null`. Validator passes empty list; R-01/R-02 fire; R-03 fires only when a non-empty list is provided. Committed in intouch-api-v3 commit `71884af29`.
+- [BLOCKER-R02 RESOLVED — Option B, C7] User chose Option B: `extendedFields=null` → no Mongo EF change; `extendedFields=[]` → clear all EF values (R-03 skipped for empty list); `extendedFields=[items]` → validate + save (R-03 fires). Implemented in `SubscriptionFacade.updateSubscription()`. Option B semantics to be noted in API handoff doc after pipeline.
+- [IT test suite RESOLVED, C7] `LoyaltyExtendedFieldControllerIT`: fixed auth setup (`SecurityContextHolder` + `SecurityMockMvcConfigurers.springSecurity()`); fixed `isMandatory` deserialization (`@JsonProperty` on `CreateExtendedFieldRequest`); fixed boolean serialization (`@JsonProperty("isActive")`, `@JsonProperty("isMandatory")` on `ExtendedFieldConfigResponse`); fixed `LoyaltyExtendedFieldErrorAdvice` priority (`@Order(Ordered.HIGHEST_PRECEDENCE)` to prevent `TargetGroupErrorAdvice` catch-all from swallowing `EFThriftException`). All 20 IT tests pass. Committed in intouch-api-v3 commit `adef1a8ad`.
+- [ExtendedField legacy deserialization RESOLVED, C7] Added `@JsonIgnoreProperties(ignoreUnknown=true)` to `SubscriptionProgram.ExtendedField` inner class so legacy MongoDB documents with `{"type": ..., "key": ..., "value": ...}` deserialize without `UnrecognizedPropertyException`. efId=null on old docs. BT-EF-05 now passes.
+- [Test suite RESOLVED, C7] All 65 tests pass: 45 subscription unit tests (5 files) + 20 IT tests (LoyaltyExtendedFieldControllerIT). Committed in intouch-api-v3 commits 71884af29 + adef1a8ad.
 
 **Codebase facts confirmed by Analyst (C7 evidence):**
 - `SubscriptionProgram.ExtendedField` fields: `type: ExtendedFieldType`, `key: String`, `value: String` at lines 297-300 _(Phase 2 Analyst)_
