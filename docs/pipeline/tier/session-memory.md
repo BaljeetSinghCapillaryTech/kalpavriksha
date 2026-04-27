@@ -60,6 +60,9 @@
 - Maker-checker: Tiers ALWAYS use maker-checker (no toggle). Create -> DRAFT, Submit -> PENDING_APPROVAL, Approve -> ACTIVE. No MC-disabled path for tiers. Integrated via Baljeet's generic makechecker/ package + TierApprovalHandler. _(BA — Q8, MIGRATION — Rework #3.5)_
 - MIGRATION DECISION (Rework #3.5): Delete custom makerchecker/ package (17 files). Adopt Baljeet's generic makechecker/ framework (ApprovableEntity, ApprovableEntityHandler, MakerCheckerService<T>). Tiers are first consumer; benefits/subscriptions follow same pattern. Zero API changes; internal refactor only. _(2026-04-16)_
 - R3 tierStartDate sourced exclusively from SQL `program_slabs.created_on`. No fallback, no derivation. Wire path: emf-parent `ProgramSlab.createdOn` → Thrift `SlabInfo.createdOn` (new optional i64 field, epoch millis) → intouch-api-v3 `SqlTierRow.createdOn` (Date) → `TierView.tierStartDate` (Date, `@JsonFormat` ISO-8601 `yyyy-MM-dd'T'HH:mm:ssXXX`). Backward compatible: legacy emf-parent servers that don't set the Thrift field surface null at every layer — null never becomes 1970-01-01 (transformer uses `SlabInfo.isSetCreatedOn()`, not a value check). Same extensibility pattern reserved for closing the Q-R1 Thrift gap (updatedBy/updatedAt) in a later rework. Thrift ifaces-pointsengine-rules bumped to 1.84-SNAPSHOT-nightly1 in both emf-parent and intouch-api-v3. _(R3)_
+- Rework #8 — i18n key catalog mirror for tier validation: NEW `tier.properties` (`i18n/errors/tier.properties`) holds 35 active codes (9001..9037, 9007/9027 reserved gaps; 9031 folded into 9034). NEW `TierErrorKeys.java` constants class. ONE-line addition to `MessageResolverService.fileNameMap` registers `TIER → i18n.errors.tier`. All tier `InvalidInputException` throws migrate to key-only (`new InvalidInputException(TierErrorKeys.TIER_NAME_REQUIRED)`); the advice resolves key → code+message via `MessageResolverService`. Wire numeric codes (9001..9024) preserved — no client breakage. Bean-validation annotations (`@NotBlank`/`@Size`/`@Pattern`/`@PositiveOrZero`/`@NotNull`) added to `TierCreateRequest`, `TierUpdateRequest`, `TierEligibilityConfig` with `message=TIER.<KEY>` per plan §4.4. Validators inject `jakarta.validation.Validator` and explicitly call `.validate(req)` post-`treeToValue` (controllers stay raw `JsonNode` for pre-binding scans). REQ-58 (color length 9027) SKIPPED — defensive duplicate of `@Pattern`. REQ-63 (renewalLastMonths 9031) FOLDED into REQ-62 (9034) — wire field `renewalLastMonths` does not exist in `TierValidityConfig.java` (verified — zero hits in source); semantic equivalent is `computationWindowStartValue` when `renewalWindowType==FIXED_DATE_BASED`. Dynamic-context messages use Option 2 (static catalog message; field-name detail in structured logs only). _(Designer — Rework #8, 2026-04-27)_
+- Rework #8 BTG — test strategy decisions: (1) UPDATE triage: 21 BTs (BT-190..BT-223 subset) have assertion text migrated from code/bracket-prefix text to key-only `ex.getMessage() == "TIER.<KEY>"` + round-trip `resolverService.getCode(key)` assertion. Wire codes unchanged. (2) Jackson-path BTs (BT-192, 197, 213, 218, 219) and success-path BTs (BT-206, 207, 209, 216) CONFIRMED — no change. (3) NEW BTs BT-224..BT-249 (24 net new) for REQ-57..REQ-68 gap-fill validations + catalog-integrity smoke tests. (4) BT-247 catalog-integrity test IN SCOPE now (D-33). (5) BT-249 is IT (advice end-to-end); all others are UT. (6) TierValidationAssert helper class recommended for `assertThrowsWithKey(executable, key, expectedCode)` — Phase 10 Developer creates it. _(Business Test Gen — Rework #8, 2026-04-27)_
+- Rework #8 BTG — open questions: Q-#8-1 (REQ-58 color length 9027 SKIP — confirmed?), Q-#8-2 (REQ-63 renewalLastMonths FOLD — confirmed?), Q-#8-3 (dynamic-context Option 2 — confirmed?), Q-#8-4 (BT-247 catalog integrity — confirmed IN SCOPE), Q-#8-5 (REQ-57 case-insensitive DB scan before deploy in QA env). See `03-designer.md §R8.10` for full question context. _(Business Test Gen — Rework #8, 2026-04-27)_
 
 ## UI Findings (Phase 3)
 - UI shows "Duration" per tier (start date + end date or Indefinite) -- NOT in BA/PRD. Likely maps to tier validity period. NEEDS field addition to MongoDB doc. _(Phase 3 — GAP-1)_
@@ -378,7 +381,7 @@ _Tracks re-run cycles to detect unresolved loops._
 
 **Locked Q-series decisions (incremental — updated as each Q closes):**
 
-- **Q1=(b), Q2=(b), Q4=forward-compat dual-block**: GET /v3/tiers/{tierId} envelope flattens — hoist `live.*` fields onto tier root + add `status: "LIVE"` discriminator. Envelope reserves both `live` and `pendingDraft` blocks at root for forward-compat (planned future divergence; not a backward-compat scheme).
+- **Q1=(b), Q2=(b), Q4=forward-compat dual-block** — **SUPERSEDED BY Q27 (2026-04-23)**: Original decision flattened envelope with hoisted `live.*` + `status:"LIVE"` + reserved `live`/`pendingDraft` placeholder blocks. Q27 replaces this with a flat `List<TierEntry>` read shape — no envelope, no pairing, no nested blocks. See Q27 for the new contract.
 
 - **Q3 locked (revised 2026-04-22 post-Q18)**: Rename on write: `downgrade` block → `renewal` block; field rename `downgrade.target` → **`renewal.downgradeTo`** (aligned with Figma Step 3 UI label "Downgrade to"). The initial proposal `renewal.downgradeCondition` was rejected — the values describe a target tier, not a trigger condition; UI naming wins. Enum values stay engine-canonical (`SINGLE | THRESHOLD | LOWEST`), only the wrapper field name changes. `reevaluateOnReturn` + `dailyEnabled` hoisted **out** of the renewal block (see Q10).
 
@@ -1291,3 +1294,91 @@ Upgraded from "APPROVED WITH WARNINGS" to **APPROVED** after both warnings close
 ### Final git tag
 
 `aidlc/raidlc-ai_tier/phase-12` — Rework #6a Cycle 1 closure blueprint committed.
+
+---
+
+## Q27 locked (C6, 2026-04-23) — Envelope pivot: flat `List<TierEntry>` replaces TierEnvelope pairing
+
+**Supersedes**: Q1/Q2/Q4 (§381 original flatten with forward-compat dual-block). Those decisions are marked SUPERSEDED BY Q27 at their original lock location.
+
+**Scope**: **GET path only** (list + detail). The write contract (POST / PUT `/v3/tiers`) is untouched by Q27 — user directive: *"For write I will tell you. Now only do the change for the get calls."*
+
+**New read-shape contract (`List<TierEntry>`):**
+
+1. **Listing** (`GET /v3/tiers`) returns a flat `List<TierEntry>`. When a slabId has both a LIVE SQL row **and** a workflow-visible Mongo doc (DRAFT / PENDING_APPROVAL / REJECTED) for the same slabId, **two separate entries** appear in the list — one with `status: "LIVE"` and one with `status: "DRAFT"`/`"PENDING_APPROVAL"`/`"REJECTED"` — **same `slabId`**, distinct wire objects.
+2. **Detail** (`GET /v3/tiers/{tierId}`) returns a `List<TierEntry>` of **1 or 2 entries** (never a bare object):
+   - Numeric path (`tierId` parses as Long) → interpret as `slabId`; return the LIVE entry plus any paired in-flight entry (array of 1 or 2).
+   - String path (non-numeric) → interpret as `tierUniqueId` (Mongo id); return **only the DRAFT/PENDING/REJECTED entry** — even if a paired LIVE exists. Rationale: string-key lookup is the maker UI's edit-flow entry point; it explicitly addresses the draft side.
+3. **Shape is always an array**, even when 1 element, even when empty.
+
+**`TierEntry` shape (single flat DTO — no LIVE/DRAFT split, no nested `live`/`pendingDraft` blocks):**
+
+| Field | Type | LIVE presence | DRAFT/PENDING/REJECTED presence |
+|---|---|:---:|:---:|
+| `status` | enum | `"LIVE"` | `"DRAFT"` / `"PENDING_APPROVAL"` / `"REJECTED"` |
+| `slabId` | `Long?` | present | present if editing LIVE; null for brand-new DRAFT |
+| `tierUniqueId` | `String?` | absent | present |
+| `name` | `String` | present | present |
+| `description` | `String?` | present | present |
+| `color` | `String?` | present | present |
+| `serialNumber` | `Integer` | present | present |
+| `tierStartDate` | ISO-8601? | present (SQL `created_on`) | absent (no SQL row) |
+| `eligibility` | `TierEligibilityConfig` | present | present |
+| `renewal` | `TierValidityConfig` | present (**renamed from `validity`**) | present |
+| `downgrade` | `TierDowngradeConfig` | present | present |
+| `rejectionComment` | `String?` | absent | present on DRAFT that was previously REJECTED |
+| `meta` | `TierMeta` | present (trimmed — only `createdBy/At`, `updatedBy/At`) | present (trimmed) |
+
+**Field-rename / drop rules (wire shape):**
+- **Renamed on wire**: top-level block `validity` → `renewal` (per user: *"change the name of validity and make it renewal"*).
+- **Dropped from wire**: the nested `validity.renewal` sub-block (`TierValidityConfig.renewal`) is **not emitted** on read. The default-synthesis of `TierRenewalConfig.builder().criteriaType(CRITERIA_SAME_AS_ELIGIBILITY)` at `TierStrategyTransformer.extractValidity` (lines 813-815) is removed.
+- **Dropped from wire**: the `origin` field (was `TierOrigin` enum: `LEGACY_SQL_ONLY` / `MONGO_ONLY` / `BOTH`). No consumer need with the flat shape; `status` is the sole discriminator.
+- **Dropped from wire**: the `hasPendingDraft` computed flag. UI determines pairing by scanning the list for matching `slabId`.
+- **Dropped from wire**: `live` + `pendingDraft` placeholder blocks (forward-compat dual-block killed — never used).
+- **Dropped from wire**: `draftStatus` (redundant with the new unified `status` field).
+- **Dropped from response**: `summary` block (`KpiSummary` — `totalTiers`, `liveTiers`, `pendingApprovalTiers`, `totalMembers`, `lastMemberCountRefresh`). User directive: *"We do not want member count and last member count refereshed in this."* The list response drops `summary` entirely — `TierListResponse` becomes just `{ "tiers": List<TierEntry> }`.
+- **`meta` trimmed on wire**: only `createdBy`, `createdAt`, `updatedBy` (renamed conceptually to lastModifiedBy), `updatedAt` (lastModifiedAt) surface. `approvedBy/At`, `rejectedBy/At`, `basisSqlSnapshot` remain server-internal (basisSqlSnapshot is still written by Mongo; drift check keeps using it).
+
+**`status` enum (wire value) — REJECTED added**:
+The `TierStatus` Java enum currently lists `DRAFT, PENDING_APPROVAL, ACTIVE, DELETED, SNAPSHOT, PUBLISH_FAILED` (`intouch-api-v3/.../enums/TierStatus.java:3-5`). **REJECTED is NOT currently a first-class enum value.** Q27 adds `REJECTED` to the enum so it can appear on the wire as `status: "REJECTED"` when a maker's draft has been rejected by a reviewer. Workflow-visible filter (previously `DRAFT | PENDING_APPROVAL`) expands to `DRAFT | PENDING_APPROVAL | REJECTED`. LIVE is a synthetic wire-only discriminator (not an enum member — the LIVE SQL row's "status" is implicit).
+
+**Pairing rule (unchanged from envelope era, but now expressed differently):**
+A Mongo workflow-visible doc is "paired" to a SQL LIVE row iff `mongoDoc.slabId == sqlRow.slabId`. In the flat-list shape this pairing is **observable** (UI sees two entries with the same slabId); in the envelope era it was hidden inside a single envelope.
+
+**List ordering** (Q27-O-a locked): LIVE-first grouping. For each SQL row (in SQL order), emit the LIVE entry first; immediately after, emit the paired in-flight entry (if any) for the same slabId. After all LIVE rows and their pairs, append brand-new DRAFT/PENDING/REJECTED entries (no SQL row) in Mongo-insertion order.
+
+**Detail URL disambiguation** (Q27-B-b locked):
+```
+GET /v3/tiers/3850        → numeric → slabId lookup → [LIVE entry, draft entry-if-any]
+GET /v3/tiers/ut-977-003  → string  → tierUniqueId lookup → [draft entry only]
+GET /v3/tiers/660a1b2c…   → string  → tierUniqueId or Mongo objectId → [draft entry only]
+```
+404 when no match is found for either lookup path.
+
+**Implementation surface (intouch-api-v3 only, zero engine changes):**
+- **New** `com.capillary.intouchapiv3.tier.entry.TierEntry` — flat DTO (fields above).
+- **New** `com.capillary.intouchapiv3.tier.entry.TierEntryBuilder` — produces `List<TierEntry>` from `List<SqlTierRow> + List<UnifiedTierConfig>`. Replaces `TierEnvelopeBuilder`.
+- **Deleted** `TierView`, `TierEnvelope`, `TierEnvelopeBuilder`, `TierOrigin` (old envelope package).
+- **Updated** `TierFacade.listTiers` → returns `TierListResponse { tiers: List<TierEntry> }` (no `summary`).
+- **Updated** `TierFacade.getTierDetail` → returns `List<TierEntry>` (was `TierEnvelope`). Facade gains URL-sniffing (numeric → slabId path; string → tierUniqueId path).
+- **Updated** `TierController` → response types `List<TierEntry>` on detail, `TierListResponse` on list (slimmer shape).
+- **Updated** `TierListResponse` → drop `summary` field; `tiers` becomes `List<TierEntry>`.
+- **Updated** `SqlTierConverter` → method renamed `toView` → `toEntry`, returns `TierEntry` with `status = "LIVE"`.
+- **Updated** `TierStrategyTransformer.extractValidity` → drop default renewal synthesis (lines 813-815); `TierValidityConfig.renewal` stays null on LIVE reads.
+- **Updated** `TierStatus` enum → add `REJECTED` value.
+- **Updated** tests — rewrite `TierEnvelopeJsonSerializationTest`, `TierEnvelopeBuilderTest` as `TierEntry*` equivalents.
+
+**Residual write-path caveat**: `TierValidityConfig` still has a `renewal` field in Java (kept for parity with write-path — `TierCreateRequest` / `TierUpdateRequest` carry it inside `validity`). On the read path, `TierEntry.renewal` is of type `TierValidityConfig` with the nested `.renewal` field nulled before serialization — `@JsonInclude(NON_NULL)` then omits it from the wire. Write-contract rename from `validity` → `renewal` is explicitly out of Q27 scope (user: *"For write I will tell you"*).
+
+**Confidence evidence (C6)**:
+- Pairing semantics verified: `TierEnvelopeBuilder` lines 56-68 — current pairing keyed by slabId, matches Q27 rule.
+- Workflow-visible filter baseline: `TierFacade.WORKFLOW_VISIBLE_STATUSES` L82-83 (`DRAFT, PENDING_APPROVAL`); Q27 expansion to include `REJECTED` verified against `TierStatus.java` (REJECTED absent → must be added as part of Q27).
+- Default renewal synthesis: `TierStrategyTransformer.java` lines 813-815 — confirmed explicit synthesis to remove.
+- `-1` sentinel filtering: `extractConditions` lines 824-826 still emits `-1` verbatim (Q9 locked on paper but not yet implemented in code — deferred follow-up F2; Q27 does NOT re-open Q9).
+
+**Non-scope (explicitly deferred)**:
+- Q9 `-1` sentinel filter on read (F2 — deferred follow-up).
+- Write-path rename of `validity` → `renewal` (user: *"For write I will tell you"*).
+- Member count + `lastMemberCountRefresh` computations (user directive: drop from summary; not just from wire).
+- Any re-derivation of the flattened envelope computed-getter pattern — killed outright.
+

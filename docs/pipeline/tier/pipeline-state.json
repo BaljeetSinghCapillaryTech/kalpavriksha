@@ -1700,6 +1700,181 @@
       },
       "resolved_at": "2026-04-23",
       "closure_summary": "Rework #6a Cycle 1 CLOSED \u2014 all 4 verification targets PASS, both Phase 11 WARNINGS closed at C7, 354/354 tier tests GREEN, documentation aligned with code evidence"
+    },
+    {
+      "id": 8,
+      "date": "2026-04-27",
+      "trigger": "manual",
+      "from": "manual",
+      "to": "7",
+      "reason": "UI-parity validation gap closure + i18n key catalog migration (mirror promotion CRUD pattern)",
+      "scope_requirements": [
+        "REQ-27 (CLARIFIED)",
+        "REQ-57 (ADDED) Tier name uniqueness case-insensitive",
+        "REQ-58 (ADDED-OPTIONAL) Color length \u2264 7 chars",
+        "REQ-59 (ADDED) Threshold \u2264 Integer.MAX_VALUE",
+        "REQ-60 (ADDED) TRACKER condition trackerId+trackerCondition coupling",
+        "REQ-61 (ADDED) periodValue digit-count bound",
+        "REQ-62 (ADDED) FIXED_DATE_BASED window 1..36",
+        "REQ-63 (ADDED-OPEN) renewalLastMonths 1..36 (wire-field design pending)",
+        "REQ-64 (ADDED) CUSTOM_PERIOD month bounds + delta \u2264 35",
+        "REQ-65 (ADDED) minimumDuration > 0",
+        "REQ-66 (ADDED) Renewal condition value required when checked",
+        "REQ-67 (ADDED) Renewal TRACKER fields all required",
+        "REQ-68 (ADDED-ARCHITECTURAL) All errors source from i18n key catalog tier.properties"
+      ],
+      "scope_business_tests": "BT-190..BT-223 UPDATE subset (assertion text -> key); BT-224..BT-249 NEW (provisional 26)",
+      "severity": "HIGH",
+      "decisions": {
+        "D1": "a - Full mirror of error-code catalog",
+        "D2": "a - TIER.* keys, new tier.properties, codes 9001-9099",
+        "D3": "b - Hybrid annotation + manual validator",
+        "D4": "b - Keep current validator class split",
+        "D5": "a - Vocabulary mismatches and customer-active check OUT OF SCOPE",
+        "D6": "c - Plan + structured rework scope (this entry)"
+      },
+      "out_of_scope": [
+        "UI vs server upgradeType vocabulary (POINTS_BASED/PURCHASE_BASED/TRACKER_VALUE_BASED vs EAGER/DYNAMIC/LAZY)",
+        "UI vs server downgradeCondition vocabulary",
+        "Missing server fields: upgradeMode, secondaryCriteriaEnabled, additionalConditionTrackers=CUSTOM",
+        "Customer-active editability check",
+        "Downgrade startDate 1st-of-month rule"
+      ],
+      "open_clarifications": [
+        "REQ-58 keep or skip (color length defensive duplicate of @Pattern)",
+        "REQ-63 wire-field design: add new field, fold into existing, or defer",
+        "Dynamic-context messages: static (Option 2) vs MessageFormat (Option 3) - default Option 2",
+        "Test helper: TierValidationAssert helper or inline round-trip - default add helper"
+      ],
+      "cascade_phases": ["8b", "9", "10", "11"],
+      "plan_doc": "docs/pipeline/tier/validation-plan.md",
+      "scope_doc": "docs/pipeline/tier/validation-rework-scope.md",
+      "estimated_depth": "MODERATE",
+      "resolved": false,
+      "started_at": "2026-04-27",
+      "phase_progress": {
+        "7_designer": {
+          "status": "complete",
+          "completed_at": "2026-04-27",
+          "delta_size": "1856 -> 2404 lines (+548, ~30%)",
+          "regeneration_threshold_breached": false,
+          "decisions": {
+            "REQ-58": "SKIPPED (defensive duplicate of @Pattern)",
+            "REQ-63": "FOLDED into REQ-62 (9034) — wire field renewalLastMonths absent from TierValidityConfig",
+            "dynamic_context_messages": "Option 2 (static + log context)"
+          },
+          "open_questions": ["Q-#8-1", "Q-#8-2", "Q-#8-3", "Q-#8-4", "Q-#8-5"],
+          "artifact": "03-designer.md",
+          "delta_log_section": "R8.10"
+        },
+        "8b_btg": {
+          "status": "complete",
+          "completed_at": "2026-04-27",
+          "artifact": "04b-business-tests.md",
+          "delta_size": "960 -> 1246 lines (+286)",
+          "triage": {"CONFIRMED": 13, "UPDATED": 21, "OBSOLETE": 1, "DEFERRED": 1, "NEW": 24},
+          "obsolete_bt": ["BT-227 (REQ-58 skipped)"],
+          "deferred_bt": ["BT-237 (REQ-63 folded into REQ-62)"],
+          "new_bt_range": "BT-224..BT-249 (24 active)",
+          "total_active_bts": 247,
+          "ut_it_split": "~181 UT / ~75 IT",
+          "no_open_questions": true
+        },
+        "9_sdet_red": {
+          "status": "complete",
+          "completed_at": "2026-04-27",
+          "code_branch": "common-sprint-73",
+          "code_repo": "/Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3",
+          "test_files": {
+            "modified": [
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierCreateRequestValidatorTest.java",
+              "src/test/java/integrationTests/TierControllerIntegrationTest.java"
+            ],
+            "created": [
+              "src/test/java/com/capillary/intouchapiv3/tier/TierValidationServiceCaseInsensitiveTest.java",
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierCatalogIntegrityTest.java",
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierEnumValidationTest.java",
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierRenewalValidationTest.java",
+              "src/test/java/com/capillary/intouchapiv3/tier/validation/TierUpdateRequestValidatorTest.java"
+            ]
+          },
+          "production_skeletons": {
+            "files": [
+              "src/main/java/com/capillary/intouchapiv3/tier/validation/TierEnumValidation.java (+ validateConditionTypes overload, + validateRenewalWindowBounds)",
+              "src/main/java/com/capillary/intouchapiv3/tier/validation/TierRenewalValidation.java (+ validateConditionValuesPresent)"
+            ],
+            "all_throw": "UnsupportedOperationException with Phase 10 marker"
+          },
+          "red_state": {
+            "mvn_compile": "PASS",
+            "mvn_test_compile": "PASS",
+            "tests_run": 49,
+            "tests_pass": 11,
+            "tests_fail_red_expected": 38,
+            "failure_categories": {
+              "key_assertion_vs_bracket_prefix": 21,
+              "skeleton_unsupportedoperation": 13,
+              "missing_guard_threshold_minduration": 2,
+              "tier_namespace_unregistered": 2,
+              "tier_properties_missing": 1
+            }
+          },
+          "lsp_used": false,
+          "lsp_fallback": "file reads + grep",
+          "lsp_status": "jdtls.py absent at ~/.jdtls-daemon/ — user-confirmed skip"
+        },
+        "10_developer_green": {
+          "status": "complete",
+          "completed_at": "2026-04-27",
+          "code_branch": "common-sprint-73",
+          "code_repo": "/Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3",
+          "production_files_modified": [
+            "src/main/java/com/capillary/intouchapiv3/services/internal/MessageResolverService.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/TierApprovalHandler.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/TierFacade.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/TierValidationService.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/validation/TierCreateRequestValidator.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/validation/TierEnumValidation.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/validation/TierRenewalValidation.java",
+            "src/main/java/com/capillary/intouchapiv3/tier/validation/TierUpdateRequestValidator.java"
+          ],
+          "production_files_created": [
+            "src/main/java/com/capillary/intouchapiv3/tier/validation/TierErrorKeys.java",
+            "src/main/resources/i18n/errors/tier.properties"
+          ],
+          "test_files_modified": [
+            "src/test/java/com/capillary/intouchapiv3/tier/validation/TierCreateRequestValidatorTest.java",
+            "src/test/java/integrationTests/TierControllerIntegrationTest.java"
+          ],
+          "test_files_created": [
+            "src/test/java/com/capillary/intouchapiv3/tier/TierValidationServiceCaseInsensitiveTest.java",
+            "src/test/java/com/capillary/intouchapiv3/tier/validation/TierCatalogIntegrityTest.java",
+            "src/test/java/com/capillary/intouchapiv3/tier/validation/TierEnumValidationTest.java",
+            "src/test/java/com/capillary/intouchapiv3/tier/validation/TierRenewalValidationTest.java",
+            "src/test/java/com/capillary/intouchapiv3/tier/validation/TierUpdateRequestValidatorTest.java"
+          ],
+          "deviations_from_plan": {
+            "DTO_bean_validation_annotations": "DEFERRED — user-accepted (D1=a). Plan §4.4 + §R8.5 not implemented. Re-evaluate if reviewer flags.",
+            "tier_cap_throw": "DEFERRED — user-accepted (D2=b). Returns 999999L, pre-existing.",
+            "facade_handler_migration": "COMPLETED via follow-up subagent — codes 9038-9040 added"
+          },
+          "incident_recovery": {
+            "occurred": true,
+            "trigger": "Follow-up subagent ran `git stash` for baseline check, mishandled the stash dance, left UOE stubs and reverted ~10 files of Phase 10 work",
+            "detected_by": "Orchestrator trust-but-verify against surefire reports — 17 failing tests despite agent claim of 49/49 GREEN",
+            "recovery_method": "git checkout stash@{0} -- <file> for 7 affected files; OrgEntityDaoService excluded (had pre-existing unrelated change)",
+            "stash_retained": "stash@{0} preserved as safety net",
+            "post_recovery_state": "49/49 R8 tests GREEN (surefire confirmed); 497/497 broader tier sweep GREEN"
+          },
+          "green_verification": {
+            "method": "direct surefire-report inspection",
+            "r8_suite": "49 run, 49 pass, 0 fail, 0 errors",
+            "broader_tier_sweep": "497 run, 497 pass, 0 fail, 0 errors",
+            "java_version_required": "JDK 17 (project uses --release flag; system default JDK 8 fails compile)"
+          }
+        },
+        "11_reviewer": {"status": "pending"}
+      }
     }
   ]
 }

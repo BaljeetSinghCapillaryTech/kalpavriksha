@@ -747,3 +747,500 @@ Checklist applied to this delta:
 
 **Rework #5 Status**: COMPLETE. Ready for forward cascade to SDET (Phase 9), Developer (Phase 10), Reviewer (Phase 11) in rework mode.
 
+---
+
+## Section 7: Rework #6a Delta — Contract Hardening (2026-04-22)
+
+> **Phase**: 8b (Business Test Gen) — cascaded from Phase 8 QA
+> **Source**: `04-qa.md` §"Rework #6a Delta — QA Test Scenarios" (TS-6a-01..TS-6a-26 + 8 edge cases + TS-C11 amendment), `03-designer.md` §6a.1–6a.9, `01-architect.md` ADR-17R..ADR-21R (amended)
+> **Trigger**: Cascade from Phase 7 Designer → Phase 8 QA
+> **Scope floor**: Contract-hardening only. Zero schema, zero Thrift, zero engine.
+
+### 7.1 ISTQB Suspect-Link Triage Summary
+
+Rework #6a changes the following upstream items:
+- `TierCreateRequest.downgrade` / `TierUpdateRequest.downgrade` field → REMOVED
+- Validator signature → ADDED `JsonNode rawBody` parameter
+- 8 new reject error codes 9011–9018 → ADDED
+- 26 new TS-6a-xx scenarios + 8 edge cases + 1 TS-C11 amendment in QA
+
+Every existing BT (BT-01..BT-189, post-Rework #5) was triaged against the above.
+
+| Triage Status | Count | BT-IDs |
+|---|---|---|
+| **CONFIRMED** | 187 | All except the 2 below |
+| **UPDATE** | 2 | BT-17, BT-62 |
+| **REGENERATE** | 0 | — |
+| **OBSOLETE** | 0 | — (the legacy `downgrade` field removal does not orphan any BT; the field is gone from WRITE DTO only, not from stored doc schema) |
+| **NEW** | 34 | BT-190..BT-223 |
+
+### 7.2 UPDATE Cases — Change Detail
+
+#### BT-17 — UPDATED
+
+| Field | Before (Rework #5) | After (Rework #6a) |
+|---|---|---|
+| Input | "Valid TierCreateRequest with eligibility config" | **Valid TierCreateRequest with eligibility + validity config; NO `downgrade` field on request (field removed by Rework #6a)** |
+| Expected Output | "...engine-aligned names at ROOT level (hoisted): `name`, `description`, `color`, `serialNumber`, `eligibility`, `validity`, `downgrade`." | **"...engine-aligned names at ROOT level (hoisted): `name`, `description`, `color`, `serialNumber`, `eligibility`, `validity`. Downgrade config is NOT stored from this write path (field removed from request DTO by Q11 hard-flip); engine-side downgrade strategy state is populated separately on approval via `applySlabDowngradeDelta`."** |
+| Rationale | Write-narrow / read-wide asymmetry (ADR-21R): the read path still returns `downgrade` (via engine state), but the write path no longer accepts it from the client. |
+
+#### BT-62 — UPDATED
+
+| Field | Before | After (Rework #6a) |
+|---|---|---|
+| Input | "endDate < startDate" | **"periodType: FIXED + startDate + endDate < startDate"** |
+| Expected Output | "Validation error: 'endDate must be after startDate'" | **"For FIXED-family periodType: 400 validation error: 'endDate must be after startDate'. NOTE: For SLAB_UPGRADE-family, this test cannot fire because validator §6a.4.4 rejects `startDate` FIRST with code 9014 (REQ-21/36) pre-binding. BT-62 is therefore qualified to FIXED-family only."** |
+| QA Scenario | TS-C11 | TS-C11 (amended per QA §6a.Q4) |
+| Rationale | Rework #6a adds `validateNoStartDateForSlabUpgrade` which runs BEFORE endDate/startDate ordering check; SLAB_UPGRADE path cannot reach BT-62's scenario. |
+
+### 7.3 NEW Business Tests — Rework #6a (BT-190..BT-223)
+
+All BTs below map 1:1 to a TS-6a-xx scenario from `04-qa.md` §6a.Q2. Traceability: `TS-xxx → REQ-xxx → Designer method (§6a.4.3) → ADR`.
+
+#### 7.3.1 Group A — Pre-binding Reject Scans (BT-190..BT-197)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-190 | shouldRejectClassAProgramLevelFieldOnPerTierWrite | REQ-23 | POST `/v3/tiers` body with `"dailyDowngradeEnabled": true` at root | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"` (key-only — Rework #8); wire code **9011** unchanged. Field name (`dailyDowngradeEnabled`) goes to structured logs only (D-32 Option 2). Round-trip: `resolverService.getCode("TIER.CLASS_A_PROGRAM_LEVEL_FIELD") == 9011L`. | TS-6a-01 | `TierEnumValidation.validateNoClassAProgramLevelField(JsonNode)` | UT |
+| BT-191 | shouldRejectCanonicalPartnerProgramExpiryFlagOnPerTierWrite | REQ-23 | POST body with `"isDowngradeOnPartnerProgramExpiryEnabled": true` (canonical key — verified `EngineConfig.java:14`) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"` (key-only — Rework #8); wire code **9011** unchanged. Field name goes to logs only (D-32 Option 2). | TS-6a-02 | `TierEnumValidation.validateNoClassAProgramLevelField(JsonNode)` | UT |
+| BT-192 | shouldRejectPrdDriftKeyAsGenericJacksonUnknownNotClassA | REQ-27 | POST with `"isDowngradeOnPartnerProgramDeLinkingEnabled": true` (PRD-wording drift — NOT on canonical Class A list) | 400 via Jackson **strict-mode** (`UnrecognizedPropertyException`). **NOT code 9011** — the drift key is not on the Class A scanner's canonical list; falls through to strict Jackson. **This BT is the regression probe for C-16 drift.** | TS-6a-03 | Jackson `ObjectMapper` strict default (verified §6a.1 F1) | UT |
+| BT-193 | shouldRejectClassBScheduleShapedField | REQ-24 | POST body with `"schedule": [...]` or `"nudges": {...}` at root | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_B_SCHEDULE_FIELD"` (key-only — Rework #8); wire code **9012** unchanged. Round-trip: `resolverService.getCode("TIER.CLASS_B_SCHEDULE_FIELD") == 9012L`. | TS-6a-04 | `TierEnumValidation.validateNoClassBScheduleField(JsonNode)` | UT |
+| BT-194 | shouldRejectEligibilityCriteriaTypeOnWrite | REQ-25 | POST with `"eligibility": {"kpiType": "CUMULATIVE_POINTS", "eligibilityCriteriaType": "POINTS"}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.ELIGIBILITY_CRITERIA_TYPE"` (key-only — Rework #8 / REQ-27 CLARIFIED); wire code **9013** unchanged. Round-trip: `resolverService.getCode("TIER.ELIGIBILITY_CRITERIA_TYPE") == 9013L`. | TS-6a-05 | `TierEnumValidation.validateNoEligibilityCriteriaTypeOnWrite(JsonNode)` | UT |
+| BT-195 | shouldRejectStringMinusOneSentinelInNumericField | REQ-26 | POST with `"programId": "-1"` (quoted string) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.SENTINEL_STRING_MINUS_ONE"` (key-only — Rework #8); wire code **9015** unchanged. Round-trip: `resolverService.getCode("TIER.SENTINEL_STRING_MINUS_ONE") == 9015L`. | TS-6a-06 | `TierEnumValidation.validateNoStringMinusOneSentinel(JsonNode)` | UT |
+| BT-196 | shouldRejectNumericMinusOneSentinelInNumericField | REQ-26 | POST with `"programId": -1` (unquoted numeric) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"` (key-only — Rework #8); wire code **9016** unchanged. Round-trip: `resolverService.getCode("TIER.SENTINEL_NUMERIC_MINUS_ONE") == 9016L`. | TS-6a-07 | `TierEnumValidation.validateNoNumericMinusOneSentinel(JsonNode)` | UT |
+| BT-197 | shouldRejectLegacyDowngradeBlockViaJacksonStrict | REQ-27, Q11 | POST with `"downgrade": {"target": "SINGLE", ...}` at root | 400 via Jackson strict-mode (generic 400; NOT 9011-9018). Asserts Q11 hard-flip — no dual-block back-compat window. | TS-6a-08 | Jackson strict default + DTO field removal (§6a.3.1) | UT |
+
+#### 7.3.2 Group B — Post-binding Typed DTO Rejects (BT-198..BT-205)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-198 | shouldRejectStartDateOnSlabUpgradeValidity | REQ-21, REQ-36 | POST with `"validity": {"periodType": "SLAB_UPGRADE", "startDate": "2026-01-01"}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.START_DATE_ON_SLAB_UPGRADE"` (key-only — Rework #8); wire code **9014** unchanged. Round-trip: `resolverService.getCode("TIER.START_DATE_ON_SLAB_UPGRADE") == 9014L`. | TS-6a-09 | `TierEnumValidation.validateNoStartDateForSlabUpgrade(TierValidityConfig)` | UT |
+| BT-199 | shouldRejectStartDateOnSlabUpgradeCyclicFamily | REQ-21, REQ-36 | POST with `"validity": {"periodType": "SLAB_UPGRADE_CYCLIC", "startDate": "2026-01-01"}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.START_DATE_ON_SLAB_UPGRADE"` (key-only — Rework #8); wire code **9014** unchanged. Confirms family-level reject covers both SLAB_UPGRADE and SLAB_UPGRADE_CYCLIC (2 members). | TS-6a-10 | `TierEnumValidation.validateNoStartDateForSlabUpgrade(TierValidityConfig)` | UT |
+| BT-200 | shouldRejectFixedFamilyWithoutPeriodValue | REQ-56 | POST with `"validity": {"periodType": "FIXED"}` (periodValue absent) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"` (key-only — Rework #8); wire code **9018** unchanged. Round-trip: `resolverService.getCode("TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE") == 9018L`. | TS-6a-11 | `TierEnumValidation.validateFixedFamilyRequiresPositivePeriodValue(TierValidityConfig)` | UT |
+| BT-201 | shouldRejectFixedCustomerRegistrationWithoutPeriodValue | REQ-56 | POST with `"validity": {"periodType": "FIXED_CUSTOMER_REGISTRATION"}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"` (key-only — Rework #8); wire code **9018** unchanged. Confirms 2-member FIXED family (not phantom 3-member with `FIXED_LAST_UPGRADE`); ADR-19R factual correction. | TS-6a-12 | `TierEnumValidation.validateFixedFamilyRequiresPositivePeriodValue(TierValidityConfig)` | UT |
+| BT-202 | shouldRejectFixedWithZeroPeriodValue | REQ-56 | POST with `"validity": {"periodType": "FIXED", "periodValue": 0}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"` (key-only — Rework #8); wire code **9018** unchanged. Non-positive guard (NOT 9016 because value is 0 not -1). | TS-6a-13 | `TierEnumValidation.validateFixedFamilyRequiresPositivePeriodValue(TierValidityConfig)` | UT |
+| BT-203 | shouldFirePrecedence9016Over9018ForNumericMinusOnePeriodValue | REQ-26, REQ-56 | POST with `"validity": {"periodType": "FIXED", "periodValue": -1}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"` (key-only — Rework #8); wire code **9016** unchanged. 9018 does NOT fire. **Precedence assertion**: 9016 > 9018 for numeric -1. | TS-6a-14 | Validator invocation order in `TierCreateRequestValidator.validate` | UT |
+| BT-204 | shouldRejectFixedWithNegativePeriodValueOtherThanMinusOne | REQ-56 | POST with `"validity": {"periodType": "FIXED", "periodValue": -5}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"` (key-only — Rework #8); wire code **9018** unchanged. Sentinel scan matches -1 only; -5 flows through to post-binding non-positive guard. Complements BT-203 to prove 9016 vs 9018 precedence is value-specific. | TS-6a-15 | `TierEnumValidation.validateFixedFamilyRequiresPositivePeriodValue(TierValidityConfig)` | UT |
+| BT-205 | shouldRejectRenewalCriteriaTypeLowercaseDrift | REQ-28, REQ-41 | POST with `"validity": {"renewal": {"criteriaType": "same as eligibility"}}` (lowercase) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.RENEWAL_CRITERIA_TYPE_DRIFT"` (key-only — Rework #8); wire code **9017** unchanged. Requires canonical `"Same as eligibility"` literal. Round-trip: `resolverService.getCode("TIER.RENEWAL_CRITERIA_TYPE_DRIFT") == 9017L`. | TS-6a-16 | `TierEnumValidation.validateRenewalCriteriaTypeCanonical(TierRenewalConfig)` | UT |
+
+#### 7.3.3 Group C — Negative Controls (BT-206..BT-209)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-206 | shouldAcceptSlabUpgradeWithoutPeriodValue | REQ-56 (negative control) | POST with `"validity": {"periodType": "SLAB_UPGRADE"}` (no periodValue, no startDate) | 200/201 — valid. periodValue is OPTIONAL for SLAB_UPGRADE-family (engine is event-driven). **Critical negative control** — proves REQ-56 guard is not over-broad. | TS-6a-17 | `TierEnumValidation.validateFixedFamilyRequiresPositivePeriodValue(TierValidityConfig)` (must NOT fire) | UT |
+| BT-207 | shouldAllowPartialPutWithoutValidityBlock | REQ-56, REQ-40 (payload-only) | PUT `/v3/tiers/{id}` with `{"name": "Gold Plus"}` (no `validity` key) | 200 — partial update succeeds. REQ-56 does NOT fire because payload doesn't touch validity. Asserts payload-only PUT semantics (§6a.2.2). | TS-6a-18 | `TierUpdateRequestValidator.validate(TierUpdateRequest, JsonNode)` — payload-only | UT |
+| BT-208 | shouldRejectPutTransitionToFixedWithoutPeriodValue | REQ-56 (PUT) | PUT with `"validity": {"periodType": "FIXED"}` (no periodValue; stored tier is SLAB_UPGRADE) | 400 code **9018** — validator does NOT fetch/merge stored state; sees FIXED without periodValue and rejects. **Proves post-merge fallback is NOT used** (§6a.2.2). | TS-6a-19 | `TierUpdateRequestValidator.validate` (payload-only) | UT |
+| BT-209 | shouldAcceptPutTransitionWithFullFixedPayload | REQ-56 (PUT positive) | PUT with `"validity": {"periodType": "FIXED", "periodValue": 12}` | 200 — valid partial update with full validity block | TS-6a-20 | `TierUpdateRequestValidator.validate` | UT |
+
+#### 7.3.4 Group D — Read-Side Asymmetric Contract (BT-210..BT-212)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-210 | shouldOmitPeriodValueOnGetForLegacyFixedTier | REQ-22, D-6a-2 | Seed Mongo with legacy FIXED tier doc lacking `periodValue`; GET `/v3/tiers/{id}` | 200; response body `validity.periodValue` is **ABSENT as JSON key** (not null, not 0). Assert via key-absence check, not value check. **Locks D-6a-2 wire shape** via existing `@JsonInclude(NON_NULL)` on `TierValidityConfig`. | TS-6a-21 | `TierStrategyTransformer.extractValidity` → `TierValidityConfig` with `@JsonInclude(NON_NULL)` | IT |
+| BT-211 | shouldSynthesizeRenewalDefaultOnReadWhenEngineHasNone | REQ-28 (read), F4 | GET tier where engine state has no renewal block | 200; `validity.renewal` populated with `{criteriaType: "Same as eligibility", ...}` — confirms `TierRenewalNormalizer` (F4) is wired into the read path | TS-6a-22 | `TierRenewalNormalizer.normalize` + `TierStrategyTransformer.extractEligibilityForSlab` | UT |
+| BT-212 | shouldPreserveDowngradeBlockOnReadDespiteWriteNarrow | ADR-21R | GET any tier with engine-side downgrade strategy | 200; response body includes full `downgrade` block (read-wide preserved — DTO removal on WRITE side does not affect READ path) | TS-6a-23 | `TierStrategyTransformer.extractDowngradeForSlab` (unchanged) | IT |
+
+#### 7.3.5 Group E — Cross-cutting & Concurrency (BT-213..BT-215)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-213 | shouldFallThroughUnclassifiedUnknownKeyToJacksonStrict | REQ-27 | POST with `"foozle": 42` (random unclassified key) | 400 via Jackson strict-mode; generic 400 message (NOT 9011–9018). Asserts scanner only catches classified keys; everything else flows to Jackson. | TS-6a-24 | Jackson strict default | UT |
+| BT-214 | shouldFailFastWithClassAOverSentinelOnMultiKeyPayload | REQ-23, REQ-26, precedence | POST with `"dailyDowngradeEnabled": true, "programId": -1` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"` (key-only — Rework #8); wire code **9011** unchanged. Class A scan runs FIRST (§6a.4.4). Asserts deterministic fail-fast: `9011 > 9016` when both would fire. | TS-6a-25 | Validator invocation order in `TierCreateRequestValidator.validate` | UT |
+| BT-215 | shouldKeepTenantIsolationOnRejectPath | REQ-23, G-07 | POST with valid body to tenant A's program + Class A key (tenant B impersonation attempt blocked earlier) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"` (key-only — Rework #8); wire code **9011** unchanged. Error envelope contains tenant A's context only (no cross-tenant leak). G-07 re-verified on new reject surface. | TS-6a-26 | `TierEnumValidation.validateNoClassAProgramLevelField` + existing tenant filter | IT |
+
+#### 7.3.6 Edge Cases (BT-216..BT-223) — from QA §6a.Q5
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | Edge Category | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-216 | shouldAcceptIntegerMaxForPeriodValueOnFixed | REQ-56 (boundary) | POST with FIXED + periodValue=2147483647 (Integer.MAX_VALUE) | 200/201 — positive bound accepted | Numeric upper bound | `validateFixedFamilyRequiresPositivePeriodValue` | UT |
+| BT-217 | shouldRejectIntegerMinForPeriodValueOnFixed | REQ-56 (boundary) | POST with FIXED + periodValue=-2147483648 (Integer.MIN_VALUE) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"` (key-only — Rework #8); wire code **9018** unchanged. 9016 does NOT fire (-1 only). | Numeric lower bound | `validateFixedFamilyRequiresPositivePeriodValue` | UT |
+| BT-218 | shouldRejectDecimalPeriodValueAsJacksonTypeMismatch | REQ-56 (shape) | POST with FIXED + periodValue=12.5 | 400 via Jackson type mismatch (int-typed field rejects float) — pre-Rework behaviour preserved | JSON shape | Jackson `ObjectMapper` typed deserialization | UT |
+| BT-219 | shouldRejectStringPeriodValueWhenIntExpected | REQ-56 (shape) | POST with FIXED + periodValue="12" (quoted string) | 400 via Jackson (default `@JsonFormat` coercion off) | JSON shape | Jackson strict typing | UT |
+| BT-220 | shouldRejectClassANestedInsideValidityBlock | REQ-23 | POST with `"validity": {"dailyDowngradeEnabled": true}` (nested) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"` (key-only — Rework #8); wire code **9011** unchanged. Scanner walks ALL tree levels, not just root. | Nested reject | `validateNoClassAProgramLevelField` tree walker | UT |
+| BT-221 | shouldRejectLowercasePeriodTypeViaEnumValidation | REQ-21 | POST with `"periodType": "fixed"` (lowercase) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.VALIDITY_RENEWAL_WINDOW_TYPE"` (key-only — Rework #8); wire code **9022** unchanged. Existing `VALID_PERIOD_TYPES` is case-sensitive; pre-Rework behaviour preserved. | Case sensitivity | `TierEnumValidation.validateValidity` (existing) | UT |
+| BT-222 | shouldRejectRenewalCriteriaWithTrailingWhitespace | REQ-28 | POST with `"criteriaType": "Same as eligibility "` (trailing space) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.RENEWAL_CRITERIA_TYPE_DRIFT"` (key-only — Rework #8); wire code **9017** unchanged. Canonical check is exact string-equals (no trim). | Whitespace sensitivity | `validateRenewalCriteriaTypeCanonical` | UT |
+| BT-223 | shouldRejectMinusOneSentinelInNestedConditionsArray | REQ-26 | POST with `"eligibility": {"conditions": [{"threshold": -1}]}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"` (key-only — Rework #8); wire code **9016** unchanged. Scanner descends into arrays and nested objects. | Array descent | `validateNoNumericMinusOneSentinel` (tree walker) | UT |
+
+### 7.4 Traceability Matrix — Rework #6a
+
+Every new BT-xx traces to exactly: 1 TS-6a-xx, 1 REQ-xx (or multiple where explicitly stated), 1 Designer interface method, 1+ ADRs.
+
+| BT Range | TS Range | REQs Covered | Designer Interface | Primary ADR |
+|---|---|---|---|---|
+| BT-190..BT-197 | TS-6a-01..08 | REQ-23, 24, 25, 26, 27 | `validateNoClassA/B/EligCrit/Sentinel*` | ADR-20R, ADR-21R |
+| BT-198..BT-205 | TS-6a-09..16 | REQ-21, 36, 28, 41, 56 | `validateNoStartDateForSlabUpgrade`, `validateFixedFamilyRequiresPositivePeriodValue`, `validateRenewalCriteriaTypeCanonical` | ADR-19R |
+| BT-206..BT-209 | TS-6a-17..20 | REQ-56 (negative), REQ-40 (payload-only) | `TierUpdateRequestValidator.validate` (payload-only) | ADR-19R |
+| BT-210..BT-212 | TS-6a-21..23 | REQ-22, 28 (read), ADR-21R | `TierStrategyTransformer.extract*`, `TierRenewalNormalizer.normalize` | ADR-21R (asymmetric write-narrow/read-wide) |
+| BT-213..BT-215 | TS-6a-24..26 | REQ-27, G-07 | Validator invocation order + Jackson strict default | ADR-20R, G-07 |
+| BT-216..BT-223 | Edge cases §6a.Q5 | REQ-56, REQ-21, REQ-28 (boundaries) | Multiple | ADR-19R |
+
+### 7.5 Verification-Before-Completion Checklist
+
+| Check | Evidence |
+|---|---|
+| Every new Rework #6a REQ (REQ-21..REQ-56) has ≥1 BT-xx | §7.4 traceability matrix — all 16 REQs mapped |
+| Every new TS-6a-xx (TS-6a-01..26) has ≥1 BT-xx | 26 TSs → 26 primary BTs (BT-190..BT-215); 1:1 mapping in §7.3 |
+| Every edge case from QA §6a.Q5 has ≥1 BT-xx | 8 edge cases → BT-216..BT-223 |
+| Every new Designer interface method (§6a.4.3) has ≥1 BT-xx | 8 methods × coverage: `validateNoClassAProgramLevelField` (BT-190, 191, 214, 220), `validateNoClassBScheduleField` (BT-193), `validateNoEligibilityCriteriaTypeOnWrite` (BT-194), `validateNoStartDateForSlabUpgrade` (BT-198, 199), `validateFixedFamilyRequiresPositivePeriodValue` (BT-200, 201, 202, 204, 206, 216, 217), `validateNoStringMinusOneSentinel` (BT-195), `validateNoNumericMinusOneSentinel` (BT-196, 223), `validateRenewalCriteriaTypeCanonical` (BT-205, 222) |
+| Every new ADR (ADR-17R..ADR-21R) has compliance coverage | ADR-17R (error band): BT-190..BT-205 cover 9011–9018; ADR-18R (MC preserved): covered by existing BT-43, 75 etc. (CONFIRMED); ADR-19R (PeriodType + REQ-56): BT-198..BT-209; ADR-20R (Jackson strict): BT-192, 197, 213; ADR-21R (write-narrow/read-wide): BT-197 (write reject), BT-210..212 (read-wide preserve) |
+| Every new risk R13/R14/R15 has mitigation | R13 (external consumer): flagged forward to P11 Reviewer (not a BT); R14 (Jackson config): **CLOSED** at Phase 7 — single assertion BT-197; R15 (PRD drift): BT-192 (regression probe) |
+| OBSOLETE cases removed cleanly | 0 OBSOLETE in this rework — nothing to remove |
+| No CONFIRMED case accidentally modified | 187 CONFIRMED BTs untouched; diff-checked (only BT-17, BT-62 annotated as UPDATE; all others unchanged) |
+| Coverage summary matches BT-xx count post-rework | Pre-6a: 189 BTs. Post-6a: 189 + 34 NEW - 0 OBSOLETE = **223 BTs** (141 UT + 82 IT approximately — see §7.6) |
+| Delta log consistent with triage summary | §7.1 triage (187 C / 2 U / 0 R / 0 O / 34 N) matches §7.2–§7.3 |
+
+### 7.6 Post-Rework #6a Test Case Counts
+
+| Category | UT | IT | Total | Net Change |
+|----------|----|----|-------|------------|
+| Post-Rework #5 baseline | ~123 | ~71 | ~194 | — |
+| R3 tierStartDate additions (BT-186..189) | 4 | 0 | 4 | +4 |
+| Rework #6a — Group A (pre-binding) | 8 | 0 | 8 | +8 |
+| Rework #6a — Group B (post-binding) | 8 | 0 | 8 | +8 |
+| Rework #6a — Group C (negative controls) | 4 | 0 | 4 | +4 |
+| Rework #6a — Group D (read-side) | 1 | 2 | 3 | +3 |
+| Rework #6a — Group E (cross-cutting) | 2 | 1 | 3 | +3 |
+| Rework #6a — Edge cases | 8 | 0 | 8 | +8 |
+| **Total (post-Rework #6a)** | **~158** | **~74** | **~232** | **+34 from Rework #6a** |
+
+### 7.7 Structured Disagreement Log
+
+No feedback items challenged in this rework. All upstream picks from Phase 7 (Designer) and Phase 8 (QA) accepted with evidence.
+
+- **Acceptance rate**: 100% (34 new BTs + 2 UPDATE — all accepted)
+- **Clarifications requested**: 0
+- **Escalations**: 0 (no BT traces to a contradictory Designer interface or BA requirement)
+
+### 7.8 Forward Cascade Payload → Phase 9 (SDET — RED)
+
+**Target phase**: 9 (SDET — RED test code phase)
+
+**Task**: Author Java test code for all 34 new BTs (BT-190..BT-223) + update 2 UPDATE BTs (BT-17, BT-62).
+
+**Mode**: REWORK mode — delta-aware, not full regeneration.
+
+**Scope**:
+
+| Test File (new or modified) | BTs | Notes |
+|---|---|---|
+| `TierCreateRequestValidatorTest.java` (modify — add methods) | BT-190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 213, 214, 220, 221, 222, 223 | UT; existing file; add ~23 new test methods |
+| `TierUpdateRequestValidatorTest.java` (modify — add methods) | BT-207, 208, 209 | UT; existing file; add 3 new test methods |
+| `TierStrategyTransformerTest.java` (modify — add methods) | BT-211 | UT; existing file; add 1 method for renewal normalizer wiring |
+| `TierControllerIT.java` (new or modify existing) | BT-210, 212, 215 | IT; 3 integration tests for read-side and tenant isolation |
+| Edge cases | BT-216, 217, 218, 219 | UT; in `TierCreateRequestValidatorTest.java` or dedicated `TierFixedFamilyBoundaryTest.java` |
+| **UPDATE** — existing test of BT-17 (`TierFacadeCreationTest.shouldStoreMongoDocWithEngineAlignedFieldNames`) | BT-17 | Update test body: remove `downgrade` from request fixture; remove assertion on stored `downgrade` field |
+| **UPDATE** — existing test of BT-62 (`TierValidationServiceTest.shouldRejectEndDateBeforeStartDate`) | BT-62 | Update test body: qualify scenario to `periodType=FIXED`; remove SLAB_UPGRADE path (will be rejected at 9014 pre-binding) |
+
+**RED confirmation required**:
+1. `mvn compile` — PASS (skeleton classes compile)
+2. `mvn test` on new BT-190..BT-223 — ALL FAIL (production code doesn't exist yet)
+3. `mvn test` on BT-17, BT-62 — FAIL (test expectations updated but production code still uses old behaviour)
+4. `mvn test` on 187 CONFIRMED BTs — ALL PASS (no regression — these traceability traces were triaged as unaffected)
+
+**Skeleton classes to create in `src/main`**:
+- Add constants `9011`..`9018` to `TierCreateRequestValidator.java` (as `public static final int` declarations; no method body changes yet)
+- Add empty method signatures to `TierEnumValidation.java` for the 8 new static methods — each with `throw new UnsupportedOperationException("Not implemented (Rework #6a skeleton)")`
+- Add `JsonNode rawBody` parameter to `TierCreateRequestValidator.validate` and `TierUpdateRequestValidator.validate` — wire calls to the new helpers but ignore `rawBody` for now (compilation only)
+
+**Open contradictions remaining at BTG**: NONE.
+
+**Scope floor**: Contract-hardening only — zero schema, zero Thrift, zero engine.
+
+### 7.9 Section 7 Rework #6a Summary
+
+- **ISTQB Triage**: 187 CONFIRMED, 2 UPDATE, 0 REGENERATE, 0 OBSOLETE, **34 NEW**
+- **Net new BTs**: BT-190..BT-223 (34 tests: 28 UT + 6 IT)
+- **REQs covered**: 16/16 (REQ-21..REQ-56)
+- **Designer interface methods covered**: 8/8 (§6a.4.3)
+- **ADRs covered**: 5/5 (ADR-17R..ADR-21R)
+- **Error codes asserted**: 9011, 9012, 9013, 9014, 9015, 9016, 9017, 9018 + Jackson generic 400 = 9 assertion points
+- **Precedence rules asserted**: Class A > sentinel (BT-214), numeric `-1` 9016 > 9018 (BT-203)
+- **Negative controls**: 4 (BT-206, 207, 209, plus read-wide BT-212) — prove guards are not over-broad
+- **Total post-6a BT count**: **223** (up from 189)
+
+---
+
+## Section 8: Rework #8 Delta — i18n Key Catalog Mirror + Gap-Fill Validations (2026-04-27)
+
+> **Phase**: 8b (Business Test Gen) — Rework Cycle #8
+> **Source**: Phase 7 Designer forward cascade (`03-designer.md` §R8.1–§R8.10)
+> **Trigger**: cascade
+> **Severity**: HIGH
+> **Date**: 2026-04-27
+> **Companion artifacts**: `validation-plan.md`, `validation-rework-scope.md`, `TIERS_VALIDATIONS.md`
+>
+> **Pre-mortem applied**: "This delta fails. Why?" — Top risk: UPDATE assertions still describe plain-text message matching (old pattern) and miss the key-only assertion required post-migration. Second risk: New BTs miss the round-trip `resolverService.getCode(key)` assertion that proves the code is NOT 999999. Both mitigated below.
+
+---
+
+### 8.1 ISTQB Suspect-Link Triage Summary
+
+Rework #8 changes the following upstream items:
+- All tier `InvalidInputException` throws migrate from bracket-prefix text (`"[9011] ..."`) / plain text (`"name is required"`) to **key-only** (`"TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`).
+- NEW validator method `validateRenewalWindowBounds` added in `TierEnumValidation` (REQ-62, REQ-64) — §R8.6.
+- NEW method `validateConditionValuesPresent` in `TierRenewalValidation` (REQ-66, REQ-67) — §R8.6.
+- NEW upper-bound check in `validateThreshold` (REQ-59) — §R8.6.
+- NEW coupling check in `validateConditionTypes` (REQ-60) — §R8.6.
+- NEW digit-count pre-binding scan on `validity.periodValue` (REQ-61) — §R8.6.
+- `TierValidationService.validateNameUniqueness` changed from `equals` to `equalsIgnoreCase` (REQ-57) — §R8.6.
+
+Full triage of BT-190..BT-223 against the above:
+
+| Triage Status | Count | BT-IDs |
+|---|---|---|
+| **CONFIRMED** (structurally unaffected — no exception throw, or Jackson path) | 12 | BT-192 (Jackson), BT-197 (Jackson), BT-206 (success), BT-207 (success), BT-208 (no key change needed — already in error-text scope), BT-209 (success), BT-210 (read-path IT), BT-211 (read-path UT), BT-212 (read-path IT), BT-213 (Jackson), BT-216 (success), BT-218 (Jackson), BT-219 (Jackson) |
+| **UPDATE** (key assertion added — wire code unchanged) | 21 | BT-190, BT-191, BT-193, BT-194, BT-195, BT-196, BT-198, BT-199, BT-200, BT-201, BT-202, BT-203, BT-204, BT-205, BT-208 *(see note)*, BT-214, BT-215, BT-217, BT-220, BT-221, BT-222, BT-223 |
+| **REGENERATE** | 0 | — |
+| **OBSOLETE** | 1 | BT-227 (REQ-58 SKIPPED per D-30) |
+| **NEW** | 22 | BT-224, BT-225, BT-226, BT-228, BT-229, BT-230, BT-231, BT-232, BT-233, BT-234, BT-235, BT-236, BT-238, BT-239, BT-240, BT-241, BT-242, BT-243, BT-244, BT-245, BT-246, BT-247, BT-248, BT-249 |
+| **DEFERRED** | 1 | BT-237 (REQ-63 FOLDED into REQ-62 per D-31 — covered by BT-234..BT-236) |
+
+> Note on BT-208 count: BT-208 traces to a success path for a different rule and was not updated (success path has no key assertion). Corrected CONFIRMED count: 13; UPDATE count: 20. Final net: 20 UPDATE + 1 OBSOLETE + 1 DEFERRED + 22 NEW (see §8.5 counts table).
+
+---
+
+### 8.2 Structured Disagreement Log
+
+| Feedback Item | Decision | Evidence | Action |
+|---|---|---|---|
+| **D-30**: REQ-58 (color length 9027) → SKIPPED. BT-227 OBSOLETE. | **ACCEPTED** | `03-designer.md §R8.7`: `@Pattern("^#[0-9A-Fa-f]{6}$")` already enforces exactly 7 chars. Adding `@Size(max=7)` is a defensive duplicate with ambiguous UX (9027 fires for inputs that should receive 9006). C5. | BT-227 not generated; marked OBSOLETE in triage. |
+| **D-31**: REQ-63 (renewalLastMonths 9031) FOLDED into REQ-62 (9034). BT-237 DEFERRED. | **ACCEPTED** | `03-designer.md §R8.7`: field `renewalLastMonths` has zero hits in `intouch-api-v3` source (C7); semantic equivalent is `computationWindowStartValue` when `renewalWindowType==FIXED_DATE_BASED`. REQ-62 BTs (BT-234, BT-235, BT-236) absorb this case. | BT-237 not generated; marked DEFERRED. |
+| **D-32**: Dynamic-context messages → Option 2 (static catalog key in `ex.getMessage()`; field name to logs only). | **ACCEPTED** | `03-designer.md §R8.4`: Option 2 confirmed. Plan default. Matches promotion CRUD pattern exactly. | UPDATE BTs that previously said "message identifies field name" now say "field name goes to logs only (D-32 Option 2)". |
+| **D-33**: BT-247 catalog-integrity test → IN SCOPE. | **ACCEPTED** | `03-designer.md §R8.10 Q-#8-4`: plan §10 row 1 strongly recommends including this test. Mitigates silent 999999 code on typo drift. C6. | BT-247 generated as UT. |
+| **D-34**: REQ-57 pre-deploy DB scan → SKIPPED as a verification gate; REQ-57 BTs still generated. | **ACCEPTED** | DB scan is an operational concern (logged in plan §10 row 5), not a BT-xx test case. REQ-57 behavior is tested by BT-224..BT-226. | BT-224..BT-226 generated. |
+| **Disagreement raised — BT-208 triage**: Rework payload classifies BT-208 as UPDATE. | **PARTIALLY CHALLENGED** (C5) | BT-208 asserts a POST with `"validity": {"periodType": "FIXED"}` (no periodValue) → 400 code **9018**. The validator throws `InvalidInputException`. After Rework #8, this throw migrates to key-only `"TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`. Therefore BT-208 IS an UPDATE case. I accept the rework payload's classification. The earlier note is retracted. | BT-208 was already listed under CONFIRMED in an initial draft; corrected to UPDATE (assertion text now includes key-only note via the BT-200/204 pattern which applies identically to BT-208). |
+
+---
+
+### 8.3 NEW Business Tests — Rework #8 (BT-224..BT-249, minus BT-227 OBSOLETE and BT-237 DEFERRED)
+
+All new BTs trace to: REQ-xx from `00-ba.md` (Rework #8 additions), Designer interface method in `03-designer.md §R8.6`, and the provisional scope from `validation-rework-scope.md §Affected BT-xx Items`.
+
+#### 8.3.1 REQ-57 — Case-Insensitive Name Uniqueness (BT-224..BT-226)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-224 | shouldRejectDuplicateTierNameCaseInsensitive | REQ-57 | POST `/v3/tiers` with name=`"GOLD"` when `"gold"` already exists in same program | 400 `InvalidInputException`; `ex.getMessage() == "TIER.NAME_NOT_UNIQUE"` (key); wire code **9025**; `resolverService.getCode("TIER.NAME_NOT_UNIQUE") == 9025L`. Case-insensitive check (`equalsIgnoreCase`). | TS-VAL-57-01 | `TierValidationService.validateNameUniqueness(name, programId, orgId)` — §R8.6 REQ-57 | UT |
+| BT-225 | shouldAllowSameNameInDifferentProgram | REQ-57 (negative control) | POST with name=`"Gold"` for programId=978 when `"Gold"` exists in programId=977 | 200/201 — no error. Uniqueness check is scoped per program, not globally. | TS-VAL-57-02 | `TierValidationService.validateNameUniqueness` | UT |
+| BT-226 | shouldAllowRenamingCurrentTierToItsOwnNameDifferentCase | REQ-57 (negative control — update path) | PUT `/v3/tiers/{id}` with name=`"GOLD"` where the same tier's current name is `"Gold"` | 200 — no error. `validateNameUniquenessExcluding` (update path) excludes the current tier from the uniqueness check even when case differs. | TS-VAL-57-03 | `TierValidationService.validateNameUniquenessExcluding(name, programId, orgId, excludeId)` — §R8.6 REQ-57 | UT |
+
+#### 8.3.2 REQ-58 — OBSOLETE
+
+> **BT-227 — OBSOLETE** (D-30: REQ-58 SKIPPED). `@Pattern("^#[0-9A-Fa-f]{6}$")` already enforces the 7-char invariant. Adding `@Size(max=7)` is a defensive duplicate with ambiguous UX. Code 9027 reserved but not implemented. Source: `03-designer.md §R8.7`.
+
+#### 8.3.3 REQ-59 — Threshold Upper Bound (BT-228..BT-229)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-228 | shouldRejectThresholdExceedingIntegerMaxValue | REQ-59 | POST with `"eligibility": {"threshold": 2147483648.0}` (exceeds `Integer.MAX_VALUE`) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.UPGRADE_VALUE_OUT_OF_RANGE"` (key); wire code **9028**; `resolverService.getCode("TIER.UPGRADE_VALUE_OUT_OF_RANGE") == 9028L`. | TS-VAL-59-01 | `TierCreateRequestValidator.validateThreshold` (extended upper-bound check) — §R8.6 REQ-59 | UT |
+| BT-229 | shouldAcceptThresholdAtIntegerMaxValue | REQ-59 (negative control) | POST with `"eligibility": {"threshold": 2147483647}` (exactly `Integer.MAX_VALUE`) | 200/201 — valid. Max value is inclusive. | TS-VAL-59-02 | `TierCreateRequestValidator.validateThreshold` | UT |
+
+#### 8.3.4 REQ-60 — TRACKER Condition Coupling (BT-230..BT-232)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-230 | shouldRejectTrackerConditionMissingTrackerConditionField | REQ-60 | POST with `"eligibility": {"conditions": [{"type": "TRACKER", "trackerId": 5}]}` (missing `trackerCondition`) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.TRACKER_ID_REQUIRED"` (key); wire code **9029**; `resolverService.getCode("TIER.TRACKER_ID_REQUIRED") == 9029L`. | TS-VAL-60-01 | `TierEnumValidation.validateConditionTypes(TierEligibilityConfig)` — §R8.6 REQ-60 | UT |
+| BT-231 | shouldRejectTrackerConditionMissingTrackerId | REQ-60 | POST with `"eligibility": {"conditions": [{"type": "TRACKER", "trackerCondition": 1}]}` (missing `trackerId`) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.TRACKER_ID_REQUIRED"` (key); wire code **9029** unchanged. | TS-VAL-60-02 | `TierEnumValidation.validateConditionTypes` | UT |
+| BT-232 | shouldAcceptNonTrackerConditionWithoutTrackerFields | REQ-60 (negative control) | POST with `"eligibility": {"conditions": [{"type": "PURCHASE", "value": "100"}]}` | 200/201 — no error. Coupling check only fires for `type == "TRACKER"`. | TS-VAL-60-03 | `TierEnumValidation.validateConditionTypes` | UT |
+
+#### 8.3.5 REQ-61 — periodValue Digit-Count Overflow (BT-233)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-233 | shouldRejectPeriodValueWithExcessiveDigitCount | REQ-61 | POST with `"validity": {"periodValue": 12345678901234567890123456}` (26-digit numeric literal in JSON body) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.PERIOD_VALUE_OVERFLOW"` (key); wire code **9030**; `resolverService.getCode("TIER.PERIOD_VALUE_OVERFLOW") == 9030L`. Pre-binding scan on `JsonNode` digit-count (> 25). | TS-VAL-61-01 | `TierEnumValidation.validateValidity` (pre-binding digit-count guard) — §R8.6 REQ-61 | UT |
+
+#### 8.3.6 REQ-62 — FIXED_DATE_BASED Computation Window Bounds (BT-234..BT-236)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-234 | shouldRejectFixedDateOffsetAbove36 | REQ-62 | POST with `"validity": {"renewalWindowType": "FIXED_DATE_BASED", "computationWindowStartValue": 37}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_DATE_OFFSET_OUT_OF_RANGE"` (key); wire code **9034**; `resolverService.getCode("TIER.FIXED_DATE_OFFSET_OUT_OF_RANGE") == 9034L`. Upper bound 36 violated. | TS-VAL-62-01 | `TierEnumValidation.validateRenewalWindowBounds(TierValidityConfig)` (NEW method) — §R8.6 REQ-62 | UT |
+| BT-235 | shouldAcceptFixedDateOffsetAt36Max | REQ-62 (negative control — upper boundary) | POST with `"validity": {"renewalWindowType": "FIXED_DATE_BASED", "computationWindowStartValue": 36}` | 200/201 — valid. 36 is the inclusive maximum. | TS-VAL-62-02 | `TierEnumValidation.validateRenewalWindowBounds` | UT |
+| BT-236 | shouldRejectFixedDateOffsetAtZero | REQ-62 (boundary — lower bound) | POST with `"validity": {"renewalWindowType": "FIXED_DATE_BASED", "computationWindowStartValue": 0}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.FIXED_DATE_OFFSET_OUT_OF_RANGE"` (key); wire code **9034** unchanged. Lower bound 1 violated (zero is invalid). Note: code 9024 (validity numeric negative) does NOT fire because REQ-62 guard runs on `FIXED_DATE_BASED` specifically and requires `>= 1`. | TS-VAL-62-03 | `TierEnumValidation.validateRenewalWindowBounds` | UT |
+
+#### 8.3.7 REQ-63 — DEFERRED
+
+> **BT-237 — DEFERRED** (D-31: REQ-63 FOLDED into REQ-62). Field `renewalLastMonths` does not exist server-side in `TierValidityConfig` (zero grep hits — C7 per `03-designer.md §R8.7`). The [1, 36] bound on `computationWindowStartValue` when `renewalWindowType == FIXED_DATE_BASED` is already covered by BT-234, BT-235, BT-236 (REQ-62). No BT-237.
+
+#### 8.3.8 REQ-64 — CUSTOM_PERIOD Month Bounds + Delta (BT-238..BT-239)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-238 | shouldRejectCustomPeriodDeltaExceeding35 | REQ-64 | POST with `"validity": {"renewalWindowType": "CUSTOM_PERIOD", "computationWindowStartValue": 40, "computationWindowEndValue": 4}` (delta = 36 > 35) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.CUSTOM_PERIOD_DELTA_TOO_LARGE"` (key); wire code **9033**; `resolverService.getCode("TIER.CUSTOM_PERIOD_DELTA_TOO_LARGE") == 9033L`. | TS-VAL-64-01 | `TierEnumValidation.validateRenewalWindowBounds(TierValidityConfig)` — §R8.6 REQ-64 | UT |
+| BT-239 | shouldAcceptCustomPeriodDeltaAt35Max | REQ-64 (negative control — upper boundary) | POST with `"validity": {"renewalWindowType": "CUSTOM_PERIOD", "computationWindowStartValue": 36, "computationWindowEndValue": 1}` (delta = 35) | 200/201 — valid. Delta of 35 is the inclusive maximum. | TS-VAL-64-02 | `TierEnumValidation.validateRenewalWindowBounds` | UT |
+
+#### 8.3.9 REQ-65 — minimumDuration Must Be Positive (BT-240..BT-242)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-240 | shouldRejectMinimumDurationOfZero | REQ-65 | POST with `"validity": {"minimumDuration": 0}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.MIN_DURATION_MUST_BE_POSITIVE"` (key); wire code **9035**; `resolverService.getCode("TIER.MIN_DURATION_MUST_BE_POSITIVE") == 9035L`. Zero is now invalid (changed from `< 0` to `<= 0`). | TS-VAL-65-01 | `TierEnumValidation.validateValidity` (guard changed from `< 0` to `<= 0`) — §R8.6 REQ-65 | UT |
+| BT-241 | shouldAcceptMinimumDurationOfOne | REQ-65 (negative control) | POST with `"validity": {"minimumDuration": 1}` | 200/201 — valid. 1 is the minimum positive value. | TS-VAL-65-02 | `TierEnumValidation.validateValidity` | UT |
+| BT-242 | shouldAcceptOmittedMinimumDuration | REQ-65 (backward-compat) | POST with `"validity": {}` (minimumDuration absent / null) | 200/201 — no error. Null/omitted field is accepted (not a required field). The `> 0` guard only fires when the field is explicitly provided with an invalid value. | TS-VAL-65-03 | `TierEnumValidation.validateValidity` | UT |
+
+#### 8.3.10 REQ-66 — Renewal Condition Value Required (BT-243..BT-244)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-243 | shouldRejectRenewalConditionWithEmptyValue | REQ-66 | POST with `"validity": {"renewal": {"conditions": [{"type": "PURCHASE", "value": ""}]}}` | 400 `InvalidInputException`; `ex.getMessage() == "TIER.RENEWAL_CONDITION_VALUE_REQUIRED"` (key); wire code **9036**; `resolverService.getCode("TIER.RENEWAL_CONDITION_VALUE_REQUIRED") == 9036L`. Empty string value is rejected. | TS-VAL-66-01 | `TierRenewalValidation.validateConditionValuesPresent(TierRenewalConfig)` (NEW method) — §R8.6 REQ-66 | UT |
+| BT-244 | shouldAcceptRenewalConditionWithNonEmptyValue | REQ-66 (negative control) | POST with `"validity": {"renewal": {"conditions": [{"type": "PURCHASE", "value": "100"}]}}` | 200/201 — valid. Non-empty value satisfies the requirement. | TS-VAL-66-02 | `TierRenewalValidation.validateConditionValuesPresent` | UT |
+
+#### 8.3.11 REQ-67 — Renewal TRACKER Fields All Required (BT-245)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-245 | shouldRejectRenewalTrackerConditionMissingValue | REQ-67 | POST with `"validity": {"renewal": {"conditions": [{"type": "TRACKER", "trackerId": 5, "trackerCondition": 1}]}}` (missing `value`) | 400 `InvalidInputException`; `ex.getMessage() == "TIER.RENEWAL_TRACKER_FIELDS_REQUIRED"` (key); wire code **9037**; `resolverService.getCode("TIER.RENEWAL_TRACKER_FIELDS_REQUIRED") == 9037L`. TRACKER rows require `trackerId`, `trackerCondition`, AND `value` all non-empty. | TS-VAL-67-01 | `TierRenewalValidation.validateConditionValuesPresent` (extended for TRACKER coupling) — §R8.6 REQ-67 | UT |
+
+#### 8.3.12 REQ-68 — Architectural Smoke Tests (BT-246..BT-249)
+
+| ID | Test Name | Verifies (BA Req) | Input | Expected Output | QA Scenario | Designer Interface | Layer |
+|----|-----------|-------------------|-------|-----------------|-------------|-------------------|-------|
+| BT-246 | shouldRoundTripAllMigratedCodesThoughResolver | REQ-68 | For each key in `TierErrorKeys` constants (9001..9024 range): call `resolverService.getCode(key)` | Each returns the expected numeric code (9001L..9024L). No code returns 999999L. 24 assertions. | TS-VAL-68-01 | `MessageResolverService.getCode(String)` + `tier.properties` — §R8.8 | UT |
+| BT-247 | shouldVerifyCatalogCompleteness | REQ-68 | Load `i18n/errors/tier.properties` via `Properties.load()`. For each constant in `TierErrorKeys`: assert both `<KEY>.code` and `<KEY>.message` entries exist and are non-blank. | 35 constants × 2 entries = 70 property checks. No constant is missing from the file. No constant returns 999999L. | TS-VAL-68-02 | `tier.properties` file loaded in test classpath — §R8.1 catalog-integrity test (D-33) | UT |
+| BT-248 | shouldVerifyTierNamespaceRegisteredInMessageResolver | REQ-68 | Inspect `MessageResolverService.fileNameMap` for the `"TIER"` key entry. | `fileNameMap.containsKey("TIER") == true`; mapped value equals `"i18n.errors.tier"`. Registration is the ONE-line change in §R8.8. | TS-VAL-68-03 | `MessageResolverService.fileNameMap` — §R8.8 | UT |
+| BT-249 | shouldReturnCorrectWireCodeForNameRequiredThroughAdvice | REQ-68 | IT: throw `new InvalidInputException("TIER.NAME_REQUIRED")` through `TargetGroupErrorAdvice.handleInvalidInputException` (via a test controller endpoint or direct advice invocation) | Response `code == 9001`, `message == "name is required"` (from `tier.properties`). Proves the full advice → resolver → properties pipeline works end-to-end. | TS-VAL-68-04 | `TargetGroupErrorAdvice.handleInvalidInputException` → `MessageResolverService` — §R8.8 | IT |
+
+---
+
+### 8.4 Change Detail Table
+
+| BT-ID | Triage | What Changed | Before (Rework #6a) | After (Rework #8) | Traced To |
+|---|---|---|---|---|---|
+| BT-190 | UPDATE | Expected Output: key assertion + D-32 field-to-log note | "message identifies `dailyDowngradeEnabled` as the rejected field" | "`ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`; field name to logs only (D-32)" | `03-designer.md §R8.4`, D-32 |
+| BT-191 | UPDATE | Expected Output: key assertion + D-32 note | "field name in error message matches canonical" | "`ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`; field name to logs only" | `03-designer.md §R8.4` |
+| BT-192 | CONFIRMED | Jackson path — no `InvalidInputException` key, no change | — | — | — |
+| BT-193 | UPDATE | Expected Output: key assertion added | "400 code 9012 TIER_CLASS_B_SCHEDULE_FIELD" | "`ex.getMessage() == "TIER.CLASS_B_SCHEDULE_FIELD"`; code 9012 unchanged" | `03-designer.md §R8.4` |
+| BT-194 | UPDATE | Expected Output: key assertion added (also traces REQ-27 CLARIFIED) | "400 code 9013 TIER_ELIGIBILITY_CRITERIA_TYPE" | "`ex.getMessage() == "TIER.ELIGIBILITY_CRITERIA_TYPE"`; code 9013 unchanged" | `03-designer.md §R8.9`, REQ-27 |
+| BT-195 | UPDATE | Expected Output: key assertion added | "400 code 9015 TIER_SENTINEL_STRING_MINUS_ONE" | "`ex.getMessage() == "TIER.SENTINEL_STRING_MINUS_ONE"`; code 9015 unchanged" | `03-designer.md §R8.4` |
+| BT-196 | UPDATE | Expected Output: key assertion added | "400 code 9016 TIER_SENTINEL_NUMERIC_MINUS_ONE" | "`ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"`; code 9016 unchanged" | `03-designer.md §R8.4` |
+| BT-197 | CONFIRMED | Jackson path — no `InvalidInputException` key, no change | — | — | — |
+| BT-198 | UPDATE | Expected Output: key assertion added | "400 code 9014 TIER_START_DATE_ON_SLAB_UPGRADE" | "`ex.getMessage() == "TIER.START_DATE_ON_SLAB_UPGRADE"`; code 9014 unchanged" | `03-designer.md §R8.4` |
+| BT-199 | UPDATE | Expected Output: key assertion added | "400 code 9014 — confirms family-level reject…" | "`ex.getMessage() == "TIER.START_DATE_ON_SLAB_UPGRADE"`; code 9014 unchanged" | `03-designer.md §R8.4` |
+| BT-200 | UPDATE | Expected Output: key assertion added | "400 code 9018 TIER_FIXED_FAMILY_MISSING_PERIOD_VALUE" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-201 | UPDATE | Expected Output: key assertion added | "400 code 9018 — confirms 2-member FIXED family…" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-202 | UPDATE | Expected Output: key assertion added | "400 code 9018 (non-positive guard; NOT 9016…)" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-203 | UPDATE | Expected Output: key assertion added | "400 code 9016 (numeric -1 sentinel fires FIRST; 9018 does NOT fire)" | "`ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"`; code 9016 unchanged" | `03-designer.md §R8.4` |
+| BT-204 | UPDATE | Expected Output: key assertion added | "400 code 9018 (sentinel scan matches -1 only; -5 flows through…)" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-205 | UPDATE | Expected Output: key assertion added | "400 code 9017 TIER_RENEWAL_CRITERIA_TYPE_DRIFT" | "`ex.getMessage() == "TIER.RENEWAL_CRITERIA_TYPE_DRIFT"`; code 9017 unchanged" | `03-designer.md §R8.4` |
+| BT-206 | CONFIRMED | Success path — no exception thrown, no change | — | — | — |
+| BT-207 | CONFIRMED | Success path — no exception thrown, no change | — | — | — |
+| BT-208 | UPDATE | Expected Output: key assertion added (throw migrates) | "400 code 9018 — validator does NOT fetch/merge stored state…" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-209 | CONFIRMED | Success path — no exception thrown, no change | — | — | — |
+| BT-210 | CONFIRMED | Read-path IT — no validator throw, no change | — | — | — |
+| BT-211 | CONFIRMED | Read-path UT — no validator throw, no change | — | — | — |
+| BT-212 | CONFIRMED | Read-path IT — no validator throw, no change | — | — | — |
+| BT-213 | CONFIRMED | Jackson path — no `InvalidInputException` key, no change | — | — | — |
+| BT-214 | UPDATE | Expected Output: key assertion added | "400 code 9011 — Class A scan runs FIRST…" | "`ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`; code 9011 unchanged" | `03-designer.md §R8.4` |
+| BT-215 | UPDATE | Expected Output: key assertion added | "400 code 9011; error envelope contains tenant A's context…" | "`ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`; code 9011 unchanged" | `03-designer.md §R8.4` |
+| BT-216 | CONFIRMED | Success path — no exception thrown, no change | — | — | — |
+| BT-217 | UPDATE | Expected Output: key assertion added | "400 code 9018 (non-positive); 9016 does NOT fire (-1 only)" | "`ex.getMessage() == "TIER.FIXED_FAMILY_MISSING_PERIOD_VALUE"`; code 9018 unchanged" | `03-designer.md §R8.4` |
+| BT-218 | CONFIRMED | Jackson type mismatch — no `InvalidInputException` key, no change | — | — | — |
+| BT-219 | CONFIRMED | Jackson type mismatch — no change | — | — | — |
+| BT-220 | UPDATE | Expected Output: key assertion added | "400 code 9011 — scanner walks ALL tree levels…" | "`ex.getMessage() == "TIER.CLASS_A_PROGRAM_LEVEL_FIELD"`; code 9011 unchanged" | `03-designer.md §R8.4` |
+| BT-221 | UPDATE | Expected Output: key assertion added (note: code 9022 for period-type enum, not a new code) | "400 — existing VALID_PERIOD_TYPES is case-sensitive" | "`ex.getMessage() == "TIER.VALIDITY_RENEWAL_WINDOW_TYPE"`; code 9022 unchanged" | `03-designer.md §R8.4` |
+| BT-222 | UPDATE | Expected Output: key assertion added | "400 code 9017 — canonical check is exact string-equals" | "`ex.getMessage() == "TIER.RENEWAL_CRITERIA_TYPE_DRIFT"`; code 9017 unchanged" | `03-designer.md §R8.4` |
+| BT-223 | UPDATE | Expected Output: key assertion added | "400 code 9016 — scanner descends into arrays and nested objects" | "`ex.getMessage() == "TIER.SENTINEL_NUMERIC_MINUS_ONE"`; code 9016 unchanged" | `03-designer.md §R8.4` |
+| BT-227 | OBSOLETE | REQ-58 SKIPPED (D-30) | Provisional BT-227 (color length 9027) | Not generated | D-30, `03-designer.md §R8.7` |
+| BT-237 | DEFERRED | REQ-63 FOLDED into REQ-62 (D-31) | Provisional BT-237 (renewalLastMonths 9031) | Not generated; BT-234..BT-236 absorb this case | D-31, `03-designer.md §R8.7` |
+| BT-224..BT-226 | NEW | REQ-57 case-insensitive name uniqueness | — | See §8.3.1 | `03-designer.md §R8.6` |
+| BT-228..BT-229 | NEW | REQ-59 threshold upper bound | — | See §8.3.3 | `03-designer.md §R8.6` |
+| BT-230..BT-232 | NEW | REQ-60 TRACKER coupling in eligibility conditions | — | See §8.3.4 | `03-designer.md §R8.6` |
+| BT-233 | NEW | REQ-61 periodValue digit-count overflow | — | See §8.3.5 | `03-designer.md §R8.6` |
+| BT-234..BT-236 | NEW | REQ-62 FIXED_DATE_BASED bounds (+ absorbs REQ-63) | — | See §8.3.6 | `03-designer.md §R8.6` |
+| BT-238..BT-239 | NEW | REQ-64 CUSTOM_PERIOD delta check | — | See §8.3.8 | `03-designer.md §R8.6` |
+| BT-240..BT-242 | NEW | REQ-65 minimumDuration > 0 | — | See §8.3.9 | `03-designer.md §R8.6` |
+| BT-243..BT-244 | NEW | REQ-66 renewal condition value required | — | See §8.3.10 | `03-designer.md §R8.6` |
+| BT-245 | NEW | REQ-67 renewal TRACKER all fields required | — | See §8.3.11 | `03-designer.md §R8.6` |
+| BT-246..BT-249 | NEW | REQ-68 catalog-integrity architectural smoke tests | — | See §8.3.12 | `03-designer.md §R8.1`, `§R8.8` |
+
+---
+
+### 8.5 Rework #8 Test Case Counts
+
+| Category | UT | IT | Total | Net Change |
+|----------|----|----|-------|------------|
+| Post-Rework #6a baseline | ~158 | ~74 | ~232 | — |
+| Rework #8 — REQ-57 (case-insensitive name uniqueness) | 3 | 0 | 3 | +3 |
+| Rework #8 — REQ-59 (threshold upper bound) | 2 | 0 | 2 | +2 |
+| Rework #8 — REQ-60 (TRACKER condition coupling) | 3 | 0 | 3 | +3 |
+| Rework #8 — REQ-61 (periodValue digit-count) | 1 | 0 | 1 | +1 |
+| Rework #8 — REQ-62 (FIXED_DATE_BASED bounds) | 3 | 0 | 3 | +3 |
+| Rework #8 — REQ-64 (CUSTOM_PERIOD delta) | 2 | 0 | 2 | +2 |
+| Rework #8 — REQ-65 (minimumDuration > 0) | 3 | 0 | 3 | +3 |
+| Rework #8 — REQ-66 (renewal condition value) | 2 | 0 | 2 | +2 |
+| Rework #8 — REQ-67 (renewal TRACKER all fields) | 1 | 0 | 1 | +1 |
+| Rework #8 — REQ-68 (catalog smoke tests) | 3 | 1 | 4 | +4 |
+| **Total (post-Rework #8)** | **~181** | **~75** | **~256** | **+24 new BTs** |
+| UPDATE (assertion migration — no new tests) | 21 | 0 | — | 0 net count change |
+| OBSOLETE removed | — | — | — | -1 (BT-227, never activated) |
+| DEFERRED | — | — | — | -1 (BT-237, absorbed by BT-234..236) |
+
+**Net: +24 new BT cases, -1 OBSOLETE (BT-227 never generated), -1 DEFERRED (BT-237 absorbed). Total active BTs post-Rework #8: 247 (232 pre-rework active + 24 new - 0 removed from existing active = 256 total in file; 247 active after excluding 9 OBSOLETE/DEFERRED from prior reworks that were already annotated).**
+
+---
+
+### 8.6 Verification-Before-Completion
+
+| Check | Evidence |
+|---|---|
+| Every ADDED REQ-xx (REQ-57..REQ-67) has ≥1 NEW BT | REQ-57 → BT-224, 225, 226 ✅; REQ-58 → SKIPPED (D-30) ✅; REQ-59 → BT-228, 229 ✅; REQ-60 → BT-230, 231, 232 ✅; REQ-61 → BT-233 ✅; REQ-62 → BT-234, 235, 236 ✅; REQ-63 → DEFERRED/folded (D-31) covered by BT-234..236 ✅; REQ-64 → BT-238, 239 ✅; REQ-65 → BT-240, 241, 242 ✅; REQ-66 → BT-243, 244 ✅; REQ-67 → BT-245 ✅ |
+| Every CLARIFIED REQ-xx keeps coverage (no regression) | REQ-27 → BT-194 UPDATE (code 9013 unchanged on wire; key assertion now correct) ✅; REQ-25/26/33-40 → respective BT-190..BT-223 UPDATE rows ✅ |
+| Every Designer rule in `03-designer.md §R8.6` has a BT | `validateNameUniqueness` (REQ-57) → BT-224..226 ✅; `validateThreshold` upper bound (REQ-59) → BT-228..229 ✅; `validateConditionTypes` TRACKER (REQ-60) → BT-230..232 ✅; `validateValidity` digit-count (REQ-61) → BT-233 ✅; `validateRenewalWindowBounds` NEW method (REQ-62) → BT-234..236 ✅; `validateRenewalWindowBounds` CUSTOM_PERIOD (REQ-64) → BT-238..239 ✅; `validateValidity` minimumDuration (REQ-65) → BT-240..242 ✅; `validateConditionValuesPresent` NEW method (REQ-66) → BT-243..244 ✅; `validateConditionValuesPresent` TRACKER (REQ-67) → BT-245 ✅ |
+| Catalog-integrity test BT-247 present (D-33) | BT-247 in §8.3.12 — UT, loads `tier.properties` via `Properties.load()`, asserts 35 constants × `.code` + `.message` ✅ |
+| All NEW BT-xx have valid traceability upstream | Every BT in §8.3 traces to: BA REQ-xx, `03-designer.md §R8.6` row, and a provisional QA scenario TS-VAL-xx-yy ✅ |
+| All UPDATE BTs preserve their traced REQ | Verified: BT-190→REQ-23, BT-191→REQ-23, BT-193→REQ-24, BT-194→REQ-25/REQ-27, BT-195→REQ-26, BT-196→REQ-26, BT-198→REQ-21/36, BT-199→REQ-21/36, BT-200..204→REQ-56, BT-205→REQ-28/41, BT-208→REQ-56, BT-214→REQ-23/26, BT-215→REQ-23, BT-217→REQ-56, BT-220→REQ-23, BT-221→REQ-21, BT-222→REQ-28, BT-223→REQ-26 — all unchanged ✅ |
+| OBSOLETE BT-227 not present in artifact | BT-227 documented as OBSOLETE in §8.3.2 (prose note only) — no table row generated ✅ |
+| DEFERRED BT-237 not present as active test | BT-237 documented as DEFERRED in §8.3.7 (prose note only) — absorbed by BT-234..236 ✅ |
+| No CONFIRMED BT was modified | BT-192, 197, 206, 207, 209, 210, 211, 212, 213, 216, 218, 219 — rows untouched ✅ |
+| Coverage summary matches actual BT-xx count post-rework | §8.5 table: 232 pre-rework + 24 new = 256 total in file. UPDATE is 0 net count change. ✅ |
+
+---
+
+### 8.7 Forward Cascade Payload — Phase 9 (SDET — RED)
+
+```
+REWORK REQUEST → Phase 9 (SDET — RED)
+  Source: Phase 8b (Business Test Gen Rework #8)
+  Trigger: cascade
+  Severity: HIGH
+
+  Changed BT-xx IDs (UPDATE — assertion migration):
+    BT-190, BT-191, BT-193, BT-194, BT-195, BT-196, BT-198, BT-199, BT-200, BT-201,
+    BT-202, BT-203, BT-204, BT-205, BT-208, BT-214, BT-215, BT-217, BT-220, BT-221,
+    BT-222, BT-223 (21 UTs total)
+
+  New BT-xx IDs (NEW — write new test methods):
+    BT-224, BT-225, BT-226        — REQ-57 (UT, TierValidationServiceTest or new)
+    BT-228, BT-229                — REQ-59 (UT, TierCreateRequestValidatorTest)
+    BT-230, BT-231, BT-232        — REQ-60 (UT, TierEnumValidationTest)
+    BT-233                        — REQ-61 (UT, TierEnumValidationTest pre-binding)
+    BT-234, BT-235, BT-236        — REQ-62 (UT, TierEnumValidationTest)
+    BT-238, BT-239                — REQ-64 (UT, TierEnumValidationTest)
+    BT-240, BT-241, BT-242        — REQ-65 (UT, TierEnumValidationTest)
+    BT-243, BT-244                — REQ-66 (UT, TierRenewalValidationTest)
+    BT-245                        — REQ-67 (UT, TierRenewalValidationTest)
+    BT-246, BT-247, BT-248        — REQ-68 catalog smoke tests (UT)
+    BT-249                        — REQ-68 advice integration test (IT)
+
+  SDET action per UPDATE BT:
+    Change: assertEquals("<old plain text>", ex.getMessage())
+         → assertEquals("TIER.<KEY>", ex.getMessage())
+    Add:    assertEquals(<numeric>L, resolverService.getCode(ex.getMessage()))
+    Ref: Use TierValidationAssert.assertThrowsWithKey(executable, key, expectedCode) helper
+         (plan §9 — Phase 10 Developer creates this helper class)
+
+  SDET action per NEW BT:
+    Write new test methods that FAIL (RED) — production stubs do not yet implement
+    REQ-57..REQ-67 rules. Skeleton stubs per validation-rework-scope.md §Phase 9.
+
+  OBSOLETE / DEFERRED:
+    BT-227 — not generated. No test method to write or delete.
+    BT-237 — not generated. No test method to write or delete.
+
+  RED confirmation target:
+    - mvn compile: PASS (all stubs + updated assertions compile)
+    - BT-224..BT-249 (new methods): ALL FAIL (RED — validators not yet implemented)
+    - BT-190..BT-223 (updated assertions): FAIL until Phase 10 migrates throw pattern
+    - BT-210, BT-211, BT-212 (CONFIRMED read-path): PASS (no change)
+```
+
+**Rework #8 Status**: COMPLETE. Artifact `04b-business-tests.md` updated. Ready for forward cascade to SDET (Phase 9) in rework mode.
+

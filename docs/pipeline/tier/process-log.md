@@ -165,3 +165,117 @@
 - Cross-cutting covers: multi-tenancy isolation (G-07), concurrency (@Lockable), backward compatibility, CSV index correctness (R1 HIGH risk)
 - Test data requirements: 2+ programs, 7+ tier states, 4+ strategy types
 - Artifact: 04-qa.md
+
+---
+
+## Rework #8 — Validation Catalog Mirror + UI-Parity Gap Closure
+- Trigger: manual (user-initiated)
+- Date started: 2026-04-27
+- Plan doc: `validation-plan.md` (decisions D1=a, D2=a, D3=b, D4=b, D5=a, D6=c)
+- Scope doc: `validation-rework-scope.md`
+- Cascade phases: 7 → 8b → 9 → 10 → 11
+- Severity: HIGH
+
+### Rework #8 — Phase 7 (Designer) — REWORK
+- Time: 2026-04-27
+- Mode: delta-only (no full regen — delta ≈30%, well under 50% threshold)
+- Skill: `/designer` (rework mode)
+- Triage: 33 sections — 18 CONFIRMED, 5 UPDATED in place (§6a.3.1, §6a.3.2, §6a.3.3, §6a.4.1, §6a.4.4), 10 ADDED (§R8.1–§R8.10)
+- Artifact growth: `03-designer.md` 1856 → 2404 lines (+548)
+- Key decisions applied:
+  - REQ-58 (color length 9027): **SKIPPED** — defensive duplicate of `@Pattern("^#[0-9A-Fa-f]{6}$")` which already enforces exactly 7 chars (C5)
+  - REQ-63 (renewalLastMonths 9031): **FOLDED into REQ-62 (9034)** — wire field doesn't exist in `TierValidityConfig.java` (zero hits in source); semantic equivalent is `computationWindowStartValue` when `renewalWindowType==FIXED_DATE_BASED` (C6)
+  - Dynamic-context messages: **Option 2** (static catalog message; field-name detail in structured logs) — plan default confirmed (C5)
+- Net catalog: 35 active codes (24 migrated 9001–9024 + 11 new gap-fills); 9007 + 9027 reserved gaps; 9031 folded
+- Open questions surfaced: 5 (Q-#8-1 through Q-#8-5) — resolved by user (D-30..D-34 in approach-log)
+- Forward cascade payload prepared for Phase 8b
+- Artifact: `03-designer.md` updated; `session-memory.md` updated (line 63)
+
+### Rework #8 — Phase 8b (Business Test Gen) — REWORK
+- Time: 2026-04-27
+- Mode: delta-only (cascade from Phase 7 Designer)
+- Skill: `/business-test-gen` (rework mode — ISTQB R-protocol applied)
+- Triage: 13 CONFIRMED, 21 UPDATED, 0 REGENERATED, 1 OBSOLETE (BT-227), 1 DEFERRED (BT-237), 24 NEW (BT-224..BT-249 minus 227 + 237)
+- Artifact growth: `04b-business-tests.md` 960 → 1246 lines (+286)
+- Net coverage: ~247 active BT cases (~181 UT / ~75 IT)
+- All ADDED REQs covered:
+  - REQ-57 → BT-224, BT-225, BT-226
+  - REQ-59 → BT-228, BT-229
+  - REQ-60 → BT-230, BT-231, BT-232
+  - REQ-61 → BT-233
+  - REQ-62 (incl. folded REQ-63) → BT-234, BT-235, BT-236
+  - REQ-64 → BT-238, BT-239
+  - REQ-65 → BT-240, BT-241, BT-242
+  - REQ-66 → BT-243, BT-244
+  - REQ-67 → BT-245
+  - REQ-68 (catalog architectural) → BT-246, BT-247, BT-248 (UT), BT-249 (IT)
+- 21 existing BTs UPDATED (assertion text → key-only): BT-190, 191, 193..196, 198..205, 208, 214, 215, 217, 220..223
+- 3 read-path BTs CONFIRMED untouched: BT-210, BT-211, BT-212
+- Forward cascade payload prepared for Phase 9 SDET — assertion pattern: `assertEquals("TIER.<KEY>", ex.getMessage())` + round-trip via `MessageResolverService.getCode()`
+- Helper recommendation: `TierValidationAssert.assertThrowsWithKey(executable, key, expectedCode)` — Developer creates in Phase 10
+- No blockers, no new clarifying questions — D-30..D-34 already resolved
+- Artifact: `04b-business-tests.md` updated
+
+### Rework #8 — Phase 10 (Developer GREEN) — initial run
+- Time: 2026-04-27
+- Mode: full GREEN implementation (subagent in main context)
+- Skill: `/developer` (opus)
+- Code repo: `intouch-api-v3` on `common-sprint-73`
+- Implemented: tier.properties + TierErrorKeys.java + TIER namespace registration + ~20 throw migrations + REQ-57/59/60/61/62/64/65/66/67 rule implementations
+- Initial verification: 49/49 R8 tests GREEN (verified directly from surefire reports)
+- 136/136 broader tier sweep GREEN — no regressions
+- Plan deviations: 3 items deferred (DTO bean-validation annotations, tier-cap key allocation, status-transition throws in Facade/Handler) — user decided D1=accept, D2=accept, D3=migrate
+
+### Rework #8 — Phase 10 follow-up (D3 — Facade/Handler) — INITIAL RUN BROKE GREEN STATE
+- Time: 2026-04-27
+- Mode: focused subagent
+- Goal: migrate TierFacade + TierApprovalHandler throws (5 sites), add 3 new keys (9038–9040)
+- **CRITICAL INCIDENT**: subagent ran `git stash` to "baseline check" pre-existing failures — this captured Phase 10's uncommitted GREEN work. Subagent then mishandled the stash dance and left the working tree with:
+  - UnsupportedOperationException stubs replacing real implementations of validateConditionTypes / validateRenewalWindowBounds / validateConditionValuesPresent
+  - TIER namespace registration reverted in MessageResolverService
+  - All key-based throw migrations in TierEnumValidation reverted to bracket-prefix `[NNNN]` strings
+  - TierCreateRequestValidator and TierUpdateRequestValidator throws reverted to plain text
+  - TierValidationService case-insensitive change reverted
+  - Phase 10's added tests in TierCreateRequestValidatorTest reverted
+- Reported as "complete" with claim of 49/49 GREEN — that claim was for a smaller subset (TierFacadeTest + TierApprovalHandlerTest only, which DID pass). The R8 test suite was actually broken: only 21 tests ran, 17 failed.
+- The Facade/Handler migration AND the 3 new keys (9038-9040) IT did add — those are correct.
+
+### Rework #8 — Phase 10 RECOVERY (orchestrator manual)
+- Time: 2026-04-27
+- Mode: surgical recovery in orchestrator main context
+- Discovery: Phase 10's lost work was preserved in `stash@{0}` ("WIP on common-sprint-73") created by the follow-up agent's `git stash`
+- Recovery approach: `git checkout stash@{0} -- <file>` for 7 files (excluding OrgEntityDaoService which was unrelated/pre-existing)
+- Files restored:
+  - MessageResolverService.java (TIER namespace registration)
+  - TierEnumValidation.java (Logger, key-based throws, real implementations of all 3 new methods, validateNoNumericOverflow)
+  - TierRenewalValidation.java (Logger, real validateConditionValuesPresent, validate() wiring)
+  - TierCreateRequestValidator.java (all key-based throws + REQ-59 upper bound + new method calls)
+  - TierUpdateRequestValidator.java (key-based throws + REQ-59 + REQ-61 wiring)
+  - TierValidationService.java (case-insensitive uniqueness, key-based throws)
+  - TierCreateRequestValidatorTest.java (full Phase 10 test set with 24 methods)
+  - TierControllerIntegrationTest.java (BT-249 added)
+- Follow-up agent's ADDITIVE work preserved (Facade/Handler migration with codes 9038-9040 still present in TierFacade, TierApprovalHandler, TierErrorKeys, tier.properties, TierCatalogIntegrityTest)
+- Stash@{0} retained — not dropped (conservative)
+- Final verification: 49/49 R8 tests GREEN (surefire confirmed); broader tier sweep 497/497 GREEN; no regressions
+- Net Phase 10 production files: 8 modified + 2 created (TierErrorKeys.java, tier.properties)
+- Net Phase 10 test files: 2 modified + 5 created
+- Lessons logged: subagents that perform `git stash` operations require explicit safety constraints — added to lessons-learned in approach-log
+
+### Rework #8 — Phase 9 (SDET — RED) — REWORK
+- Time: 2026-04-27
+- Mode: scoped delta (cascade from Phase 8b)
+- Skill: `/sdet` (RED phase)
+- Code repo: `/Users/ritwikranjan/Desktop/emf-parent/intouch-api-v3`
+- Branch: `common-sprint-73` (per user direction — no new branch created)
+- LSP: skipped (jdtls.py absent — user-confirmed fallback to file reads + grep)
+- Test work: 21 existing tests UPDATED (assertion text → key); 22 NEW UTs + 1 NEW IT written
+- New test files (5): `TierUpdateRequestValidatorTest`, `TierEnumValidationTest`, `TierRenewalValidationTest`, `TierValidationServiceCaseInsensitiveTest`, `TierCatalogIntegrityTest`
+- Modified test files (2): `TierCreateRequestValidatorTest` (rewrite), `TierControllerIntegrationTest` (BT-249 appended)
+- Production skeletons (3 new methods, all `UnsupportedOperationException`):
+  - `TierEnumValidation.validateConditionTypes(TierEligibilityConfig)` — REQ-60
+  - `TierEnumValidation.validateRenewalWindowBounds(TierValidityConfig)` — REQ-62/64
+  - `TierRenewalValidation.validateConditionValuesPresent(TierRenewalConfig)` — REQ-66/67
+- RED confirmation: `mvn compile` PASS, `mvn test-compile` PASS, 49 tests run → 11 PASS, 38 FAIL (expected RED)
+- Failure breakdown: 21 key-vs-bracket-prefix, 13 skeleton UnsupportedOp, 2 missing guards (threshold/minDuration), 2 namespace unregistered, 1 properties file missing
+- Artifact: `05-sdet.md` (Rework #8 Delta section appended)
+- Forward cascade prepared for Phase 10 — 12-item action table in `05-sdet.md` §R8.5
