@@ -261,6 +261,87 @@
 - Net Phase 10 test files: 2 modified + 5 created
 - Lessons logged: subagents that perform `git stash` operations require explicit safety constraints — added to lessons-learned in approach-log
 
+### Rework #8 — Phase 11 (Reviewer) — REWORK
+- Time: 2026-04-27
+- Mode: read-only audit (subagent — sonnet)
+- Skill: `/reviewer`
+- Commit reviewed: `intouch-api-v3 18a5304fc` + `kalpavriksha 7eb4265`
+- Method: surefire primary source for test verification + per-dimension evidence-cited findings
+- Findings: 2 BLOCKER + 4 WARN + 3 INFO
+  - BLOCKER-1: `TierFacade.handleApproval:473` `IllegalArgumentException` (G-13.1 violation; HTTP 500)
+  - BLOCKER-2: `TierCreateRequestValidator.validateEndDateNotBeforeStartDate:122–126` dynamic-string throw (D-32 violation; emits `999999`)
+  - WARN-1: 33 dead `public static final int TIER_*` constants (TierCreateRequestValidator + TierEnumValidation)
+  - WARN-2: ghost catalog entries 9027 + 9031 in `tier.properties` + `TierErrorKeys`
+  - WARN-3: 2 plain-text `ConflictException` throws in `TierFacade` (status-transition guards) emit `999999`
+  - WARN-4: `IllegalStateException` in `TierApprovalHandler.publish:248,254` (G-13.1 softer)
+  - INFO-1: IT BT-249 unverifiable locally (Testcontainers/Docker not running)
+  - INFO-2: BT-247 lacks reverse catalog check
+  - INFO-3: `validateConditionTypes` semantic note
+- Verdict: **CHANGES REQUESTED** (2 BLOCKERs must fix before merge)
+- Artifact: `07-reviewer.md` (Rework #8 Review section appended); `session-memory.md` (Phase 11 entry appended)
+
+## Rework #9 — Cross-Tier Consistency Validator (lightweight follow-on)
+- Trigger: user-initiated (after Phase 11 review surfaced semantic-consistency gap)
+- Date: 2026-04-27
+- Skill: ad-hoc subagent (sonnet) — no formal pipeline cycle
+- Approved decisions: D-35 (Scenario B + Trigger C, scoped to 2 rules)
+- Mode: TDD strict (RED → GREEN)
+- Code repo: `intouch-api-v3` on `common-sprint-73`
+- New artifacts:
+  - `tier.properties`: +2 keys (9043 `TIER.PROGRAM_KPI_TYPE_MISMATCH`, 9044 `TIER.THRESHOLD_NOT_MONOTONIC`)
+  - `TierErrorKeys.java`: +2 constants
+  - `TierProgramConsistencyValidator.java`: NEW `@Component` validator
+  - `TierProgramConsistencyValidatorTest.java`: 12 unit tests (Mockito-mocked Thrift fetch)
+- Wiring: `TierFacade.createTier` (after `assignNextSerialNumber`), `TierFacade.updateTier` (after request load, null-eligibility-guarded), `TierApprovalHandler.preApprove` (after `checkForDrift`)
+- Validator logic:
+  - Rule 1 (9043): condition `type` ↔ program `currentValueType` compatibility — TRACKER_VALUE_BASED→{TRACKER,VISITS}, CUMULATIVE_PURCHASES→{PURCHASE,VISITS}, CURRENT/CUMULATIVE_POINTS→{POINTS,VISITS}; VISITS allowed always
+  - Rule 2 (9044): threshold monotonicity — new tier's threshold > tier-(N-1)'s threshold (read from `SlabUpgradeStrategy.propertyValues.threshold_values` CSV); skipped for tier-1 / null threshold / shorter-than-expected CSV (defensive)
+- No-op cases (intentional): null/empty conditions, no SLAB_UPGRADE strategy yet (defers to publish-time check)
+- Verification: 12/12 new tests pass + 9 R8 test classes 90/90 pass + 497/497 broader tier sweep (no regressions)
+- Test mock setup: TierFacadeTest + TierApprovalHandlerTest got `@Mock TierProgramConsistencyValidator` injection (no behavioural change to existing tests)
+- Open clarifications resolved: VISITS = always-allowed (most-permissive default); periodType compat = deferred; first-tier-bootstrap = deferred (existing IllegalStateException at publish handles it, becomes clean error after Phase 11 BLOCKER-1 fix)
+
+## Rework #8 + Rework #9 — Phase 11 Cleanup (B1 + B2 + W1 + W2 + W3)
+- Trigger: user-decided gap routing (D-36..D-41)
+- Date: 2026-04-27
+- Skill: ad-hoc subagent (sonnet) — single TDD-disciplined pass for all 5 cleanups
+- Code repo: `intouch-api-v3` on `common-sprint-73`
+- Mode: TDD strict (RED → GREEN per new throw site)
+- Throws migrated to key-based pattern (Option 2: static catalog message; dynamic detail in `log.warn`):
+  - B1: `TierFacade.handleApproval:473` IllegalArgumentException → `InvalidInputException(TIER.UNKNOWN_APPROVAL_ACTION)` (9041)
+  - B2: `TierCreateRequestValidator.validateEndDateNotBeforeStartDate` dynamic message → `InvalidInputException(TIER.END_DATE_BEFORE_START_DATE)` (9042)
+  - W3a: `TierFacade.submitForApproval:438` plain-text ConflictException → `ConflictException(TIER.SUBMIT_REQUIRES_DRAFT_STATUS)` (9045)
+  - W3b: `TierFacade.handleApproval:462` plain-text ConflictException → `ConflictException(TIER.APPROVE_REQUIRES_PENDING_STATUS)` (9046)
+- Dead int constants removed (WARN-1):
+  - `TierCreateRequestValidator.java` lines 33–53: 19 `public static final int TIER_*` constants deleted (grep confirmed zero external references)
+  - `TierEnumValidation.java` lines 243–256: 14 `public static final int TIER_*` constants deleted
+- Ghost entries removed (WARN-2):
+  - `tier.properties`: removed 9027 (`TIER.COLOR_LENGTH_EXCEEDED`) and 9031 (`TIER.RENEWAL_LAST_MONTHS_OUT_OF_RANGE`); single-line tombstone comments inserted at the original locations to prevent silent code-gap confusion
+  - `TierErrorKeys.java`: removed 2 constants; tombstone comments preserved
+  - `TierCatalogIntegrityTest.java`: SKIPPED/DEFERRED exclusion comments cleaned up
+- WARN-4 explicitly accepted: `IllegalStateException` in `TierApprovalHandler.publish:248,254` left as-is (D-41 — configuration-failure path, rare, HTTP 500 acceptable)
+- New tests:
+  - `TierFacadeTest`: +3 (`shouldRejectUnknownApprovalActionWithCatalogKey`, `shouldRejectSubmitWhenNotDraftWithCatalogKey`, `shouldRejectApprovalWhenNotPendingApprovalWithCatalogKey`)
+  - `TierCreateRequestValidatorTest`: +1 (`shouldRejectEndDateBeforeStartDateWithCatalogKey`)
+- Catalog test updated: +4 keys, +4 codes, comments cleaned, tombstones documented
+- Verification (surefire primary source):
+  - TierCreateRequestValidatorTest: 25/25 (was 24)
+  - TierFacadeTest: 18/18 (was 15)
+  - TierCatalogIntegrityTest: 3/3
+  - TierApprovalHandlerTest: 10/10
+  - TierEnumValidationTest: 13/13
+  - TierUpdateRequestValidatorTest: 3/3
+  - TierRenewalValidationTest: 3/3
+  - TierValidationServiceCaseInsensitiveTest: 3/3
+  - TierProgramConsistencyValidatorTest: 12/12
+  - **Total: 90/90 pass; broader tier sweep 497/497 (no regressions)**
+- Grep sanity post-deletion (zero hits expected, all confirmed):
+  - `TIER_COLOR_LENGTH_EXCEEDED` outside tombstone: 0
+  - `TIER_RENEWAL_LAST_MONTHS_OUT_OF_RANGE` outside tombstone: 0
+  - `public static final int TIER_*` in TierCreateRequestValidator: 0
+  - `public static final int TIER_*` in TierEnumValidation: 0
+  - `IllegalArgumentException` in TierFacade: 0
+
 ### Rework #8 — Phase 9 (SDET — RED) — REWORK
 - Time: 2026-04-27
 - Mode: scoped delta (cascade from Phase 8b)

@@ -1382,3 +1382,74 @@ GET /v3/tiers/660a1b2c…   → string  → tierUniqueId or Mongo objectId → [
 - Member count + `lastMemberCountRefresh` computations (user directive: drop from summary; not just from wire).
 - Any re-derivation of the flattened envelope computed-getter pattern — killed outright.
 
+---
+
+## Phase 11 — Reviewer (Rework #8) [2026-04-27]
+
+### Verdict: CHANGES REQUESTED
+
+**Commit under review:** `18a5304fc` on branch `common-sprint-73` (intouch-api-v3).
+**Scope:** i18n key catalog mirror — `tier.properties`, `TierErrorKeys.java`, `MessageResolverService` TIER namespace, REQ-57/REQ-59–REQ-67 gap-fill validators, BT-224–BT-249 test suite.
+
+### Surefire Evidence (primary)
+
+| Suite | Tests | Status |
+|---|---|---|
+| TierCatalogIntegrityTest | 3 | PASS |
+| TierValidationServiceCaseInsensitiveTest | 3 | PASS |
+| TierCreateRequestValidatorTest | 24 | PASS |
+| TierEnumValidationTest | 13 | PASS |
+| TierRenewalValidationTest | 3 | PASS |
+| TierUpdateRequestValidatorTest | 3 | PASS |
+| TierApprovalHandlerTest | 10 | PASS |
+| TierFacadeTest | 15 | PASS |
+| **R8 UT Total** | **74** | **GREEN** |
+| TierControllerIntegrationTest | 0/4 ran | **ERROR (ApplicationContext failure threshold)** |
+
+IT failure is pre-existing infrastructure issue (Testcontainers not available locally). Not introduced by Rework #8. BT-249 (REQ-68 end-to-end advice) cannot be confirmed GREEN from surefire.
+
+### BLOCKERS (must fix before merge)
+
+**BLOCKER-1 (G-13.1 violation):** `TierFacade.handleApproval` line 473 throws `new IllegalArgumentException("Unknown approval action: " + action)`. G-13.1 explicitly prohibits `IllegalArgumentException` in REST-facing code. The advice has no handler for it — surfaces as unhandled HTTP 500. Fix: replace with `throw new InvalidInputException(TierErrorKeys.TIER_UNKNOWN_APPROVAL_ACTION)` or minimum `throw new ConflictException(...)`.
+
+**BLOCKER-2 (D-32 violation):** `TierCreateRequestValidator.validateEndDateNotBeforeStartDate` throws `new InvalidInputException("End date " + endDate + " cannot be before start date " + startDate)` — dynamic string, not a catalog key. `MessageResolverService` cannot resolve it; falls back to code `999999` and leaks date values to client. Fix: use catalog key throw + `log.warn` for the date detail.
+
+### WARNs (resolve before deploy)
+
+**WARN-1:** Old `public static final int TIER_*` numeric constants not removed from `TierCreateRequestValidator` (lines 33–53, 9001–9018) and `TierEnumValidation` (lines 243–256, 9011–9024). Plan §3.2 said remove them; they are dead code but a maintenance hazard.
+
+**WARN-2:** `TierErrorKeys.TIER_COLOR_LENGTH_EXCEEDED` (9027, skipped per D-30) and `TierErrorKeys.TIER_RENEWAL_LAST_MONTHS_OUT_OF_RANGE` (9031, folded per D-31) both exist as actual constants in `TierErrorKeys.java` AND as `.code`/`.message` entries in `tier.properties`. Neither is thrown anywhere; BT-247 excludes both. Creates artifact confusion vs. decision state.
+
+**WARN-3:** `TierFacade.submitForApproval` line 438 and `handleApproval` line 462 throw plain-text `ConflictException` without catalog keys. These will emit code `999999` to the client. Catalog keys should be added for these conflict cases.
+
+**WARN-4:** `TierApprovalHandler.publish()` lines 248 and 254 throw `IllegalStateException` for missing SLAB_UPGRADE/SLAB_DOWNGRADE strategy — REST-reachable path, will surface as HTTP 500 without advice mapping. Should be wrapped in `ConflictException` or similar.
+
+### Gap Routing
+
+| Finding | Owner | Action |
+|---|---|---|
+| BLOCKER-1 | Developer | Replace `IllegalArgumentException` in `TierFacade.handleApproval` |
+| BLOCKER-2 | Developer | Replace dynamic-string throw in `validateEndDateNotBeforeStartDate` with catalog key + log.warn |
+| WARN-1 | Developer | Remove dead `int` constants from `TierCreateRequestValidator` and `TierEnumValidation` |
+| WARN-2 | Developer | Decide: remove 9027/9031 from `TierErrorKeys` + `tier.properties`, OR document as reserved gaps |
+| WARN-3 | Developer | Add catalog keys for conflict cases in `TierFacade` submit/approval paths |
+| WARN-4 | Developer | Wrap `IllegalStateException` in `TierApprovalHandler.publish()` with `ConflictException` |
+| BT-249 (IT) | CI / Infrastructure | Requires Docker-capable environment; must GREEN before merge |
+
+### Pre-merge gates
+
+- [ ] BLOCKER-1 fixed
+- [ ] BLOCKER-2 fixed
+- [ ] `TierControllerIntegrationTest` (BT-249 + 3 others) GREEN in Docker-capable CI
+
+### Pre-deploy gates
+
+- [ ] REQ-57 case-insensitive uniqueness confirmed in QA env against production data (Q-#8-5 open question)
+- [ ] D-34 (accepted): No pre-deploy DB scan for existing duplicate names — accepted risk, documented in approach-log
+
+### Open Questions forwarded to Developer
+
+Q-#8-R1: For BLOCKER-1, which exception type is preferred? `InvalidInputException` with a new catalog key `TIER_UNKNOWN_APPROVAL_ACTION` (requires adding key to `TierErrorKeys` + `tier.properties`) OR `ConflictException` with a descriptive message (minimum fix, no catalog key needed)?
+
+Q-#8-R2: For WARN-2, should 9027 and 9031 be hard-removed from both `TierErrorKeys` and `tier.properties` to match the D-30/D-31 decisions, or should they remain as reserved entries with a clear comment?
+

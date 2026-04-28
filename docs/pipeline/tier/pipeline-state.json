@@ -1873,7 +1873,46 @@
             "java_version_required": "JDK 17 (project uses --release flag; system default JDK 8 fails compile)"
           }
         },
-        "11_reviewer": {"status": "pending"}
+        "11_reviewer": {
+          "status": "complete",
+          "completed_at": "2026-04-27",
+          "verdict": "CHANGES REQUESTED — resolved",
+          "findings": {
+            "BLOCKER": ["B1 IllegalArgumentException G-13.1", "B2 dynamic-string D-32 violation"],
+            "WARN": ["W1 dead int constants", "W2 ghost 9027/9031 entries", "W3 plain-text ConflictException", "W4 IllegalStateException"],
+            "INFO": ["IT BT-249 unverifiable locally", "BT-247 lacks reverse check", "validateConditionTypes semantic note"]
+          },
+          "gap_routing_decisions": {
+            "B1": "R - fix (D-36, code 9041)",
+            "B2": "R - fix (D-37, code 9042)",
+            "W1": "R - remove (D-38, 33 dead ints deleted)",
+            "W2": "R - remove with tombstones (D-39)",
+            "W3": "R - migrate (D-40, codes 9045, 9046)",
+            "W4": "A - accept (D-41, kept as-is)"
+          },
+          "artifact": "07-reviewer.md (Rework #8 Review section)"
+        }
+      },
+      "follow_on_work": {
+        "rework_9_cross_tier_consistency": {
+          "trigger": "manual (user-initiated post-Phase-11)",
+          "scope": "lightweight — 2 rules (condition-type compatibility, threshold monotonicity)",
+          "decisions": ["D-35"],
+          "new_codes": [9043, 9044],
+          "new_files": ["TierProgramConsistencyValidator.java", "TierProgramConsistencyValidatorTest.java"],
+          "wired_at": ["TierFacade.createTier", "TierFacade.updateTier", "TierApprovalHandler.preApprove"],
+          "tests": "12/12 pass",
+          "deferred": ["periodType compatibility", "first-tier bootstrap (relies on B1 fix)"]
+        },
+        "phase_11_cleanup": {
+          "decisions": ["D-36", "D-37", "D-38", "D-39", "D-40", "D-41"],
+          "scope": "B1 + B2 + W1 + W2 + W3 in single TDD pass",
+          "new_codes": [9041, 9042, 9045, 9046],
+          "removed_codes": [9027, 9031],
+          "dead_constants_removed": 33,
+          "tests_added": 4,
+          "verification": "90/90 pass across 9 R8/R9 test classes; 497/497 broader tier sweep"
+        }
       }
     }
   ]

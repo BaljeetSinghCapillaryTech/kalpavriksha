@@ -461,3 +461,285 @@ Upgraded from "APPROVED WITH WARNINGS" to **APPROVED** after both warnings close
 
 *Reviewer: claude-sonnet-4-6 | Phase 11 | 2026-04-23*
 *Closure: orchestrator + developer | 2026-04-23 (same day) | Rework #6a Cycle 1 CLOSED*
+
+---
+
+## Rework #8 Review
+
+> **Date:** 2026-04-27
+> **Branch:** `common-sprint-73` (intouch-api-v3)
+> **Commit under review:** `18a5304fc`
+> **Scope:** i18n error-key catalog mirror — `tier.properties` + `TierErrorKeys.java` + `MessageResolverService` registration + REQ-57/REQ-59–REQ-67 gap-fill validators + BT-224–BT-249 test suite
+> **Skill:** `/reviewer`
+> **Overall Verdict:** CHANGES REQUESTED
+
+---
+
+### Executive Summary
+
+Rework #8 implements the tier validation i18n key catalog mirror, mirroring the promotion CRUD pattern (`target_loyalty.properties` + `UnifiedPromotionValidatorService`). The core catalog infrastructure — `tier.properties`, `TierErrorKeys.java`, `MessageResolverService` TIER namespace registration, and migration of all existing throw sites to key-only `InvalidInputException` — is correctly implemented and architecturally sound.
+
+Unit test suite is green: **49 / 49 UTs PASS** across 8 suites. Integration tests (4 tests in `TierControllerIntegrationTest`) are blocked by `ApplicationContext failure threshold (1) exceeded` — an environment-level Testcontainers/Spring Boot infrastructure failure pre-existing in this local setup; BT-249 (REQ-68 end-to-end advice) cannot be confirmed GREEN from surefire evidence.
+
+Two code-level blockers are present that require developer action before merge:
+
+1. **BLOCKER-1 (G-13.1 violation):** `TierFacade.handleApproval` line 473 throws `new IllegalArgumentException("Unknown approval action: ...")` — an unchecked Java exception in REST-facing code, explicitly prohibited by G-13.1. Will surface as unhandled 500 via `TargetGroupErrorAdvice`'s no-match path.
+
+2. **BLOCKER-2 (D-32 violation):** `TierCreateRequestValidator.validateEndDateNotBeforeStartDate` throws `new InvalidInputException(dynamicString)` where the string contains dynamic date values — no catalog key used. This violates D-32 (static catalog message to client; dynamic detail in logs only).
+
+Four warnings require attention but do not block merge individually (reviewer recommends resolving all four before deploy):
+
+- **WARN-1:** Old `public static final int TIER_*` numeric constants not removed from `TierCreateRequestValidator` (lines 33–53) and `TierEnumValidation` (lines 243–256). Plan stated removal; dead code creates maintenance hazard.
+- **WARN-2:** `TierErrorKeys` and `tier.properties` contain entries for 9027 (`TIER_COLOR_LENGTH_EXCEEDED`, skipped per D-30) and 9031 (`TIER_RENEWAL_LAST_MONTHS_OUT_OF_RANGE`, folded per D-31) but neither key is thrown anywhere and BT-247 explicitly excludes both from the catalog completeness check. Creates documentation/artifact confusion — the artifact state says "present" while decisions say "skipped/folded."
+- **WARN-3:** `TierFacade.submitForApproval` line 438 and `handleApproval` line 462 throw plain-text `ConflictException` without catalog keys. These two paths will emit `999999` as code to the client (no resolved code from `MessageResolverService`).
+- **WARN-4:** `TierApprovalHandler.publish()` uses `IllegalStateException` at lines 248 and 254 for missing SLAB_UPGRADE/SLAB_DOWNGRADE strategy. While `publish()` declares `throws Exception`, the exception will propagate through the REST call chain and surface as HTTP 500 without an `InvalidInputException`/`ConflictException` wrapper — G-13.1 concern (softer than BLOCKER-1 because this is a configuration failure path, not an input validation path, but still warrants a `ConflictException` or custom exception wrapper).
+
+---
+
+### Build Evidence (Primary — Surefire Reports)
+
+All evidence sourced from `intouch-api-v3/target/surefire-reports/`. Environment: Java 17.0.17-amzn, Maven 3.5.4.
+
+| Test Suite | Tests | Failures | Errors | Skipped | Status |
+|---|---|---|---|---|---|
+| `TierCatalogIntegrityTest` | 3 | 0 | 0 | 0 | **PASS** |
+| `TierValidationServiceCaseInsensitiveTest` | 3 | 0 | 0 | 0 | **PASS** |
+| `TierCreateRequestValidatorTest` | 24 | 0 | 0 | 0 | **PASS** |
+| `TierEnumValidationTest` | 13 | 0 | 0 | 0 | **PASS** |
+| `TierRenewalValidationTest` | 3 | 0 | 0 | 0 | **PASS** |
+| `TierUpdateRequestValidatorTest` | 3 | 0 | 0 | 0 | **PASS** |
+| `TierApprovalHandlerTest` | 10 | 0 | 0 | 0 | **PASS** |
+| `TierFacadeTest` | 15 | 0 | 0 | 0 | **PASS** |
+| **R8 UT Total** | **74** | **0** | **0** | **0** | **GREEN** |
+| `TierControllerIntegrationTest` | 0 of 4 ran | — | 4 | 0 | **ERROR (infra)** |
+
+**IT failure details:** All 4 integration tests in `TierControllerIntegrationTest` error with `IllegalStateException: ApplicationContext failure threshold (1) exceeded`. This is a pre-existing Testcontainers/Spring Boot infrastructure issue in the local environment — it is not introduced by Rework #8. BT-249 (REQ-68 end-to-end `TargetGroupErrorAdvice` response) cannot be confirmed GREEN from this evidence.
+
+> **Confidence:** C7 (primary source — surefire report files read directly).
+
+---
+
+### Check 1 — Requirements Alignment
+
+Evidence: `TierCreateRequestValidator.java`, `TierEnumValidation.java`, `TierRenewalValidation.java`, `TierValidationService.java`, `TierFacade.java`, `TierApprovalHandler.java`, `validation-rework-scope.md` (REQ-57..REQ-68).
+
+| REQ | Description | Code Location | Status |
+|---|---|---|---|
+| REQ-57 | Case-insensitive tier name uniqueness | `TierValidationService.validateNameUniqueness` and `validateNameUniquenessExcluding` — `equalsIgnoreCase()` | **PASS** |
+| REQ-58 | Color length 9027 — SKIPPED (D-30) | No throw at any site; constant exists in `TierErrorKeys` and `tier.properties` (see WARN-2) | **PASS (skipped per D-30)** |
+| REQ-59 | Upper bound check on `serialNumber` | `TierCreateRequestValidator` — new upper-bound validation added | **PASS** |
+| REQ-60 | `validateConditionTypes` overload for new callers | `TierEnumValidation.validateConditionTypes(List, String)` — private overload added | **PASS** |
+| REQ-61 | No numeric overflow on tier count | `TierEnumValidation.validateNoNumericOverflow` — implemented | **PASS** |
+| REQ-62 | `renewalWindowBounds` upper bound | `TierEnumValidation.validateRenewalWindowBounds` — implemented with 9034 key | **PASS** |
+| REQ-63 | `renewalLastMonths` bounds — FOLDED (D-31) | Field `renewalLastMonths` does not exist in `TierValidityConfig`; folded into REQ-62 / 9034 | **PASS (folded per D-31)** |
+| REQ-64 | `renewalWindowBounds` lower bound | `TierEnumValidation.validateRenewalWindowBounds` — both bounds enforced | **PASS** |
+| REQ-65 | `validateEndDateNotBeforeStartDate` uses catalog key | `TierCreateRequestValidator.validateEndDateNotBeforeStartDate` — throws dynamic string, NOT a catalog key | **BLOCKER-2** |
+| REQ-66 | `conditionValuesPresent` when conditions present | `TierRenewalValidation.validateConditionValuesPresent` — implemented | **PASS** |
+| REQ-67 | Renewal condition values non-empty | `TierRenewalValidation.validateConditionValuesPresent` — implemented | **PASS** |
+| REQ-68 | `TargetGroupErrorAdvice` resolves TIER keys end-to-end | `TierControllerIntegrationTest` BT-249 — cannot confirm (IT infrastructure failure) | **UNVERIFIED** |
+
+**G-07 tenant isolation (REQ multi-tenancy):** `TierValidationService.validateNameUniqueness` queries via `findByOrgIdAndProgramIdAndStatusIn(orgId, programId, ...)`. Both `orgId` and `programId` are scoped. **PASS.**
+
+**TIER namespace registration (core catalog requirement):** `MessageResolverService` line 36: `.put("TIER", "i18n.errors.tier")`. **PASS.**
+
+---
+
+### Check 2 — Session Memory Alignment
+
+Evidence: `session-memory.md` line 63 (Rework #8 summary), approach-log D-30/31/32/33/34.
+
+| Decision | Session Memory | Code | Aligned? |
+|---|---|---|---|
+| D-30: skip 9027 color length | Documented | No throw at any site; constant present but unused | **PASS** |
+| D-31: fold 9031 → 9034 | Documented | 9031 constant present but unused; 9034 enforces window bounds | **PASS** |
+| D-32: Option 2 (static catalog message; dynamic detail in logs) | Documented | Most sites log `log.warn(...)` then `throw new InvalidInputException(key)` | **PASS (with BLOCKER-2 exception)** |
+| D-33: BT-247 catalog completeness test in scope | Documented | `TierCatalogIntegrityTest` includes BT-247 | **PASS** |
+| D-34: no pre-deploy DB scan | Documented | No DB scan code added | **PASS** |
+| Bean-validation annotations (§4.4) deferred (D1) | Documented as accepted deferral | `TierCreateRequest`, `TierUpdateRequest`, `TierEligibilityConfig` — no `@NotBlank`/`@Size`/`@Pattern`/`@PositiveOrZero` found | **PASS (deferred per D1, but should be noted as known gap in API handoff)** |
+
+---
+
+### Check 3 — Security (GUARDRAILS)
+
+Evidence: `TierFacade.java`, `TierApprovalHandler.java`, `TierValidationService.java`, GUARDRAILS.md G-07, G-13.
+
+#### G-07 — Multi-tenancy (CRITICAL)
+
+**PASS.** `validateNameUniqueness` and `validateNameUniquenessExcluding` both scope queries by `orgId` and `programId`. No unscoped name-uniqueness queries found. G-07.1 satisfied.
+
+#### G-13 — Exception Handling (HIGH)
+
+**FAIL — BLOCKER-1.**
+
+- G-13.1 violation: `TierFacade.handleApproval` line 473 throws `new IllegalArgumentException("Unknown approval action: " + action)`. `IllegalArgumentException` is an unchecked Java exception. `TargetGroupErrorAdvice` has no handler for it — it will surface as HTTP 500 via the default Spring MVC error handler, bypassing the structured `{code, message}` response contract.
+- Secondary concern: `TierApprovalHandler.publish()` lines 248 and 254 throw `IllegalStateException` for missing SLAB_UPGRADE/SLAB_DOWNGRADE strategies. This is in the REST call chain (`controller → TierFacade → MakerCheckerService → TierApprovalHandler.publish()`). `IllegalStateException` will also bypass `TargetGroupErrorAdvice` and surface as HTTP 500.
+- All other throw sites in `TierEnumValidation`, `TierCreateRequestValidator`, `TierRenewalValidation`, `TierUpdateRequestValidator`, and `TierValidationService` correctly use `InvalidInputException(key)`. **PASS for those sites.**
+
+---
+
+### Check 4 — Documentation
+
+Evidence: `tier.properties`, `TierErrorKeys.java`, `MessageResolverService.java`.
+
+#### Catalog Completeness
+
+`TierCatalogIntegrityTest` (BT-247) uses `EXPECTED_TIER_KEYS` (38 keys) and checks that each key resolves to a non-null `.code` and `.message` in `tier.properties` via `MessageResolverService`. Passes 3/3. **PASS.**
+
+**Observation (WARN-2):** `EXPECTED_TIER_KEYS` in BT-247 explicitly excludes 9027 and 9031 (commented as "SKIPPED" and "DEFERRED"). However, `TierErrorKeys.java` and `tier.properties` both contain actual entries for these two codes — they are not absent, not reserved gaps, but active entries with no corresponding throw site. The catalog check does not perform a reverse check (TierErrorKeys constants → tier.properties exhaustively). This means: if a future developer adds a new constant in `TierErrorKeys` but forgets to add it to `tier.properties`, BT-247 would not catch it.
+
+#### Javadoc / Inline Documentation
+
+All new validator methods in `TierEnumValidation`, `TierRenewalValidation` carry REQ citation comments or method-level Javadoc. `TierErrorKeys` class-level Javadoc explains the TIER namespace convention. **PASS.**
+
+---
+
+### Check 5 — Code Quality
+
+#### 5.1 — Dead Constants (WARN-1)
+
+`TierCreateRequestValidator.java` lines 33–53: `public static final int TIER_*` numeric constants (9001–9018, 18 constants) remain in the file. These are not referenced in any current throw statement — the migration replaced bracket-prefix strings with key-only throws. Plan §3.2 stated "Remove `public static final int TIER_*` numeric constants from all validator classes." Dead code creates maintenance risk: a future developer may use the old int constants in new code and bypass the catalog.
+
+`TierEnumValidation.java` lines 243–256: identical issue — `public static final int TIER_*` constants (9011–9024) remain after migration.
+
+**Action required:** Remove both sets of int constants. Tests cover all formerly-associated throw sites with key-only assertions.
+
+#### 5.2 — `validateEndDateNotBeforeStartDate` D-32 Violation (BLOCKER-2)
+
+`TierCreateRequestValidator.validateEndDateNotBeforeStartDate` throws:
+```java
+new InvalidInputException("End date " + endDate + " cannot be before start date " + startDate)
+```
+This is a raw dynamic string passed directly to `InvalidInputException` — not a catalog key. When `TargetGroupErrorAdvice` receives it, it calls `MessageResolverService.resolve(message)` expecting a key like `TIER.TIER_END_DATE_BEFORE_START_DATE`. A raw sentence string will not match any registered key, causing the resolver to fall back to `999999` as the code with the raw message surfaced to the client — leaking dynamic date values into the error response and violating D-32 (static catalog message to client; dynamic field detail in logs only).
+
+**Fix required:** Replace with a catalog key throw + `log.warn` for the date-context detail:
+```java
+log.warn("validateEndDateNotBeforeStartDate: endDate={} is before startDate={}", endDate, startDate);
+throw new InvalidInputException(TierErrorKeys.TIER_END_DATE_BEFORE_START_DATE);
+```
+Verify `TIER_END_DATE_BEFORE_START_DATE` exists as a key in `TierErrorKeys` and `tier.properties`, or add it.
+
+#### 5.3 — Non-Migrated Plain-Text ConflictException Throws (WARN-3)
+
+`TierFacade.submitForApproval` line 438:
+```java
+throw new ConflictException("Only DRAFT tiers can be submitted for approval");
+```
+`TierFacade.handleApproval` line 462:
+```java
+throw new ConflictException("Only PENDING_APPROVAL tiers can be approved or rejected");
+```
+Both are plain-text `ConflictException` throws — no catalog key. `ConflictException` is the correct exception type (G-13 compliant), but these paths will emit `999999` as the numeric code to the client because `MessageResolverService` cannot resolve a raw sentence string. A client receiving a 409 for these paths gets no machine-readable error code.
+
+**Action recommended:** Migrate to catalog key throws when catalog keys for these cases are defined (or add them to `TierErrorKeys`/`tier.properties`).
+
+#### 5.4 — `validateConditionTypes` Semantic Oddity (INFO)
+
+`TierEnumValidation.validateConditionTypes(List<TierCondition>, String fieldName)` throws `TIER_INVALID_KPI_TYPE` when a condition's `type` field is not in the valid enum set. The key name `TIER_INVALID_KPI_TYPE` is semantically odd for a condition-type enum mismatch (it reads as a KPI-related error, not a condition-type mismatch). This is pre-existing behavior — not introduced by Rework #8. Flagged for awareness; no action required in this cycle.
+
+#### 5.5 — `@MockitoSettings(strictness = Strictness.LENIENT)` in BT-224/225/226 (INFO)
+
+`TierValidationServiceCaseInsensitiveTest` uses `LENIENT` strictness because stubs set up for the GREEN behavior are unused in RED-phase assertion paths. This is acceptable per the TDD Chicago/Detroit school (unit = business outcome cluster). The annotation is correctly justified by a comment in the test file. **PASS.**
+
+---
+
+### Check 6 — Test Traceability
+
+Evidence: Surefire reports + test source files.
+
+| BT | Description | Test Class | Surefire Status |
+|---|---|---|---|
+| BT-224 | REQ-57: case-insensitive uniqueness — exact match blocked | `TierValidationServiceCaseInsensitiveTest` | PASS |
+| BT-225 | REQ-57: different case blocked | `TierValidationServiceCaseInsensitiveTest` | PASS |
+| BT-226 | REQ-57: unique name allowed | `TierValidationServiceCaseInsensitiveTest` | PASS |
+| BT-246 | Round-trip all codes via MessageResolverService | `TierCatalogIntegrityTest` | PASS |
+| BT-247 | Catalog completeness (38 keys) | `TierCatalogIntegrityTest` | PASS |
+| BT-248 | TIER namespace registration | `TierCatalogIntegrityTest` | PASS |
+| BT-249 | REQ-68 end-to-end advice response | `TierControllerIntegrationTest` | **UNVERIFIED (IT infrastructure failure)** |
+| BT-190..BT-223 subset | Migration: assertion text uses key-only `ex.getMessage() == "TIER.<KEY>"` | `TierCreateRequestValidatorTest`, `TierEnumValidationTest`, `TierRenewalValidationTest`, `TierUpdateRequestValidatorTest` | PASS (24+13+3+3 = 43 tests) |
+
+**Wire code preservation (backward compatibility):** Surefire evidence confirms all migrated validator tests assert on key strings (`TIER.<KEY>`), not on old bracket-prefix strings or numeric codes. The wire codes 9001–9024 are preserved because `MessageResolverService` resolves key → `{code, message}` at the advice layer. **PASS.**
+
+**Reverse catalog check gap (INFO):** `TierCatalogIntegrityTest` checks `EXPECTED_TIER_KEYS` → `tier.properties` (forward direction only). It does not check that every `TierErrorKeys` constant has a corresponding `tier.properties` entry. If a constant is added to `TierErrorKeys` without a `tier.properties` entry, BT-247 would not detect it. Recommend adding a reverse-direction check in a future rework.
+
+---
+
+### Check 7 — Plan Deviation Review
+
+| Plan Element | Plan Says | Code Reality | Deviation? |
+|---|---|---|---|
+| Remove old `int` constants | "Remove `public static final int TIER_*` numeric constants" | Constants still present in `TierCreateRequestValidator` (lines 33–53) and `TierEnumValidation` (lines 243–256) | **Yes — WARN-1** |
+| D-32: static catalog key to client | Dynamic detail in `log.warn` only | `validateEndDateNotBeforeStartDate` passes dynamic string to exception | **Yes — BLOCKER-2** |
+| D-30: 9027 skipped | Skip = no constant, no properties entry (or treat as reserved gap) | Both `TierErrorKeys.TIER_COLOR_LENGTH_EXCEEDED` constant AND `tier.properties` 9027 entry exist | **Deviation from spirit — WARN-2** |
+| D-31: 9031 folded → 9034 | Fold = no constant, no properties entry (or treat as reserved gap) | Both `TierErrorKeys.TIER_RENEWAL_LAST_MONTHS_OUT_OF_RANGE` constant AND `tier.properties` 9031 entry exist | **Deviation from spirit — WARN-2** |
+| Bean-validation annotations (§4.4) | `@NotBlank`/`@Size`/`@Pattern`/`@PositiveOrZero` on DTOs | Not implemented | **Yes — accepted per D1 deferral** |
+| G-13.1: no `IllegalArgumentException` in REST code | Never throw unchecked Java exceptions in REST-facing code | `TierFacade.handleApproval` throws `IllegalArgumentException` | **Yes — BLOCKER-1** |
+
+---
+
+### Check 8 — Wire-Format Compatibility
+
+Evidence: `tier.properties` code entries, existing numeric codes in surefire test assertions.
+
+Wire codes 9001–9024 (existing, migrated) are unchanged. `MessageResolverService` resolves `TIER.<KEY>` to the numeric code declared in `tier.properties` as `<KEY>.code`. Existing clients consuming codes 9001–9024 will see the same numeric codes in `{code, message}` response envelopes. **PASS — no breaking change.**
+
+New codes 9025–9037 and 9038–9040 are net-new. No existing client can depend on them (they were not exposed before). **PASS.**
+
+---
+
+### Findings Tally
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 2 | BLOCKER-1 (`IllegalArgumentException` in REST), BLOCKER-2 (D-32 dynamic string in exception) |
+| WARN | 4 | WARN-1 (dead int constants), WARN-2 (9027/9031 artifacts present but unused), WARN-3 (plain-text ConflictException), WARN-4 (`IllegalStateException` in `TierApprovalHandler.publish`) |
+| INFO | 3 | IT infrastructure failure (pre-existing), reverse catalog check gap, condition-type semantic oddity |
+
+---
+
+### Overall Recommendation
+
+**CHANGES REQUESTED.**
+
+BLOCKER-1 and BLOCKER-2 require developer fixes before merge:
+
+1. **BLOCKER-1 fix:** In `TierFacade.handleApproval`, replace `throw new IllegalArgumentException("Unknown approval action: " + action)` with `throw new InvalidInputException(TierErrorKeys.TIER_UNKNOWN_APPROVAL_ACTION)` (add key to catalog if missing) or `throw new ConflictException("Unknown approval action: " + action)` (minimum G-13.1-compliant fix).
+
+2. **BLOCKER-2 fix:** In `TierCreateRequestValidator.validateEndDateNotBeforeStartDate`, replace the dynamic-string `InvalidInputException` with a catalog-key throw + `log.warn` for the date detail. Verify or add `TIER_END_DATE_BEFORE_START_DATE` in `TierErrorKeys` and `tier.properties`.
+
+Recommended to also address before merge (not strict blockers but reduce noise):
+- **WARN-1:** Remove dead `int` constants from `TierCreateRequestValidator` and `TierEnumValidation`.
+- **WARN-4:** Wrap `IllegalStateException` in `TierApprovalHandler.publish()` with a `ConflictException` or `InvalidInputException`.
+
+**BT-249 pre-merge gate:** IT suite must pass in a Docker-capable CI environment before merge to main.
+
+---
+
+### Gap Routing
+
+| Finding | Owner | Action |
+|---|---|---|
+| BLOCKER-1: `IllegalArgumentException` in `TierFacade` | Developer | Replace with `InvalidInputException`/`ConflictException`; add catalog key if using InvalidInputException |
+| BLOCKER-2: D-32 violation in `validateEndDateNotBeforeStartDate` | Developer | Replace dynamic-string throw with catalog-key throw + `log.warn` for date detail |
+| WARN-1: Dead int constants | Developer | Remove `public static final int TIER_*` from `TierCreateRequestValidator` and `TierEnumValidation` |
+| WARN-2: 9027/9031 artifact confusion | Developer | Decide: (a) remove constants + properties entries and treat as hard gaps, OR (b) add comment in BT-247 EXPECTED_TIER_KEYS documenting why both are excluded. Either is acceptable. |
+| WARN-3: Plain-text ConflictException throws | Developer | Add catalog keys for submit/approve conflict messages; migrate when keys defined |
+| WARN-4: `IllegalStateException` in `TierApprovalHandler.publish()` | Developer | Wrap with `ConflictException` or custom checked exception |
+| BT-249 IT infrastructure | Infrastructure / CI | Requires Docker/Testcontainers-capable environment; must GREEN before merge |
+
+---
+
+### Pre-Merge Gates
+
+- [ ] BLOCKER-1 fixed and tests updated
+- [ ] BLOCKER-2 fixed and `validateEndDateNotBeforeStartDate` test updated to assert key
+- [ ] `TierControllerIntegrationTest` (BT-249 + 3 others) GREEN in Docker-capable CI
+
+### Pre-Deploy Gates
+
+- [ ] D-34 (accepted): No pre-deploy DB scan for existing duplicate names — accepted risk, documented in approach-log
+- [ ] REQ-57 case-insensitive uniqueness confirmed in QA environment against production data (Q-#8-5 open question)
+
+---
+
+*Reviewer: claude-sonnet-4-6 | Rework #8 | 2026-04-27*
+*Verdict: CHANGES REQUESTED — 2 blockers require developer action before merge*
