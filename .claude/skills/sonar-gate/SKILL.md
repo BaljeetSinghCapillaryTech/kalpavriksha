@@ -28,6 +28,7 @@ You run after Developer (Phase 10) and before Backend Readiness (Phase 10b). You
 |---|---|---|
 | `--threshold N` | 90 | Override coverage threshold for both line and condition (e.g. `/sonar-gate --threshold 80`) |
 | `--file <path>` | all new files | Restrict analysis to a single changed file |
+| `--base-branch <name>` | auto-detected | Override base branch (e.g. `--base-branch master` for repos that use master) |
 
 ---
 
@@ -62,15 +63,36 @@ find . -path "*/target/site/jacoco-aggregate/jacoco.xml"
 
 ## Step 1 — Identify New/Changed Production Files
 
-Run:
+### 1a — Detect the default branch
+
+Different repos use different default branch names (`main`, `master`, or a custom name). Never assume — detect it:
 
 ```bash
-git diff main --name-only -- '*.java' | grep 'src/main/java'
+# Ask the remote what its HEAD points to (most reliable)
+git remote show origin 2>/dev/null | grep "HEAD branch" | awk '{print $NF}'
 ```
 
-This lists Java source files changed on the current branch vs `main`. Test files (`src/test/`) are excluded.
+If the remote is unreachable (offline / no remote configured), fall back to local detection:
 
-**If the list is empty:** Print `✓ PASS — no new production Java files on this branch.` Write a PASS `sonar-gate.md` (see Step 7 format). Exit.
+```bash
+# Check which of main/master exists locally
+git branch --list main master | tr -d ' *' | head -1
+```
+
+Store the result as `BASE_BRANCH` (e.g. `main` or `master`). If neither is found, print:
+`Cannot detect default branch — pass it explicitly with --base-branch <name>` and exit.
+
+**`--base-branch` override:** If the user passes `--base-branch develop` (or any name), use that instead of auto-detection. This handles repos with non-standard defaults.
+
+### 1b — List changed production files
+
+```bash
+git diff <BASE_BRANCH> --name-only -- '*.java' | grep 'src/main/java'
+```
+
+This lists Java source files changed on the current branch vs the detected base. Test files (`src/test/`) are excluded.
+
+**If the list is empty:** Print `✓ PASS — no new production Java files on this branch vs <BASE_BRANCH>.` Write a PASS `sonar-gate.md` (see Step 7 format). Exit.
 
 **If `--file` argument was provided:** Replace the full list with just that one file. Verify it exists:
 ```bash
@@ -459,7 +481,7 @@ NEXT PHASE: Backend Readiness (10b)
 | JaCoCo plugin not in `.m2` | Maven downloads on first run — needs internet once |
 | File absent from jacoco.xml (0 tests) | 0% line and condition, count lines with `wc -l` |
 | No conditional logic in new files | `branch_total = 0` → condition coverage = 100%, skip check |
-| Branch already merged to main | `git diff main` empty → PASS |
+| Branch already merged to base branch | `git diff <BASE_BRANCH>` empty → PASS |
 | Coverage exactly at threshold | PASS |
 | Multi-module project | Find jacoco.xml per module or aggregate report (Step 0) |
 | Aggregate report missing in multi-module | Merge per-module reports manually |
