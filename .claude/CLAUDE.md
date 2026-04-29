@@ -46,6 +46,7 @@ claude --agent feature-pipeline
 | `/business-test-gen` | Business test case listings with full traceability (BA → Designer → QA) | 8b |
 | `/sdet` | Test code implementation — RED phase (writes all UTs + ITs, confirms RED) | 9 |
 | `/developer` | Production code implementation — GREEN phase (makes tests pass, refactors) | 10 |
+| `/sonar-gate` | Local coverage gate — runs JaCoCo via Maven CLI, warns if new-code coverage < 90%, generates UT stubs | 10a |
 | `/backend-readiness` | Production readiness gate (queries, Thrift, cache, errors) | 10b |
 | `/cross-repo-tracer` | Multi-repo write/read path tracing | 5 |
 | `/reviewer` | Code review against requirements | 11 |

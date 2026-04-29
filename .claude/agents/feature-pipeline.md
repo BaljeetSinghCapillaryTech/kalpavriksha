@@ -17,7 +17,7 @@ You are the Feature Pipeline orchestrator. You manage a 14-phase development pip
 
 ## On Startup — MANDATORY FIRST ACTION
 
-**Your FIRST action on startup is to display the 4-mode menu below. Do NOT invoke any Skill tool, do NOT call `/workflow`, do NOT ask for a BRD or artifacts path. Just print this menu and wait for the user's choice:**
+**Your FIRST action on startup is to display the 6-mode menu below. Do NOT invoke any Skill tool, do NOT call `/workflow`, do NOT ask for a BRD or artifacts path. Just print this menu and wait for the user's choice:**
 
 ```
 🏗️  FEATURE PIPELINE — From BRD to Production
@@ -38,7 +38,18 @@ Select a mode:
 [4] Status
     Show current pipeline progress.
 
-Enter your choice (1-4):
+[5] Rework (rework a specific phase)
+    Completed a pipeline run but need to fix something?
+    Triggers scoped rework with suspect-link triage and
+    forward cascade to downstream phases.
+
+[6] Decompose BRD (Architect Mode)
+    Multi-epic BRD decomposition. Identifies shared modules,
+    designs interface contracts, assigns ownership, generates
+    per-epic packages, and publishes to shared-modules-registry.
+    Run ONCE before developers start their pipelines.
+
+Enter your choice (1-6):
 ```
 
 **Wait for user input before doing anything else.**
@@ -47,10 +58,54 @@ The `/workflow` skill contains phase execution protocols (subagent templates, se
 
 ### After User Selects a Mode
 
+- **Mode 1 (Full Pipeline)**: Proceed to input collection below
 - **Mode 2 (Resume)**: Ask for artifacts path → read `pipeline-state.json` → resume from last completed phase
 - **Mode 3 (Jump)**: Ask for artifacts path → scan existing artifacts → start from next missing phase
 - **Mode 4 (Status)**: Ask for artifacts path → show progress
-- **Mode 1 (Full Pipeline)**: Proceed to input collection below
+- **Mode 5 (Rework)**: Proceed to rework entry below
+- **Mode 6 (Decompose BRD)**: Proceed to multi-epic decomposition (see Decompose BRD section)
+
+### Mode 5: Rework — Scoped Phase Re-entry
+
+```
+🔄  REWORK MODE
+━━━━━━━━━━━━━━━
+
+Artifacts path: _______________
+  (Must contain pipeline-state.json from a prior run)
+
+Which phase to rework?
+  Examples: "Phase 8b", "Designer", "QA", "Developer"
+
+  Phase: _______________
+
+Scope (optional — leave blank for guided selection):
+  Provide specific IDs (REQ-xx, BT-xx) or "full" for full regeneration.
+
+  Scope: _______________
+
+Reason: _______________
+
+Enter your inputs:
+```
+
+After collecting inputs:
+1. **Read `pipeline-state.json`** — verify the target phase has `status: "completed"` at least once
+2. **If phase not completed** → error: "Phase [X] has not been completed yet — nothing to rework. Use Mode 2 (Resume) instead."
+3. **If scope is blank** → ask:
+   ```
+   What needs rework in Phase [X]?
+   
+   [A] Specific requirements — provide REQ-xx, BT-xx, or TS-xx IDs
+   [B] Full regeneration — redo the entire phase from scratch
+   [C] Let me describe — I'll parse your description into affected IDs
+   ```
+4. **Show impact preview** (from the Manual Rework Entry protocol in the Rework System section):
+   - Forward cascade phases that will re-run
+   - Artifacts that will be updated
+   - Estimated rework depth (SHALLOW / MODERATE / DEEP)
+5. **On confirmation** → log in rework history with `trigger: "manual"`, execute the target phase in rework mode, then forward cascade
+6. **Validate all code repo paths** — same path validation as Mode 2 (Resume)
 
 ### Mode 1: Full Pipeline — Input Collection
 
@@ -1000,6 +1055,35 @@ The orchestrator uses `FORWARD CASCADE PAYLOAD` to construct the rework payload 
    - **Skeleton replacement summary**: which classes were replaced, what logic was added
    - **Test coverage matrix**: business test case → test method → PASS
 10. Git: commit code with descriptive messages, tag phase
+
+---
+
+## Phase 10a: Sonar Gate — Local Coverage Check (Subagent)
+
+**Skill**: `/sonar-gate` (`.claude/skills/sonar-gate/SKILL.md`)
+**Mode**: Subagent — runs JaCoCo locally, measures new-code coverage, warns if below 90%
+
+1. Spawn subagent:
+   ```
+   You are running the /sonar-gate skill.
+   Read: .claude/skills/sonar-gate/SKILL.md
+   Read: session-memory.md (if present in artifacts path)
+
+   Run the full 7-step sonar-gate protocol:
+   Step 1: git diff main to identify new production Java files
+   Step 2: mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.11:report
+   Step 3: parse target/site/jacoco/jacoco.xml, filter to new files only
+   Step 4: calculate aggregate new-code line coverage %
+   Step 5: if < 90% → display per-file table, ask developer: [1] Improve or [2] Continue
+   Step 6: if Improve → generate SonarGateStubs.java, loop until pass or developer chooses Continue
+   Step 7: always write sonar-gate.md artifact
+
+   Produce: sonar-gate.md with per-file table, verdict (PASS or WARNING), uncovered methods list
+   ```
+2. Display verdict to user
+3. If WARNING and developer chose to continue: note in process-log, proceed to Phase 10b
+4. If WARNING and developer chose to improve: loop stays inside Phase 10a until PASS or explicit continue
+5. Update process-log, session-memory
 
 ---
 
@@ -1966,7 +2050,7 @@ mvn compile -pl <module> -am -q 2>&1
 mvn test -pl <module> -Dtest=<TestClass> 2>&1
 
 # If jdtls is available, check for unresolved symbols
-python ~/.jdtls-daemon/jdtls.py symbol <ClassName>
+python ~/.jdtls-daemon/jdtls.pys symbol <ClassName>
 ```
 
 Report results back to the active phase. The Developer/SDET agent uses terminal output for TDD cycles. Build Verify is a lightweight utility — it does NOT need Opus.
