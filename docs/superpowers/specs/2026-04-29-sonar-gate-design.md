@@ -1,185 +1,297 @@
-# SonarGate — Local Coverage Gate Design
+# Design Spec: `/sonar-gate` — Local Coverage Gate for the Feature Pipeline
 
 **Date:** 2026-04-29  
-**Author:** Ritwik Ranjan  
-**Status:** Approved — ready for implementation
+**Author:** Ritwik Ranjan Pathak  
+**Status:** Approved — ready for implementation  
+**Ticket context:** Capillary loyalty platform, `intouch-api-v3` + `emf-parent`
 
 ---
 
 ## The Problem
 
-When a developer finishes writing code and pushes a branch, CI runs SonarQube. If new code coverage is below 90%, the build fails. The developer then has to go back, write more tests, push again, wait for CI again — a frustrating round-trip that breaks flow.
+Right now, the pipeline produces code and tests across phases 9–10, but there is no step that verifies whether the new code is actually well-covered before the developer pushes. The result: CI runs SonarQube, the build fails because new-code line coverage is below 90%, and the developer has to loop back from scratch — context lost, CI time wasted, feedback delayed.
 
-The pipeline has no way to warn you about this *before* you push. There's no coverage check between "Developer writes code" and "push to CI". This design fixes that.
+There are two gaps:
+
+1. **No early warning during the SDET phase** — tests are planned and written, but nobody checks whether every new class has at least one UT assigned to it.
+2. **No local coverage check before push** — the first time a developer sees a coverage number is when CI fails in AWS CodeBuild.
+
+The goal of this design is to close both gaps entirely locally, with no CI dependency, no pom.xml changes, and no SonarQube server calls.
 
 ---
 
 ## What We're Building
 
-Two things:
+**Two things, tightly integrated:**
 
-1. **`/sonar-gate` — a new skill** that runs JaCoCo locally (no pom.xml change, no CI needed), checks coverage on your new/changed files, warns you if you're below 90%, and helps you fix it by generating test stubs.
+### 1. SDET Enhancement (Phase 9 — proactive, structural)
 
-2. **A small enhancement to the `/sdet` skill** — a lightweight traceability check that catches obviously untested new classes *before* the Developer phase even starts. Saves an extra loop later.
+A lightweight addition to the existing `/sdet` skill. After the SDET writes all test cases, it performs a **traceability check**: for every new class and public method in the Developer's skeleton output, it verifies that at least one UT in `05-sdet.md` maps to it.
+
+This is not a metric check — it's structural. It catches the obvious case: "we wrote 10 new classes and planned zero tests for 3 of them." It runs with no tools beyond what SDET already has, and surfaces a pre-emptive warning before Developer even starts.
+
+### 2. `/sonar-gate` Skill (Phase 10a — precise, metric-based, fully local)
+
+A new standalone skill that runs **after Developer** (Phase 10) and **before Backend Readiness** (Phase 10b). It uses Maven's CLI plugin invocation to run JaCoCo locally without touching `pom.xml`, parses the generated XML report, filters it to only new/changed files (using `git diff`), and computes new-code line coverage.
+
+If coverage is below 90%, it:
+- Warns the developer with a per-file breakdown
+- Asks: *"Coverage is X%. Do you want to improve it now or continue?"*
+- If improve → generates UT stubs for every uncovered method, enters a fix-rerun loop
+- If continue → logs the warning and lets the pipeline proceed
+
+**It is a soft gate, not a hard blocker.** The developer is always in control.
+
+**It is also standalone.** You can invoke `/sonar-gate` at any point — mid-feature, post-pipeline, before a PR — and it does the full flow on your current branch.
 
 ---
 
-## How It Fits in the Pipeline
+## Architecture & Pipeline Position
 
 ```
-Phase 9  — SDET          (enhanced: traceability check on new skeletons)
-Phase 10 — Developer     (unchanged: makes tests GREEN)
-Phase 10a — Sonar Gate   ← NEW
-Phase 10b — Backend Readiness
-Phase 10c — Analyst Compliance
-Phase 11  — Reviewer
+Phase 9  (SDET)               → Enhanced: traceability check on skeleton output
+Phase 10 (Developer)          → unchanged
+Phase 10a (Sonar Gate)        → NEW: /sonar-gate skill [local JaCoCo, soft gate]
+Phase 10b (Backend Readiness) → unchanged
+Phase 10c (Analyst)           → unchanged
+Phase 11 (Reviewer)           → unchanged
 ```
 
-Phase 10a is a **soft gate** — it warns, not blocks. The developer decides whether to fix coverage now or continue.
+The skill slots naturally between Developer and Backend Readiness. If the developer chooses to improve coverage, the loop stays inside Phase 10a — nothing downstream is affected until the developer is satisfied.
 
 ---
 
-## The `/sonar-gate` Skill — How It Works
+## `/sonar-gate` Skill — Full Design
 
-### Step 1 — Find your new files
+### Inputs
 
-The skill runs:
+| Input | How it's obtained | Required? |
+|---|---|---|
+| New/changed production Java files | `git diff main --name-only -- 'src/main/**.java'` | Required |
+| JaCoCo XML report | Run via Maven CLI (see Step 2) | Generated by skill |
+| `session-memory.md` | Read from artifacts path if present | Optional |
+| Coverage threshold | Hardcoded at 90%, overridable via skill argument | Optional |
+
+### Step-by-Step Execution
+
+**Step 1 — Identify new/changed production files**
+
 ```bash
 git diff main --name-only -- 'src/main/**.java'
 ```
-This gives the list of production Java files you've added or changed on your branch. Test files are excluded — we only care about production code that needs to be covered.
 
-### Step 2 — Run JaCoCo locally
-
-```bash
-mvn org.jacoco:jacoco-maven-plugin:prepare-agent \
-    test \
-    org.jacoco:jacoco-maven-plugin:report
-```
-
-This runs your tests and generates a coverage report at `target/site/jacoco/jacoco.xml`. No changes to `pom.xml`. No CI. No pushing. Maven resolves the JaCoCo version from the local Maven repository or downloads the latest stable release. The skill will default to `0.8.11` but accepts a configurable override via `JACOCO_VERSION` env var if the project needs a specific version.
-
-### Step 3 — Parse and filter
-
-The skill reads `jacoco.xml`, filters it down to only your new/changed files from Step 1, and calculates:
-- Line coverage per file (covered lines ÷ total lines)
-- Aggregate coverage across all new files
-
-### Step 4 — Evaluate
-
-- **≥ 90%** → PASS. Writes `sonar-gate.md` with the coverage table and exits cleanly.
-- **< 90%** → WARNING. Shows you the per-file breakdown and asks what you want to do.
-
-### Step 5 — Interactive choice (when WARNING)
-
-```
-Coverage on new code: 73% (target: 90%)
-
-File                                          Covered   Missed   %
-TierUpgradeService.java                       42        18       70%
-SlabValidityCalculator.java                   28        4        87%
-TierBenefitMappingValidator.java              0         31       0%
-
-Do you want to improve coverage now, or continue to the next phase?
-  [1] Improve now — I'll generate test stubs for uncovered methods
-  [2] Continue — log the warning and move on
-```
-
-### Step 6 — Remediation loop (if developer chooses "Improve")
-
-For each under-covered file, the skill reads the uncovered methods from `jacoco.xml` and generates UT stubs:
-
-```java
-// Generated stub — fill in the test logic
-@Test
-void validateTierBenefitMapping_whenMappingIsNull_shouldThrow() {
-    // Arrange
-    
-    // Act
-    
-    // Assert
-}
-```
-
-The developer fills in the logic, saves, and the skill re-runs JaCoCo from Step 2. This loop repeats until coverage hits 90% or the developer chooses to continue.
+Produces a list of Java source files changed on the current branch versus main. Test files (`src/test/`) are excluded. If this list is empty, the skill exits with PASS — nothing new to cover.
 
 ---
 
-## Standalone Usage (Outside the Pipeline)
+**Step 2 — Run JaCoCo locally via Maven CLI**
 
-You don't need to be mid-pipeline to use this. If you've finished all your coding and just want to check coverage before pushing, run:
+```bash
+mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
+    test \
+    org.jacoco:jacoco-maven-plugin:0.8.11:report \
+    -Dproject.reporting.outputEncoding=UTF-8
+```
+
+This invokes JaCoCo entirely via Maven's plugin invocation syntax — no pom.xml modification needed. Maven resolves the plugin from your local `.m2` cache or downloads it on first run.
+
+Output: `target/site/jacoco/jacoco.xml`
+
+If this command fails (compilation error, test infrastructure missing), the skill surfaces the Maven error and stops — it does not attempt coverage analysis on a broken build.
+
+---
+
+**Step 3 — Parse `jacoco.xml` and filter to new files**
+
+Parse `target/site/jacoco/jacoco.xml`. For each `<class>` element, match its `sourcefilename` against the list from Step 1. Only classes in new/changed files are included in the coverage calculation.
+
+Per-file metrics extracted:
+- `INSTRUCTION` missed/covered
+- `LINE` missed/covered
+- `METHOD` missed/covered
+
+Coverage % computed as: `covered_lines / (covered_lines + missed_lines) * 100`
+
+---
+
+**Step 4 — Evaluate against threshold**
+
+```
+aggregate_coverage = sum(covered_lines across all new files)
+                   / sum(total_lines across all new files) * 100
+
+if aggregate_coverage >= 90%  → PASS
+if aggregate_coverage < 90%   → WARNING
+```
+
+---
+
+**Step 5 — Interactive prompt on WARNING**
+
+Display the coverage table:
+
+```
+Coverage Report — New Code (branch vs main)
+────────────────────────────────────────────────────────────────────────
+File                                    Lines   Covered   Coverage
+TierService.java                          142        98        69%
+TierValidationHelper.java                  38        38       100%
+SlabEvaluationStrategy.java                91        52        57%
+────────────────────────────────────────────────────────────────────────
+Aggregate new-code coverage: 74%   Target: 90%   Gap: 16%
+────────────────────────────────────────────────────────────────────────
+
+⚠  Coverage is below 90%. What do you want to do?
+   [1] Improve — generate stubs for uncovered methods and loop
+   [2] Continue — log warning and proceed to Backend Readiness
+```
+
+---
+
+**Step 6 — Remediation loop (if developer chooses "Improve")**
+
+For each under-covered file, inspect the `jacoco.xml` `<method>` elements with `missed > 0`. Generate a UT stub for each uncovered method:
+
+```java
+// sonar-gate generated stub — fill in test logic
+@Test
+void testApplySlabValidity_whenTierExpired_shouldReturnFalse() {
+    // TODO: test TierService#applySlabValidity — currently 0% line coverage
+    // Arrange
+
+    // Act
+
+    // Assert
+    fail("Not yet implemented");
+}
+```
+
+Stubs are written to `src/test/java/<same-package-as-uncovered-class>/SonarGateStubs.java` — matching the package of the first under-covered file so imports resolve correctly. The developer can find it immediately by looking for `SonarGateStubs` in their test directory.
+
+After the developer fills in the logic:
+- Re-run Step 2 → Step 4
+- Display updated table
+- If ≥90% → PASS, the skill automatically deletes `SonarGateStubs.java` (developer does not need to do this manually)
+- If still <90% → repeat prompt
+
+The loop continues until the developer reaches 90% or explicitly chooses "Continue."
+
+---
+
+**Step 7 — Write `sonar-gate.md` artifact**
+
+Always written regardless of outcome:
+
+```markdown
+## Sonar Gate Report
+
+**Branch:** aidlc/tier-feature
+**Run date:** 2026-04-29
+**New files analysed:** 3
+**Aggregate new-code coverage:** 74%
+**Threshold:** 90%
+**Verdict:** WARNING — developer chose to continue
+
+### Per-File Breakdown
+| File | Covered Lines | Missed Lines | Coverage |
+|---|---|---|---|
+| TierService.java | 98 | 44 | 69% |
+| TierValidationHelper.java | 38 | 0 | 100% |
+| SlabEvaluationStrategy.java | 52 | 39 | 57% |
+
+### Uncovered methods at exit (developer continued)
+- TierService#applySlabValidity (line 87)
+- SlabEvaluationStrategy#evaluate (line 34)
+```
+
+---
+
+## SDET Enhancement — Traceability Check
+
+At the end of the SDET phase, after writing all test cases to `05-sdet.md`, the skill adds one pass:
+
+1. Collect all new Java classes from the skeleton output (from Developer's Phase 10 skeleton stubs).
+2. For each class, check `05-sdet.md` for at least one UT entry that maps to it (by class name or BT-xx trace).
+3. Any class with zero UTs planned → flagged under a new section: **"⚠ Zero-coverage risk"**
+
+This is a planning-level check, not a metric. It fires before any code is written, giving the developer a heads-up before they hit Phase 10a.
+
+---
+
+## How to Use It
+
+### As part of the pipeline
+
+`/sonar-gate` runs automatically at Phase 10a after the Developer phase completes. You don't need to do anything — the pipeline orchestrator invokes it. When it runs, it will either tell you "All good — 93% on new code, proceeding" or show you the coverage table and ask what you want to do.
+
+### Running it standalone (any time)
+
+You don't need to run the full pipeline to use this. Just be on your feature branch and invoke:
 
 ```
 /sonar-gate
 ```
 
-That's it. The skill will find your new files, run JaCoCo, show you coverage, and offer to generate stubs if needed. No pipeline state required. Works on any branch, any time.
+The skill figures out what's new by comparing your branch to `main`, runs the tests with JaCoCo, and gives you a per-file report. The whole thing takes about 2–3 minutes (mostly Maven test execution time).
 
----
+### Running it with a custom threshold
 
-## SDET Phase Enhancement
-
-At the end of the SDET phase (Phase 9), after writing all tests, the skill runs a traceability check:
-
-- For every new class in the Developer skeleton output, is there at least one UT that references it?
-- For every new public method, is there at least one test case that calls it?
-
-If a class or method has zero test references → the SDET phase flags it immediately (before any JaCoCo run). This is a structural check, not a metric check — it catches obvious gaps early and saves the extra loop at Phase 10a.
-
----
-
-## Output Artifact — `sonar-gate.md`
-
-Every run produces `sonar-gate.md` in the artifacts path (or current directory for standalone runs).
-
-```markdown
-## Sonar Gate Report — <branch-name> — <date>
-
-| File | Covered Lines | Missed Lines | Coverage % | Status |
-|------|--------------|-------------|------------|--------|
-| TierUpgradeService.java | 42 | 18 | 70% | WARN |
-| SlabValidityCalculator.java | 28 | 4 | 87% | WARN |
-| TierBenefitMappingValidator.java | 0 | 31 | 0% | WARN |
-
-**Aggregate new-code coverage: 73%**  
-**Target: 90%**  
-**Verdict: WARNING — developer chose to continue**
-
-Uncovered methods at time of exit:
-- TierBenefitMappingValidator#validate (TierBenefitMappingValidator.java:14)
-- TierBenefitMappingValidator#validateMapping (TierBenefitMappingValidator.java:38)
+```
+/sonar-gate --threshold 80
 ```
 
+### Checking a specific file only
+
+```
+/sonar-gate --file src/main/java/com/capillary/intouchapiv3/services/TierService.java
+```
+
+### What to do when stubs are generated
+
+The skill writes stubs to `SonarGateStubs.java` in your test directory. Open that file, find the `// TODO` methods, and write the actual test assertions. Then re-run `/sonar-gate` — it picks up the new tests automatically and shows an updated report. Once you hit 90%, the stubs file is deleted for you.
+
+### What "new code" means here
+
+The skill only measures coverage on files that differ from `main`. If you haven't touched `TierRepository.java`, its coverage is irrelevant — even if it's at 40%. This matches exactly how SonarQube PR analysis works, so the number you see locally is the number CI will see.
+
+### Good times to run it
+
+- **After Developer phase** — standard pipeline, automatic
+- **Before raising a PR** — quick sanity check, 2 minutes
+- **After fixing a CI SonarQube failure** — verify locally before re-pushing so you're not guessing
+
 ---
 
-## New Files
+## Files to Create / Modify
 
-| File | Action |
-|------|--------|
-| `.claude/skills/sonar-gate/SKILL.md` | Create new skill |
-| `.claude/skills/sdet/SKILL.md` | Edit — add traceability check subsection |
-| `docs/pipeline/tier/sonar-gate.md` | Created per run (artifact) |
-
-The pipeline agent definition (`.claude/agents/feature-pipeline.md`) also needs a Phase 10a entry pointing to the new skill.
+| File | Action | Notes |
+|---|---|---|
+| `.claude/skills/sonar-gate/SKILL.md` | **Create** | New skill — full step-by-step execution protocol |
+| `.claude/skills/sdet/SKILL.md` | **Edit** | Add traceability check subsection at end of output step |
+| `.claude/agents/feature-pipeline.md` | **Edit** | Add Phase 10a entry referencing `/sonar-gate` |
 
 ---
 
 ## Edge Cases
 
-| Case | Behaviour |
-|------|-----------|
-| No new Java files on branch | Skill exits immediately with PASS (nothing to check) |
-| `mvn` not available in PATH | Skill surfaces a clear error: "Maven not found. Ensure mvn is on PATH." |
-| Tests fail during JaCoCo run | Skill surfaces failure output and stops — fix tests first |
-| jacoco.xml missing after mvn run | Skill checks for file, surfaces error if absent |
-| Developer repeatedly chooses "Continue" below 90% | Verdict in sonar-gate.md says WARNING — visible to Reviewer in Phase 11 |
-| Standalone run on a branch with no `session-memory.md` | Skill works fine — session-memory is optional context |
+| Scenario | Behaviour |
+|---|---|
+| No new Java files on branch | PASS immediately — nothing to measure |
+| Maven build fails (compile error) | Skill surfaces error, exits — no coverage report produced |
+| JaCoCo plugin not in local `.m2` | Maven downloads it on first run (needs internet on first use) |
+| Developer runs standalone with no `session-memory.md` | Skill runs fine — session memory is optional |
+| Branch already merged to main | `git diff main` returns empty — PASS |
+| Coverage exactly at 90% | PASS |
+| Multiple remediation rounds needed | Loop runs until developer passes or chooses to continue |
+| A new file is 100% covered but another brings aggregate below 90% | Per-file table shows exactly which file is pulling the average down |
 
 ---
 
-## Confidence Levels (per principles.md)
+## Success Criteria
 
-- JaCoCo CLI invocation without pom.xml: **C6** — documented Maven plugin invocation syntax, confirmed by SonarQube log showing JaCoCo already in the project's plugin registry
-- 90% threshold on new code lines: **C7** — confirmed by user
-- Soft gate (warn + choice): **C7** — confirmed by user
-- Standalone invocability: **C6** — skill design is self-contained, no hard pipeline state dependencies
+1. A developer can run `/sonar-gate` on a feature branch and get a per-file coverage report in under 3 minutes, with no CI involvement and no pom.xml changes.
+2. When coverage is below 90%, the skill generates compilable UT stubs with correct package, class, and method naming.
+3. The SDET skill flags any new class with zero planned tests before Developer phase starts.
+4. `sonar-gate.md` is always written — both PASS and WARNING — so the Reviewer has a paper trail.
+5. The skill behaves identically whether invoked from Phase 10a or run standalone.
+6. The number reported locally closely matches what SonarQube reports in CI (same "new code" definition using `git diff`).
