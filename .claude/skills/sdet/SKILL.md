@@ -322,6 +322,43 @@ After the plan is approved (or immediately in pipeline mode), write the actual t
   - Total coverage: N business test cases → M test methods
   - Skeleton classes created (path, what Developer needs to implement)
 
+## Traceability Check (End of Stage 2 — Mandatory)
+
+After writing all test code and before returning to the orchestrator, run one final structural check: **does every new skeleton class have at least one UT planned?**
+
+### How to run it
+
+1. Collect all skeleton production classes created in Stage 2 (the classes written to `src/main` with `UnsupportedOperationException` stubs).
+2. For each class, search `05-sdet.md` for at least one test entry that references it — by class name or BT-xx trace.
+3. Any class with zero planned UTs → add it to a **⚠ Zero-Coverage Risk** section at the bottom of `05-sdet.md`.
+
+### Output — append to `05-sdet.md`
+
+If gaps found:
+
+```markdown
+## ⚠ Zero-Coverage Risk
+
+The following new classes have no UT planned. They will appear as 0% in /sonar-gate (Phase 10a).
+Consider adding at least one UT per class before the Developer phase.
+
+| Class | Skeleton path | Suggested test scope |
+|---|---|---|
+| TierNotificationService | src/main/java/.../TierNotificationService.java | Happy path + null input |
+```
+
+If no gaps:
+
+```markdown
+## ✓ Traceability Check
+
+All N skeleton classes have at least one UT planned. Zero-coverage risk: none.
+```
+
+This check is structural — it does not run any code or measure actual line coverage. Its purpose is to catch the obvious gap (an entire class with no test at all) before the Developer phase starts. /sonar-gate (Phase 10a) will catch anything this misses with real JaCoCo numbers.
+
+---
+
 ## Return to Orchestrator
 When running as a subagent (spawned by `/workflow`), after writing `05-sdet.md` and updating `session-memory.md`, return:
 
