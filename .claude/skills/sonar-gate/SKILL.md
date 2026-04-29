@@ -79,10 +79,21 @@ If the remote is unreachable (offline / no remote configured), fall back to loca
 git branch --list main master | tr -d ' *' | head -1
 ```
 
-Store the result as `BASE_BRANCH` (e.g. `main` or `master`). If neither is found, print:
+Store the detected result as `BASE_BRANCH`. If neither is found, print:
 `Cannot detect default branch — pass it explicitly with --base-branch <name>` and exit.
 
-**`--base-branch` override:** If the user passes `--base-branch develop` (or any name), use that instead of auto-detection. This handles repos with non-standard defaults.
+**`--base-branch` override:** If the user passes `--base-branch develop` (or any name), skip detection and use that directly — no confirmation prompt needed since the user already specified it.
+
+**Always confirm with the user before proceeding** (unless `--base-branch` was explicitly passed):
+
+```
+Detected base branch: master
+Is this correct? Press Enter to confirm, or type a different branch name:
+```
+
+- If the user presses Enter (or says yes/y): proceed with detected branch
+- If the user types a branch name (e.g. `develop`): use that instead
+- This prevents silently diffing against the wrong branch on repos with unusual setups
 
 ### 1b — List changed production files
 
