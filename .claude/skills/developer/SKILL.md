@@ -152,6 +152,39 @@ When writing code, **always derive imports from the existing codebase**:
 - **DO NOT**: Assume standard Spring/Java/third-party imports are available — the project may use different versions, shaded jars, or internal alternatives.
 - **DO NOT**: Add new Maven/Gradle dependencies without surfacing it to the user first.
 
+### Serialization & Interface Compatibility Check
+
+**Before writing any new entity, DTO, or model class**, verify that the project's runtime serialization/deserialization layer can handle the types you're introducing. This prevents runtime failures that compile fine but blow up on the first API call.
+
+1. **Discover the project's serialization config:**
+   - Find where the serialization framework is configured (custom beans, config classes, properties files, module registrations).
+   - Check whether it's a custom/overridden config or framework-default auto-config. A custom config may be missing support for types that the auto-config would handle (e.g., date/time types, enums, polymorphic types).
+
+2. **For every new field type you introduce, verify serialization support:**
+   - Date/time types (e.g., `Instant`, `ZonedDateTime`, `LocalDate`) — does the serializer have the required module/adapter registered?
+   - Custom enums — does the serializer know how to map them (by name, ordinal, or custom serializer)?
+   - Polymorphic types — does the framework support the inheritance/interface hierarchy you're using?
+   - Nested objects, collections of custom types — any special config needed?
+
+3. **When implementing an existing interface or abstract class:**
+   - **Find at least one other implementation** of the same interface in the codebase.
+   - Study how it handles method signatures, especially methods with generic/loose parameter types (e.g., `setStatus(Object)`).
+   - If the interface has methods with `Object`, `String`, or raw types as parameters, check how peer implementations safely convert/cast them — follow that exact pattern.
+   - If no peer implementation exists, flag it to the user: *"No existing implementation of [Interface] found to reference — designing from scratch."*
+
+4. **If the project's serialization config is missing support for a type you need:**
+   - Do NOT silently register new modules/adapters on the shared global config — this affects all existing endpoints.
+   - Surface to the user:
+     ```
+     ⚠️ Project's serialization config does not support [type].
+     Existing config location: [file:line]
+     Options:
+     A) Register [module/adapter] on the shared config (impacts all endpoints)
+     B) Use a field-level annotation for custom serialization (isolated to this entity)
+     C) Use a different type that is already supported
+     Recommend: [your recommendation with rationale]
+     ```
+
 ### Dependency Resolution Protocol
 
 **Before writing any new code file**, check if the imports you need are backed by dependencies in the module's build file. This is mandatory — code that doesn't compile is not acceptable at any point in TDD.

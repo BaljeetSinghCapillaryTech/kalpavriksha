@@ -56,6 +56,122 @@ Any DAO call inside a loop = **N+1 risk**. Flag as BLOCKER.
 - Any `findAll()` without pagination?
 - Any aggregation on large tables without date/org filter?
 
+### 1d: Database Index Audit
+
+**This check is MANDATORY for any feature that creates or modifies database tables or collections.**
+
+Applies to all database types — MongoDB, MySQL, PostgreSQL, etc.
+
+1. **Discover all new/modified entities or tables:**
+   - Search files changed by the Developer phase for entity definitions, table creation, or schema changes.
+   - For each entity/table, record the name and database type.
+   - **Adapt to the project's tech stack** — detect which ORM, query framework, or raw query pattern the project uses (JPA, Spring Data, Hibernate, MyBatis, JOOQ, raw JDBC, Mongoose, Prisma, SQLAlchemy, etc.).
+
+2. **Inventory all query paths:**
+   For each repository, DAO, or query targeting these entities/tables:
+   - Extract the fields used in WHERE clauses, filter conditions, and query-by-example methods.
+   - Extract fields used in native/custom queries (annotations, query builders, raw SQL/NoSQL).
+   - Extract fields used in JOIN conditions, ORDER BY, and GROUP BY clauses.
+
+3. **Check existing index definitions:**
+   Search for indexes already defined — adapt search patterns to the project's stack:
+   - **Annotations**: index annotations on entities or fields (language/framework-specific)
+   - **Migration scripts**: Flyway, Liquibase, Alembic, Knex, Prisma migrations, etc.
+   - **Programmatic creation**: index initializers, schema setup code, post-construct hooks
+   - **Schema files**: DDL scripts, MongoDB collection config, etc.
+
+4. **Gap analysis — for every query path, verify a supporting index exists:**
+
+   | Query Path | Fields Used | Index Exists? | Severity |
+   |---|---|---|---|
+   | (method/query name) | {field1, field2} | YES / **NO** | BLOCKER if NO |
+
+   **Rules:**
+   - Every query that runs in a production hot path (API calls, scheduled jobs, event handlers) MUST have a supporting index. Missing index = **BLOCKER**.
+   - Queries only used in admin/batch/one-off contexts = **WARNING** if missing.
+   - Primary key / `_id` indexes are automatic — don't flag them.
+   - Compound/composite indexes must respect the database's index prefix rules (e.g., leftmost prefix for B-tree indexes).
+   - If the entity has a tenant/org field, it SHOULD be the leading field in compound indexes (multi-tenancy best practice).
+
+5. **Follow the project's existing index pattern:**
+   - Discover HOW this project defines indexes (annotations, migrations, programmatic, DDL scripts).
+   - New indexes MUST follow the same pattern — flag if they deviate.
+
+6. **Unique constraint check:**
+   - If any query is used for uniqueness validation (e.g., checking duplicate names before insert), a **unique index/constraint** should exist to enforce it at the database level — not just application-level checks. Application-only uniqueness is a race condition.
+
+**Output:**
+```markdown
+### Database Index Audit
+
+Database type: [MongoDB / MySQL / PostgreSQL / ...]
+Index creation pattern in project: [annotations / migrations / programmatic / DDL scripts]
+
+| Table/Collection | Query Path | Fields | Index Status | Severity |
+|---|---|---|---|---|
+| (name) | (method/query) | {field1, field2} | MISSING | BLOCKER |
+| ... | ... | ... | ... | ... |
+
+Recommended indexes:
+- (index definition in project's format) — covers (which queries)
+- ...
+```
+
+### 1e: Serialization & Interface Compatibility Audit
+
+**This check is MANDATORY for any feature that introduces new entities, DTOs, or model classes exposed through APIs, message queues, or RPC.**
+
+1. **Discover the project's serialization config:**
+   - Find where the serializer is configured (custom beans, config classes, properties, module registrations).
+   - Determine if it's a custom/overridden config or framework-default auto-config.
+   - Record what type modules/adapters are registered (date/time support, enum handling, polymorphic type support, etc.).
+
+2. **Audit every new field type in entities/DTOs changed by Developer phase:**
+
+   For each new or modified entity/DTO, check every field type against the serialization config:
+
+   | Entity | Field | Type | Serializer Support | Status |
+   |---|---|---|---|---|
+   | (class name) | (field) | (type) | YES / **NO** | BLOCKER if NO |
+
+   **Common gaps to check:**
+   - Date/time types — does the serializer have the required module/adapter for the specific types used?
+   - Custom enum fields — will the serializer map them correctly (name vs ordinal vs custom)? Are there conflicting setters (e.g., `setStatus(String)` and `setStatus(Object)`) that cause ambiguous dispatch?
+   - Polymorphic/generic interface types — does the framework know how to instantiate the concrete type?
+   - Nested custom objects — are they also serialization-safe?
+
+3. **Audit interface implementations for setter/getter conflicts:**
+
+   For each class that implements an interface with generic or loosely-typed methods:
+   - Check if the class has multiple setter/getter methods for the same property with different parameter types (e.g., `setStatus(MyEnum)` from the class + `setStatus(Object)` from the interface).
+   - If yes, verify that the serializer will pick the correct one at runtime. Ambiguous dispatch = **BLOCKER**.
+   - Check how other implementations of the same interface handle this — flag any inconsistency.
+
+4. **Rules:**
+   - Missing serialization support for a field type exposed in an API endpoint = **BLOCKER**.
+   - Missing support for a field type used only in internal/non-API classes = **WARNING**.
+   - Ambiguous setter dispatch caused by interface + concrete class methods = **BLOCKER**.
+   - Serialization config is custom but missing standard modules that the framework default would include = **WARNING** (ticking time bomb for future fields).
+
+**Output:**
+```markdown
+### Serialization Compatibility Audit
+
+Serialization framework: [e.g., Jackson / Gson / Protobuf / Thrift / etc.]
+Config type: [Custom bean / Auto-configured / Properties-based]
+Config location: [file:line]
+Registered modules/adapters: [list]
+
+| Entity/DTO | Field | Type | Supported | Severity |
+|---|---|---|---|---|
+| (name) | (field) | (type) | YES / NO | BLOCKER/WARNING |
+
+Interface setter conflicts:
+| Class | Interface | Method | Conflict | Severity |
+|---|---|---|---|---|
+| (class) | (interface) | setX(Object) vs setX(Enum) | Ambiguous dispatch | BLOCKER |
+```
+
 **Output per finding:**
 ```
 | Finding | File:Line | Severity | Evidence |
@@ -191,6 +307,8 @@ Produce `backend-readiness.md`:
 | Area | Status | Findings | Severity |
 |------|--------|----------|----------|
 | Query Performance | PASS/FAIL/WARN | N findings | highest severity |
+| Database Index Audit | PASS/FAIL/WARN/N/A | N findings | highest severity |
+| Serialization Compatibility | PASS/FAIL/WARN/N/A | N findings | highest severity |
 | Thrift Compatibility | PASS/FAIL/WARN | N findings | highest severity |
 | Cache Invalidation | PASS/FAIL/WARN | N findings | highest severity |
 | Resource Management | PASS/FAIL/WARN | N findings | highest severity |
@@ -218,6 +336,6 @@ Each finding rated C1-C7. Findings below C5 flagged for human review.
 
 | Severity | Criteria | Action |
 |----------|----------|--------|
-| **BLOCKER** | N+1 in production path, missing tenant filter, Thrift breaking change, resource leak, no timeout on external call | Must fix. Route back to Developer. |
-| **WARNING** | Missing pagination, no cache eviction, broad transaction scope, migration without rollback | Should fix before merge. |
+| **BLOCKER** | N+1 in production path, missing tenant filter, Thrift breaking change, resource leak, no timeout on external call, **missing database index for hot-path query**, **unsupported field type in API-exposed entity**, **ambiguous setter dispatch from interface conflict** | Must fix. Route back to Developer. |
+| **WARNING** | Missing pagination, no cache eviction, broad transaction scope, migration without rollback, **missing database index for admin/batch query**, **custom serialization config missing standard modules** | Should fix before merge. |
 | **INFO** | SELECT *, connection pool could be tuned, test coverage gap | Track for future improvement. |

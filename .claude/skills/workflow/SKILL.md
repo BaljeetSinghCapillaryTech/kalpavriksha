@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Phase execution protocols for the AIDLC pipeline — subagent templates, session memory template, pause/approval rules, git snapshots, rework cascades. Referenced by the feature-pipeline agent during phase execution. Use ONLY when user explicitly types /workflow for a standalone run. Do NOT auto-invoke when running as the feature-pipeline agent.
+description: "DO NOT AUTO-INVOKE. NEVER trigger this on startup or agent launch. TRIGGER ONLY when: user explicitly types /workflow in chat. DO NOT TRIGGER when: any agent starts, any pipeline starts, feature-pipeline agent runs, or on session init. This is a passive reference file read internally by agents — it contains subagent templates, session memory templates, and pause/approval rules."
 ---
 
 ## Reasoning Principles
@@ -422,7 +422,8 @@ When the user types `api-handoff` at any pause prompt (typically after Designer 
        Write output to <artifacts-path>/api-handoff.md
        Return the structured summary.
    ```
-2. Display the result and return to the same pause prompt (do not advance to the next phase).
+2. **Publish to Confluence:** Invoke `/confluence-publisher` (Step 2) with the generated `api-handoff.md` and `api-handoff.openapi.yaml` (if generated). Skip if `confluence` is not configured in pipeline-state.json.
+3. Display the result and return to the same pause prompt (do not advance to the next phase).
 
 ### Gap Analysis Command
 
