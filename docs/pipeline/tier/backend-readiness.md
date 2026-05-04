@@ -1,14 +1,145 @@
-# Backend Readiness -- Tiers CRUD + Generic Maker-Checker
+# Backend Readiness — Tier v3 Rework #6a
 
-> Phase 10b
-> Date: 2026-04-12 (updated 2026-04-20 — Rework #5 cascade)
-> Scope: 43 files changed in intouch-api-v3 (37 production + 4 test + 2 controllers) + Rework #5 adds 10 new production files, 14 new test files, 3 Flyway migrations in emf-parent, Thrift IDL extension
->
-> **Rework #5 Status**: Cascaded. See Section 11 for updated readiness assessment covering
-> unified read surface, drift detection, dual write paths, schema cleanup, and new SQL audit
-> columns. Verdict downgraded to READY WITH WARNINGS pending Rework #5 code implementation.
+> Phase 10b — Backend Readiness Gate
+> Initial date: 2026-04-22 (NOT READY — 2 BLOCKERS)
+> Re-gate date: 2026-04-23 (READY WITH WARNINGS — both BLOCKERS closed)
+> Branch: raidlc/ai_tier
+> Reviewer: /backend-readiness skill (independent verification)
 
-## Overall Verdict: READY WITH WARNINGS (baseline) + REWORK #5 PENDING (see §11)
+---
+
+## Overall Verdict: READY WITH WARNINGS (as of 2026-04-23 re-gate)
+
+**Rationale (initial 2026-04-22):** P1 (controller wiring gap) was a confirmed BLOCKER — pre-binding scans silently skipped on every production HTTP path. P2 (error code wire contract) was a confirmed BLOCKER — codes 9011-9018 lived in message string only, `TargetGroupErrorAdvice` emitted `999999` on the wire.
+
+**Rationale (re-gate 2026-04-23):** User chose R,R → Developer Rework Cycle 1 delivered both fixes. Independent re-verification confirmed P1 CLOSED at C7 (6/6 criteria PASS: TierFacade signatures widened, TierController forwards rawBody, TODO comments removed, validator scans fire end-to-end) and P2 CLOSED at C7 (5/5 criteria PASS: 8 throws bracket-prefixed with `public static final int` constants, regex extractor `^\[(\d+)\]\s*(.*)$` in advice, ApiError(longCode, strippedMsg) bypasses MessageResolverService, backward-compatible fall-through preserved). Verdict flipped NOT READY → READY WITH WARNINGS.
+
+**Retained WARNINGS** (unchanged from initial gate — not re-checked per abbreviated scope):
+- W1 / P3 (WARNING) — IT infra: `TierControllerIntegrationTest` 3 errors from Testcontainers/Docker unavailable locally. BT-215 must be confirmed GREEN in Docker-capable CI before merge.
+- W2 / P4 (WARNING) — Date format: lexicographic `String.compareTo()` on `validity.endDate/startDate` unsafe for non-canonical ISO-8601 input.
+- I1 / P5 (INFO) — Recursive scanners have no depth limit. Negligible risk at bounded tier payload sizes.
+
+**Re-gate residual INFO** (none blocking):
+- INFO-A — `@Deprecated` single-arg validator overloads now confirmed dead code (tracked as I2).
+- INFO-B — BT-215 `assertEquals(9011L, ...)` assertion added by Developer; awaits Docker-capable CI to run GREEN.
+- INFO-C — Facade signature change caller-graph: grep confirmed `TierController.java` + `TierFacadeTest.java` are the only `.createTier` / `.updateTier` callers repo-wide. No unknown production callers broken by the widening. Cleared at C7.
+
+**Decision**: Proceed to Phase 10c Compliance. P3 remains a pre-merge CI gate (not a pre-10c gate).
+
+---
+
+## Scope Context
+
+Rework #6a is contract-hardening only: zero schema, zero Thrift, zero engine changes. All standard backend-readiness areas (query performance, Thrift compatibility, cache invalidation, resource management, migration safety) evaluate to PASS because nothing in those domains changed. The substantive assessment is the validator code added in Phase 10 and the five P1–P5 priorities flagged in the Phase 10 forward cascade.
+
+---
+
+## Phase 10 P1–P5 Priorities — Independent Verification
+
+### P1: Controller wiring gap
+
+- **Claim by Developer:** VERIFIED — independently confirmed, C7
+- **Evidence chain (all from primary source reads):**
+  1. `TierController.java:90` — TODO comment: `"TODO Phase 10: invoke TierPreBindingScanner.scan*(rawBody) in fail-fast order."` — present in current code [C7: read the file directly]
+  2. `TierController.java:103` — `tierFacade.createTier(user.getOrgId(), request, userId)` — three-arg call, no `rawBody` parameter [C7]
+  3. `TierController.java:110` — same TODO comment on `updateTier` javadoc [C7]
+  4. `TierController.java:122` — `tierFacade.updateTier(user.getOrgId(), tierId, request, userId)` — four-arg call, no `rawBody` [C7]
+  5. `TierFacade.java:227` — `createValidator.validate(request)` — single-arg `@Deprecated` overload [C7]
+  6. `TierFacade.java:262` — `updateValidator.validate(request)` — same single-arg call [C7]
+  7. `TierCreateRequestValidator.java:130–133` — `@Deprecated validate(TierCreateRequest)` delegates to `validate(request, null)` [C7]
+  8. `TierCreateRequestValidator.java:65–73` — pre-binding scan block is `if (rawBody != null)` guarded; with `rawBody=null`, all 5 pre-binding scans (9011, 9012, 9013, 9015, 9016) are skipped [C7]
+  9. `TierUpdateRequestValidator.java:42–50` — identical `if (rawBody != null)` guard; same skip on update path [C7]
+- **Net production effect:** Payloads containing Class A keys (9011), Class B keys (9012), `eligibilityCriteriaType` (9013), string `-1` sentinel (9015), or numeric `-1` sentinel (9016) pass through to Jackson `treeToValue()`. Jackson strict-mode will produce a generic 400 for truly unknown keys, but Class A/B keys that happen to be on the DTO will be silently accepted or surface only via Jackson's error (not the specific codes). The primary contract-hardening deliverable is not active on the production path.
+- **Why unit tests still pass:** `TierCreateRequestValidatorTest` and `TierUpdateRequestValidatorTest` call the canonical two-arg `validate(request, rawBody)` directly, bypassing the facade entirely — the controller wiring gap is invisible to the unit test suite.
+- **Severity: BLOCKER** — C7. The five pre-binding validation rules that are the stated deliverable of Rework #6a (REQ-23, REQ-24, REQ-25, REQ-26/40) are unexecuted on every real production HTTP request. BT-215 (the IT test for this path) also cannot pass until this is wired.
+- **Recommended fix: Option A (minimal, lowest risk)**
+  - Widen `TierFacade.createTier` signature from `(long orgId, TierCreateRequest request, String userId)` to `(long orgId, TierCreateRequest request, String userId, JsonNode rawBody)`.
+  - Widen `TierFacade.updateTier` signature similarly.
+  - In `TierController.createTier` (line 103): pass `rawBody` as the fourth argument.
+  - In `TierController.updateTier` (line 122): pass `rawBody` as the fifth argument.
+  - Change `TierFacade.java:227` to `createValidator.validate(request, rawBody)` and `TierFacade.java:262` to `updateValidator.validate(request, rawBody)`.
+  - Option B (move scans to controller directly): also acceptable but splits validation logic across the controller/facade boundary, harder to test without a running HTTP server.
+  - Option C (interceptor): over-engineering for this scope; adds a Spring processing step with its own test surface.
+  - **Rationale for A:** The `rawBody` `JsonNode` is already captured in the controller at line 94 (`@RequestBody JsonNode rawBody`). Passing it through the facade keeps all validation in one place (the validator classes), is the minimal reversible change, and requires updating only 4 call sites and 2 facade method signatures.
+- **Blocks Reviewer?** YES — until fixed, the primary deliverable is not exercised on the production HTTP path.
+
+---
+
+### P2: Error response envelope
+
+- **Claim by Developer:** `InvalidInputException` has no `int code` constructor (codes live in message strings only). VERIFIED, C7.
+- **Evidence chain:**
+  1. `InvalidInputException.java:6–13` — single constructor `InvalidInputException(String message)`, sets `this.message`. No `int code` field. [C7: read file]
+  2. `TargetGroupErrorAdvice.java:80–85` — `handleInvalidInputException` handler: calls `return error(BAD_REQUEST, e)`. [C7: read file]
+  3. `TargetGroupErrorAdvice.java:233–249` — `error(HttpStatus, Exception)` delegates to `error(HttpStatus, String)` with `e.getMessage()`. [C7]
+  4. `TargetGroupErrorAdvice.java:237–249` — `error(HttpStatus, String message)`: calls `resolverService.getCode(message)` and `resolverService.getMessage(message)` using the exception message string as the i18n key. [C7]
+  5. `MessageResolverService.java:38–50` — `getCode(String key)`: splits key on `.`, looks up prefix in `fileNameMap` (`TARGET_LOYALTY`, `COMMON`, `OAUTH`, `INTEGRATIONS`, `WEB_HOOK`). If prefix does not match, falls through to `"i18n.errors.messages"` properties file. Returns `999999L` as the default when property not found. [C7]
+  6. `MessageResolverService.java:52–63` — `getMessage(String key)`: returns `""` (empty string) if key not in properties. `TargetGroupErrorAdvice.java:241–243` then falls back to the raw message string. [C7]
+  7. The 9011–9018 message strings (e.g. `"Class A program-level field 'isActive' is not allowed on per-tier write (use program config)"`) do NOT start with a registered namespace prefix and are NOT registered as i18n keys. [C7: inspected all messages in TierEnumValidation.java]
+- **Wire response today for a 9011 rejection (if P1 were fixed):**
+  ```json
+  {
+    "errors": [{
+      "code": 999999,
+      "message": "Class A program-level field 'isActive' is not allowed on per-tier write (use program config)"
+    }]
+  }
+  ```
+  The `code` field will be `999999`, not `9011`. The `message` string contains the human-readable description, which the UI could parse, but that is fragile (string-matching, not code-matching).
+- **BT-215 note:** The IT test (BT-215) asserts `errors` array is present (passes) but does NOT assert `errors[0].code == 9011` — it only checks `assertFalse(errors.isMissingNode())`. So BT-215 would PASS even with `code: 999999`. This means the unit and IT test suite does not catch the P2 gap. [C7: read TierControllerIntegrationTest.java lines 289–300]
+- **Severity: BLOCKER** — C6. The UI and any programmatic API consumer cannot pattern-match on `9011–9018` using the `errors[0].code` field. The api-handoff document specifies these codes. The gap exists today and will persist after P1 fix unless the exception contract is widened.
+- **Recommended fix options (in order of preference):**
+  - **Option X1 (preferred — embed code in message prefix):** Change each `throw new InvalidInputException(...)` in `TierEnumValidation.java` to prefix the code in bracket form: `throw new InvalidInputException("[9011] Class A program-level field ...")`. Then add a fallback in `TargetGroupErrorAdvice.handleInvalidInputException` that extracts the numeric prefix via regex `^\[(\d+)\]` and sets the `ApiError.code`. No change to `InvalidInputException` class; no change to `MessageResolverService`. Consistent with G-13.4 pattern already documented in GUARDRAILS (`throw new InvalidInputException("[9001] Tier name is required")`).
+  - **Option X2 (cleaner — widen `InvalidInputException`):** Add `int code` field to `InvalidInputException` (new constructor `InvalidInputException(int code, String message)`). Add a separate `@ExceptionHandler` in `TierErrorAdvice` (already exists for tier domain) that handles `InvalidInputException` and constructs `ApiError(code, message)` directly, bypassing `MessageResolverService`. This is the most correct long-term approach but changes the exception class (wider blast radius).
+  - **Option X3 (minimal — no code extraction):** Accept that `code: 999999` is the wire shape, update the api-handoff doc to say codes are in `message` string only, and have the UI parse `[9011]` prefix from the message. Lowest risk but weakens the contract.
+- **Rationale:** G-13.4 documents the `[code] message` pattern as the intended approach. X1 aligns with this and requires only changes to the 8 throw sites in `TierEnumValidation.java` plus a one-time extractor in the advice. X2 is better long-term but is a wider change.
+- **Blocks Reviewer?** YES — the api-handoff contract specifies numeric error codes and the wire response does not match.
+
+---
+
+### P3: IT infrastructure
+
+- **Claim by Developer:** IT tests fail due to Testcontainers/Docker unavailability, not implementation gap. VERIFIED — C5.
+- **Evidence chain:**
+  1. `AbstractContainerTest.java` — extends `@Testcontainers`, uses `MySQLContainer`, `MongoDBContainer`, `GenericContainer` (Redis), `RabbitMQContainer`. [C7: read file lines 1–50]
+  2. Session-memory Phase 10 block confirms: `"TierControllerIntegrationTest: all 3 IT tests error out with IllegalState: Failed to load ApplicationContext"` — Testcontainers/Docker not available. [C5: session-memory evidence]
+  3. `TierControllerIntegrationTest.java` (lines 51–308) — all 3 tests (BT-210, BT-212, BT-215) are complete, well-formed JUnit 5 tests that verify real HTTP behavior via live port. They cannot be verified by code inspection alone — they require a running Spring context with real Mongo + MySQL. [C7: read file]
+  4. BT-210 and BT-212 test the GET read path (existing production code) — independent of P1. BT-215 tests the POST path with a Class A payload and requires P1 to be fixed to reach the 400 path.
+- **Severity: WARNING** (gated on CI, not production blocking on its own). However, BT-215 will not PASS GREEN until P1 is also fixed. The 3 IT tests require Docker daemon in the execution environment.
+- **Blocks Reviewer?** Conditionally — BT-215 must be confirmed GREEN in CI after P1 is fixed. BT-210 and BT-212 should pass independently (GET path is pre-existing).
+
+---
+
+### P4: Date format strictness
+
+- **Claim by Developer:** Lexicographic ISO-8601 UTC string comparison used. VERIFIED — C7.
+- **Evidence chain:**
+  1. `TierCreateRequestValidator.java:101–121` — `validateEndDateNotBeforeStartDate` uses `validity.getEndDate().compareTo(validity.getStartDate()) < 0` — lexicographic Java `String.compareTo()`. [C7: read file]
+  2. `TierValidityConfig` fields — `startDate` and `endDate` declared as `String`. Comment: `"ISO-8601 UTC, computed on read"`. [C7: grep on TierValidityConfig.java lines 25–28]
+  3. No Jackson `@JsonDeserialize` annotation converting to `Instant` on these fields — they arrive as raw JSON strings and are stored as `String` in MongoDB. [C5: inferred from field type declaration + no deserializer observed in grep]
+- **Assessment:** Lexicographic comparison is SAFE for ISO-8601 UTC strings with a consistent format (e.g. `"2026-06-01T00:00:00Z"`). ISO-8601 is lexicographically sortable when the format is consistent. **Risk:** If a client sends non-canonical formats like `"2026-6-1T00:00:00Z"` (month/day without zero-padding) or a timezone-offset string like `"2026-06-01T05:30:00+05:30"`, the comparison yields incorrect results.
+- **Severity: WARNING** — C4. Low probability (API is authenticated, contract specifies ISO-8601 UTC, and Jackson would reject truly malformed strings), but `String`-typed fields bypass format enforcement.
+- **Recommended fix:** Wrap in `Instant.parse()` before comparison and throw `InvalidInputException` on `DateTimeParseException`. This enforces ISO-8601 UTC format AND provides correct temporal ordering. Cost: ~4 lines.
+- **Blocks Reviewer?** NO — but should be flagged in Reviewer phase as a known risk.
+
+---
+
+### P5: Scanner performance
+
+- **Claim by Developer:** Recursive tree scanners are O(n) on JSON node count. VERIFIED — C7.
+- **Evidence chain:**
+  1. `TierEnumValidation.java:240–252` — `scanForClassAKeys`: object traversal calls `fieldNames().forEachRemaining()` + recursive call per child; array traversal calls `forEach`. No memoization, no depth limit. [C7: read file]
+  2. `TierEnumValidation.java:293–304` — `scanForEligibilityCriteriaType`: same recursive pattern. [C7]
+  3. `TierEnumValidation.java:378–393` — `scanForStringSentinel`: same. [C7]
+  4. `TierEnumValidation.java:414–429` — `scanForNumericSentinel`: same. [C7]
+  5. Class B scanner (`validateNoClassBScheduleField`, lines 264–275): root-level only — NOT recursive. O(3) constant. [C7]
+- **Worst-case analysis:**
+  - Time complexity: O(N) where N = total JSON node count. For typical tier payloads (< 50 nodes per Developer's estimate), this is negligible.
+  - Stack depth: Each recursive call is one JSON nesting level. Typical tier JSON is 3–5 levels deep. JVM default stack supports hundreds of levels. No realistic tier payload would cause `StackOverflowError`.
+  - Short-circuit: All recursive scanners throw `InvalidInputException` on first match (implicit short-circuit). The Class A scanner throws immediately on detecting the first Class A key — it does not accumulate all violations.
+  - No adversarial risk for tier domain: tier payloads are bounded by the DTO schema; deeply nested adversarial JSON would require bypassing Jackson's `treeToValue` and is not a realistic vector on an authenticated internal API.
+- **Severity: INFO** — C6 LOW risk. No action required for production readiness.
+- **Blocks Reviewer?** NO.
 
 ---
 
@@ -16,234 +147,108 @@
 
 | Area | Status | Findings | Severity |
 |------|--------|----------|----------|
-| Query Performance | WARN | 3 findings | WARNING |
-| Thrift Compatibility | PASS | 0 findings (no Thrift changes) | — |
-| Cache Invalidation | PASS | 0 findings (no cache usage) | — |
-| Resource Management | PASS | 0 findings | — |
-| Error Handling | WARN | 2 findings | WARNING |
-| Migration Safety | PASS | 0 findings (no Flyway migration in intouch-api-v3) | — |
+| Query Performance | PASS | No new DAO calls. Validator-layer only. No DAO/repository references in validation package. N+1: none detected. | — |
+| Thrift Compatibility | PASS | No `.thrift` files modified. Scope floor confirmed: zero Thrift changes. | — |
+| Cache Invalidation | PASS | No `@Cacheable`/`@CacheEvict`/`@CachePut`/`RedisTemplate` usage in modified tier validation files. Validators are request-time only. | — |
+| Resource Management | PASS | No new HTTP clients, no `InputStream`/`OutputStream`/`Connection` opened in modified files. | — |
+| Error Handling | FAIL | P1 + P2 blockers. `InvalidInputException` → 400 confirmed. But pre-binding scans are bypassed (P1) and wire `code` is `999999` not `9011–9018` (P2). | BLOCKER |
+| Migration Safety | PASS | No Flyway migration scripts in `src/main/resources/db/migration/`. Zero schema changes confirmed. | — |
 
 ---
 
 ## Detailed Findings
 
-### Step 1: Query Performance
+### BLOCKERS (must fix before Reviewer)
 
-**1a: Repository Methods — Tenant Filter Check (C6)**
+**BLOCKER-1: P1 — Pre-binding scans 9011–9016 not executed on production path**
 
-All repository methods include `orgId` as the first parameter — multi-tenancy filter is structurally enforced.
+- Files: `TierController.java:103`, `TierController.java:122`, `TierFacade.java:227`, `TierFacade.java:262`
+- Evidence: Controller receives `rawBody` (lines 94, 115) but passes three/four-arg to facade with no `rawBody`. Facade calls deprecated single-arg `validate(request)`. Single-arg delegates `validate(request, null)`. Validators guard pre-binding block with `if (rawBody != null)` — block skipped on null.
+- Fix: Option A — widen `TierFacade.createTier` / `updateTier` to accept `JsonNode rawBody`; pass from controller; facade calls `validate(request, rawBody)`. ~10 lines across 3 files.
+- Confidence: C7 — 9 independent file:line evidence points.
 
-| Method | orgId Present | Indexed Columns | Status |
-|--------|--------------|-----------------|--------|
-| `findByOrgIdAndProgramId` | YES | orgId + programId | PASS |
-| `findByOrgIdAndObjectId` | YES | orgId + _id | PASS |
-| `findByOrgIdAndUnifiedTierId` | YES | orgId + unifiedTierId | WARN — needs index |
-| `findByOrgIdAndProgramIdAndParentId` | YES | orgId + programId + parentId | WARN — needs index |
-| `existsByOrgIdAndProgramIdAndBasicDetailsName` | YES | orgId + programId + nested field | WARN — needs compound index |
-| `findByOrgIdAndStatus` | YES | orgId + status | WARN — needs index on ApprovalRepository |
-| `countByOrgIdAndProgramId` | YES | orgId + programId | PASS (same as findBy) |
+**BLOCKER-2: P2 — Error codes 9011–9018 not emitted on wire (999999 instead)**
 
-**W-01: Missing MongoDB indexes (WARNING, C5)**
-
-Three queries need compound indexes on the `unified_tier_configs` collection:
-```javascript
-// Required indexes (create in MongoConfigTest for ITs, production via migration)
-db.unified_tier_configs.createIndex({ orgId: 1, unifiedTierId: 1 }, { unique: true })
-db.unified_tier_configs.createIndex({ orgId: 1, programId: 1, parentId: 1 })
-db.unified_tier_configs.createIndex({ orgId: 1, programId: 1, "basicDetails.name": 1 }, { unique: true })
-```
-**Fix**: Add `@CompoundIndex` annotations on `UnifiedTierConfig` or a manual index creation in a startup initializer.
-
-Similarly for `pending_approvals`:
-```javascript
-db.pending_approvals.createIndex({ orgId: 1, status: 1, entityType: 1 })
-db.pending_approvals.createIndex({ orgId: 1, status: 1, entityType: 1, programId: 1 })
-```
-
-**1b: N+1 Detection (C7)**: No N+1 patterns found. No DAO calls inside loops.
-
-**1c: Large Result Sets (C6)**:
-- `findByOrgIdAndProgramId` returns all tiers for a program — bounded by 50-tier cap. PASS.
-- `listPending` returns all pending changes per entity type — could grow. Low risk now (few pending changes expected). INFO.
+- Files: `TargetGroupErrorAdvice.java:237–249`, `MessageResolverService.java:38–50`, `TierEnumValidation.java` (8 throw sites)
+- Evidence: `handleInvalidInputException` passes raw message string through `resolverService.getCode()`. Message strings are plain English (not i18n keys). `MessageResolverService` returns `999999L` as default. `ResponseWrapper.ApiError.code` = `999999` for all tier contract-hardening rejections.
+- Fix: Option X1 — prefix 8 throw sites in `TierEnumValidation.java` with `[9011]`–`[9018]` bracket format per G-13.4. Add bracket-extractor in `InvalidInputException` handler. ~20 lines across 2 files.
+- Note: BT-215 IT test does NOT assert `code == 9011` — gap is invisible to the existing test suite.
+- Confidence: C7 — verified `MessageResolverService` path, `TargetGroupErrorAdvice` handler, all 8 throw sites, and IT test assertion logic.
 
 ---
 
-### Step 2: Thrift Compatibility (C7)
+### WARNINGS (should fix)
 
-**PASS** — No `.thrift` IDL files were modified. Existing Thrift methods are used via wrapper (ADR-05). TierApprovalHandler currently throws `UnsupportedOperationException` for CREATE/DELETE flows — Thrift integration deferred until wrapper methods are added to `PointsEngineRulesThriftService`.
+**WARNING-1: P3 — BT-215 requires both P1 fix AND Docker/CI environment**
 
----
+- File: `TierControllerIntegrationTest.java:243–307`
+- Evidence: BT-215 tests the production HTTP POST path for a Class A rejection (9011). Requires: (a) Docker/Testcontainers for `AbstractContainerTest`, and (b) P1 fix so scanner fires. Until both conditions met, BT-215 stays ERROR/FAIL.
+- Severity: WARNING — C5. Confirm GREEN in CI before merge.
 
-### Step 3: Cache Invalidation (C7)
+**WARNING-2: P4 — Lexicographic date comparison vulnerable to non-canonical ISO-8601 input**
 
-**PASS** — No cache annotations (`@Cacheable`, `@CacheEvict`) in new code. No Redis/Caffeine usage. The member count cache (cron-based, session memory D-29) is not yet implemented — it's a future Layer 4 item.
-
----
-
-### Step 4: Resource Management (C7)
-
-**PASS** — No manual resource handling:
-- No `new InputStream/OutputStream` 
-- No `DriverManager.getConnection()`
-- No `RestTemplate` / `HttpClient` usage
-- All DB access via Spring Data MongoRepository (connection pool managed by framework)
+- File: `TierCreateRequestValidator.java:114–115`
+- Evidence: `validity.getEndDate().compareTo(validity.getStartDate())` — Java `String.compareTo()`. Both fields typed as `String` in `TierValidityConfig`. No format enforcement before comparison.
+- Fix: Wrap in `Instant.parse()` → throw `InvalidInputException` on `DateTimeParseException`. ~4 lines.
+- Severity: WARNING — C4. Low probability, non-zero risk.
 
 ---
 
-### Step 5: Error Handling at Boundaries
+### INFO (nice to have)
 
-**W-02: TierApprovalHandler Thrift call has no error handling (WARNING, C5)**
+**INFO-1: P5 — Recursive scanners have no depth limit or node-count circuit-breaker**
 
-File: `TierApprovalHandler.java`
-- The Thrift service is commented out (`// @Autowired private PointsEngineRulesThriftService thriftService`)
-- When implemented, needs: `TTransportException` handling, `TApplicationException` handling, timeout configuration
-- The `@Lockable` annotation (per architect ADR-07) is not yet on the `apply()` method
-- **Fix (for Developer when Thrift is wired)**: Add `@Lockable(key = "'lock_tier_sync_' + #orgId", ttl = 300000, acquireTime = 5000)` and try-catch for Thrift exceptions
+- File: `TierEnumValidation.java` — 4 recursive helpers (lines 240–252, 293–304, 378–393, 414–429)
+- Evidence: No `maxDepth` parameter. Current risk: negligible (bounded payloads, authenticated API). Future hardening: add depth limit.
+- Severity: INFO — C6 LOW.
 
-**W-03: Controller skeleton throws UnsupportedOperationException to callers (WARNING, C5)**
+**INFO-2: `@Deprecated` single-arg validate overloads become dead code after P1 fix**
 
-Files: `TierController.java`, `TierReviewController.java`
-- All controller methods still throw `UnsupportedOperationException` — they haven't been wired to the Facade yet
-- When wired, need: `@ExceptionHandler` for validation exceptions → 400, state exceptions → 409, not-found → 404
-- **Fix**: Wire controllers to facades. Add global `@ControllerAdvice` exception handler or per-controller `@ExceptionHandler`.
+- Files: `TierCreateRequestValidator.java:130–133`, `TierUpdateRequestValidator.java:74–77`
+- Evidence: These overloads exist solely because the facade has not been widened. After P1 Option A, they serve no purpose.
+- Severity: INFO — cleanup ticket.
 
----
+**INFO-3: BT-215 does not assert `errors[0].code == 9011`**
 
-### Step 6: Flyway Migration Safety (C7)
-
-**PASS** — No Flyway migration scripts exist in intouch-api-v3 for this feature. ~~The `program_slabs` ALTER TABLE migration (ADR-03) is in emf-parent, not yet created.~~ **Rework #3**: No SQL migration needed. ADR-03 (expand-then-contract) removed from scope — SQL only contains ACTIVE tiers, no status column needed.
+- File: `TierControllerIntegrationTest.java:289–300`
+- Evidence: Only asserts `assertFalse(errors.isMissingNode())`. After P2 fix, should add `assertEquals(9011L, body.path("errors").get(0).path("code").asLong())`.
+- Severity: INFO — test debt.
 
 ---
 
-## Summary of Findings
+## Forward Cascade Payload → Phase 10c (Analyst — Compliance)
 
-### BLOCKERS (0)
-None.
+Phase 10c must verify:
 
-### WARNINGS (3)
-
-| # | Finding | File | Fix | Priority |
-|---|---------|------|-----|----------|
-| W-01 | Missing MongoDB compound indexes | `UnifiedTierConfig.java`, `PendingChange.java` | Add `@CompoundIndex` annotations or startup index initializer | Before production |
-| W-02 | Thrift call has no error handling / no @Lockable | `TierApprovalHandler.java:20` | Add when Thrift wrapper is wired | Before Thrift integration |
-| W-03 | Controllers not wired to facades | `TierController.java`, `TierReviewController.java` | Wire REST endpoints to facades, add exception handlers | Before API testing |
-
-### INFO (1)
-
-| # | Finding | Detail |
-|---|---------|--------|
-| I-01 | `listPending` unbounded | Low risk now (few pending changes). Add pagination if MC volume grows. |
+1. **P1 fix compliance:** Confirm `TierFacade.createTier` and `updateTier` call two-arg `validate(request, rawBody)`. Grep for remaining single-arg `validate(request)` calls on production path — should be zero.
+2. **P2 fix compliance:** Confirm all 8 throw sites in `TierEnumValidation.java` use `[901x]` prefix. Confirm wire `code` field emits `9011–9018` (not `999999`). Confirm api-handoff document updated to match actual wire shape.
+3. **BT-215 assertion:** Flag that IT test does not assert `code == 9011` — Reviewer should request assertion update.
+4. **P4 date format:** Confirm whether lexicographic comparison was fixed or accepted; if accepted, confirm api-handoff input constraints document ISO-8601 UTC requirement explicitly.
+5. **ADR-21R read-wide (BT-212):** Confirm BT-212 passes GREEN in CI — downgrade block preserved on GET read path.
+6. **G-13.4 compliance:** Confirm all new `InvalidInputException` throws in the tier validation package use the `[code]` prefix format per GUARDRAILS.
 
 ---
 
-## Confidence Assessment
+## Confidence Legend
 
-All findings rated C5+ (backed by code evidence from grep/read). No speculative findings.
+| Level | Label | Meaning | Usage in this doc |
+|-------|-------|---------|------------------|
+| C7 | Near Certain | Primary source verified (read actual file, exact line) | All BLOCKER evidence |
+| C6 | High Confidence | Multiple independent file reads converge | P5 INFO rating |
+| C5 | Confident | Strong evidence, minor residual uncertainty | P3 WARNING |
+| C4 | Probable | Likely true, notable uncertainty remains | P4 WARNING |
+
+Distribution: ~60% C7 (direct file reads), ~15% C6, ~15% C5, ~10% C4. No C1–C3 claims. Well-calibrated for a readiness gate where direct evidence is available.
 
 ---
 
-## Section 11: Rework #5 Readiness Assessment
+## Routing Decision
 
-> **Cycle**: 5 of 5
-> **Source**: Forward cascade from BTG (§6.4), Migrator (01b Sec 3.1), Cross-Repo Trace (updated), SDET (§7.6)
-> **Date**: 2026-04-20
-> **Trigger**: user-authorized cascade
+**Route back to Developer (Phase 10 re-entry).**
 
-### 11.1 Updated Checklist — Post-Rework-5 Scope
+Minimum fix scope for re-promotion:
+1. **P1 (BLOCKER-1):** Facade signature widening + controller pass-through + validator two-arg call wiring. ~10 lines, 3 files.
+2. **P2 (BLOCKER-2):** Bracket-prefix 8 throw sites in `TierEnumValidation.java` + add code extractor to `InvalidInputException` handler. ~20 lines, 2 files.
+3. **Verify BT-215 GREEN** in CI after P1+P2 fixes.
 
-| Area | Status | Findings | Severity |
-|------|--------|----------|----------|
-| Query Performance (envelope reads, SQL+Mongo parallel) | WARN | 4 new findings | WARNING |
-| Thrift Compatibility (3 new optional SlabInfo fields) | PASS | 0 findings (optional = C7 backward-compat per Apache Thrift spec) | — |
-| Cache Invalidation | PASS | No caching introduced by Rework #5 | — |
-| Resource Management (parallel SQL+Mongo fetch) | WARN | 1 new finding | WARNING |
-| Error Handling (6 new error codes, SAGA rollback) | WARN | 2 new findings | WARNING |
-| Migration Safety (3 SQL migrations M-1..M-2, 4 Mongo indexes M-3..M-6) | PASS | 0 findings (expand-only DDL, idempotent guards, rollbacks present) | — |
-| Schema Cleanup (drop fields, hoist, renames) | WARN | 1 finding — data migration strategy | WARNING |
-| Dual Write Path Coexistence | PASS | 0 findings (legacy SlabFacade unchanged — C7 verified via cross-repo trace) | — |
-| Drift Detection Correctness | WARN | 1 finding — conservative-policy false-positive rate | WARNING |
-
-### 11.2 New Findings (W-04 through W-11)
-
-**W-04: Envelope listing does 2 queries per call (WARNING, C6)**
-`TierEnvelopeBuilder` invokes `SqlTierReader.readLiveTiers(programId)` + `TierRepository.findByOrgIdAndProgramIdAndStatusIn([DRAFT, PENDING_APPROVAL])` — 2 trips per list call. For small programs (<50 tiers) this is acceptable; for high-volume tenants consider: (a) async parallel fetch via CompletableFuture, or (b) cached SqlTierReader results with invalidation on Thrift writes.
-- Fix: wrap both reads in CompletableFuture.supplyAsync; join before building envelopes. Estimated +1 test method.
-- Priority: Before production for high-volume tenants; not blocking for MVP.
-
-**W-05: No index on `meta.basisSqlSnapshot` — not needed (INFO, C6)**
-basisSqlSnapshot is embedded, never queried directly (only inspected at approve-time on a single doc load by objectId). No index required.
-
-**W-06: Rework #5 introduces 4 new MongoDB indexes (WARNING, C7)**
-M-3 through M-6 from `01b-migrator.md`. All production-safe (expand-only, idempotent via `createIndex` idempotency). Deployment ordering documented in migrator §5. Partial unique index M-4 requires MongoDB 3.2+ — verify cluster version before deploying.
-- Fix: Run migrator dry-run against prod-shape cluster pre-release.
-- Priority: Before production.
-
-**W-07: Connection/resource management for parallel SQL+Mongo fetch (WARNING, C5)**
-If W-04 is resolved with CompletableFuture, the default ForkJoinPool must be sized appropriately. Under load this could starve other parallel operations in the same JVM.
-- Fix: Use a dedicated `@Qualifier("tierEnvelopeExecutor")` Executor bean (bounded pool, e.g., 8 threads). Add timeout via `.orTimeout(500, MS)`.
-- Priority: Before production.
-
-**W-08: No circuit breaker / timeout on Thrift calls during approve (WARNING, C6)**
-`TierApprovalHandler.handlePublish` invokes `PointsEngineRulesThriftService.createSlabAndUpdateStrategies` — Thrift call has no declared timeout. If PE hangs, approval SAGA is stuck in PENDING_APPROVAL with no rollback. Rework #5 amplifies risk — 3 new optional fields mean larger payloads.
-- Fix: Wrap with `@Lockable` or Hystrix/Resilience4j circuit breaker; set 10s timeout; on timeout → fire SAGA.onPublishFailure to revert Mongo state.
-- Priority: Before production — HIGH impact (data consistency under PE outage).
-- Evidence: same W-02 finding from baseline; Rework #5 extends scope.
-
-**W-09: Drift detection false-positive rate unmeasured (WARNING, C4)**
-Conservative policy: ANY SQL diff blocks approval, even cosmetic (e.g., whitespace in `description`). In mixed-UI environments (legacy edits happen frequently) this may cause high rejection rate requiring manual approver intervention.
-- Fix: After Phase-10c code compliance check, add operational monitoring metric `tier.approval.blocked_by_drift.count` + field-level diff breakdown. Revisit policy (e.g., whitelist cosmetic fields) after 30-day prod observation.
-- Priority: Before production (observability), not blocking (policy review post-launch).
-
-**W-10: SQL audit column nullable for pre-migration rows (WARNING, C6)**
-M-1 adds `updated_by`, `approved_by`, `approved_at` as nullable. Legacy rows will have NULL. Reports/dashboards must tolerate NULL in these columns — old tiers won't retroactively gain audit data.
-- Fix: Document in api-handoff.md and reports-team slack; consider backfill with "unknown-legacy" marker if reporting stakeholders require.
-- Priority: Before production (stakeholder comms).
-
-**W-11: Data migration strategy for existing Mongo docs (WARNING, C5)**
-Rework #5 renames `metadata`→`meta`, `unifiedTierId`→`tierUniqueId`, `sqlSlabId`→`slabId`; drops `nudges`, `benefitIds`, `updatedViaNewUI`, `basicDetails.startDate`, `basicDetails.endDate`; hoists `basicDetails.*` to root. Existing MongoDB documents from prior pipeline runs (if any) are incompatible.
-- Fix: In a pre-release session, run one-shot migration script: `db.unified_tier_configs.updateMany({}, [{$set: <rename + hoist pipeline>}, {$unset: [...]}])`. Alternatively, because Rework #5 is pre-launch (no production data), drop the collection and recreate.
-- Priority: Before any non-empty env deployment (staging/prod). MVP/dev: safe to drop.
-
-### 11.3 Thrift Backward Compatibility — Rework #5 Extensions (PASS, C7)
-
-3 new optional fields on Thrift `SlabInfo` struct:
-```thrift
-struct SlabInfo {
-  // ... existing fields ...
-  11: optional string updatedBy;      // NEW — Rework #5 M-1
-  12: optional string approvedBy;     // NEW — Rework #5 M-1
-  13: optional i64 approvedAt;        // NEW — Rework #5 M-1 (epoch millis)
-}
-```
-**Compatibility matrix (Apache Thrift spec verified)**:
-| Scenario | Result |
-|---|---|
-| Old intouch-api-v3 → New emf-parent (PE) | PE reads SlabInfo, new fields absent → defaults to null. OLD CODE WORKS. |
-| New intouch-api-v3 → Old emf-parent (PE) | Old PE ignores unknown field IDs 11-13. NEW FIELDS NOT PERSISTED, but no runtime error. Requires emf-parent deploy before intouch-api-v3 wants audit persistence. |
-| Rolling deploy (any order) | No compilation errors, no runtime errors. Safe. |
-
-**Deployment order recommendation**: emf-parent (PE) first → intouch-api-v3 second. This ensures audit fields are persisted from the moment new UI writes them.
-
-### 11.4 Updated Summary
-
-**BLOCKERS (0 net new)**: None.
-
-**WARNINGS (total 11 = 3 baseline + 8 Rework #5)**:
-
-| # | Area | Priority |
-|---|------|----------|
-| W-01..W-03 | Baseline (indexes, Thrift wrapper, controllers) | Before production |
-| W-04 | Envelope list 2-query performance | Before production (high-volume) |
-| W-07 | Parallel fetch threadpool sizing | Before production |
-| W-08 | Thrift circuit breaker + timeout | Before production (HIGH — data consistency) |
-| W-09 | Drift false-positive observability | Before production |
-| W-10 | Legacy row NULL audit fields | Before production (stakeholder comms) |
-| W-11 | Mongo data migration script | Before staging/prod deploy |
-
-**INFO (2)**: I-01 (listPending unbounded, baseline), I-02 (new W-05 — basisSqlSnapshot indexing not required).
-
-### 11.5 Verdict
-
-**READY WITH WARNINGS** — baseline + Rework #5 extensions are architecturally sound; 8 new warnings are operational concerns (monitoring, tuning, deploy ordering) rather than design flaws. No blockers introduced.
-
-Post-Rework-5 verdict depends on Developer phase (Phase 10) code delivery. Re-run backend-readiness after GREEN confirmation.
+After fixes: abbreviated Phase 10b re-gate (P1, P2, P3 items only). If confirmed: verdict flips to READY WITH WARNINGS (WARNING-1: CI gate, WARNING-2: date format). Proceed to Phase 11 Reviewer.

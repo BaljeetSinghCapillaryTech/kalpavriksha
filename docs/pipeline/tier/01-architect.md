@@ -3,9 +3,9 @@
 > Phase 6: HLD
 > Feature: Tiers CRUD
 > Ticket: raidlc/ai_tier
-> Date: 2026-04-11 (last major update: Rework #5, 2026-04-17)
-> Confidence: C6 (verified patterns, 29 decisions locked + 19 Rework #5 decisions, production payload analyzed)
-> Rework trail: Rework #3 (no SQL status column) → Rework #5 (unified read surface, dual write paths, schema cleanup). See `rework-5-scope.md`.
+> Date: 2026-04-11 (last major update: Rework #6a Phase 4 cascade, 2026-04-22)
+> Confidence: C6 (verified patterns, 29 decisions locked + 19 Rework #5 decisions + 7 Phase 2AB decisions + 5 Rework #6a Phase 4 decisions, production payload analyzed, 198/198 intouch-api-v3 tests GREEN)
+> Rework trail: Rework #3 (no SQL status column) → Rework #5 (unified read surface, dual write paths, schema cleanup) → Phase 2AB (atomic publish — split-brain closure; see §7.5 and ADR-07) → **Rework #6a (contract hardening — error-code rebanding, unknown-field hard flip, validity classification lock, PeriodType scope lock + conditional duration, external-consumer audit; see §6.5, §11 R13-R15, ADR-17R..ADR-21R)**. See `rework-5-scope.md`, `contradictions.md`, `q-op-3-consumer-audit.md`.
 
 ---
 
@@ -30,6 +30,31 @@ The legacy tier edit/create endpoints in intouch-api-v3 (pre-dating this feature
 - **Drift detection**: DRAFTs capture `meta.basisSqlSnapshot` at creation. `preApprove` re-reads SQL and blocks on drift.
 - **Envelope response**: GETs return `{ live: ..., pendingDraft: ... | null }` per tier. Single round-trip.
 - **SNAPSHOTs are audit-only**: Write-once-at-approval. Never reconciled with later legacy edits. UI surfaces a caveat on drift.
+
+### Rework #6a Context (added 2026-04-22)
+
+Rework #6a is a **contract-hardening rework** — zero new endpoints, zero schema migrations, zero new storage. It tightens the existing `/v3/tiers` wire contract agreed in Rework #5 against 5 silent failure modes surfaced by the Critic (contradictions C-7..C-17) and resolved in Phase 4 (Q-OP-1..Q-OP-3, C-7 Hybrid, C-8 Option A).
+
+Five locked decisions:
+
+| # | Decision | Phase 4 lock | Resolves | ADR |
+|---|---|---|---|---|
+| 1 | Phantom Q-locks cleared — Q9 re-locked on error code **9015**; Q18/Q19/Q21 citations removed from BA (either subsumed by Q24 or downgraded to forward guards) | C-7 Hybrid | Phantom Q-lock audit-trail drift | Captured in §6.5 contract table (no new ADR — doc-only) |
+| 2 | Validity storage classification — per-tier `validity.periodType` + `validity.periodValue` are **canonical in per-slab engine storage** (`TierDowngradeSlabConfig[]` indexed by `slabNumber`, field `periodConfig`). Program-level `SlabUpgradeStrategy.propertyValues` carries only the 4 Class A booleans. | C-8 Option A | Program-level / per-tier ambiguity on `validity.*` | **ADR-18R** |
+| 3 | Error-code rebanding — Rework #6a rejects occupy distinct band **9011-9020**; legacy band 9001-9010 untouched. Per-REQ distinct codes (no reuse). | Q-OP-1 Option (b) | C-9 silent contract break between Rework #4 validators and new rejects | **ADR-17R** |
+| 4 | `PeriodType` enum scope lock — 6a handles `SLAB_UPGRADE`-family explicitly only. Engine enum has 4 values (NOT 5 — `FIXED_LAST_UPGRADE` was PRD-wording phantom; corrected Phase 7 §6a.6). `FIXED`, `FIXED_CUSTOMER_REGISTRATION` (FIXED family — 2 values), `SLAB_UPGRADE_CYCLIC` pass-through. **FIXED family requires `periodValue` on wire** — REQ-56 (new), code **9018**. Read-side null-safe for legacy FIXED tiers missing `periodValue`. | Q-OP-2 Option (c) + user caveat | C-12 (partial — scope locked, forward guard added) | **ADR-19R** |
+| 5 | Unknown-field hard flip — Jackson `FAIL_ON_UNKNOWN_PROPERTIES=true` on the v3 tier DTOs; zero back-compat window; legacy `downgrade` field now returns `400 InvalidInputException` at deserialization time. External consumer audit: **zero internal backend callers** across 16 repos (evidence: `q-op-3-consumer-audit.md`). | Q-OP-3 Option (a) + Q11 | C-17 (partial — audited surface C5 → C6; residual C5 flagged to Phase 11) | **ADR-20R** + **ADR-21R** (write-narrow/read-wide) |
+
+**What this rework does NOT change** (explicit scope floor):
+- No new endpoints, no new Mongo collections, no Flyway migrations.
+- No change to the MC state machine, the SAGA approve flow, or the atomic-publish pattern from Phase 2AB (ADR-07).
+- No change to `basicDetails` hoisting, envelope response shape, or dual write paths from Rework #5.
+- No change to per-slab engine storage schema — the per-slab `TierDowngradeSlabConfig[].periodConfig` already carries `periodType`/`periodValue`; ADR-18R documents this classification, it doesn't create it.
+
+**What this rework defers to Designer (Phase 7)**:
+- Exact merge semantics for PUT when `periodType` transitions SLAB_UPGRADE-family → FIXED-family without `periodValue` in the payload (payload-only check vs payload+stored doc check).
+- Exact wire shape for read-side null safety on legacy FIXED tiers (omit-field vs explicit null vs 0).
+- Exact error-message text and field-path hint for each 9011-9018 code (C-11 Jackson-config verification also lives here).
 
 ---
 
@@ -458,6 +483,41 @@ All responses use `ResponseWrapper<T>`:
 
 **List GET response shape:** array of envelopes, one per LIVE SQL row.
 
+### 6.5 Rework #6a Contract Hardening (added 2026-04-22)
+
+The v3 tier write endpoints (`POST /v3/tiers`, `PUT /v3/tiers/{tierDocId}`) harden their accept/reject contract per the 5 Phase 4 decisions. The table below is the **authoritative error-code allocation** for 6a — the legacy 9001-9010 band continues to be emitted by Rework #4/#5 validators unchanged.
+
+**Write-narrow / read-wide asymmetric contract (Q24)**: per-tier POST/PUT accepts only per-tier fields; any program-level field in the payload is rejected with a per-code 400. GET `/v3/tiers` continues to emit the full hoisted envelope (legacy + new) with no field rejections.
+
+**Rework #6a reject matrix** (band 9011-9020):
+
+| Code | REQ | Reject condition | Q-lock | Class |
+|---|---|---|---|---|
+| 9011 | REQ-33 | Class A program-level field on per-tier write: `reevaluateOnReturn`, `dailyEnabled`, `retainPoints`, `isDowngradeOnPartnerProgramDeLinkingEnabled` | Q24 subsumes Q17; Q-OP-1 | Program-level |
+| 9012 | REQ-34 | Class B program-level eligibility field on per-tier write: `kpiType`, `upgradeType`, `trackerId`, `trackerConditionId`, `additionalCriteria[]`, `expressionRelation` | Q24 subsumes Q18; Q-OP-1 | Program-level |
+| 9013 | REQ-37 | `eligibilityCriteriaType` on per-tier POST/PUT — no longer required; program-level | Q24 subsumes Q25; Q-OP-1 | Program-level |
+| 9014 | REQ-36 | `validity.startDate` on per-tier write when `periodType` is `SLAB_UPGRADE` family (event-driven; no fixed start date meaningful) | Q7; Q-OP-1 | Per-tier consistency |
+| 9015 | REQ-35 | `-1` sentinel (string `"-1"`) in `eligibility.conditions[].value` or `renewal.conditions[].value` on per-tier write — GET filters them out, POST/PUT rejects symmetrically | Q9 (re-locked Phase 4 C-7 Hybrid); Q-OP-1 | Per-tier lockstep |
+| 9016 | REQ-35 (extension) | Numeric `-1` in same fields — covers the C-10 numeric-vs-string gap (Designer confirms wire type; see C-10 open for Phase 7) | Q9; Q-OP-1 | Per-tier lockstep |
+| 9017 | REQ-38 | `renewal.criteriaType` value other than `"Same as eligibility"`; `renewal.conditions[]` or `renewal.expressionRelation` non-empty | Q26 (B1a lock preserved); Q-OP-1 | Per-tier |
+| **9018** | **REQ-56 (NEW)** | **FIXED-family `validity.periodType` (`FIXED`, `FIXED_CUSTOMER_REGISTRATION` — 2 values; `FIXED_LAST_UPGRADE` was phantom, corrected Phase 7 §6a.6) without `validity.periodValue` present + non-null + positive integer** | **Q-OP-2 scope lock + user-imposed conditional-duration caveat** | **Per-tier** |
+| 9019-9020 | — | Reserved for Rework #6b or forward extensions | — | — |
+
+**Unknown-field hard reject (Q11 + Q-OP-3, ADR-20R)**: any wire field not in the accepted contract (including the legacy `downgrade` block after Q3's `downgrade → renewal` rename) is rejected at Jackson deserialization time with `400 InvalidInputException`. The exact error-code assignment for Jackson-driven rejects is Designer's call (C-11 open) — if the config is absent from `intouch-api-v3`'s global `ObjectMapper`, an explicit scanning validator is required to enforce the same semantics.
+
+**Read-side invariants preserved** (no change to §6.4 envelope):
+- GET filters `-1` sentinels from `eligibility.conditions[].value` and `renewal.conditions[].value` (symmetric with write reject 9015).
+- GET continues to hoist program-level fields (Class A + Class B) into the envelope from the joined strategy read — no field omission, no field rejection on reads.
+- GET is **null-safe for legacy FIXED tiers with missing `periodValue`** — computed end-date is omitted rather than returned as null/0. Exact wire-shape decision deferred to Designer (Phase 7).
+
+**Contradiction resolution mapping**:
+- C-7 (phantom Q-locks) → Hybrid: Q9 re-locked on 9015; Q18/Q19/Q21 citations removed from BA.
+- C-8 (validity asymmetry) → Option A: per-slab canonical (ADR-18R).
+- C-9 (error code collision) → fully resolved by distinct 9011-9020 band (ADR-17R).
+- C-12 (PeriodType coverage) → partial: scope locked, forward guard REQ-56 added (ADR-19R). Remaining non-SLAB_UPGRADE reads (3 enum values) stay pass-through.
+- C-17 (external consumer audit) → partial: internal audit clean, external residual flagged to Phase 11 (ADR-21R note).
+- Open for Designer: C-10 (numeric `-1` wire type), C-11 (Jackson config verification), C-13 (normalizer class existence), C-14 (list hoist shape), C-16 (Class A key-name drift).
+
 ---
 
 ## 7. TierApprovalHandler Design (Rework #5)
@@ -621,6 +681,134 @@ MakerCheckerService<T>.approve(tierConfig, comment, reviewedBy, handler, save):
      - tierConfig stays PENDING_APPROVAL in MongoDB
      - Approver sees error — SQL UNIQUE(program_id, name) collision is translated into a well-formed 409
 ```
+
+### 7.5 Phase 2AB — Complete Atomic Publish Flow (Rework #5 follow-up, 2026-04-20)
+
+**Problem closed**: §7.1 / §7.2 originally described `publish()` as "fetch current strategies, build new StrategyInfos, call `createSlabAndUpdateStrategies`." In code this was implemented as **two** engine round-trips — first `createOrUpdateSlab` to persist the slab row, then a separate strategy update — which left a split-brain window: if the second call failed, the `program_slabs` row existed without its corresponding SLAB_UPGRADE threshold / SLAB_DOWNGRADE entry, and engine reads would return an inconsistent tier.
+
+Phase 2AB closes the hole. `publish()` now performs a **read-modify-write** on the two program-level strategies in memory, then submits `slabInfo + [SLAB_UPGRADE, SLAB_DOWNGRADE]` in a **single** `createSlabAndUpdateStrategies` Thrift transaction. No intermediate state is ever persisted.
+
+**Commits**: `2a616290f` (Thrift wrapper added to intouch-api-v3) · `d5c226c6a` (transformer helpers `applySlabUpgradeDeltaJson` + `findStrategyByType`) · `59b4ae423` (handler rewrite to atomic flow). Evidence: 198/198 intouch-api-v3 tests GREEN under Java 17.
+
+#### 7.5.1 End-to-End Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Garuda UI (approver)
+    participant RC as TierReviewController
+    participant F  as TierFacade
+    participant MC as MakerCheckerService
+    participant H  as TierApprovalHandler
+    participant T  as PointsEngineRulesThriftService
+    participant E  as emf-parent PointsEngineRuleService
+    participant DB as MySQL (program_slabs + strategies)
+
+    UI->>RC: POST /v3/tiers/{tierId}/approve
+    RC->>F:  approve(tierId, reviewer, comment)
+    F->>MC: approve(doc, comment, reviewer, handler, save)
+
+    Note over MC,H: Phase 1 — preApprove (drift + name re-check)
+    MC->>H:  preApprove(doc)
+    H->>T:   getSlab(orgId, programId, slabId) [only for LIVE edits]
+    T-->>H:  current SQL snapshot
+    H->>H:   compareConservative(currentSql, doc.meta.basisSqlSnapshot)
+    alt drift OR name collision
+        H-->>MC: throw ApprovalBlockedException
+        MC-->>UI: 409 (clear message, doc stays PENDING_APPROVAL)
+    end
+
+    Note over MC,H: Phase 2 — publish (ATOMIC read-modify-write)
+    MC->>H:  publish(doc)
+    H->>H:   buildSlabInfo(doc)
+    H->>H:   resolveSlabIdAndDiscriminate(doc, slabInfo) → isCreate?
+    H->>T:   getAllConfiguredStrategies(programId, orgId)
+    T->>E:   Thrift getAllConfiguredStrategies
+    E->>DB:  SELECT * FROM strategies WHERE program_id=? AND org_id=?
+    DB-->>E: rows
+    E-->>T:  List&lt;StrategyInfo&gt;
+    T-->>H:  List&lt;StrategyInfo&gt;
+    H->>H:   findStrategyByType(SLAB_UPGRADE) + findStrategyByType(SLAB_DOWNGRADE)<br/>[throws IllegalStateException if either missing or duplicated]
+    H->>H:   upgradeCopy = upgrade.deepCopy(); downgradeCopy = downgrade.deepCopy()
+    H->>H:   applyUpgradeDelta(doc, upgradeCopy, slabNumber, isCreate)<br/>[skip for slab 1; CREATE non-first requires eligibility.threshold]
+    H->>H:   applyDowngradeDelta(doc, downgradeCopy, slabNumber, isCreate)<br/>[null-safe; mutates TierConfiguration.slabs[] keyed by slabNumber]
+    H->>T:   createSlabAndUpdateStrategies(slabInfo,<br/>[upgradeCopy, downgradeCopy], programId, orgId, userId, now)
+    T->>E:   Thrift createSlabAndUpdateStrategies (single call)
+    Note over E,DB: ─── Single engine transaction ───
+    E->>DB:  UPDATE strategies SET property_values=? WHERE id=upgrade.id
+    E->>DB:  UPDATE strategies SET property_values=? WHERE id=downgrade.id
+    E->>DB:  INSERT/UPDATE program_slabs (id = slabInfo.id or new)
+    E->>DB:  updateStrategiesForNewSlab()<br/>[auto-extends POINT_ALLOCATION, POINT_EXPIRY CSVs]
+    DB-->>E: commit
+    E-->>T:  SlabInfo (with id)
+    T-->>H:  SlabInfo
+    H-->>MC: PublishResult(externalId=slabId, source="program_slabs")
+
+    Note over MC,H: Phase 3 — postApprove (Mongo audit)
+    MC->>H:  postApprove(doc, publishResult)
+    H->>H:   doc.slabId = publishResult.externalId<br/>doc.meta.approvedAt = now<br/>doc.meta.approvedBy = reviewer<br/>doc.meta.basisSqlSnapshot = null<br/>doc.status = SNAPSHOT
+    H-->>MC: (void)
+    MC->>MC: save(doc)
+    MC-->>F:  ApprovalResult
+    F-->>RC:  200 OK
+    RC-->>UI: 200 (envelope: live=freshly committed SQL, pendingDraft=null)
+
+    Note over MC: On any Thrift failure → onPublishFailure → doc stays PENDING_APPROVAL (SAGA)
+```
+
+#### 7.5.2 CREATE vs UPDATE Discriminator
+
+`resolveSlabIdAndDiscriminate(doc, slabInfo)` decides whether the atomic Thrift call targets a new or existing `program_slabs.id`:
+
+```mermaid
+flowchart TD
+    A[doc arrives at publish] --> B{doc.slabId != null?}
+    B -- yes --> U1[UPDATE: slabInfo.id = doc.slabId<br/>isCreate = false]
+    B -- no --> C{doc.parentId != null?}
+    C -- no --> CR1[CREATE: slabInfo.id = null<br/>isCreate = true<br/>engine auto-assigns id]
+    C -- yes --> D[Thrift: resolve parent slabId<br/>from parent tierUniqueId]
+    D -- resolves --> U2[UPDATE: slabInfo.id = parent.slabId<br/>isCreate = false]
+    D -- not found --> CR2[CREATE: treat as new<br/>isCreate = true]
+
+    U1 --> E[Proceed to delta-apply on strategies]
+    U2 --> E
+    CR1 --> F{slabNumber == 1?}
+    CR2 --> F
+    F -- yes --> G[applyUpgradeDelta: SKIP<br/>CSV semantics: N slabs → N-1 thresholds<br/>slab 1 has no inbound threshold]
+    F -- no --> H{eligibility.threshold present?}
+    H -- no --> I[throw IllegalStateException<br/>CREATE non-first slab requires threshold]
+    H -- yes --> J[applyUpgradeDelta: APPEND threshold<br/>isAppend=true]
+    E --> K[applyUpgradeDelta: REPLACE CSV position<br/>slabIndex = serialNumber - 2<br/>null-safe: skip if threshold unchanged]
+    G --> L[applyDowngradeDelta — null-safe,<br/>find slab by slabNumber, update fields]
+    I --> X[Reject — 400/409]
+    J --> L
+    K --> L
+    L --> M[createSlabAndUpdateStrategies<br/>— single atomic Thrift —]
+```
+
+#### 7.5.3 Invariants Preserved by the Atomic Call
+
+| Invariant | Before Phase 2AB | After Phase 2AB |
+|---|---|---|
+| `program_slabs` row present ⟺ SLAB_UPGRADE CSV entry present at position `serialNumber-2` | **Violated** on second-call failure | Always holds — engine commits all in one tx |
+| `program_slabs` row present ⟺ SLAB_DOWNGRADE JSON has entry for `slabNumber` | **Violated** on second-call failure | Always holds |
+| Strategy `id` preserved across updates | Held | Held (deep-copy retains id; engine updates by id) |
+| Non-owned program-level keys preserved (`current_value_type`, `expression_relation`, reminders, comms) | Held | Held (read-modify-write on original JSON; no replacement) |
+| Only one SLAB_UPGRADE / SLAB_DOWNGRADE per program | Held by query contract | Enforced by `findStrategyByType` — throws on duplicate |
+| Missing program-level strategy is visible | Silent success on first call | `IllegalStateException` with clear message before any write |
+
+#### 7.5.4 Design Decisions Q-P1…Q-P7 (Resolved in Phase 2AB)
+
+| # | Question | Decision |
+|---|---|---|
+| Q-P1 | Should `publish()` write slab first or strategies first? | Neither — pass all three into one atomic call (`createSlabAndUpdateStrategies`). |
+| Q-P2 | Should `findStrategyByType` tolerate duplicates (pick first)? | No — throw `IllegalStateException`. Duplicate program-level strategies are data corruption and must surface. |
+| Q-P3 | Deep-copy `StrategyInfo` before mutating? | Yes — defensive. Thrift clients MAY cache. Mutation of a cached object would contaminate subsequent reads. |
+| Q-P4a | UPDATE of non-first slab where `eligibility.threshold` was not changed — is it legal? | Yes — null-safe. `applyUpgradeDelta` treats `null` threshold as "no change" and leaves CSV position untouched. |
+| Q-P4b | CREATE of non-first slab without `eligibility.threshold` — legal? | No — throw. CSV semantics require a threshold value; slab cannot be inserted into the upgrade chain without it. |
+| Q-P5 | When slab is `serialNumber=1`, what happens to upgrade delta? | Skip entirely. CSV has N-1 entries for N slabs; slab 1 has no inbound threshold. |
+| Q-P6 | Should downgrade delta be null-safe like upgrade? | Yes — if `downgrade` config absent in doc, leave TierConfiguration.slabs entry as-is on UPDATE (don't wipe it). |
+| Q-P7 | How is `userId` sourced for audit columns? | Parsed from `doc.meta.approvedBy` (MC reviewer). Fallback to `doc.updatedBy`. Hard-coded `0` placeholder pending #Q-P7 user-id resolver — tracked as TODO. |
 
 ---
 
@@ -809,12 +997,130 @@ For new-tier DRAFTs (`slabId=null`), MongoDB's unique index treats null as non-c
 
 **Per**: Rework #5 KD-19 / Q-6.
 
-### ADR-07: TierApprovalHandler Uses Single Atomic Thrift Call
-**Decision**: `createSlabAndUpdateStrategies` is called as a single atomic operation, passing SlabInfo + [SLAB_UPGRADE, SLAB_DOWNGRADE] strategies. Points strategies (allocation, redemption, expiry) are NOT passed -- the engine auto-extends them.
-**Context**: Creating a slab requires both the slab record and strategy updates. Splitting into multiple calls creates inconsistency windows.
-**Alternatives**: (a) Multiple separate Thrift calls (inconsistency risk), (b) Transaction across calls (not supported in Thrift).
-**Rationale**: The existing method handles atomicity. Verified execution order: update strategies first, create slab second (which triggers CSV extension internally). All in one transaction.
-**Per**: Phase 5 deep dive, Flow 1 validation.
+### ADR-07: TierApprovalHandler — Single Atomic Thrift Call with In-Handler Read-Modify-Write (Phase 2AB — rewritten 2026-04-20)
+
+**Decision**: `TierApprovalHandler.publish()` executes the entire SQL-side mutation in a **single atomic `createSlabAndUpdateStrategies` Thrift call**. The handler performs a read-modify-write on SLAB_UPGRADE + SLAB_DOWNGRADE program-level strategies **in memory** (fetch → deep-copy → apply delta) and submits `slabInfo + [upgradeCopy, downgradeCopy]` together. Points strategies (allocation, redemption, expiry) are NOT passed — the engine's `updateStrategiesForNewSlab()` auto-extends them inside the same transaction. See §7.5 for the end-to-end sequence.
+
+**Context**: The prior implementation split this into two engine round-trips (`createOrUpdateSlab` first, then a separate strategy update). On any failure of the second call, the `program_slabs` row existed without the corresponding SLAB_UPGRADE CSV entry or SLAB_DOWNGRADE JSON entry — engine reads would return an inconsistent tier (split-brain). No SAGA compensation was safe because the engine already exposed the half-written slab to live reads.
+
+**Alternatives considered**:
+- **(a) Multiple separate Thrift calls with compensating deletes**: Rejected. The compensating delete itself can fail; leaves a window where concurrent reads see the bad state.
+- **(b) Distributed transaction across Thrift calls**: Rejected. Thrift does not support cross-call transactions; would require 2PC between intouch-api-v3 and emf-parent.
+- **(c) Push all logic to engine side (pass doc; engine derives strategies)**: Rejected. Would leak UnifiedTierConfig Mongo schema into the engine's IDL and entangle the engine with MC concerns.
+- **(d) Pass raw strategies unchanged and let engine diff**: Rejected. Engine has no knowledge of which `slabNumber` this submission targets; the CSV index / JSON-key math is the handler's responsibility.
+
+**Rationale**: The engine's `createSlabAndUpdateStrategies` already commits slab row + passed strategies + CSV auto-extension in one transaction. By doing the CSV/JSON delta in the handler (with deep-copy + null-safe + duplicate-strategy detection via `findStrategyByType`) and submitting the finished strategies into that single call, the split-brain window is closed entirely. `deepCopy` is defensive (Thrift clients may cache). `IllegalStateException` on missing/duplicate program-level strategies surfaces data corruption before any write.
+
+**Verified execution order inside the engine transaction**:
+1. `UPDATE strategies SET property_values = ? WHERE id = upgrade.id`
+2. `UPDATE strategies SET property_values = ? WHERE id = downgrade.id`
+3. `INSERT` / `UPDATE program_slabs` (id = `slabInfo.id` if set, else auto-assigned)
+4. `updateStrategiesForNewSlab()` auto-extends POINT_ALLOCATION + POINT_EXPIRY CSVs
+5. `COMMIT` — all-or-nothing
+
+**Evidence**: Phase 2AB commits `2a616290f` (Thrift wrapper in `PointsEngineRulesThriftService`), `d5c226c6a` (transformer helpers `applySlabUpgradeDeltaJson` + public `findStrategyByType`), `59b4ae423` (handler `publish()` rewrite + extracted helpers `resolveSlabIdAndDiscriminate`, `applyUpgradeDelta`, `applyDowngradeDelta`). 198/198 tests GREEN in intouch-api-v3 under Java 17.
+
+**Per**: Phase 5 deep dive (original atomic-call choice), Phase 2AB rewrite (handler-side read-modify-write pattern — 2026-04-20).
+
+---
+
+### ADR-17R: Distinct Error-Code Band 9011-9020 for Rework #6a Rejects (Rework #6a — NEW, 2026-04-22)
+
+**Decision**: Every Rework #6a reject on `POST /v3/tiers` / `PUT /v3/tiers/{tierDocId}` emits a **distinct error code in the 9011-9020 band**. The legacy 9001-9010 band (Rework #4/#5 validators) is **frozen** — no codes re-used, no codes removed. See §6.5 for the per-code allocation table.
+
+**Context**: The BA originally defined 7 new rejects (REQ-33..REQ-38, REQ-40) sharing the 9001-9010 range with pre-existing Rework #4 validator codes. `TierCreateRequestValidator.java` and `TierUpdateRequestValidator.java` javadoc both state range 9001-9010 is shared. Reusing codes for semantically distinct rejects creates diagnostic ambiguity for any error-code-consuming client (UI toast, downstream integrators, logs); collisions between the legacy 9004 ("name taken") and a new 9004-coded reject (e.g., "Class A field present") would be a silent contract break.
+
+**Alternatives considered**:
+- **(a) Reuse 9001-9010 with overload**: Rejected. Same code meaning two different things based on request shape — clients cannot localize or branch safely.
+- **(b) Extend by one decade (9011-9020)**: Adopted. Preserves per-reject diagnostic clarity, leaves slots for Rework #6b and future rejects, no client-side parser changes needed.
+- **(c) Move to 9100+ for a clean band**: Rejected. Unnecessary distance from the nearby legacy band; harder to pattern-match in logs.
+
+**Rationale**: Nine new codes (9011-9018 allocated, 9019-9020 reserved) cover every 6a reject with unique semantics. Legacy clients continue to receive unchanged codes for unchanged rejects; new clients receive unambiguous codes for new rejects. No Flyway, no Thrift IDL change — purely a constants update in intouch-api-v3.
+
+**Per**: Phase 4 Q-OP-1 Option (b), 2026-04-22. Resolves contradictions.md C-9.
+
+---
+
+### ADR-18R: Per-Slab Canonical for `validity.periodType` / `validity.periodValue` (Rework #6a — NEW, 2026-04-22)
+
+**Decision**: `validity.periodType` and `validity.periodValue` are **canonical in per-slab engine storage** — specifically `TierDowngradeSlabConfig[]` indexed by `slabNumber`, field `periodConfig` (with `periodType` and `periodValue` sub-fields). Per-tier POST/PUT accepts these fields, writes them per-slab. Program-level `SlabUpgradeStrategy.propertyValues` carries only the 4 Class A booleans (`reevaluateOnReturn`, `dailyEnabled`, `retainPoints`, `isDowngradeOnPartnerProgramDeLinkingEnabled`) — **no validity data**.
+
+**Context**: Q20 (engine storage classification) classified `validity.*` as program-level by omission — the BA list of program-level fields did not include `validity.*`, which was then exploited in REQ-26 as evidence the fields were per-tier. This created a silent asymmetry: REQ-20/26 treated them as per-tier while REQ-34's Class B reject list also called out eligibility fields but left `validity.*` unspecified. The Critic flagged this as C-8 BLOCKER.
+
+**Alternatives considered (Phase 4)**:
+- **(A) Per-slab canonical — adopted**: The engine already stores per-tier duration in `TierDowngradeSlabConfig[]` (verified in `pointsengine-emf` + engine-transformer code paths). Program-level `propertyValues` has no slot for `periodType`/`periodValue`. Writing them per-slab matches the storage that already exists.
+- **(B) Program-level canonical**: Rejected — would require a schema migration (add `periodType`/`periodValue` to `SlabUpgradeStrategy.propertyValues`), re-evaluate Q20's classification, and contradict REQ-20/26 which have been on the wire since Rework #5.
+- **(C) Dual-write to both storages with one marked as source of truth**: Rejected — introduces drift risk and a reconciliation code path nobody needs.
+
+**Rationale**: Option A closes C-8 with zero schema migration, zero engine code change, and zero change to the wire contract. REQ-34's Class B list is narrowed in 6a to exclude `validity.*` (which was never meant to be there — the BA list was incomplete, not wrong). Designer's LLD (Phase 7) captures the exact `TierDowngradeSlabConfig` field access pattern; Developer (Phase 10) adds no new fields, only reads/writes existing ones.
+
+**Evidence**: `TierDowngradeSlabConfig.java` (per-slab config entity with `periodConfig` sub-object), `SlabUpgradeStrategy.propertyValues` Map inspection (4 booleans only), `TierDowngradeStrategyConfiguration.java` (program-level, no validity fields). `intouch-api-v3` `TierStrategyTransformer.applySlabUpgradeDelta` and `extractEligibilityForSlab` already flow per-slab data; the Designer confirms the exact method already handles the per-tier `validity.*` write path.
+
+**Per**: Phase 4 C-8 Option A, 2026-04-22. Resolves contradictions.md C-8 (BLOCKER).
+
+---
+
+### ADR-19R: `PeriodType` Enum Scope Lock + FIXED-Family Conditional Duration Requirement (Rework #6a — NEW, 2026-04-22)
+
+**Decision** *(amended Phase 7 §6a.6 — `FIXED_LAST_UPGRADE` was PRD-wording phantom; engine enum has 4 values, verified `peb/.../TierDowngradePeriodConfig.java:17-18`)*:
+1. Rework #6a explicitly handles `PeriodType.SLAB_UPGRADE`-family only (REQ-21 drop of `validity.startDate`, REQ-36 start-date reject on write for both `SLAB_UPGRADE` and `SLAB_UPGRADE_CYCLIC`). The other 2 enum values — `FIXED`, `FIXED_CUSTOMER_REGISTRATION` — are subject to the REQ-56 FIXED-family guard (point 2 below); their read-side behaviour is pass-through unchanged from Rework #5.
+2. **REQ-56 (new)**: any FIXED-family `periodType` (`FIXED`, `FIXED_CUSTOMER_REGISTRATION` — 2 values, NOT 3) on per-tier POST/PUT REQUIRES `validity.periodValue` present, non-null, and a positive integer. Missing/null/non-positive is rejected with **400 InvalidInputException, error code 9018**. SLAB_UPGRADE-family (`SLAB_UPGRADE`, `SLAB_UPGRADE_CYCLIC`) does not require `periodValue` — engine is event-driven, no fixed duration.
+3. **REQ-22 (amended)**: read-side duration computation is null-safe for legacy FIXED tiers whose stored `periodValue` is absent (pre-6a) — computed end-date is omitted rather than returned as null/0.
+
+**Context**: `PeriodType` has 4 enum values in the engine; BA coverage only explicitly handled `SLAB_UPGRADE` (REQ-21, REQ-36). Critic raised C-12 — the other 3 values are silently untouched on both wire and engine path, creating an enum-scope blind spot. A pure scope-lock alone (option c) would leave FIXED tiers writable without durations, so the user added the conditional-duration caveat: writes MUST carry duration for FIXED family, reads MUST tolerate legacy FIXED tiers that lack it.
+
+**Alternatives considered (Phase 4)**:
+- **(a) Full coverage — add explicit handling for all 4 enum values**: Rejected. Cyclic and fixed-customer-registration are ~zero-adoption in production programs; wire validation for them is speculative work.
+- **(b) Implicit passthrough — document all 4 as out of scope**: Rejected. Leaves FIXED family exposed to save-without-duration silently.
+- **(c) Scope lock with conditional duration — adopted**: SLAB_UPGRADE is the only actively-handled case; FIXED family is allowed but duration is required (forward guard); the 2 other SLAB_UPGRADE_CYCLIC + 2 non-FIXED enum value are untouched.
+
+**Rationale**: Option (c) + user caveat is the minimal-surface fix that prevents the C-12 gap from widening without forcing coverage work that no user has requested. Per-enum read-behaviour for the 3 unhandled values is a forward question if it ever surfaces as an actual code-path issue.
+
+**Deferred to Designer (Phase 7)** — now **RESOLVED** (see `03-designer.md` §6a.2):
+- PUT merge semantics: **payload-only** (§6a.2.2). Matches existing validator shape, deterministic 400s, no stored-state dependency.
+- Read-side wire shape: **omit** (§6a.2.3, D-6a-2). `TierValidityConfig` already annotated `@JsonInclude(NON_NULL)`; null/0 forbidden by forward guard.
+
+**Per**: Phase 4 Q-OP-2 Option (c) + user-imposed conditional-duration caveat, 2026-04-22. Resolves contradictions.md C-12 (partial — forward guard added; 3 non-SLAB_UPGRADE enum reads remain pass-through).
+
+---
+
+### ADR-20R: Unknown-Field Hard Reject via Jackson `FAIL_ON_UNKNOWN_PROPERTIES` (Rework #6a — NEW, 2026-04-22)
+
+**Decision**: All v3 tier wire DTOs on `POST /v3/tiers` / `PUT /v3/tiers/{tierDocId}` reject unknown fields at deserialization time. The legacy `downgrade` block (renamed to `renewal` in Q3) is rejected by this mechanism — zero back-compat window, zero dual-block tolerance. The rejection is returned as `400 InvalidInputException` from the Spring MVC exception handler.
+
+**Context**: Q11 locked the hard-flip decision (no back-compat window for the `downgrade → renewal` rename). Critic raised C-11 — the BA assumed Jackson `FAIL_ON_UNKNOWN_PROPERTIES=true` was already configured on the intouch-api-v3 global `ObjectMapper`, but the assumption was unverified (A-01). If the config is actually default (`FAIL_ON_UNKNOWN_PROPERTIES=false`), unknown fields are silently ignored and REQ-27/REQ-49 become a no-op.
+
+**Alternatives considered**:
+- **(a) Rely on global Jackson config (`FAIL_ON_UNKNOWN_PROPERTIES=true`)**: Adopted **conditionally** — Designer (Phase 7) must verify the setting on the intouch-api-v3 global `ObjectMapper` before this ADR commits. If verified, no code change.
+- **(b) Explicit scanning validator in `TierCreateRequestValidator` / `TierUpdateRequestValidator`**: Fallback if (a) verification fails. Walk the parsed JSON tree; any field not in the accepted contract triggers 400.
+- **(c) Per-DTO `@JsonIgnoreProperties(ignoreUnknown = false)` annotation**: Alternative fallback; explicit at the DTO level but has to be applied to every DTO (easy to miss one).
+
+**Rationale**: Option (a) is cleanest — a single global config covers every endpoint consistently. Options (b) and (c) are the Phase 7 fallbacks if the global config turns out to be permissive; QA and SDET write tests asserting the reject either way, so a silent regression is impossible regardless of which implementation Designer picks.
+
+**Residual risks** (flagged to Phase 11 Reviewer via C-17):
+- External consumer audit scoped to 16 repos in the workspace confirmed zero internal backend callers (`q-op-3-consumer-audit.md`). External SaaS customers, third-party integrations, separate automation repos, nginx rewrites, and operator scripts remain unaudited.
+- Mitigation recommendations for deploy prep: (i) access-log scan at staging gateway for non-UI user agents; (ii) publish 9011-9020 band in `api-handoff.md` ≥30 days before cutover; (iii) optional soft-launch that logs (not rejects) unknown fields in staging for 2 weeks.
+
+**Per**: Phase 4 Q11 (locked earlier) + Q-OP-3 Option (a) audit, 2026-04-22. Resolves contradictions.md C-11 (partial — Designer verification pending) + C-17 (partial — internal audited, external residual flagged).
+
+---
+
+### ADR-21R: Write-Narrow / Read-Wide Asymmetric Tier Contract (Rework #6a — NEW, 2026-04-22)
+
+**Decision**: `/v3/tiers` has an **asymmetric** contract:
+- **Write (POST, PUT, delete-draft, submit, approve, reject)**: accepts **per-tier fields only**. Program-level fields (Class A: 4 booleans; Class B: 6 eligibility fields) are rejected with per-code 400 (9011, 9012, 9013). Advanced-settings (program-level singleton) lives on a separate surface (6b forthcoming).
+- **Read (GET list, GET detail)**: emits the **full hoisted envelope** — per-tier fields AND program-level fields joined from strategy reads. No field rejection, no field filtering (except `-1` sentinel symmetry per 9015). The UI's advanced-settings screen reads this envelope too.
+
+**Context**: Q24 ratified this asymmetry after Q17/Q18/Q19/Q21/Q25 were subsumed into it. The write-narrow stance enforces the Rework #5 MC scope boundary: per-tier writes are the only place where draft-versus-live matters; program-level configuration is a distinct lifecycle that doesn't need MC today and shouldn't be entangled with tier DRAFT/PENDING_APPROVAL status. The read-wide stance preserves the single-round-trip envelope that Rework #5 adopted (ADR-09R) — the UI's tier-list screen still fetches one GET per program, no N+1.
+
+**Alternatives considered**:
+- **(a) Symmetric contract (write everything, read everything)**: Rejected. Pulls program-level write-path into the tier MC scope and couples two independent configurations. Would require MC for advanced-settings too, which user rejected (Q25).
+- **(b) Separate endpoints for per-tier and program-level writes, no hoisting on reads**: Rejected. Doubles client-side complexity (2 GETs per tier screen), loses the envelope round-trip win from Rework #5.
+- **(c) Asymmetric — adopted**: Write-narrow via per-code rejects (9011/9012/9013); read-wide via unchanged envelope.
+
+**Rationale**: Asymmetry is the correct compromise between MC scope purity (write-narrow) and UI performance (read-wide). Per-code write rejects are diagnostic; the same fields emitted on GET come from the program-level strategy read via `SqlTierConverter` and `TierStrategyTransformer.extractEligibilityForSlab`. No engine change, no new storage.
+
+**Per**: Phase 4 lock on Q24 (ratified pre-Phase 4), 2026-04-22. Documents the asymmetry explicitly for Designer and SDET (no wire-contract change itself — this ADR is the audit-trail anchor for the asymmetric expectation).
 
 ---
 
@@ -866,6 +1172,9 @@ For new-tier DRAFTs (`slabId=null`), MongoDB's unique index treats null as non-c
 | **R10: SQL audit column backfill on legacy rows (Rework #5)** | LOW | Columns are nullable. Legacy pre-rework rows have NULL updatedBy/approvedBy/approvedAt — expected. No backfill needed. |
 | **R11: New-tier DRAFT partial unique index edge case (Rework #5)** | LOW | MongoDB treats null `slabId` as non-conflicting, so multiple new-tier DRAFTs can coexist. This is correct (each gets its own slabId on approval). Documented in §5.3. |
 | **R12: Stale `basisSqlSnapshot` for long-lived DRAFTs (Rework #5)** | MEDIUM | DRAFTs can sit for days. A legacy edit during that time will cause drift-block on approval. Mitigation: clear "recreate DRAFT" path in UX; consider TTL on DRAFTs in a future rework. |
+| **R13: Unaudited external consumers of `/v3/tiers` (Rework #6a — C-17 residual)** | MEDIUM | Codebase audit across 16 repos confirmed zero internal backend callers (`q-op-3-consumer-audit.md`), but external SaaS customers, partner integrations, separate QA/automation repos, nginx rewrites, and operator scripts remain outside audit reach. A client still submitting a `downgrade` block or an unknown field will break on cutover. **Mitigation (Phase 11 Reviewer ask)**: access-log scan at staging gateway for 30 days; publish 9011-9020 band in `api-handoff.md` ≥30 days ahead of cutover; optional soft-launch that logs (doesn't reject) unknown fields in staging for 2 weeks. |
+| **R14: Jackson `FAIL_ON_UNKNOWN_PROPERTIES` not globally configured (Rework #6a — C-11 open)** | MEDIUM | ADR-20R relies on the intouch-api-v3 global `ObjectMapper` rejecting unknown fields. If the setting is actually permissive, REQ-27/REQ-49 become silent no-ops. **Mitigation**: Designer (Phase 7) verifies the config as the first step of LLD; if permissive, fallback (b) explicit scanning validator or fallback (c) per-DTO `@JsonIgnoreProperties(ignoreUnknown=false)`. SDET writes tests that assert rejection either way, so a silent regression is impossible. |
+| **R15: PeriodType pass-through rot for 3 non-SLAB_UPGRADE values (Rework #6a — C-12 residual)** | LOW | `FIXED_CUSTOMER_REGISTRATION`, `FIXED_LAST_UPGRADE`, `SLAB_UPGRADE_CYCLIC` reads are pass-through from Rework #5. If a legacy tier with one of these values surfaces a read-path defect later, it will not be covered by 6a test cases. **Mitigation**: REQ-22 amendment (null-safety on legacy FIXED reads) is the only live safety net; REQ-56 forward guard (FIXED-family requires duration on write) prevents new tiers from being saved without durations. The 3 enum values remain pass-through — if a defect surfaces later, a follow-up rework explicitly covers them. |
 
 ---
 
@@ -900,3 +1209,13 @@ For new-tier DRAFTs (`slabId=null`), MongoDB's unique index treats null as non-c
 - [x] Deleted old makerchecker/ package (17 files)
 - [x] Removed MakerCheckerController, MakerCheckerFacade, MakerCheckerServiceImpl, PendingChange collection, ChangeApplier interface
 - [x] ~~PartnerProgramSlab block validation~~ Deferred to future tier retirement epic (Rework #2)
+
+### Rework #6a Done Criteria (added 2026-04-22 — to be executed by Designer → Developer cascade)
+
+- [ ] **ADR-17R**: Per-code rejects 9011, 9012, 9013, 9014, 9015, 9016, 9017, 9018 allocated in constants file; no code in 9001-9010 reused or reassigned; `api-handoff.md` error-code block matches this allocation 1:1.
+- [ ] **ADR-18R**: Designer LLD confirms `TierDowngradeSlabConfig[].periodConfig.{periodType, periodValue}` is the read/write target for per-tier `validity.*` fields; no new schema field added; `TierStrategyTransformer.applySlabUpgradeDelta` and `extractEligibilityForSlab` exercise this path in tests.
+- [ ] **ADR-19R**: REQ-56 validator active on both POST and PUT — FIXED-family `periodType` (`FIXED`, `FIXED_CUSTOMER_REGISTRATION` — 2 values, corrected Phase 7 §6a.6) without `periodValue` rejected 400/9018; PUT merge semantics = **payload-only** (Designer locked §6a.2.2); SLAB_UPGRADE-family `periodValue` remains optional. Read-side = **omit** legacy FIXED tiers' missing periodValue (Designer locked §6a.2.3, D-6a-2).
+- [ ] **ADR-20R**: Designer verifies `FAIL_ON_UNKNOWN_PROPERTIES=true` on the intouch-api-v3 global `ObjectMapper` configuration. If verified, no code change. If not, fallback (b) explicit scanning validator or fallback (c) per-DTO annotation. Legacy `downgrade` block is rejected at deserialization with `400 InvalidInputException`.
+- [ ] **ADR-21R**: Write-narrow / read-wide asymmetry documented; advanced-settings (program-level singleton) confirmed OUT of 6a scope (folds into 6b).
+- [ ] Q-OP-3 residual-risk flag carried to Phase 11 Reviewer: access-log scan ask + soft-launch recommendation + band announcement ≥30 days before cutover.
+- [ ] All BA REQ-22 + REQ-56 + per-code rejects covered by Business Test Cases (Phase 8b) with traceability back to this document's §6.5 matrix.

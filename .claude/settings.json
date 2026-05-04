@@ -1,5 +1,25 @@
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_REASONING_EFFORT": "medium"
+  },
+  "permissions": {
+    "allow": [
+      "Edit(/.claude/skills/sonar-gate/**)",
+      "Read(//Users/ritwikranjan/.claude/**)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(mkdir -p ~/.claude/skills/sonar-gate)",
+      "Bash(cp \"/Users/ritwikranjan/Desktop/Artificial Intelligence/kalpavriksha/.claude/skills/sonar-gate/SKILL.md\" ~/.claude/skills/sonar-gate/SKILL.md)",
+      "Bash(rm -rf .claude/skills/sonar-gate)",
+      "Bash(ln -s ~/.claude/skills/sonar-gate .claude/skills/sonar-gate)",
+      "Bash(rm .claude/skills/sonar-gate)",
+      "Bash(mkdir -p .claude/skills/sonar-gate)",
+      "Bash(cp ~/.claude/skills/sonar-gate/SKILL.md .claude/skills/sonar-gate/SKILL.md)"
+    ],
+    "additionalDirectories": [
+      "/Users/ritwikranjan/.claude/skills",
+      "/Users/ritwikranjan"
+    ]
   }
 }

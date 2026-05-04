@@ -16,6 +16,16 @@ Read `.claude/principles.md` at phase start if available. Apply throughout:
 
 # Sonar Gate — Local Coverage Check (Phase 10a)
 
+**Print this banner exactly at startup, before any other output:**
+
+```
+──────────────────────────────────────────
+  Sonar Gate  (Phase 10a)
+  Copyright (c) 2026 Capillary Technologies
+  Developed by: Ritwik Ranjan Pathak and Claude Bros
+──────────────────────────────────────────
+```
+
 You are a local coverage enforcement skill. Your job is to measure **new-code line and condition coverage** on the current branch, warn the developer if either falls below 90%, and help them close the gap before pushing — so CI never fails on coverage.
 
 You run after Developer (Phase 10) and before Backend Readiness (Phase 10b). You can also be invoked standalone at any time on any feature branch.
@@ -95,15 +105,96 @@ Is this correct? Press Enter to confirm, or type a different branch name:
 - If the user types a branch name (e.g. `develop`): use that instead
 - This prevents silently diffing against the wrong branch on repos with unusual setups
 
-### 1b — List changed production files
+### 1b — Show branch commits and choose scope
+
+First, show the developer exactly what is on this branch:
 
 ```bash
-git diff <BASE_BRANCH> --name-only -- '*.java' | grep 'src/main/java'
+git log <BASE_BRANCH>..HEAD --oneline
 ```
 
-This lists Java source files changed on the current branch vs the detected base. Test files (`src/test/`) are excluded.
+Print the result, then ask:
 
-**If the list is empty:** Print `✓ PASS — no new production Java files on this branch vs <BASE_BRANCH>.` Write a PASS `sonar-gate.md` (see Step 7 format). Exit.
+```
+Commits on this branch vs <BASE_BRANCH>:
+  abc1234  Add EnumTypeResolverImpl change
+  def5678  Add UTs for EnumTypeResolverImpl
+
+What scope do you want to check?
+  [1] Committed only (default) — matches what CI sees
+  [2] All changes including uncommitted — checks your full working state
+  [3] From a specific commit — paste a SHA (e.g. abc1234)
+```
+
+- **1 / Enter:** use `<BASE_BRANCH>..HEAD` — committed changes only (matches CI, recommended)
+- **2:** use `<BASE_BRANCH>` — includes staged and unstaged working-tree edits (useful when you're mid-development and want to check before committing)
+- **3 / A commit SHA:** use `<SHA>..HEAD` — only commits from that point forward (useful when the branch has unrelated earlier commits)
+
+Store the resolved diff expression as `DIFF_RANGE`.
+
+Then list the changed production files AND capture their changed line numbers — both are needed to match SonarQube's "new code" definition exactly:
+
+```bash
+# List changed files (basenames used later for jacoco.xml lookup)
+git diff <DIFF_RANGE> --name-only -- '*.java' | grep 'src/main/java'
+```
+
+For each changed file, extract the new line numbers from the diff hunks:
+
+```bash
+git diff <DIFF_RANGE> -- <file_path>
+```
+
+Parse **only the added/modified lines** (`+` lines) from the diff — not the hunk range, which also includes context lines. Context lines (shown for readability but unchanged) must be excluded or you over-count. Write this to `/tmp/sg_lines.py`, run it, then delete it:
+
+```python
+import subprocess, sys, re, json
+
+diff_range = sys.argv[1]   # e.g. "main..HEAD" or "main"
+file_path  = sys.argv[2]   # relative path e.g. "emf/src/main/java/.../Foo.java"
+
+result = subprocess.run(
+    ['git', 'diff', diff_range, '--', file_path],
+    capture_output=True, text=True
+)
+
+changed_lines = set()
+new_line_nr = 0   # tracks current line number in the new (right-hand) file
+
+for line in result.stdout.split('\n'):
+    if line.startswith('@@'):
+        # @@ -old_start,old_count +new_start,new_count @@
+        # Reset counter to new_start for this hunk
+        m = re.search(r'\+(\d+)', line)
+        if m:
+            new_line_nr = int(m.group(1))
+    elif line.startswith('+++') or line.startswith('---'):
+        pass   # file header lines, skip
+    elif line.startswith('+'):
+        # Truly added/modified line — add to changed set
+        changed_lines.add(new_line_nr)
+        new_line_nr += 1
+    elif line.startswith('-'):
+        # Deleted line — exists only in old file, do NOT increment new_line_nr
+        pass
+    elif line.startswith(' '):
+        # Context line — unchanged, present in both files; increment but do NOT add
+        new_line_nr += 1
+
+print(json.dumps(sorted(changed_lines)))
+```
+
+```bash
+python3 /tmp/sg_lines.py <DIFF_RANGE> <file_path>
+rm /tmp/sg_lines.py
+# Output: [45, 46, 78, 79, 80, ...]  ← only truly added/modified lines, no context
+```
+
+Store the result as `CHANGED_LINES[filename]` — a map of basename → set of changed line numbers.
+
+**SonarQube's "new code" definition:** Only lines that are new or modified in the diff count toward the coverage metric. Lines that existed before and are unchanged do not count — even if they are in the same file.
+
+**If the list is empty:** Print `✓ PASS — no new production Java files in the selected scope.` Write a PASS `sonar-gate.md` (see Step 7 format). Exit.
 
 **If `--file` argument was provided:** Replace the full list with just that one file. Verify it exists:
 ```bash
@@ -113,11 +204,65 @@ If not found, print error and exit.
 
 ---
 
-## Step 2 — Run JaCoCo Locally via Maven CLI
+## Step 2 — Run JaCoCo
 
-Run from the project root (no pom.xml modification required):
+### 2a — Detect whether JaCoCo is already configured in pom.xml
 
-**Single-module:**
+**Running our own `prepare-agent` on top of an existing JaCoCo plugin creates two agents on the same JVM — this causes a forked-VM crash (exit code 134). Always check first.**
+
+```bash
+# Check root pom and any module poms that contain the changed files
+grep -rl "jacoco-maven-plugin" . --include="pom.xml" | head -5
+```
+
+If any `pom.xml` already has `jacoco-maven-plugin`:
+- **Do NOT pass `prepare-agent` on the CLI** — the pom already wires the agent
+- Note the existing JaCoCo version from the pom for reference (it may differ from 0.8.11)
+
+### 2b — Determine which module(s) to run
+
+For multi-module projects, running from the root compiles all modules and runs all tests. If unrelated modules have failing tests, the whole build can fail before JaCoCo finishes. To avoid that:
+
+1. Identify which module(s) contain the changed files:
+   ```bash
+   # e.g. changed file is emf/src/main/java/.../Foo.java → source module is emf/
+   ```
+
+2. Check if tests for those files live in a **separate test module** (common pattern: `emf/` has source, `emf-ut/` has tests):
+   ```bash
+   git log <BASE_BRANCH>..HEAD --name-only | grep "src/test" | head -10
+   ```
+   If tests are in a sibling module (e.g. `emf-ut/`), you must run from that test module.
+
+3. **Critical — install the source module first if source and test modules are separate.**
+
+   When `emf-ut` depends on `emf` as a Maven artifact, running `mvn test` in `emf-ut/` directly resolves `emf` from your local `.m2` cache — picking up the **old snapshot**, not your local changes. Your code changes will be invisible to the tests.
+
+   Always install the source module to `.m2` before running the test module:
+   ```bash
+   mvn install -f <source-module>/pom.xml -DskipTests -q
+   ```
+   e.g.
+   ```bash
+   mvn install -f emf/pom.xml -DskipTests -q
+   ```
+   This takes ~10–15 seconds and ensures the test module sees your latest changes. Skip this only if you ran the full reactor build (`mvn install` from root) recently.
+
+### 2c — Run the appropriate command
+
+**Case A — JaCoCo already in pom.xml, run from the test module:**
+```bash
+cd <test-module-dir>
+mvn test -Dproject.reporting.outputEncoding=UTF-8
+```
+The pom's `prepare-agent` binding fires automatically during the `test` lifecycle.
+
+**Case B — JaCoCo already in pom.xml, run from root:**
+```bash
+mvn test -Dproject.reporting.outputEncoding=UTF-8 --fail-at-end
+```
+
+**Case C — No JaCoCo in any pom.xml (single-module):**
 ```bash
 mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
     test \
@@ -125,7 +270,7 @@ mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
     -Dproject.reporting.outputEncoding=UTF-8
 ```
 
-**Multi-module (run from root, reports per sub-module):**
+**Case D — No JaCoCo in any pom.xml (multi-module, run from root):**
 ```bash
 mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
     test \
@@ -134,7 +279,7 @@ mvn org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
     --fail-at-end
 ```
 
-`--fail-at-end` ensures all modules run even if one has test failures, giving you a complete picture.
+`--fail-at-end` ensures all modules run even if one has test failures.
 
 Maven resolves JaCoCo from your local `.m2` cache or downloads it on first run (internet required on first use only — subsequent runs are instant).
 
@@ -151,114 +296,173 @@ ls target/site/jacoco/jacoco.xml          # single-module
 find . -path "*/target/site/jacoco/jacoco.xml" | head -5   # multi-module
 ```
 
-If no report found after a successful Maven run: `jacoco.xml not generated — JaCoCo may not have instrumented any classes. Verify that tests are in src/test/java and that they compile.` Exit.
+**If `jacoco.xml` is missing but a `jacoco.exec` file exists — cross-module report pattern:**
+
+This happens when the test module (`emf-ut/`) has no production classes of its own. JaCoCo ran and collected execution data into `<test-module>/target/jacoco.exec`, but cannot generate the XML report because it can't find classes to map coverage onto.
+
+Fix: generate the report manually, pointing `dataFile` at the exec file and running from the source module directory (which has `target/classes/`):
+
+```bash
+# Step 1: confirm the exec file exists in the test module
+ls <test-module>/target/jacoco.exec
+
+# Step 2: detect the JaCoCo version already in the pom (use that version, not 0.8.11)
+grep -A2 "jacoco-maven-plugin" <test-module>/pom.xml | grep "<version>"
+# e.g. → 0.8.13
+
+# Step 3: generate the report from the source module, pointing at the exec file
+cd <source-module>           # e.g. cd emf/
+mvn org.jacoco:jacoco-maven-plugin:<VERSION>:report \
+    -Djacoco.dataFile=$(pwd)/../<test-module>/target/jacoco.exec \
+    -Dproject.reporting.outputEncoding=UTF-8 2>&1 | tail -5
+```
+
+e.g. for emf-parent:
+```bash
+cd emf/
+mvn org.jacoco:jacoco-maven-plugin:0.8.13:report \
+    -Djacoco.dataFile=$(pwd)/../emf-ut/target/jacoco.exec \
+    -Dproject.reporting.outputEncoding=UTF-8 2>&1 | tail -5
+```
+
+This generates `emf/target/site/jacoco/jacoco.xml` — use that path in Step 3.
+
+If `jacoco.exec` also missing after a successful test run: `JaCoCo agent did not fire — check that the pom's prepare-agent binding is active and that tests are not all @Ignored.` Exit.
 
 ---
 
-## Step 3 — Parse `jacoco.xml` and Filter to New Files
+## Step 3 — Parse `jacoco.xml` Filtering to Changed Lines Only
+
+**This is the key step that matches SonarQube's "new code" definition.**
+SonarQube does NOT measure coverage of the whole file — it measures coverage of only the lines that changed in the diff. A line that existed before and is unchanged does not count, even if it is uncovered.
+
+jacoco.xml has per-line data: `<line nr="N" mi="M" ci="C" mb="B" cb="B"/>` where:
+- `nr` = line number, `mi` = missed instructions, `ci` = covered instructions
+- `mb` = missed branches, `cb` = covered branches
+- A line is "covered" if `ci > 0`. A line is "a branch line" if `mb + cb > 0`.
 
 Write the following script to `/tmp/sg_parse.py`, run it, then delete it:
 
 ```python
-import xml.etree.ElementTree as ET, sys, os
+import xml.etree.ElementTree as ET, sys, os, json
 
-report_path = sys.argv[1]      # e.g. target/site/jacoco/jacoco.xml
-new_files   = sys.argv[2:]     # simple basenames e.g. TierService.java
+report_path   = sys.argv[1]   # e.g. target/site/jacoco/jacoco.xml
+changed_lines_json = sys.argv[2]  # JSON: {"Foo.java": [10,11,12,...], "Bar.java": [...]}
 
 tree = ET.parse(report_path)
 root = tree.getroot()
 
+changed_map = json.loads(changed_lines_json)  # basename -> list of ints
 results = []
 matched = set()
 
 for pkg in root.findall('package'):
     for sf in pkg.findall('sourcefile'):
         name = sf.get('name')
-        if name not in new_files:
+        if name not in changed_map:
             continue
         matched.add(name)
+        changed_set = set(changed_map[name])
 
-        def counter(typ):
-            c = next((x for x in sf.findall('counter') if x.get('type') == typ), None)
-            if c is None:
-                return 0, 0
-            return int(c.get('missed', 0)), int(c.get('covered', 0))
+        lc = lm = bc = bm = 0
+        for line in sf.findall('line'):
+            nr = int(line.get('nr', 0))
+            if nr not in changed_set:
+                continue   # skip unchanged lines — this is what SonarQube does
+            ci = int(line.get('ci', 0))
+            mi = int(line.get('mi', 0))
+            cb = int(line.get('cb', 0))
+            mb = int(line.get('mb', 0))
+            # Line covered = at least one instruction was executed
+            if ci > 0:
+                lc += 1
+            else:
+                lm += 1
+            bc += cb
+            bm += mb
 
-        lm, lc = counter('LINE')
-        bm, bc = counter('BRANCH')
-        lt = lm + lc
-        bt = bm + bc
-        lpct = round(lc / lt * 100, 1) if lt > 0 else 0.0
-        bpct = round(bc / bt * 100, 1) if bt > 0 else 0.0
-        results.append((name, lc, lm, lt, lpct, bc, bm, bt, bpct))
+        lt = lc + lm
+        bt = bc + bm
+        lpct = round(lc / lt * 100, 1) if lt > 0 else 100.0
+        bpct = round(bc / bt * 100, 1) if bt > 0 else 100.0
+        # SonarQube combined "coverage" = (covered_lines + covered_conditions) / (total_lines + total_conditions)
+        combined = round((lc + bc) / (lt + bt) * 100, 1) if (lt + bt) > 0 else 100.0
+        results.append((name, lc, lm, lt, lpct, bc, bm, bt, bpct, combined))
 
-for f in new_files:
+for f in changed_map:
     if f not in matched:
-        # Not in jacoco.xml — never instrumented (0% coverage)
-        results.append((f, 0, -1, -1, 0.0, 0, -1, -1, 0.0))
+        results.append((f, 0, -1, -1, 0.0, 0, -1, -1, 0.0, 0.0))
 
 for r in results:
     print('|'.join(str(x) for x in r))
 ```
 
-Run:
+Run — pass the `CHANGED_LINES` map as JSON:
 ```bash
-python3 /tmp/sg_parse.py target/site/jacoco/jacoco.xml TierService.java TierValidationHelper.java
-# cleanup
+python3 /tmp/sg_parse.py target/site/jacoco/jacoco.xml \
+  '{"EnumTypeResolverImpl.java": [45, 46, 47, 78, 79]}'
 rm /tmp/sg_parse.py
 ```
 
 **Output columns per line:**
-`filename | line_covered | line_missed | line_total | line_pct | branch_covered | branch_missed | branch_total | branch_pct`
+`filename | line_covered | line_missed | line_total | line_pct | branch_covered | branch_missed | branch_total | branch_pct | combined_pct`
 
 **If a file has `-1` for totals** (absent from jacoco.xml — zero instrumentation):
-```bash
-wc -l < path/to/TheFile.java
-```
-Treat as `line_covered=0, line_missed=<line count>, line_pct=0%, branch_pct=0%`.
+- Use `line_covered=0, line_missed=<count of changed lines>, line_pct=0%, branch_pct=0%, combined_pct=0%`
 
-**Multi-module:** Run the parser once per jacoco.xml, merge results by filename. If a file appears in multiple reports (shouldn't happen, but guard for it), use the report from the module whose source path matches.
+**Multi-module:** Run the parser once per jacoco.xml, merge results by filename. If a file appears in multiple reports, use the report from the module whose source path matches.
 
 ---
 
 ## Step 4 — Calculate Aggregate Coverage
 
-```
-line_agg  = sum(line_covered)  / sum(line_total)  * 100
-cond_agg  = sum(branch_covered) / sum(branch_total) * 100
-```
-
-Round both to one decimal place. If `branch_total == 0` across all files (no conditional logic), set `cond_agg = 100%` — no branches to miss.
-
-**Apply threshold** (default 90):
+Use the **SonarQube combined formula** — this is what SonarQube reports as "Coverage on New Code" and what the quality gate checks:
 
 ```
-line_pass = line_agg  >= threshold
-cond_pass = cond_agg  >= threshold  (skip if branch_total == 0)
-
-if line_pass AND cond_pass → PASS → Step 7
-if either fails             → WARNING → Step 5
+combined_agg = (sum(line_covered) + sum(branch_covered)) /
+               (sum(line_total)   + sum(branch_total))   * 100
 ```
 
-Both must pass — this matches how SonarQube's quality gate works.
+Also compute separately for display:
+```
+line_agg = sum(line_covered) / sum(line_total)   * 100
+cond_agg = sum(branch_covered) / sum(branch_total) * 100
+```
+
+Round all to one decimal place.
+
+- If `branch_total == 0` across all files: `cond_agg = 100%`, and combined = line_agg
+- These numbers are based only on changed lines (filtered in Step 3) — this matches SonarQube exactly
+
+**Apply threshold** (default 90) against the combined metric:
+
+```
+pass = combined_agg >= threshold
+
+if pass  → PASS → Step 7
+if fails → WARNING → Step 5
+```
+
+The combined metric is what SonarQube's quality gate uses (not separate line and condition gates). If the user wants stricter checking, both individual metrics are still displayed.
 
 ---
 
 ## Step 5 — Display Coverage Table and Prompt Developer
 
-Print the full table matching SonarQube's Measures view:
+Print the full table matching SonarQube's Measures view (changed lines only):
 
 ```
-Coverage Report — New Code (branch vs main)
-──────────────────────────────────────────────────────────────────────────────────
-File                              Line Cov   Uncov Lines   Cond Cov   Uncov Conds
-PointsEngineRuleEditorImpl.java      0.0%          12        0.0%            8
-PointsEngineRuleConfigThrift.java   93.3%           2       100%             0
-PartnerProgramIdempotency.java      100%            0       100%             0
-──────────────────────────────────────────────────────────────────────────────────
-Aggregate   Line coverage: 66.2%  (target 90%, gap 23.8%)
-            Condition coverage: 60.0%  (target 90%, gap 30.0%)
-──────────────────────────────────────────────────────────────────────────────────
+Coverage Report — New Code only (changed lines vs <BASE_BRANCH>)
+──────────────────────────────────────────────────────────────────────────────────────────────
+File                              New Lines   Line Cov   Uncov   Cond Cov   Uncov   Combined
+EnumTypeResolverImpl.java                10      100%        0      85.7%       2      91.7%
+PointsEngineRuleConfigThrift.java         4       75%        1      100%        0      83.3%
+──────────────────────────────────────────────────────────────────────────────────────────────
+Aggregate (new code)
+  Line coverage:     100%   (10 lines, 0 uncovered)
+  Condition coverage: 85.7% (14 conditions, 2 uncovered)
+  Combined coverage:  91.7% (target 90%, gap -1.7% → PASS)
+──────────────────────────────────────────────────────────────────────────────────────────────
 
 ⚠  Coverage is below 90%. What do you want to do?
    [1] Improve — generate UT stubs for uncovered methods and loop
@@ -424,37 +628,62 @@ Return to **Step 2**. Show the updated table (both line and condition).
 
 **Always write this, regardless of verdict.** Place in pipeline artifacts directory (same folder as `session-memory.md`), or project root if standalone.
 
+**IMPORTANT:** Write ONLY what is in the template below. Do NOT include raw JaCoCo line data, per-line coverage details, XML output, parser output, or any other debug information. The report is for humans — keep it clean.
+
+Copy this template exactly, substituting the `<placeholders>`:
+
 ```markdown
-## Sonar Gate Report
+# Sonar Gate Report
 
-**Branch:** <git branch --show-current>
-**Run date:** <YYYY-MM-DD>
-**Module(s) analysed:** <single | list of sub-modules>
-**New files analysed:** <N>
-**Threshold:** <N>%
+| | |
+|---|---|
+| **Branch** | `<git branch --show-current>` |
+| **Run date** | <YYYY-MM-DD> |
+| **Base branch** | `<BASE_BRANCH>` |
+| **Scope** | <"Committed changes only" or "All changes including uncommitted"> |
+| **Module(s)** | <e.g. "emf (source) + emf-ut (tests)" or "single-module"> |
+| **Files analysed** | <N> new/changed production Java file(s) |
+| **Threshold** | <N>% |
 
-### Aggregate New-Code Coverage
+---
 
-| Metric | Coverage | Target | Gap | Status |
-|---|---|---|---|---|
-| Line Coverage | 66.2% | 90% | 23.8% | ⚠ WARNING |
-| Condition Coverage | 60.0% | 90% | 30.0% | ⚠ WARNING |
+## Coverage on New Code
 
-**Verdict:** PASS | WARNING — developer chose to continue
+| Metric | New Lines | Coverage | Target | Gap | Verdict |
+|---|---|---|---|---|---|
+| Line Coverage | <N> lines | <X.X>% | <threshold>% | <+/->X.X% | ✓ PASS / ⚠ BELOW |
+| Condition Coverage | <N> conditions | <X.X>% | <threshold>% | <+/->X.X% | ✓ PASS / ⚠ BELOW |
+| **Combined (gate)** | — | **<X.X>%** | **<threshold>%** | **<+/->X.X%** | **✓ PASS / ⚠ BELOW** |
 
-### Per-File Breakdown
+> Combined = (covered lines + covered conditions) / (total lines + total conditions) — matches SonarQube's quality gate formula.
 
-| File | Line Cov | Uncov Lines | Cond Cov | Uncov Conds |
-|---|---|---|---|---|
-| PointsEngineRuleEditorImpl.java | 0.0% | 12 | 0.0% | 8 |
-| PointsEngineRuleConfigThrift.java | 93.3% | 2 | 100% | 0 |
-| PartnerProgramIdempotency.java | 100% | 0 | 100% | 0 |
+---
 
-### Uncovered Methods at Exit
-*(omit this section entirely on PASS)*
+## Per-File Breakdown
 
-- PointsEngineRuleEditorImpl#getRulesByOrg (line 34)
-- PointsEngineRuleEditorImpl#deleteRule (line 67)
+| File | New Lines | Line Cov | Uncov Lines | Cond Cov | Uncov Conds | Combined |
+|---|---|---|---|---|---|---|
+| EnumTypeResolverImpl.java | 10 | 100% | 0 | 85.7% | 2 | 91.7% |
+
+---
+
+## Verdict
+
+**✓ PASS** — Combined coverage on new code is X.X%, above the X% threshold.
+
+*or*
+
+**⚠ WARNING** — Combined coverage on new code is X.X%, below the X% threshold. Developer chose to continue.
+
+---
+
+## Uncovered Methods
+*(omit this section entirely if verdict is PASS)*
+
+| File | Method | Line |
+|---|---|---|
+| PointsEngineRuleEditorImpl.java | `getRulesByOrg` | 34 |
+| PointsEngineRuleEditorImpl.java | `deleteRule` | 67 |
 ```
 
 ---
@@ -497,6 +726,10 @@ NEXT PHASE: Backend Readiness (10b)
 | Multi-module project | Find jacoco.xml per module or aggregate report (Step 0) |
 | Aggregate report missing in multi-module | Merge per-module reports manually |
 | JUnit version not detected | Default to JUnit 4 for stub generation |
+| JaCoCo already in pom.xml | Use `mvn test` only — do NOT add `prepare-agent` CLI arg (causes dual-agent crash, exit code 134) |
+| Tests in separate module from source | `mvn install -f <source-module>/pom.xml -DskipTests -q` first, then run from test module — skipping install means tests run against stale `.m2` snapshot |
+| jacoco.xml missing but jacoco.exec exists | Test module has no production classes — generate report from source module with `-Djacoco.dataFile=<test-module>/target/jacoco.exec` |
+| Scope = uncommitted (option 2) | Use `git diff <BASE_BRANCH>` not `git diff <BASE_BRANCH>..HEAD` — includes staged + unstaged edits |
 | `session-memory.md` not found | Run standalone without it — optional input |
 | `--file` path not found | Print error and exit |
 | `/tmp` scripts left behind | Always `rm /tmp/sg_parse.py` and `/tmp/sg_methods.py` after use |

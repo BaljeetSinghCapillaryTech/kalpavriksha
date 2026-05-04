@@ -1,7 +1,7 @@
 # Sonar Gate — User Guide
 
-**Version:** 1.0
-**Date:** 2026-04-29
+**Version:** 1.1
+**Date:** 2026-04-30
 **Author:** Ritwik Ranjan Pathak
 
 ---
@@ -24,8 +24,9 @@ The goal is simple: **never have a CI build fail on coverage again.** You catch 
 | **Auto-detects base branch** | Asks the remote which branch is the default (main, master, or custom) — then confirms with you before running |
 | **Multi-module Maven support** | Works on single-module and multi-module projects; finds the correct jacoco.xml automatically |
 | **Framework-aware stub generation** | Detects JUnit 4, JUnit 5, or TestNG from your existing tests before generating stubs |
+| **Consolidated stub generation** | Similar methods are merged into one stub (e.g. `getRulesByOrg` + `getRulesByOrgAndType` → one `test_getRules`) to keep the stub file small and focused; each stub lists what it covers in a `// TODO covers:` comment |
 | **Soft gate** | Warns you if coverage is below 90% but lets you decide — improve now or continue to the next phase |
-| **Remediation loop** | Generates compilable test stubs for every uncovered method; loops until you hit 90% or choose to continue |
+| **Remediation loop** | Generates compilable test stubs for uncovered methods, merged by behaviour; loops until you hit 90% or choose to continue |
 | **Auto-cleanup** | Deletes generated stub file automatically once coverage passes |
 | **Standalone + pipeline** | Runs as Phase 10a in the feature pipeline, and also works standalone at any point on any branch |
 | **Audit trail** | Always writes sonar-gate.md with per-file breakdown and verdict — available for code reviewers |
@@ -146,7 +147,16 @@ If coverage is below 90%, the skill asks:
    [2] Continue — log warning and proceed
 ```
 
-**Choose [1] Improve:** The skill generates a file called `SonarGateStubs.java` in your test directory with one stub method for every uncovered method. Open that file, fill in the test logic, then tell the skill you are ready. It re-runs JaCoCo automatically and shows the updated report. Repeat until you reach 90%.
+**Choose [1] Improve:** The skill generates a file called `SonarGateStubs.java` in your test directory. Instead of one stub per method, similar methods are merged to keep the file small:
+
+- Methods with the same verb prefix (e.g. `getRulesByOrg`, `getRulesByOrgAndType`) → one stub named `test_getRules`
+- Getters and setters for the same field → one `test_gettersAndSetters` stub
+- Constructors → folded into the first real method stub
+- Each stub has a `// TODO covers: MethodA (line N), MethodB (line N)` comment so you know exactly what to test
+
+The skill prints a summary like: `Stubs generated: 3 (consolidated from 7 uncovered methods — 4 merged)`.
+
+Open `SonarGateStubs.java`, fill in the test logic (replace each `fail()` with real assertions), then tell the skill you are ready. It re-runs JaCoCo automatically and shows the updated report. Repeat until you reach 90%.
 
 **Choose [2] Continue:** The skill logs a warning in `sonar-gate.md` and exits. You can run `/sonar-gate` again at any time.
 
@@ -213,6 +223,12 @@ The skill surfaces the last 30 lines of Maven output and stops. Fix the failing 
 **Q: The stub file uses JUnit 4 but my project uses JUnit 5 — will it work?**
 The skill detects your test framework from existing test files before generating stubs. It will use whichever framework your project already uses.
 
+**Q: There are 12 uncovered methods but only 4 stubs were generated — is something missing?**
+No. The skill consolidates similar methods to keep the stub file manageable. Each stub lists every method it covers in a `// TODO covers:` comment at the top. Filling in one stub body and writing assertions for all the listed variants is intentional — the goal is fewer, more meaningful tests rather than one stub per method signature.
+
+**Q: What exactly gets merged?**
+Four rules apply: (1) methods sharing the same camelCase verb prefix (e.g. `create`, `createWithDefaults`, `createForOrg` → one stub); (2) getter/setter pairs for the same field → one `gettersAndSetters` stub; (3) constructors → folded into the first real method stub; (4) all `<clinit>` entries → ignored. Everything else gets its own stub.
+
 **Q: I ran it and got PASS immediately with no report. Why?**
 This means no production Java files changed on your branch vs the base branch. Either you are on the wrong branch, or the base branch was detected incorrectly. Run `git diff master --name-only -- '*.java'` to verify.
 
@@ -247,7 +263,8 @@ Phase 11  — Reviewer
 5. Confirm base branch (Enter to accept)
 6. Wait ~2-3 min for Maven
 7. Read the report
-8. [1] Improve → fill in SonarGateStubs.java → re-run
+8. [1] Improve → read "// TODO covers:" in each stub → fill in assertions → re-run
    [2] Continue → warning logged, proceed
+   Note: stubs are consolidated — fewer stubs than methods, each stub covers multiple
 9. Push once you see PASS
 ```
